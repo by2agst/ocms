@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.33",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService (rejectSubmission), helpers/FurnishSyncHelper, rejection/{FurnishRejectionController,FurnishRejectionServiceImpl}}. ocmseserviceapi workflows/furnish/{FurnishValidationServiceImpl,FurnishSubmissionServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver. ocmsadminui hooks/useFurnishAPI.ts",
+  "note": "There is no 'resend the notice to the portal' step. The only method named resendNoticeToPortal (FurnishRejectionServiceImpl.java:149-158) is a TODO stub that always returns true, and its controller (POST /furnish/officer/reject) is not called by the staff portal; the UI uses manual-review/reject, which has no resend step. The outcome is still reached another way: status R is synced to the PII DB, and the eService validation only blocks notices that have an application with status P, so a rejected notice can be furnished again and each submission creates a new txnNo plus new documents. One catch: the PII DB sync fails silently (it only logs an error), so if it fails the portal still sees status P and keeps blocking a new furnish until it is fixed. Behaviour on the production portal was not run.",
+  "recommendation": "Do not claim it as 'resend to the portal'. What is true: the owner can furnish again because the portal does not block status R. The status sync to the PII DB fails silently and the explicit resend is only a stub. Claim partially",
+  "steps": [
+    {
+      "step": "Rejection succeeds and the request is stored as Rejected",
+      "detail": "ManualReviewService.rejectSubmission saves status 'R' and remarks through furnishService.update (ManualReviewService.java:466-470). Same fact as OCMS41.32 step 1, same fit."
+    },
+    {
+      "step": "The Rejected status is synced to the database the portal reads",
+      "detail": "After the update, syncFurnishApplicationToPii saves the record to eocms_furnish_application in the PII DB (FurnishSyncHelper.java:217-226). On failure it only logs an error and does not throw (:231-236), so the reject still succeeds while the portal keeps seeing status P. Sebagian because of the silent failure."
+    },
+    {
+      "step": "OCMS explicitly resends the notice to the Online Customer Portal",
+      "detail": "There is no resend on the path the UI uses (ManualReviewService.rejectSubmission). resendNoticeToPortal in FurnishRejectionServiceImpl.java:149-158 contains a TODO and always returns true, and the result is even reported as noticeResentToPortal=true (:83, FurnishRejectionController.java:51). That controller (POST /furnish/officer/reject) is not called by ocmsadminui. The mechanism differs from what was asked: the notice is not 'resent', the portal just stops blocking it (next step)."
+    },
+    {
+      "step": "The owner/hirer can furnish the rejected notice again on the portal",
+      "detail": "The eService furnish validation only blocks notices that already have an application with status P (excludeStatuses = List.of('P'), FurnishValidationServiceImpl.java:266-273; batch version :327-333, :396-401). Status R does not block. The notice stays in the list while the submitter's ID is still an offender and not a Driver (EocmsOffenceNoticeOwnerDriverRepository.java:66-80). Other conditions (furnishable stage, PS) still apply. Depends on the sync in step 2."
+    },
+    {
+      "step": "The owner submits new particulars with additional information or documentary proof",
+      "detail": "Every submission creates a new txnNo per notice (FurnishSubmissionServiceImpl.java:50-55, generateTxnNo :136-139), and uploaded documents are linked to that txnNo (:98-101). The old R record is not changed. So resubmission with extra documents is supported."
+    }
+  ]
+}

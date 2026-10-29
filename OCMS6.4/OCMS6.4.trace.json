@@ -1,0 +1,55 @@
+{
+  "story": "OCMS6.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/list/{NoticeSearchAllList, NoticeSearchOutstandingList}, pages/NoticeSearch/hook/useSearchParams, components/datagrid/{Datagrid, column/index}, hooks/useTable. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{OcmsValidOffenceNoticeController, OcmsValidOffenceNoticeServiceImpl}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Tabel ringkasan notice dengan kolom kunci (nomor notice, tanggal/waktu offence, rule code, amount payable, status bayar) dan filter Payment Status ada. Gap pertama: urutan default di pencarian All Notices adalah processing stage dulu, baru tanggal/waktu notice terbaru (server memberi noticeDateAndTime DESC hanya sebagai urutan kedua); hanya halaman Outstanding yang langsung urut tanggal terbaru. Gap kedua: sort lewat header kolom berfungsi, tetapi OCMS-DF-2026-187 (sort Payment Status, Pending UAT Verification) belum terverifikasi, dan sort kolom lain tidak punya tie-break tanggal. Kolom Summon No., NTAC No. dan Court Date selalu '-'. Tiket dipakai: OCMS-DF-2026-187, OCMS-SR-2026-048. Yang tidak bisa diverifikasi: tampilan di PRO setelah DF-187 dideploy.",
+  "recommendation": "Klaim tabel, kolom kunci dan filter status. Urutan default tanggal terbaru diklaim sebagian (benar di Outstanding, bukan di All Notices). Sort kolom ditahan sebagian sampai DF-187 lolos UAT",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah Apply, hasil pencarian tampil sebagai tabel ringkasan notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:113-173; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:135-170; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:55-80",
+      "fit": "Sesuai",
+      "detail": "Datagrid pada NoticeSearchAllList.tsx:113-173 dan NoticeSearchOutstandingList.tsx:135-170 POST validoffencenoticelist dan merender satu baris per notice dengan paging dan checkbox. OcmsValidOffenceNoticeController.java:55-80 mengembalikan data notice beserta current offender."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar diurutkan default berdasarkan tanggal dan waktu notice terbaru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:117-120; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:515-533; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:139-143",
+      "fit": "Sebagian",
+      "detail": "Mode Outstanding memakai sortBy noticeDateAndTime desc (NoticeSearchOutstandingList.tsx:139-143), sesuai story. Mode All Notices, yaitu pencarian utama, memakai sortBy lastProcessingStage desc (NoticeSearchAllList.tsx:117-120). Di server, OcmsValidOffenceNoticeServiceImpl.java:515-533 mengurutkan dengan CASE WHEN urutan processing stage dahulu, baru noticeDateAndTime DESC sebagai urutan kedua. Jadi urutan utama bukan tanggal/waktu terbaru; tanggal baru berlaku di dalam stage yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff bisa mengurutkan tabel dengan klik header kolom",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/Datagrid.tsx:337-355; ocmsadminui/src/hooks/useTable.ts:111; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:535-543; ocmsadminui/src/components/datagrid/column/index.tsx:270-282",
+      "fit": "Sebagian",
+      "detail": "Klik header (Datagrid.tsx:337-355) bergantian asc/desc dan mengirim $sort[kolom] (useTable.ts:111); server memetakannya ke ORDER BY (OcmsValidOffenceNoticeServiceImpl.java:535-543). Urutan kedua noticeDateAndTime hanya ditambahkan saat sort lastProcessingStage, jadi sort kolom lain tidak punya tie-break tanggal. OCMS-DF-2026-187 (Pending UAT Verification): sort kolom Payment Status sebelumnya memakai source suspensionType; di repo ini kolom Payment Status sudah memakai source crsReasonOfSuspension (column/index.tsx:270-282), tetapi tiket belum diverifikasi UAT, jadi tidak diklaim penuh."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel memuat informasi kunci: nomor notice, tanggal dan waktu offence, offence rule, amount payable",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/column/index.tsx:57-92; ocmsadminui/src/components/datagrid/column/index.tsx:158-164; ocmsadminui/src/components/datagrid/column/index.tsx:180-198; ocmsadminui/src/components/datagrid/column/index.tsx:284-296",
+      "fit": "Sesuai",
+      "detail": "Kolom Notice No. berupa link (column/index.tsx:57-92), Offence Date and Time dari noticeDateAndTime (158-164), Computer Rule Code dengan tooltip deskripsi rule (180-198) dan Total Amount Payable berformat $ dari amountPayable (284-296). Kolom lain: Offence Type, AN Flag, Place of Offence, Processing Stage, Vehicle No./Type, Suspension Type/Reason, Payment Status, Current Offender. Catatan: kolom Summon No., NTAC No. dan Court Date adalah placeholder yang selalu kosong ('-') (133-137, 142-146, 343-348)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel punya header dan filter status outstanding / settled",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/column/index.tsx:270-282; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:284-352; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:105-125",
+      "fit": "Sesuai",
+      "detail": "Kolom Payment Status menampilkan FP / Partially Paid / '-' dari crsReasonOfSuspension (column/index.tsx:270-282). Filter Payment Status (Unpaid, Fully Paid, Partial Paid) dipetakan di useSearchParams.tsx:284-352, dan halaman Outstanding Notices memakai filter bawaan yang mengecualikan PS keras dan notice non-FP (NoticeSearchOutstandingList.tsx:105-125) sesuai OCMS-SR-2026-048 (Closed, Prod deployed). Notice yang belum dibayar tampil '-' di kolom, bukan label 'Outstanding'."
+    }
+  ]
+}

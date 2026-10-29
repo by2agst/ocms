@@ -1,0 +1,73 @@
+{
+  "story": "OCMS3.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "thirdpartyapi workflows/cesTpApiARelay (CesCreateNoticeController /v1/cesWebhook-create-notice, service/CesNopoServiceImpl: validasi, cek subscription key, forward lewat APIM, audit). ocmsadminapi workflows/notice_creation/core (CreateNoticeController /cesWebhook-create-notice, CreateNoticeServiceImpl.processEHTWebhook, helpers/ValidationServices, NoticeProcessingHelper, NoticeRecordHelper), auth/filter/JwtFilter. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui: tidak relevan untuk story ini",
+  "note": "Status di sheet: 'Fully paid'. Tidak ada flow deck OCMS, jadi 'Sesuai' berarti code melakukan apa yang tertulis di teks story. Remark story: siap bila EHT memberi API doc, spesifikasi sama dengan dokumen Certis. Code yang ada adalah webhook Certis/CES (label 030-999): terima real-time, validasi, simpan VON/OND/eVON/eOND, AN dengan PS-ANS, UPL, stage awal, audit dan balasan. Seluruh perilaku itu Sesuai untuk jalur CES, tetapi langkah pertama dibuat Sebagian karena tidak ada bukti di repo bahwa 'EHT' di story adalah Certis; jalur lain bernama EHT juga ada (label 023 REPCCS_EHT di webhook REPCCS, endpoint ehtsftp-create-notice) dan jalur 'EHT webhook' sendiri hanya menerima owner CES (CreateNoticeServiceImpl.java:349). Bila URA memastikan EHT = Certis, langkah itu naik ke Sesuai. Tiket maintenance (semua Closed/Prod deployed, tidak menurunkan fit): OCMS-DF-2026-100, OCMS-DF-2026-154, OCMS-DF-2026-115. Yang tidak bisa dibuktikan dari repo: konfigurasi APIM/WAF, nilai subscription key, isi tabel subsystem label dan offence rule code per environment, dan spesifikasi API EHT. ocmsadminapi /v1/cesWebhook-create-notice terbuka tanpa JWT dan tanpa key (hanya relay yang cek key).",
+  "recommendation": "Bisa diklaim untuk perilaku penerimaan notice dari jalur Certis/CES. Konfirmasi dengan URA apakah EHT memakai jalur CES yang sama; bila ya, langkah pertama menjadi Sesuai. Tutup akses langsung ke ocmsadminapi /v1/cesWebhook-create-notice dari luar bila memungkinkan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem EHT mengirim parking offence notice ke OCMS secara real-time lewat satu panggilan (webhook) dan OCMS langsung menerimanya",
+      "repo": "thirdpartyapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/CesCreateNoticeController.java:22-25; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:165-182; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:103-109; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:284; thirdpartyapi/src/main/resources/application-prod.properties:22; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:180",
+      "fit": "Sebagian",
+      "detail": "Code hanya punya jalur Certis/CES, bukan jalur bernama EHT: Certis memanggil thirdpartyapi POST /v1/cesWebhook-create-notice (CesCreateNoticeController.java:22-25); relay mencocokkan Ocp-Apim-Subscription-Key dengan Key Vault (CesNopoServiceImpl.java:165-178), meneruskannya lewat APIM secara sinkron (:182) ke ocmsadminapi /v1/cesWebhook-create-notice (path di application-prod.properties:22, CreateNoticeController.java:103-109, processEHTWebhook di CreateNoticeServiceImpl.java:284), dan notice dibuat di request yang sama. Real-time-nya terbukti. Yang tidak terbukti: bahwa pengirim 'EHT' di story adalah sistem Certis ini. Tiket OCMS-DF-2026-100 menyebut 'CES/EHT' sebagai pengirim yang sama dan UI report memakai layout 'EHT' untuk sumber CES (ReportListNoticeFE.tsx:81-83), tetapi jalur lain bernama EHT juga ada: label 023 REPCCS_EHT diterima lewat webhook REPCCS (RepWebHookPayloadValidator.java:204-211) dan ehtsftp-create-notice (CreateNoticeController.java:97-101). Remark story menyebut spesifikasi EHT sama dengan dokumen Certis dan API doc EHT belum diberikan: cannot verify from repo. ocmsadminapi /v1/cesWebhook-create-notice dibuka tanpa JWT (JwtFilter.java:180) dan tanpa cek key; key hanya dicek di relay thirdpartyapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data notice diperiksa sebelum diterima (label subsystem 030-999 milik CES, field wajib, panjang field, offence rule code)",
+      "repo": "thirdpartyapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:80; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:96-155; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:340-355; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:165-188; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:375-378",
+      "fit": "Sesuai",
+      "detail": "Relay thirdpartyapi memeriksa panjang field (PayloadLengthValidator, CesNopoServiceImpl.java:80), subsystem label 3 digit pertama 030-999 (:96-108) dan nomor notice posisi 2-4 juga 030-999, lalu field wajib (:110-155). ocmsadminapi memeriksa label ada di database dan owner-nya CES (CreateNoticeServiceImpl.java:340-355) dan offence rule code harus ada di tabel untuk vehicle category itu (ValidationServices.java:165-188, dipanggil di :375-378). Semua kegagalan dibalas ke Certis sebagai appCode kegagalan (CesNopoServiceImpl.java:206-256). Isi data subsystem label dan rule code di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice of Parking Offence (NOPO) yang diterima disimpan sebagai notice baru di intranet (VON, OND) dan internet (eVON, eOND)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:359-364; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:811-812; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/CreateNoticeHelper.java:251; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:206-256",
+      "fit": "Sesuai",
+      "detail": "Setelah validasi dan cek duplicate (CreateNoticeServiceImpl.java:359-364), createNoticeRecord (:1195) menyiapkan entity dan batchSaveNoticeRecords (:811-812, CreateNoticeHelper.java:251) menyimpan VON/OND di intranet lalu eVON/eOND di internet (payment.sync.enabled=true di application-prod.properties:4). Relay hanya membalas OCMS-2000 ke Certis bila ocmsadminapi membalas OK; appCode lain, termasuk yang tidak dikenal, dibalas sebagai kegagalan (CesNopoServiceImpl.java:206-256, cabang terakhir :251-256). Tiket terkait, semuanya Closed/Prod deployed dan tidak menurunkan fit: OCMS-DF-2026-100 (notice 618800040C ada di internet tanpa VON intranet; save dipisah dan is_sync), OCMS-DF-2026-154 (kegagalan backend dilaporkan sukses ke Certis; kode di main sudah membalas gagal untuk appCode tidak dikenal), OCMS-DF-2026-115 (403 dari WAF Azure sebelum sampai ke aplikasi: infrastruktur, cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Advisory Notice (AN) yang diterima dikenali (an_flag Y dari pengirim) dan disimpan sebagai AN dengan PS-ANS",
+      "repo": "ocmsadminapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:370; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1056-1096; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:154-187; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:324-330; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:496-512",
+      "fit": "Sesuai",
+      "detail": "an_flag dari Certis diteruskan relay (CesNopoServiceImpl.java:370). Untuk label 030-999, checkANSForEHT meloloskan notice bila an_flag Y, nomor kendaraan ada dan offence type bukan kosong atau 0 (NoticeProcessingHelper.java:154-187). Notice lalu dibuat dengan suspension permanent PS-ANS, payment tidak diizinkan, eservice message ANS (CreateNoticeServiceImpl.java:1056-1096) dan baris suspended_notice PS-ANS disimpan bersama VON (NoticeRecordHelper.java:324-330, 496-512). Pengecekan 2 tahun offence sebelumnya sengaja dikomentari 'for next epic' (NoticeProcessingHelper.java:181-186): keputusan AN sepenuhnya ada di flag pengirim. Beda dengan jalur REPCCS di OCMS3.1 yang tidak membuat PS-ANS; perbedaan itu nyata di code (CreateNoticeServiceImpl.java:764 di ocmsadminprivateapi hanya ada di cabang CES)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice UPL (unauthorised use of parking lots, tanpa nomor kendaraan) dikenali dan disimpan",
+      "repo": "ocmsadminapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:383-388; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:188; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1018; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1147; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:390-409",
+      "fit": "Sesuai",
+      "detail": "Relay mengenali VehicleCategory 0, VehicleRegistration X dan LicencePlate N.A sebagai UPL dan memberi offence type U (CesNopoServiceImpl.java:383-388). ocmsadminapi menimpa offence type itu dengan hasil lookup tabel rule code (ValidationServices.java:188), memetakan nomor kendaraan N.A ke vehicle registration type X (CreateNoticeServiceImpl.java:1018) dan menjalankan setProcessingStagesForX (:1147): payment N, composition_amount 0, next stage DN1 (NoticeProcessingHelper.java:390-409). Sama dengan jalur REPCCS di OCMS3.1. Ada tidaknya baris rule code untuk category 0 di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tersimpan langsung diberi processing stage awal supaya OCMS bisa mulai memprosesnya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1147-1150; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:422-440; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:390-409; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1069-1085",
+      "fit": "Sesuai",
+      "detail": "Kendaraan V/S/D mendapat last stage NPA, next stage ROV, payment diizinkan (NoticeProcessingHelper.java:422-440). Tipe X mendapat next stage DN1 dengan payment diblok (:390-409). Notice AN mendapat NPA/ROV plus suspension PS-ANS (CreateNoticeServiceImpl.java:1069-1085). Semua diisi sebelum VON disimpan (:1147-1150). Cron downstream yang mengambil stage ROV/DN1 adalah story lain dan tidak ditelusuri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tiap penerimaan dicatat di audit transaction dan pengirim langsung menerima hasilnya (OK atau ditolak); kegagalan bisa ditelusuri",
+      "repo": "thirdpartyapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:259; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:453-490; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/service/CesNopoServiceImpl.java:206-256; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/CesCreateNoticeController.java:58-65",
+      "fit": "Sesuai",
+      "detail": "Setiap jalur keluar relay menyimpan baris audit lewat saveAuditOnce dengan statusNum 0 untuk sukses dan 1 untuk gagal (CesNopoServiceImpl.java:259, 453-490), termasuk kegagalan validasi, key salah, dan appCode gagal dari ocmsadminapi (:206-256). Exception tak terduga di controller disimpan lewat saveAuditForError (CesCreateNoticeController.java:58-65). Pengirim menerima JSON appCode dan message pada request yang sama. Report 'Notices Created by Enforcement Systems' membaca baris audit status 1 ini untuk sumber CES (EnforcementServiceImpl.java:346-376). Beda dengan REPCCS di OCMS3.1, yang kegagalan di dalam createNotice tidak ditandai di audit."
+    }
+  ]
+}

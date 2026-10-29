@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi agencies/lta/upload (LtaUploadHelper), agencies/lta/download (LtaProcessingOrchestrator), workflows/datahiveuenfin, cron-schedules-prod.properties. No code requests LTA data for TS-UNC notices. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "The story asks OCMS, when the address is unchanged or the pass is invalid, to send the vehicle number and receive the latest owner particulars and the alternative mailing address from DOS, then compare the registered address with the LTA mailing address for the same ID. What exists is only the generic LTA enquiry for notices at stage ROV (LtaUploadHelper.java:88), which stores the lta_reg and lta_mail addresses on ONOD; TS-UNC notices (stage RD1-DR3) are not selected by that enquiry. There is no 'address unchanged / pass invalid' decision (see OCMS20.8) and no comparison of the registered address with lta_mail. DOS = LTA cannot be confirmed from repo. No maintenance ticket in the CSV covers this step. Story status: Requirement given - Gen flow (demo_remark 'No vault').",
+  "recommendation": "Do not claim in full. A generic LTA enquiry exists, but it is not triggered for TS-UNC notices and there is no decision or address comparison",
+  "steps": [
+    {
+      "step": "OCMS decides the address is unchanged or the pass is invalid (foreign vehicle owner)",
+      "detail": "There is no 'address unchanged' or 'pass invalid' decision that triggers the next step: no address comparison exists and pass type/validity is not stored for adhoc rows (see OCMS20.8 steps 4 and 5; UnclaimedReportHelper.java:317-340, DataHiveUenFinService.java:602-637)."
+    },
+    {
+      "step": "OCMS sends the vehicle number to DOS",
+      "detail": "The generic LTA enquiry sends the vehicle number, but only for notices at stage ROV (LtaUploadHelper.java:88; cron.ltaupload.enabled=true in cron-schedules-prod.properties:135). TS-UNC notices sit at stage RD1-DR3, so they are not selected; there is no per-returned-notice trigger. DOS = LTA cannot be confirmed from repo."
+    },
+    {
+      "step": "OCMS receives the latest owner particulars and alternative mailing address",
+      "detail": "The LTA result writes the lta_reg and lta_mail addresses on ONOD (LtaProcessingOrchestrator.java:558-559, 728) and marks letter_address; but only for notices in the ROV-stage enquiry, and the error-status update for lta_mail is commented out (:389). It does not apply to TS-UNC notices."
+    },
+    {
+      "step": "OCMS compares the registered address with the LTA mailing address for the same ID",
+      "detail": "No comparison of the mha_reg address with lta_mail was found in ocmsadminprivateapi: both addresses are only stored as separate ONOD rows and one of them is marked letter_address (LtaProcessingOrchestrator.java:534-559). A grep for lta_mail/LTA_MAILING with equals/compare finds no comparison."
+    }
+  ]
+}

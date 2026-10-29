@@ -1,0 +1,29 @@
+{
+  "story": "OCMS34.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Report/index.tsx, pages/Report/lists/{ReportList.tsx,ReportListWorkOrder.tsx}, utils/models/Fapi.d.ts, pages/Report/hook/useDownloadReport.ts. ocmsadminapi workflows/reports/daily/DailyReportServiceImpl.java (resolveBasePaths), workflows/notice_management/filedownload/downloadfile/FileDownloadController.java. ocmsadminprivateapi src/main/resources/cron-schedules-prod.properties. No job, source, or authorization mapping for a daily WA report",
+  "note": "The story status is blank in stories.json (requirement not given), so it is traced normally. The story asks for a downloadable daily report of WA records added and removed with reasons (WA issued/cancelled/paid). No job produces this report (cron-schedules-prod.properties has no WA cron). The only trace is the 'Workorder Reports' tab in the staff portal (Report/index.tsx:41-44, ReportListWorkOrder.tsx), but that tab sits inside a commented-out JSX block (ReportList.tsx:147-201) so it is not displayed, its resource is an empty string (ReportListWorkOrder.tsx:48), its columns (notice_no, vehicle_no, ref_num, is_converted) do not match the story, and Fapi.d.ts:307 is only a comment reports/workorder/excel with no controller. The daily report download uses DailyReportServiceImpl.resolveBasePaths, which only knows LTA, MHA, TOPPAN, DATAHIVE, ENOTIF, UEN, FIN, VHUB and returns 400 for any other source (:163-188, :104-107). No relevant maintenance ticket.",
+  "recommendation": "Do not claim: there is no daily WA report generator and the Workorder Reports tab is commented out. The generic report download mechanism exists but has no WA source",
+  "steps": [
+    {
+      "step": "A daily job produces the report of WA records added and removed",
+      "detail": "There is no WA report cron/job. The existing report crons belong to other sources (cron.dailyreport:255-257, vhubreport:180-186). The WA database it would report on does not exist either (OCMS34.1). case-insensitive grep across the six repos (warrant, workorder, work_order, tagging, visit, enforcement, bailiff, service provider, matrix) finds no entity, controller, cron, or service for this feature."
+    },
+    {
+      "step": "The report lists the records added",
+      "detail": "The 'Workorder Reports' tab (ReportListWorkOrder.tsx:48) uses an empty resource and columns notice_no, vehicle_no, ref_num, source, is_converted, date_time_received, other_info; there is no notion of records added. The tab is commented out (ReportList.tsx:147-201)."
+    },
+    {
+      "step": "The report lists the records removed with reasons (warrant issued/cancelled/paid)",
+      "detail": "There is no reason or removal status column in the Workorder Reports tab (ReportListWorkOrder.tsx:55-68) or in any backend. No logic ties warrant issued/cancelled/paid to a removal reason."
+    },
+    {
+      "step": "The report file is available under a WA source in the daily report download",
+      "detail": "DailyReportServiceImpl.resolveBasePaths only knows LTA, MHA, TOPPAN, DATAHIVE, ENOTIF, UEN, FIN, VHUB (:163-188) and any other source gets 400 (:104-107). There is no WA or WORKORDER source. There is no OCMS_REPORT authorization mapping for work order in api-authorization.properties."
+    },
+    {
+      "step": "The officer downloads the daily report in the staff portal",
+      "detail": "The Workorder Reports tab sits inside a commented-out JSX block (ReportList.tsx:147-201), so no tab or button is shown to the officer. The generic blob download mechanism exists (useDownloadReport.ts:31 calls download/blob) and is used by other reports, but there is no WA source to send to it."
+    }
+  ]
+}

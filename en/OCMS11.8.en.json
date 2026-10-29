@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: NotificationSmsEmailJob + NotificationSmsEmailHelper (RD1 reminder query, DataHive Singpass/CorpPass contact refresh, contact validation, opt-out/passport), CombinedSchedulerTriggerController, cron-schedules-{dev,uat,prod}.properties. Other repos: no relevant code",
+  "note": "Status in stories.json: Demo paid (50% of 75%). The same eNotification job handles ENA and the post-letter reminders (RD1-DR3). For notices whose last stage is RD1 and nearing the due date, the job prepares contacts (DataHive Singpass refresh for individuals, CorpPass for companies), validates mobile/email, and skips opt-outs/passport. Partial because the DataHive refresh is controlled by cron.enareminder.datahive, which is false in dev/uat/prod, so the job uses the number/email stored in ocms_offence_notice_owner_driver, and because the job is switched off (cron.notification.enabled=false) in every environment so it only runs via the manual trigger. Ticket OCMS-DF-2026-180 (Prod deployment, remarks: 'Awaiting eNotification cron to activate') confirms the cron is not active yet. Per-environment property values in Azure: cannot verify from repo. DOS and Vault data sources: cannot verify from repo.",
+  "recommendation": "Partial claim: contact-check and opt-out logic exist, but the DataHive refresh and the eNotification cron are off in the properties",
+  "steps": [
+    {
+      "step": "After the 1st letter (RD1) is sent, OCMS selects the notices that need an electronic reminder",
+      "detail": "queryRecordsForReminder picks notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) whose due date (last_processing_date + POS + PDD) is inside the ENOTEDAYS window, with no send record for that stage yet, offender_indicator 'Y', not I/D/V vehicles, and no revival between the two processing dates (NotificationSmsEmailHelper.java:1076-1167; called from NotificationSmsEmailJob.java:161-162). Partial because cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236), so the job only runs through the manual trigger (CombinedSchedulerTriggerController.java:105-108); OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. Azure values: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the latest mobile number / email from the data source (Epic OCMS9) and updates the owner record",
+      "detail": "The job calls batchPreloadContactInfo then refreshContactInfo per notice (NotificationSmsEmailJob.java:185-188). When enabled, individuals are looked up in DataHive Singpass (NotificationSmsEmailHelper.java:2710-2760) and companies in CorpPass (2496-2530), and the new number/email is written to ocms_offence_notice_owner_driver through updateOcmsContactInfo (2800-2828). However refreshContactInfo returns early using the stored contact when cron.enareminder.datahive is not 'true' (NotificationSmsEmailHelper.java:2461-2475; 2325-2335 for preload) and the property is false in dev, uat and prod (cron-schedules-prod.properties:48). So under the repo configuration the latest-contact check does not run. Whether DataHive = 'DOS' in the story: cannot verify from repo."
+    },
+    {
+      "step": "Notices without valid contact details (individual without mobile, company without email) are skipped",
+      "detail": "validateContactInfo rejects records with a contactError, individuals without phoneNo, and companies (id_type B) without email (NotificationSmsEmailHelper.java:2259-2290). In the job, failed records are skipped with a log; for reminder stages there is no stage patch (only ENA is redirected to RD1) (NotificationSmsEmailJob.java:254-266), and companies are kept out of the SMS batch (274)."
+    },
+    {
+      "step": "Owners who opted out or hold a passport do not get an electronic reminder",
+      "detail": "The reminder query drops id_no values in ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1131-1134); the job loads the whole exclusion list once (loadAllExcludedIds, 1207-1230) and skips excluded records or id_type P/PASSPORT before the SMS batch is prepared (NotificationSmsEmailJob.java:226-241). The exclusion list contents are DB data: cannot verify from repo."
+    }
+  ]
+}

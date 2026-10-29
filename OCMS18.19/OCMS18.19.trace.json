@@ -1,0 +1,55 @@
+{
+  "story": "OCMS18.19",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension/processNoticeList/processSingleNotice, helpers/PermanentSuspensionHelper.processPS, SuspensionBaseHelper.updateDatabase (updateVON, updateEVON, insertSuspendedNotice). Salinan di ocmsadminprivateapi utilities/suspension_helpers.",
+  "note": "Jalur utama sesuai story: POST /plus-apply-suspension tanpa PS lama menjalankan validasi, memperbarui VON, menyalin ke eVON, menyimpan baris ocms_suspended_notice bersumber PLUS, lalu membalas success dengan appCode OCMS-2000. Catatan kecil: (1) updateDatabase menelan exception dan mengembalikan error map (SuspensionBaseHelper.java:493-496), jadi transaksi @Transactional tidak otomatis rollback dan penulisan setengah jadi mungkin terjadi (perlu diverifikasi dengan test); (2) kegagalan sinkronisasi eVON hanya di-log (SuspensionBaseHelper.java:431-434), VON dan eVON bisa berbeda; (3) refundNoticeId pada response PS refund dilaporkan salah di OCMS-DF-2026-152 (status Ready to DEV/In SIT), kode main sudah mengembalikan ID refund asli (PermanentSuspensionHelper.java:358-370) tetapi status deployment tidak bisa dipastikan dari repo. OCMS-DF-2026-027 (sr_no ganda pada batch, closed) dibahas di langkah batch. Isi tabel kode PS per environment dan penerimaan di PLUS: cannot verify from repo.",
+  "recommendation": "Boleh diklaim penuh untuk sisi OCMS. Catat bahwa penerimaan di PLUS dan data kode PS per environment tidak bisa dibuktikan dari repo; pantau OCMS-DF-2026-152 untuk response refund.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memastikan notice tidak memiliki permanent suspension yang sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:195-201; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130",
+      "fit": "Sesuai",
+      "detail": "Bila suspensionType di VON bukan PERMANENT, validateOverlap langsung mengembalikan null (PermanentSuspensionHelper.java:198-201) dan blok revive tidak dijalankan (PermanentSuspensionHelper.java:127). Notice berstatus TS boleh dinaikkan menjadi PS tanpa error (SuspensionProcessingHelper.java:372-373 untuk checking)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi permintaan (field wajib, kode PS diizinkan untuk PLUS, stage, status bayar)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:503-543; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:63-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-335",
+      "fit": "Sesuai",
+      "detail": "Field wajib dicek di controller (SuspensionProcessingController.java:503-528) dan helper (PermanentSuspensionHelper.java:63-69), notice harus ada (PermanentSuspensionHelper.java:72-75), kode PS harus aktif untuk source PLUS di ocms_suspension_reason (PermanentSuspensionHelper.java:100-104, SuspensionBaseHelper.java:294-335), stage diperiksa (PermanentSuspensionHelper.java:106-111) dan notice berbayar hanya menerima kode refund (PermanentSuspensionHelper.java:113-117, 180-192). Isi ocms_suspension_reason dan PS_REFUND_CODES per environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan permanent suspension pada notice dengan kode suspension yang ditentukan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:132-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-377; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:383-435; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:474-497",
+      "fit": "Sesuai",
+      "detail": "processPS memanggil updateDatabase (PermanentSuspensionHelper.java:139-141): updateVON mengisi suspensionType = PS, eprReasonOfSuspension = kode, tanggal, dueDateOfRevival null, dan mematikan payment_acceptance_allowed untuk kode di PS_DISABLE_PAYMENT (SuspensionBaseHelper.java:340-356); updateEVON menyalin ke eVON (SuspensionBaseHelper.java:383-435); insertSuspendedNotice menyimpan baris dengan source PLUS, officer, remarks, process_indicator Manual (SuspensionBaseHelper.java:443-467). Risiko: exception di updateDatabase ditelan (SuspensionBaseHelper.java:493-496) dan kegagalan eVON hanya di-log (SuspensionBaseHelper.java:431-434)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Beberapa notice dalam satu permintaan diproses satu per satu dengan nomor urut suspension masing-masing",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:995-1018; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1071-1073",
+      "fit": "Sesuai",
+      "detail": "processNoticeList berulang per notice dan memanggil generateBaseSrNo() di dalam loop (SuspensionProcessingController.java:997, 1071-1073) sehingga tiap notice mendapat sr_no dari sequence SUSPENDED_NOTICE_SEQ. Ini perbaikan OCMS-DF-2026-027 (sr_no ganda pada batch, closed, prod deployed); reseed sequence di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan status berhasil ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:149-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:552-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1199",
+      "fit": "Sesuai",
+      "detail": "Response per notice {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150, SuspensionBaseHelper.java:541-548); addAppCodeToResults menambah appCode OCMS-2000 (SuspensionProcessingController.java:1191-1192) dan list dikirim HTTP 200 (SuspensionProcessingController.java:555). Pada PS refund ditambah refundNoticeId dan refundCreDate (PermanentSuspensionHelper.java:153-156); bug nilai refundNoticeId pada OCMS-DF-2026-152 belum tertutup di ticket, kode main mengembalikan ID refund asli (PermanentSuspensionHelper.java:358-370). Penerimaan di PLUS: cannot verify from repo."
+    }
+  ]
+}

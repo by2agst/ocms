@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (streamLtaUploadData), framework/workflows/agencies/lta/{upload/helpers/LtaUploadHelper, download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator,LtaDatabaseOperations,LtaIdTypeUtil}}, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this step",
+  "note": "Story status 'Fully paid'. The story only refers to Epic OCMS7 (check and update vehicle owner details), so it is judged through the LTA Upload/Download jobs in ocmsadminprivateapi (the stale copy ocmsadminprivateapi/cronservice/ is not used as evidence). The story says DOS; the code uses LTA for owner data; whether DOS equals LTA cannot verify from repo. The upload query selects ROV, type O/E, not PS, not foreign vehicles; the LTA result fills owner/driver and ID type (N/F/P/B). The ID type part works as the story says. However the ROV loop still has defects that are not closed: OCMS-DF-2026-160 (Pending Closure, 894 notices left ROV without ownership and TS-ROV resend is inconsistent) and OCMS-SR-2026-182 (Pending UAT, 1,367 notices stuck at ENA/RD1 without offender details), so the update and TS-ROV steps are only Sebagian. OCMS-DF-2026-118 (exclude foreign vehicle) and OCMS-DF-2026-052 (Diplomat patch) are closed. The LTA file content and per-environment schedules cannot verify from repo.",
+  "recommendation": "The ID type identification and notice selection can be claimed. Owner particulars update and the TS-ROV loop can be treated as done only after OCMS-DF-2026-160 and OCMS-SR-2026-182 are closed and verified.",
+  "steps": [
+    {
+      "step": "OCMS selects NOPOs of local vehicles at stage ROV to enquire at the agency (foreign vehicles and PS notices excluded)",
+      "detail": "The streamLtaUploadData query picks notices with next_processing_stage = 'ROV', next_processing_date <= today, offence_notice_type IN ('O','E'), suspension_type not PS, and vehicle_registration_type != 'F' (foreign vehicles removed, see OCMS-DF-2026-118 closed). One edge case: in SQL, != 'F' drops rows whose vehicle_registration_type is NULL. The LTA Upload cron is enabled=true in prod (cron-schedules-prod.properties:135). The story says DOS, the code sends to LTA; whether the two are the same cannot verify from repo."
+    },
+    {
+      "step": "OCMS receives the agency result and updates the vehicle owner's particulars (owner/driver, notice detail, address)",
+      "detail": "LtaDownloadHelper.processRecord calls updateNoticeWithOwnerData (line 416), which updates ocms_valid_offence_notice, ocms_offence_notice_detail and ocms_offence_notice_owner_driver; the LTA Download cron is enabled=true in prod. But OCMS-DF-2026-160 (Pending Closure) records 894 notices that advanced to ENA/RD1 without ever receiving ownership, and OCMS-SR-2026-182 (Pending UAT) records 1,367 notices stuck at ENA/RD1 without offender details, so the update cannot yet be fully relied on. OCMS-DF-2026-052 (Diplomat wrongly patched to ENA) is closed."
+    },
+    {
+      "step": "If the agency finds no owner data (error code 1-4), OCMS applies TS-ROV so the notice loops back into the enquiry cycle",
+      "detail": "For error codes 1, 2, 3, 4, processRecord calls applyTsRovStatus (LtaDownloadHelper.java:400) and stops. The design matches, but OCMS-DF-2026-160 (Pending Closure) reports the loop is unreliable: 24 TS-ROV notices are resent inconsistently (some wait 2-24+ days with no resend). OCMS-SR-2026-182 (Pending UAT) points to the same issue."
+    },
+    {
+      "step": "OCMS determines and stores the owner's ID type (NRIC, FIN, passport, company) from the ID type sent by the agency",
+      "detail": "LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms maps the LTA type to N (NRIC, code 1), F (FIN, code D), P (passport, codes 2 and 3) and B (company, codes 4-9, A-C); LtaDatabaseOperations saves it to the idType column on owner/driver (lines 142-144). Note: an unknown or empty type falls back to N (line 56), so a new LTA type would be treated as NRIC. The same fact is rated Sesuai in OCMS8.1."
+    }
+  ]
+}

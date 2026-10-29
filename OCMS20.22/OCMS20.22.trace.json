@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/hstreport/{services/HstReportServiceImpl,helpers/HstReportHelper} (laporan Excel + email statistik ke OIC); ocmsadminapi HstManagementServiceImpl (update-hst, revive-hst); ocmsadminui route /hst/update dan /hst/revival. Tidak ada work item atau dashboard OIC",
+  "note": "Story berstatus 'Requirement given - Gen flow'. Isi yang diminta (alamat lama vs alamat baru dari agensi) ada, tetapi sebagai baris di Excel 'Monthly HST Data Report' yang hanya di-upload ke blob; yang di-email ke OIC hanya laporan statistik 11 angka. Tidak ada work item (record, status, assignee) dan tidak ada dashboard OIC untuk item HST; satu-satunya work item di staff UI adalah UPL Endorsement. Langkah pembandingan alamat berbagi fit yang sama dengan OCMS20.21 (Sebagian) karena bergantung pada query_reason yang tidak ditulis code dan report_generated yang tidak direset. Penerima email dari property email.report.hst.oic.recipients (default dua alamat di kode); nilai prod cannot verify from repo. Tidak ada tiket pemeliharaan yang mengubah verdict.",
+  "recommendation": "Klaim sebagian untuk isi alamat lama vs baru; jangan klaim work item atau routing ke dashboard OIC. Butuh keputusan: terima laporan Excel + email statistik sebagai pengganti, atau bangun work item/inbox.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah registered address yang diterima berbeda dari alamat yang dipegang OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:381-406; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:465-472; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:650-657; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:99; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256",
+      "fit": "Sebagian",
+      "detail": "Pembandingan hanya hidup di laporan. fetchHstDataWithAddressComparison join ocms_hst dengan ocms_temp_unc_hst_addr (HstReportHelper.java:381-406); alamat lama dan baru dirangkai jadi teks lalu dibandingkan dengan equals (:465-472) untuk kolom 'Address Changed'; statistik getAddressesChanged hanya membandingkan street_name dan postal_code (:650-657). Berjalan di Daily Report job 08:00 (cron.dailyreport.schedule=0 0 8 * * ?, enabled=true, cron-schedules-prod.properties:255-256; DailyReportJobsScheduler.java:99). Gap: hasil tidak disimpan sebagai flag per ID dan ocms_hst tidak diupdate dari job ini; perbandingan teks bisa memberi false 'Yes' kalau floor/unit kosong di satu sisi (data tidak bisa dicek dari repo). Query laporan memfilter query_reason='HST' (:405) dan report_generated (:406), tetapi tidak ada code yang mengisi query_reason: entity OcmsTempUncHstAddr tidak punya field query_reason maupun report_generated (OcmsTempUncHstAddr.java:36-114) dan upsert MHA tidak mengisinya (MhaNricDownloadHelper.java:3212-3260); report_generated hanya diset 'Y' oleh job laporan. Apakah DB default/trigger mengisi cannot verify from repo; kalau kosong, laporan HST kosong. Setelah laporan pertama, report_generated diset 'Y' (HstReportHelper.java:612-619) dan upsert berikutnya tidak meresetnya, jadi hasil bulan berikutnya untuk ID yang sama bisa tidak masuk laporan (kecuali ada trigger, cannot verify)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item berisi alamat existing di OCMS dan alamat baru dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:258-296; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:441-480; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:381-408",
+      "fit": "Sebagian",
+      "detail": "Isi yang diminta story ada di Excel 'Monthly HST Data Report': per ID ada S/N, HST ID, Name, 'Old Address (HST)', 'New Address (MHA/DataHive)', 'Address Changed', 'Invalid Address', response date (HstReportHelper.java:441-480; query :381-408). Laporan di-generate lalu di-upload ke blob (HstReportServiceImpl.java:258-296) dan tidak di-email. Gap: itu laporan, bukan work item: tidak ada record work item, status, assignee, atau penutupan; semua ID yang dicek masuk laporan, bukan hanya yang alamatnya berubah. Catatan reliabilitas query_reason/report_generated: lihat langkah pembandingan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item di-route ke dashboard OIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:44-45; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:336-346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:384-396; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:511-560; ocmsadminui/src/utils/constant.ts:300-303",
+      "fit": "Beda dari flow",
+      "detail": "Yang dikirim ke OIC adalah email 'Monthly HST Work Items Report' berisi 11 angka agregat (Total HST IDs, Addresses Changed, dst; HstReportHelper.java:511-560), dengan attachment Excel, ke alamat dari property email.report.hst.oic.recipients (default dua email di kode, HstReportServiceImpl.java:44-45; pengiriman :336-346, :384-396). Tidak ada dashboard atau inbox OIC untuk item HST. Dashboard.tsx tidak punya konsep work item HST; satu-satunya work item di staff UI adalah 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). Nilai property recipients di prod tidak ada di file properties repo, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menindaklanjuti ID tersebut (update atau cabut HST) di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:196-200; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:354; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:419; ocmsadminapi/src/main/resources/api-authorization.properties:99-103",
+      "fit": "Sebagian",
+      "detail": "Alat tindak lanjut ada: route /hst/update dan /hst/revival (App.tsx:196-200) memanggil update-hst dan revive-hst (HstManagementServiceImpl.java:354, :419); otorisasi lewat mapping OCMS_HST_UPDATE dan OCMS_HST_REVIVAL (api-authorization.properties:99-103). Tetapi OIC harus mencari ID sendiri; tidak ada link dari work item/laporan ke layar ini, dan alamat baru dari ICA/DOS atau appeal harus diketik ulang di form."
+    }
+  ]
+}

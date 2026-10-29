@@ -1,0 +1,73 @@
+{
+  "story": "OCMS20.27",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/{DailyReportJobsScheduler, MonthlyReportJobsScheduler}, framework/workflows/hstreport/{services/HstReportServiceImpl, helpers/HstReportHelper}, framework/workflows/agencies/mha/{upload/helpers/MhaNricDataHelper, download/helpers/MhaNricDownloadHelper}, crud/ocmsizdb/OcmsTempUncHstAddr, utilities/emailutility/EmailService, resources/{cron-schedules-prod, application-prod}.properties. ocmsadminui pages/Report/lists/{ReportList, ReportListHST}, pages/Dashboard/Dashboard. ocmsadminapi: tidak ada endpoint list HST untuk report. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story 'Requirement given - Gen flow'. Code punya rantai laporan HST: cron bulanan memasukkan semua ID HST ke ocms_adhoc_nro_temp (HstReportServiceImpl.java:152-202), MHA mengembalikan alamat ke ocms_temp_unc_hst_addr, lalu job harian 08:00 membuat dua Excel (Data Report alamat lama vs baru, Work Items Report 11 statistik) dan upload ke blob (HstReportServiceImpl.java:205-356). Tapi bentuknya beda dari story: pengecekan bulanan dan hanya ID NRIC (id_type N), bukan harian; angka 'checked' per bulan berjalan; tidak ada dashboard atau work item untuk OIC (Dashboard.tsx kosong); tab HST Reports di Report module dikomentari (ReportList.tsx:147-201) dan email ke OIC tidak terkirim di prod karena email.enableSmtp=false tanpa source allowlist (application-prod.properties:80). Satu hal yang perlu dicek: query laporan memfilter kolom query_reason, report_generated, response_date_time di ocms_temp_unc_hst_addr, sedangkan entity tidak punya kolom itu dan tidak ada code yang menulisnya (OcmsTempUncHstAddr.java:36-114, MhaNricDownloadHelper.java:3197-3260); apakah laporan HST pernah menemukan baris cannot verify from repo (bergantung default/trigger DB). Pengecekan alamat appeal di PLUS (OCMS20.23/20.24) tidak masuk laporan ini. ICA/DOS tidak ada di code (DOS = DataHive/LTA cannot be confirmed from the repo). Tiket OCMS-DF-2026-126 (closed) menyentuh antrian ID HST ke MHA.",
+  "recommendation": "Klaim sebagian kecil. Jangan klaim sebagai laporan harian ke dashboard yang bisa diunduh: yang ada hanya job laporan HST (Excel ke blob dan email OIC yang mati di prod) dengan cek bulanan khusus NRIC. Minta tim memastikan siapa yang menulis query_reason/report_generated di ocms_temp_unc_hst_addr dan apakah OIC bisa mengambil file dari blob",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job harian HST Report Generator berjalan setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:99; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:265; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:205-215",
+      "fit": "Sebagian",
+      "detail": "Job 4 di Combined Daily Report dipanggil di DailyReportJobsScheduler.java:99 dengan cron.dailyreport.schedule=0 0 8 * * ? dan enabled=true (cron-schedules-prod.properties:255-256, 265); nilai di server asli cannot be verified from repo. Tetapi checkAndGenerateReports hanya membuat laporan bila ada baris ocms_temp_unc_hst_addr yang belum diproses; kalau tidak ada, return null dan tidak ada laporan hari itu (HstReportServiceImpl.java:210-215). Jadi bukan laporan yang selalu ada tiap hari."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record yang dicek: semua ID HST dikirim untuk pengecekan alamat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:152-202; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:76; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:444-451; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:658-679; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50-52",
+      "fit": "Sebagian",
+      "detail": "queueHstIdsForMonthlyCheck memasukkan semua ID di ocms_hst ke ocms_adhoc_nro_temp (HstReportServiceImpl.java:152-202), dipanggil dari Combined Monthly Report tanggal 1 jam 08:30 (MonthlyReportJobsScheduler.java:76, cron-schedules-prod.properties:275-276), jadi bulanan, bukan harian. Upload MHA hanya mengambil id_type N (MhaNricDataHelper.java:447); jalur FIN/UEN lewat DataHive mati di prod (cron.mhadownload.uenfin.enabled=false, cron.mhadownload.datahive=false, cron-schedules-prod.properties:50-52). Penghapusan baris adhoc setelah upload dinonaktifkan (MhaNricDataHelper.java:658-679). ICA/DOS tidak ada di code; DOS = DataHive/LTA cannot be confirmed from the repo. Tiket OCMS-DF-2026-126 (closed) menyangkut ID FIN yang tersimpan sebagai tipe N."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat jumlah record yang dicek",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:511-530; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:632-648; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:304-336",
+      "fit": "Sebagian",
+      "detail": "Work Items Report berisi 11 statistik termasuk 'HST IDs Checked This Month' (HstReportHelper.java:511-530), dihitung COUNT DISTINCT id_no di ocms_temp_unc_hst_addr dengan response_date_time di bulan berjalan (:632-648). Itu angka per bulan, bukan jumlah record yang dicek pada hari laporan. Excel dibuat dan diupload ke blob (HstReportServiceImpl.java:304-336)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat record yang diterima dari MHA/DataHive beserta alamat barunya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:353-374; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:381-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:446-484; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3197-3260; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsTempUncHstAddr/OcmsTempUncHstAddr.java:36-114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:258-297",
+      "fit": "Sebagian",
+      "detail": "Data Report per ID memuat alamat lama HST, alamat baru MHA/DataHive, Address Changed, Invalid Address, dan MHA/DataHive Response Date (HstReportHelper.java:446-484; HstReportServiceImpl.java:258-297). Tetapi query-nya memfilter query_reason='HST', report_generated, dan response_date_time di ocms_temp_unc_hst_addr (HstReportHelper.java:353-374, 381-430), sedangkan entity OcmsTempUncHstAddr tidak punya kolom itu (OcmsTempUncHstAddr.java:36-114) dan storeUncHstResults tidak menulisnya (MhaNricDownloadHelper.java:3197-3260); tidak ada writer lain di enam repo. Apakah baris HST pernah lolos filter cannot verify from repo (bergantung default/trigger DB). Nama file hanya yyyyMM (HstReportServiceImpl.java:278), jadi satu path blob per bulan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan menandai record dengan perubahan alamat yang terdeteksi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:470-472; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:526; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:650-662",
+      "fit": "Sebagian",
+      "detail": "Kolom 'Address Changed' Yes/No membandingkan teks alamat lama dan baru (HstReportHelper.java:470-472) dan statistik 'Addresses Changed' menghitung ID dengan street_name atau postal_code berbeda (:526, 650-662). Logikanya ada, tetapi bergantung pada baris ocms_temp_unc_hst_addr yang sama dengan langkah sebelumnya (sumber data belum terbukti), dan hitungan statistik tidak dibatasi ke baris yang belum diproses."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diarahkan ke dashboard officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-32; ocmsadminui/src/utils/data/LinkData.tsx:385",
+      "fit": "Tidak ada code",
+      "detail": "Dashboard.tsx hanya berisi container kosong (Dashboard.tsx:21-32), menu Inbox dikomentari (LinkData.tsx:385), dan tidak ada entity atau layar work item untuk laporan HST di ocmsadminui, ocmsadminapi, maupun ocmsadminprivateapi. Satu-satunya 'routing' adalah upload ke blob dan email ke OIC (langkah berikut)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat mengunduh laporan ringkasan untuk referensi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:338-396; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:434-444; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:513-570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-70; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminui/src/pages/Report/lists/ReportList.tsx:147-201",
+      "fit": "Sebagian",
+      "detail": "Laporan diupload ke blob /offence/reports/hst/ dan Work Items Report dikirim sebagai lampiran email ke OIC (HstReportServiceImpl.java:338-396). Di prod email.enableSmtp=false (application-prod.properties:80) dan EmailRequest tidak mengisi source, jadi email diblok (EmailService.java:65-70); nilai server asli cannot be verified from repo. Isi tabel email juga membaca key camelCase (HstReportServiceImpl.java:434-444) sedangkan helper menyimpan key 'Total HST IDs' dst. (HstReportHelper.java:513-570), sehingga angka di body email tampil 0 (lampiran Excel benar). Di staff portal, tab HST Reports dikomentari (ReportList.tsx:147-201) dan grid-nya memanggil resource hst yang tidak punya endpoint list di ocmsadminapi (hanya /hstlist dan /hstexists). Data Report hanya ke blob; cara OIC mengambil file dari blob cannot verify from repo."
+    }
+  ]
+}

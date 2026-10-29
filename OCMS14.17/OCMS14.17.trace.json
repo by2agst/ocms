@@ -1,0 +1,37 @@
+{
+  "story": "OCMS14.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/casvipvehicle/{jobs/CasVipVehicleRefreshJob,services/CasVipVehicleService,models/*}, framework/schedulers/CasVipVehicleJobsScheduler, framework/controllers/CasVipVehicleController, crud/ocmsizdb/OcmsVipVehicle/*, cron-schedules-prod.properties, application-prod.properties. Tidak ada code relevan di ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi; ocmsadminapi hanya punya CRUD /vipvehicle",
+  "note": "Story minta OCMS menerima daftar classified vehicle tiap hari beserta start dan end date record dari FOMS. Code: cron CasVipVehicleJobsScheduler jam 02:00 memanggil API CAS (/CAS/casOCMS/v1/getVIPVehicles lewat APIM) dan mengganti isi tabel ocms_vip_vehicle (hapus semua lalu insert). Namun response hanya dibaca tiga field (vehicleNo, description, status) dan tabel tidak punya kolom start/end date, jadi rentang tanggal record tidak diterima maupun disimpan. Kata FOMS tidak muncul di repo; sumbernya bernama CAS, jadi FOMS = CAS cannot be confirmed from repo. Flag cron.casvipvehicle.enabled=true di properties prod, tetapi nilai server asli dan keberhasilan call ke partner cannot verify from repo. Komentar di CasVipVehicleRefreshJob menyebut upsert + mark defunct, padahal code menghapus semua baris lalu insert ulang. Tiket OCMS-SR-2026-051 (Closed, Prod deployed): tabel ocms_vip_vehicle pernah dipatch manual lewat DB script; patch semacam itu tertimpa pada refresh berikutnya kalau CAS tidak mengirim barisnya. Demo remark: 'Was working previously' (tidak bisa dibuktikan dari repo).",
+  "recommendation": "Klaim sebagian: penarikan daftar harian dan penyimpanan vehicle number sudah ada. Start/end date record belum diterima atau disimpan; minta URA konfirmasi apakah FOMS sama dengan CAS dan apakah rentang tanggal memang dikirim.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memanggil sumber eksternal setiap hari untuk menarik daftar classified vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/CasVipVehicleJobsScheduler.java:36; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/CasVipVehicleJobsScheduler.java:43; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:70-86; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:336-337; ocmsadminprivateapi/src/main/resources/application-prod.properties:112",
+      "fit": "Sesuai",
+      "detail": "@Scheduled memakai cron.casvipvehicle.schedule = '0 0 2 * * ?' (cron-schedules-prod.properties:336) dan lewat hanya kalau cron.casvipvehicle.enabled=true (properties:337, dicek di CasVipVehicleJobsScheduler.java:43). Job memanggil apimUtil.callApimPostCustomSecret ke /CAS/casOCMS/v1/getVIPVehicles (application-prod.properties:112) dengan sender=OCMS dan targetReceiver=CASOCMS (CasVipVehicleService.java:70-86); ada trigger manual POST /cas-vip/refresh (CasVipVehicleController.java:48). Kata FOMS tidak ada di repo, sumber di code bernama CAS: FOMS = CAS cannot be confirmed from repo. Nilai flag di server asli dan keberhasilan call ke partner cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar vehicle number yang diterima disimpan di OCMS untuk dipakai identifikasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:123-131; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:143-161; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicle.java:28-36",
+      "fit": "Sesuai",
+      "detail": "Kalau response kosong tabel tidak diubah (CasVipVehicleService.java:123-131). Kalau ada isi, semua baris ocms_vip_vehicle dihapus (baris 135) lalu diisi ulang: vehicleNo di-trim dan uppercase (149), baris tanpa vehicleNo dilewati (144-147), status default 'A' (154), disimpan lewat saveAll (161) dalam satu @Transactional (114). Entity OcmsVipVehicle: vehicle_no (PK), description, status (OcmsVipVehicle.java:28-36). Komentar header job menyebut upsert + mark defunct, tapi code-nya delete-all lalu insert; perubahan manual di tabel (mis. patch OCMS-SR-2026-051) ditimpa refresh berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan menyimpan start date dan end date dari record tiap classified vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/models/CasVipVehicleResponse.java:23; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/models/CasVipVehicleResponse.java:29-42; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/models/VipVehicleRequest.java:19-25; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicle.java:28-36",
+      "fit": "Tidak ada code",
+      "detail": "Response CAS hanya dipetakan ke vehicleNo, description, status (CasVipVehicleResponse.java:29-42) dan @JsonIgnoreProperties(ignoreUnknown=true) (baris 23) membuang field lain. Entity OcmsVipVehicle tidak punya kolom start/end date (OcmsVipVehicle.java:28-36). Request ke CAS hanya membawa sender, targetReceiver, dateSend, timeSend (VipVehicleRequest.java:19-25). Apakah CAS/FOMS sebenarnya mengirim rentang tanggal cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.32",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: notification_sms_email/helpers/NotificationSmsEmailHelper, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findRecordsForInitialNotification), adminfee/services/AdminFeeServiceImpl, repccs/notice_creation/core/helpers/NoticeProcessingHelper (PS-FOR); ocmsadminapi workflows/furnish/manual/dto/ManualFurnishRequest. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no foreign-vehicle email reminder code",
+  "note": "The story asks OCMS to email the foreign driver when the NOPO is still outstanding after X days (configurable parameter). Status is Removed, so nothing is claimed. What exists: the FOD parameter (days after offence date) and AFO are used by the AdminFee cron for an admin fee (AdminFeeServiceImpl.java:81-84), not for email. The eNotification (email/SMS) job only picks ENA-stage notices and excludes PS suspensions (OcmsValidOffenceNoticeRepository.java:163-183); foreign-vehicle notices are already PS-FOR, so they are not picked. In prod cron.notification.enabled=false (cron-schedules-prod.properties:236) and email.enableSmtp=false (application-prod.properties:80); the real server values cannot be verified from the repo. Email for stages DN1/DN2/DR3 is skipped because no template exists (NotificationSmsEmailHelper.java:312-316). The foreign driver's email address: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Driver's particulars for a foreign-vehicle NOPO are received in OCMS",
+      "detail": "Story Removed; not claimed. Existing code is generic only: the furnish payload in ocmsadminapi accepts foreign addresses without a postal code (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/dto/ManualFurnishRequest.java:52), and foreign-vehicle notices get PS-FOR settings on creation (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:460-490). No flow was found that specifically receives/updates driver's particulars for foreign-vehicle notices and then triggers a reminder, so only Sebagian."
+    },
+    {
+      "step": "A notice counts as outstanding after X days, X from a parameter maintained in OCMS",
+      "detail": "Story Removed; not claimed. The FOD (days) parameter is read from the database and used to select unpaid F + PS-FOR notices where offence date + FOD <= today (AdminFeeServiceImpl.java:81-84, AdminFeeHelper.java:146-171). A configurable parameter mechanism exists, but its purpose is the admin fee, not an email reminder. The FOD value in the database: cannot verify from repo."
+    },
+    {
+      "step": "Outstanding foreign-vehicle notices are selected for an email reminder",
+      "detail": "Story Removed; not claimed. The query findRecordsForInitialNotification only takes last_processing_stage = 'ENA' (:163) and suspension_type NULL or TS-HST (:165-170), with no foreign-vehicle filter. Foreign-vehicle notices get PS-FOR on creation (NoticeProcessingHelper.java:481-484), so they do not pass this query. No foreign-vehicle-specific selection was found (searched foreign, FOR, reminder, email across the six repos)."
+    },
+    {
+      "step": "An email reminder is sent to the foreign driver's email address",
+      "detail": "Story Removed; not claimed. A generic notification email mechanism exists (NotificationSmsEmailHelper) but it is not for foreign vehicles, and email for DN1/DN2/DR3 is skipped because no template exists (NotificationSmsEmailHelper.java:312-316). In prod cron.notification.enabled=false (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236) and email.enableSmtp=false (ocmsadminprivateapi/src/main/resources/application-prod.properties:80), so execution is switched off per the repo; the real server values cannot be verified from the repo. Where the foreign driver's email address comes from: cannot verify from repo."
+    }
+  ]
+}

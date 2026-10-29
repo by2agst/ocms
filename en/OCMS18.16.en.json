@@ -1,0 +1,21 @@
+{
+  "story": "OCMS18.16",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension (POST /plus-apply-suspension, query checking), helpers/SuspensionProcessingHelper.validateSuspension (checking mode), helpers/PermanentSuspensionHelper.processPS + SuspensionBaseHelper (execute mode). A copy exists in ocmsadminprivateapi framework/workflows/plus and utilities/suspension_helpers. PLUS side: cannot verify from repo.",
+  "note": "The story asks OCMS to send an error to PLUS when the PS cannot be applied. POST /plus-apply-suspension validates (PS code allowed for source PLUS, stage, notice already paid, CFC/CPC stage) and returns an error message per notice. Three remarks: (1) checking=true for a notice that already has a PS skips the stage/court check (Rule 4 returns at SuspensionProcessingHelper.java:405 before Step 4), so PLUS can be told eligible while the later execution rejects; (2) every execute error leaves with appCode OCMS-4000 and HTTP 200 because createErrorResponse (SuspensionBaseHelper.java:528) ignores its appCode parameter and addAppCodeToResults (SuspensionProcessingController.java:1194) fills OCMS-4000; (3) the paid-notice rejection text says 'Unable to TS' although the request is a PS (SystemConstant TS_NOTICE_PAID). How PLUS UI shows the error, APIM/auth, and which copy (ocmsadminapi or ocmsadminprivateapi) PLUS calls: cannot verify from repo. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially: the error message to PLUS exists. Make checking mode run the stage check for notices that already have a PS, and return an appCode that tells the rejection reasons apart. The PLUS display side must be confirmed by the PLUS team.",
+  "steps": [
+    {
+      "step": "OCMS validates the permanent suspension request from PLUS and finds it cannot be allowed",
+      "detail": "Execute mode (checking=false): processPS rejects when mandatory fields are empty (SuspensionProcessingController.java:503-528), when the PS code is not active for source PLUS in ocms_suspension_reason (PermanentSuspensionHelper.java:100-104 via SuspensionBaseHelper.java:323-335), when the stage is not allowed or is court (PermanentSuspensionHelper.java:106-111, SuspensionBaseHelper.java:209-211), and when the notice is paid with a non-refund code (PermanentSuspensionHelper.java:180-192). Checking mode (SuspensionProcessingHelper.java:342-458) repeats these rules, but for a notice that already has a PS from PLUS the validation stops at Rule 4 (SuspensionProcessingHelper.java:386-405), which only checks the code, paid status and CFC/CPC; the stage/court check is skipped, so the check can return eligible while execute rejects. The ocms_suspension_reason and PS_REFUND_CODES content per environment: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends an error message to PLUS stating why the permanent suspension cannot be allowed",
+      "detail": "An execute rejection is returned as {noticeNo, success:false, message} (SuspensionBaseHelper.java:528-535) and a checking rejection as {noticeNo, eligible:false, message} (SuspensionProcessingHelper.java:1211-1217); addAppCodeToResults adds appCode OCMS-4000 (SuspensionProcessingController.java:1186-1199) and the list is sent as HTTP 200 (SuspensionProcessingController.java:555). The specific error codes passed by callers (e.g. OCMS-4003, OCMS-4002) are dropped by createErrorResponse (the appCode parameter is unused, SuspensionBaseHelper.java:528), so PLUS can only tell reasons apart from the message text, not from the appCode. The paid-notice message says 'Unable to TS' although the request is a PS (SystemConstant TS_NOTICE_PAID)."
+    },
+    {
+      "step": "The PLUS user is informed that the permanent suspension cannot be allowed",
+      "detail": "OCMS only sends the response (SuspensionProcessingController.java:552-555). The message reaches the PLUS user through the PLUS UI, which is not in the six repos: cannot verify from repo. The OCMS side is complete, the display side cannot be proven."
+    }
+  ]
+}

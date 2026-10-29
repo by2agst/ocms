@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.40",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/services/FurnishProcessingService, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl. ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService,helpers/FurnishSyncHelper}. ocmseserviceapi workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl}, crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplicationRepository. ocmseserviceui pages/Furnish/{API.ts,NoticesTable/Notices.ts,NoticesTable/ApprovedNotices.ts}. ocmsadminui pages/Furnish/hooks/useFurnishAPI.ts. thirdpartyapi: tidak ada logic furnish",
+  "note": "Status 'Demo paid (50% of 75%)'. Status Approved (baik auto maupun manual) ditulis ke Internet DB (eocms_furnish_application) dan Online Customer Portal membaca approved milik user yang login (identitas dari JWT). Tidak ada proses 'kirim approved dari X bulan terakhir': baris approved sudah ada di Internet DB sejak submission dan di-update statusnya. Jendela waktu ada di sisi portal tetapi hardcoded 3 bulan (minusMonths(3)) dan dihitung dari cre_date (tanggal submission), bukan tanggal approve. Tidak ada parameter OCMS untuk X (grep parameter/months/retention di furnish ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi: 0 hasil). Login Singpass/Corppass tidak bisa diverifikasi dari repo.",
+  "recommendation": "Diklaim sebagian: status Approved sampai ke portal dan bisa dilihat setelah login; aturan X bulan dari parameter OCMS tidak ada (hardcoded 3 bulan dari tanggal submission)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request yang di-approve otomatis oleh sistem diteruskan ke sisi portal (Internet DB)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:207-216",
+      "fit": "Sesuai",
+      "detail": "batchSyncStatusToInternet memanggil eFurnishService.batchUpdateStatus(approvedTxnNos, 'A', 'Auto Approved by SYSTEM', ...) (FurnishProcessingService.java:212-215) yang meng-UPDATE eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:159-166); status Intranet di-set 'A' lewat batchUpdateStatusApproved (FurnishProcessingService.java:184-187). Cron jalan tiap 10 menit (cron-schedules-prod.properties:305-306; nilai server asli tidak bisa diverifikasi)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request yang di-approve manual oleh officer diteruskan ke sisi portal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:363-366",
+      "fit": "Sesuai",
+      "detail": "adminui memanggil manual-review/approve-hirer atau approve-driver (useFurnishAPI.ts:209-214). ManualReviewService.approveSubmission men-set status 'A', update Intranet, lalu furnishSyncHelper.syncFurnishApplicationToPii (ManualReviewService.java:363-366; FurnishSyncHelper.java:217) yang menulis seluruh record ke eocms_furnish_application. Sync ini terjadi saat approve tanpa filter umur."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya request approved dari X bulan terakhir yang tersedia di portal",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:172-181",
+      "fit": "Sebagian",
+      "detail": "Portal menyaring approved dengan cutoff threeMonthsAgo = now.minusMonths(3) (FurnishApplicationListServiceImpl.java:173, 180-181) dan query status = 'A' AND cre_date >= :approvedCutoff (EocmsFurnishApplicationRepository.java:102-103). Ada jendela waktu, tetapi 3 bulan hardcoded dan memakai cre_date (tanggal submission), bukan tanggal approve; tidak ada proses 'kirim' yang dibatasi umur, karena sync terjadi per event approve (langkah 1-2)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai X bulan bisa diatur lewat parameter yang dikelola di OCMS",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:173",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pembacaan parameter untuk X: angka 3 (dan 6 untuk Pending) ditulis langsung di FurnishApplicationListServiceImpl.java:172-173. Dicari dengan kata parameter, months, retention, ocms_parameter di folder furnish ocmseserviceapi, ocmsadminapi dan ocmsadminprivateapi serta di properties ocmseserviceapi; tidak ada hasil yang relevan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner/hirer yang login ke portal bisa melihat submission approved miliknya",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:56-83",
+      "fit": "Sesuai",
+      "detail": "POST v1/furnishapplicationlist memakai userId/entityId dari session JWT (FurnishApplicationListController.java:58-59, 81-83), bukan dari body, lalu status 'A' ke FurnishApplicationListServiceImpl (baris 179-181). UI memanggil status 'A' di Notices.ts:264, 273 dan merender ApprovedNotices.ts. Login Singpass/Corppass yang menghasilkan JWT tidak bisa diverifikasi dari repo."
+    }
+  ]
+}

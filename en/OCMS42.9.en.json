@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDParticulars,Documents,Particulars}.ts, pages/Furnish/API.ts, components/form/{Contact,FileInput}.ts, utils/validation/Furnish/{ValidHirerDriver,ValidParticulars}.ts, utils/option.ts; ocmseserviceapi workflows/furnish/{FurnishRequestValidator,FurnishSubmissionController,FurnishSubmissionServiceImpl}, workflows/uploadfile/{FileUploadController,FileUploadServiceImpl}, utilities/{FileUploadValidator,SingaporeIdValidator}, crud/beans/SystemConstant. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this story",
+  "note": "Story status 'Demo paid (50% of 75%)'; demo_remark 'Internet PII encryption - cannot fetch offender particulars'. That remark concerns the demo environment and cannot be seen in code. From the code: the driver/hirer form is complete (name, ID type + number, address, contact, email), PDF/JPG/PNG (plus other formats) upload with strict validation, mandatory documents for FIN and Passport (plus Rental Agreement when leased), and submit saves one application per notice to the PII DB. Notes: the driver/hirer contact is +65 only because the country code is locked; 'save' means the final submit, there is no save-draft. PII column encryption, the real virus scanner and blob storage: cannot verify from repo. Tickets: OCMS-SR-2026-045 (upload hardening, Closed) and OCMS-DF-2026-137 (UEN vs NRIC, Closed, eService API and UI deployed) are reflected in the code; OCMS-DF-2026-110/143 (submit errors, Closed) do not change the verdict.",
+  "recommendation": "Claim as matching with a note: the code evidence is strong, but the demo remark (Internet PII encryption) must be confirmed on the environment",
+  "steps": [
+    {
+      "step": "The Driver's / Hirer's Particulars form contains name, ID type + ID number, address, contact number and email",
+      "detail": "HDParticulars.render shows the ID type dropdown (NRIC, FIN, Passport, UEN from HDIDTypeUENOptions, option.ts:27-32), ID number, Full Name, address-fields, contact-fields, email-fields (HDParticulars.ts:342-365), plus the relationship questions and supporting documents. Per-field validation is wired in ValidHirerDriver (:21-61). Note: the contact country code is locked to +65 (Contact.ts:121-132), so a driver/hirer with a foreign number cannot enter it in the UI, although the UI and backend validators have a non-local path."
+    },
+    {
+      "step": "The driver/hirer entries are validated (required fields, name format, ID with checksum) in the UI and the backend",
+      "detail": "UI: ValidateALL runs on 'Proceed to review' (Particulars.ts:115-128) and ValidPerson checks name, ID type, ID number of 6-20 characters and format (ValidParticulars.ts:25-96). Backend: validateSharedFields requires name, ID type, ID number, block, street, postal code (FurnishRequestValidator:69-105); a non-UEN name must not contain digits (:107-124); the ID number is checked by SingaporeIdValidator.getValidationError with the NRIC/FIN/UEN checksum (:133-148, SingaporeIdValidator.java:258). Ticket OCMS-DF-2026-137 (Closed): an NRIC used to be accepted as a UEN; the UEN checksum constants now exist in SingaporeIdValidator.java:33-47 and the ticket says the eService API/UI fix was deployed on 23 July (the deployed version itself: cannot verify from repo)."
+    },
+    {
+      "step": "The user attaches supporting documents in common formats (PDF, jpg, png) and the file is validated on upload",
+      "detail": "The user picks a document type and then a file; Documents.ts:240-283 calls APIUploadDoc, which POSTs to the temp upload (API.ts:718-745; file names must be alphanumeric, :727-733). The backend FileUploadServiceImpl:60-135 checks the extension (SystemConstant:143-146: bmp, jpeg, jpg, png, doc, docx, pdf, xls, xlsx, so PDF/jpg/png are covered), forbids multiple extensions, applies a Content-Type whitelist, 10 MB per file (SystemConstant:165), magic-byte match, and a virus scan, then stores to temporary intranet blob. Total 20 MB in the UI (FileInput.ts:35) and the backend (SystemConstant:164, FurnishRequestValidator:367-391, max 10 documents). This hardening comes from ticket OCMS-SR-2026-045 (Closed). viruscan.enabled=true in application-prod.properties:94; the real scanner and blob storage: cannot verify from repo."
+    },
+    {
+      "step": "Documents are mandatory for certain ID types (FIN, Passport; plus Rental Agreement when the vehicle is leased)",
+      "detail": "UI: FIN requires DL and EP, Passport requires DL and P (Documents.ts:40-48), and RA is added when the relationship is 'Vehicle is leased' (:402); validateDoc blocks continuing if something is missing (:446-480), and when there are no files at all a confirmation modal is shown (:484-487). Backend: validateMandatoryDocuments applies only to types F and P and repeats the DL/EP/P and RA requirements (FurnishRequestValidator:317-361). NRIC and UEN do not require documents."
+    },
+    {
+      "step": "The driver/hirer details and documents are saved as one furnish application per notice",
+      "detail": "After all validations pass, SubmissionServiceImpl moves the documents from temp to the permanent folder (:66-71), fills EocmsFurnishApplication with furnishName/IdType/IdNo, address, phone, email (:172-185) with status 'P' and is_sync 'N' (:209-211), then saveAll for the applications and document records (:119-129). 'Save' in the story means the final submit after review; there is no save-draft. The demo remark 'Internet PII encryption - cannot fetch offender particulars' and PII column encryption: cannot verify from repo. Tickets OCMS-DF-2026-110/143 (Closed) about submit errors show no open code defect."
+    }
+  ]
+}

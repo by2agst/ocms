@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.19",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/HstManagementServiceImpl, workflows/notice_creation/core/helpers/TemporarySuspensionHelper, workflows/furnish/approval/FurnishApprovalServiceImpl; ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/schedulers/ToppanUploadJobsScheduler, framework/workflows/hstsuspension/services/{HstAutoSuspendServiceImpl,HstLoopingSuspendServiceImpl}, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper}, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "'Stop processing' in the code = TS-HST (suspension_type 'TS', reason HST) on VON. For existing notices, TS-HST is applied by Manual HST Suspension (same as 20.18) and TS notices are no longer picked by the Toppan reminder run (suspension_type IS NULL). For new notices there are three paths, all limited: the HST Auto Suspension and HST Looping Suspension jobs in the day-end scheduler are commented out (ToppanUploadJobsScheduler.java:120-121); the eNotification path applies TS-HST after a successful notification but cron.notification.enabled=false in prod (cron-schedules-prod.properties:236); furnish approval only covers furnished notices. Notice creation itself has no HST check. Period: due_date_of_revival comes from ocms_suspension_reason (the value for HST is not in the repo, cannot verify from repo; default 30 days if the row is missing), then the daily Auto Revival re-applies TS-HST so the suspension loops until an officer revives it manually. eNotification (SMS/email) is NOT stopped by TS-HST: the ENA query deliberately includes TS-HST (NotificationSmsEmailHelper.java:1033-1036); that is not the postal reminder to the registered address.",
+  "recommendation": "The claim for existing notices is supported. For new notices and the 'specific period', claim only partially: the automatic paths for new notices are off or commented out, and the length of the period is DB data that the repo cannot show.",
+  "steps": [
+    {
+      "step": "All outstanding notices under the ID are marked TS-HST",
+      "detail": "Same as step 4 of story 20.18: applyHstSuspension calls processTS for each notice of the offender (HstManagementServiceImpl.java:326-347, 487-510); processTS writes suspension_type 'TS' and reason HST to VON, eVON and suspended_notice (TemporarySuspensionHelper.java:120-137), rejects notices that are already paid (86-90), and notices with an active PS are skipped (OCMS-DF-2026-094)."
+    },
+    {
+      "step": "Reminders to the registered address are not sent for notices on hold",
+      "detail": "The Toppan run query findToppanNoticesForStage only selects notices with von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611) while TS-HST sets 'TS', so the printed reminder does not go out. findNoticesForMhaNricUpload also excludes IDs in ocms_hst (565-578). Note: eNotification (SMS/email) deliberately includes TS-HST (NotificationSmsEmailHelper.java:1033-1036), and letter generation itself only runs through a manual trigger (see story 20.17); this step judges the exclusion."
+    },
+    {
+      "step": "Newly issued notices under the same ID are also put on hold",
+      "detail": "Notice creation has no HST check. Existing paths: (1) HST Auto Suspension (HstAutoSuspendServiceImpl) and HST Looping Suspension are commented out in ToppanUploadJobsScheduler.java:120-121 and have no other caller; (2) NotificationSmsEmailJob applies TS-HST per notice after a successful eNotification (NotificationSmsEmailJob.java:448-476, NotificationSmsEmailHelper.java:921-990), but cron.notification.enabled=false in prod (cron-schedules-prod.properties:236; sms.enable=false, email.enableSmtp=false in application-prod.properties:80,87); (3) furnish approval applies TS-HST when the furnished ID is in HST (FurnishApprovalServiceImpl.java:169-191), only for furnished notices. The real server values: cannot verify from repo."
+    },
+    {
+      "step": "The hold applies for a specific period",
+      "detail": "The period = due_date_of_revival from ocms_suspension_reason.no_of_days_for_revival for TS-HST (TemporarySuspensionHelper.java:182-207; default 30 days if the row is missing). The value for HST lives in the database: cannot verify from repo. When the period ends, Auto Revival (runs daily in ToppanUploadJobsScheduler.java:119) re-applies TS-HST unless the notice is paid (AutoRevivalHelper.java:735-790, AutoRevivalJob.java:147), so the hold continues until an officer revives manually. That is not a single period as the story says; the looping logic was questioned in OCMS-DF-2026-117 (no code change)."
+    }
+  ]
+}

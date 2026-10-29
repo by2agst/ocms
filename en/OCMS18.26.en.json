@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.26",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/PermanentSuspensionHelper,helpers/SuspensionBaseHelper}, crud/ocmsizdb/suspendednotice/{SuspendedNotice,SuspendedNoticeRepository,SuspendedNoticeController}. ocmsadminprivateapi utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}, workflows/plus/notice_creation/core/SuspensionProcessingController. ocmsadminui pages/PS/form/PSForm.tsx, pages/Notice/detail/Overview.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "The story asks OCMS to allow multiple PS on one notice (from OCMS or PLUS) without deleting earlier PS records. The code does this: the old PS is revived (given date_of_revival) and the new PS is INSERTed as a new row with a new sr_no, VON/eVON are updated to the latest code, and the application has no delete path. Things to watch: (1) an exception during revival is swallowed (PermanentSuspensionHelper.java:301-304), so two active PS can appear with no error; (2) Overview.tsx:57-59 uses SUSPENDED_NOTICE[0] and its order is not guaranteed; (3) the same PS code does not create a new row unless the notice is paid with a refund code. Tickets: OCMS-DF-2026-027 (duplicate sr_no in batch, Closed/Prod deployed, does not change the verdict) and OCMS-DF-2026-075 (re-apply PS on paid notice, Closed/Prod deployed). Protection of plus-* endpoints via APIM, database triggers/purge, and real server values: cannot verify from repo.",
+  "recommendation": "Can be claimed. Every step has code matching the story text; record the three watch-points in the note (swallowed revive failure, SUSPENDED_NOTICE[0] ordering, same-code PS is idempotent)",
+  "steps": [
+    {
+      "step": "Officer selects notices that are already PS and applies a new PS from the Staff Portal",
+      "detail": "PSForm detects notices that are already PS and unpaid (anyPSNotices, PSForm.tsx:114), calls staff-revive-suspension first (:128), then staff-apply-suspension for the new PS (:149). The UI never calls a delete endpoint. Paid (FP/PRA) notices may only receive a new PS of APP/CFA/VST (:102-110), a rule owned by another story. Staff role authorization is not checked for this story."
+    },
+    {
+      "step": "PLUS sends a new PS for an already-PS notice through plus-apply-suspension",
+      "detail": "plusApplySuspension (SuspensionProcessingController.java:485) forces suspensionSource=PLUS and processNoticeList then calls psHelper.processPS (:1054), the same helper as the staff path. The intranet tier has its own PLUS endpoint that also calls processPS (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:54, :206). The overwrite confirmation to PLUS belongs to OCMS18.17/18.20, not this story. JwtFilter skips plus-* endpoints, so protection depends on APIM: cannot verify from repo."
+    },
+    {
+      "step": "OCMS does not reject a PS with a different code on a notice that is already PS",
+      "detail": "The same PS code is treated as idempotent and adds no row (PermanentSuspensionHelper.java:89-92), except a paid notice with a refund code that is re-processed (:87-95, fix for OCMS-DF-2026-075). A different code continues to validateOverlap, which only rejects when the old PS is FP/PRA and the new code is not APP/CAN/CFA/VST (:212-218); otherwise it passes (:227). So multiple PS with different types are allowed."
+    },
+    {
+      "step": "The old active PS is revived, not deleted",
+      "detail": "reviveOldPS fills date_of_revival, revival_reason (PSR or CSR), officer_authorising_revival and revival_remarks on the active PS row (PermanentSuspensionHelper.java:277-292) and then calls saveAll (:295); there is no delete statement. The intranet tier has the same logic (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:172-176, :486-505). Edge case: an exception in reviveOldPS is swallowed and only logged (:301-304), so if revival fails the new PS is still inserted and the old row stays active (two active PS); no data is lost."
+    },
+    {
+      "step": "The new PS is stored as a new row in ocms_suspended_notice with a new sr_no",
+      "detail": "updateDatabase calls insertSuspendedNotice, which INSERTs a new row (SuspensionBaseHelper.java:443-466, :474-489). sr_no is taken from SUSPENDED_NOTICE_SEQ for each notice inside the loop (SuspensionProcessingController.java:997, :1071-1072); the batch duplicate sr_no bug (OCMS-DF-2026-027, Closed/Prod deployed) is no longer visible in this code. The composite primary key is notice_no + date_of_suspension + sr_no (SuspendedNotice.java:38, :62-75), so the old row is not overwritten. The intranet tier is the same (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:553-579)."
+    },
+    {
+      "step": "No code deletes the earlier PS history",
+      "detail": "The only delete statement against ocms_suspended_notice is deleteAllByNoticeNoNative (SuspendedNoticeRepository.java:100-101, comment says test cleanup); grep in ocmsadminapi and ocmsadminprivateapi finds no caller outside its own definition. SuspendedNoticeController does not extend BaseController and has no @DeleteMapping, only suspendednoticelist (:55) and suspendednoticeexists (:69). Database-side triggers, purge or archive jobs: cannot verify from repo."
+    },
+    {
+      "step": "The notice carries the correct latest PS type and code",
+      "detail": "Each new PS overwrites suspension_type, epr_reason_of_suspension and epr_date_of_suspension in VON (SuspensionBaseHelper.java:345-348) and eVON (:399-401) with the latest code, while the full history stays in ocms_suspended_notice. One thing to watch: Overview.tsx:57-59 (ocmsadminui) takes SUSPENDED_NOTICE[0] to decide whether APP is TS or PS, yet there can now be many rows; the ordering of the suspendednoticelist result is not set in the code, needs verification."
+    }
+  ]
+}

@@ -1,0 +1,284 @@
+{
+ "id": "OCMS52.13",
+ "checked_by": "ledger-L3",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "POST /v1/submit-unclaimed applies TS-UNC where eligible: skipped for PS and Court-stage notices (only RDP/DN update), fails 'Not eligible for suspension' for ineligible stages; then generates Excel with per-notice result",
+   "status": "partly",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+   "line": 342,
+   "quote": "boolean skipSuspension = isPsNotice || isCourtStage;",
+   "missing": "Skip list is incomplete: TS-UNC is also skipped (RDP/DN still updated, result success=true) when the notice has no current offender in ONOD and when no letter recipient matches the current offender. For ineligible stages the loop does 'continue', so RDP/DN is NOT updated for those notices.",
+   "fix_en": "POST /v1/submit-unclaimed applies TS-UNC once per eligible notice. TS-UNC is skipped, and only the RDP/DN update is done, for PS notices, Court-stage notices, notices with no current offender in ONOD, and notices where no letter recipient is the current offender. A notice at an ineligible stage is not updated at all and fails with 'Not eligible for suspension'. It then generates an Excel report with the per-notice processing result.",
+   "extra": [
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+     "line": 358,
+     "quote": "\"Not eligible for suspension\","
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+     "line": 374,
+     "quote": "skipReason = \"no current offender found in ONOD\";"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+     "line": 382,
+     "quote": "skipReason = \"letter recipient is not the current offender\";"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+     "line": 406,
+     "quote": ".reasonOfSuspension(SystemConstant.SuspensionReason.UNC)"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+     "line": 159,
+     "quote": "String reportPath = reportService.generateUnclaimedReminderReport(unclaimedRecords, processingResults, userId);"
+    }
+   ]
+  },
+  {
+   "i": 1,
+   "claim": "Response includes informational expiresAt 24h ahead; nothing enforces or checks it (download endpoint, UI, blob lifecycle)",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+   "line": 189,
+   "quote": "reportInfo.put(\"expiresAt\", LocalDateTime.now().plusHours(24).toString());",
+   "missing": "The negatives rest on grep: expiresAt appears in ocmsadminui only as a type (SubmitForm.tsx:48, FCps.d.ts:163) and in the api only at the controller line above; blob lifecycle rule cannot be verified from the repo. The report is generated after the suspensions are saved; an upload failure returns OCMS-5001 (CT catch ReportGenerationException).",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+     "line": 217,
+     "quote": "@PostMapping(\"/submit-unclaimed/report/{reportId}\")"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+     "line": 243,
+     "quote": "byte[] reportBytes = azureBlobStorageUtil.downloadFromBlob(blobPath);"
+    },
+    {
+     "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+     "line": 48,
+     "quote": "expiresAt: string;"
+    }
+   ]
+  },
+  {
+   "i": 2,
+   "claim": "Submit page downloads report automatically when report.url is returned, via POST download/blob (source UNCLAIMED)",
+   "status": "proved",
+   "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+   "line": 261,
+   "quote": "if (report?.url) {",
+   "missing": "Container nuance: download/blob first tries container 'offence' (from azure.blob.unclaimed.output=offence/unclaimed/) with blob path unclaimed/<file>, then falls back to azure.blob.container-name (=ocms in application-prod/uat/dev.properties line 15/15/12 and also the container the report is uploaded to). So it works through the fallback; the proposal step text 'container offence = azure.blob.container-name' is wrong for prod. Real Azure state cannot be verified.",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+     "line": 183,
+     "quote": "endpoint: \"download/blob\","
+    },
+    {
+     "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+     "line": 185,
+     "quote": "source: \"UNCLAIMED\","
+    },
+    {
+     "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+     "line": 263,
+     "quote": "await downloadReport(report.url);"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java",
+     "line": 95,
+     "quote": "sourcePathMap.put(\"UNCLAIMED\", unclaimedOutputPath);"
+    },
+    {
+     "file": "ocmsadminapi/src/main/resources/application.properties",
+     "line": 120,
+     "quote": "azure.blob.unclaimed.output=offence/unclaimed/"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java",
+     "line": 195,
+     "quote": "fileContent = azureBlobStorageUtil.downloadFromBlob(blobPath, containerName);"
+    }
+   ]
+  },
+  {
+   "i": 3,
+   "claim": "POST /v1/submit-unclaimed/report/{reportId} also downloads the report; exists and works, but ocmsadminui never calls it",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+   "line": 217,
+   "quote": "@PostMapping(\"/submit-unclaimed/report/{reportId}\")",
+   "missing": "'works' is code-level only (blob path matches the upload path unclaimed/<timestamp>-Unclaimed-Report.xlsx, RP:100). 'UI never calls it' rests on grep: no 'submit-unclaimed/report' string in ocmsadminui/src. Suggest 'exists and is wired in code' instead of 'works'.",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+     "line": 240,
+     "quote": "String blobPath = \"unclaimed/\" + reportId;"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+     "line": 247,
+     "quote": ".body(Map.of(\"error\", \"REPORT_NOT_FOUND\", \"message\", \"Report not found: \" + reportId));"
+    },
+    {
+     "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+     "line": 107,
+     "quote": "/v1/check-unclaimed,/v1/submit-unclaimed,/v1/download/blob,\\"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/interceptor/OcmsAuthorizationInterceptor.java",
+     "line": 68,
+     "quote": ".anyMatch(uri::startsWith);"
+    }
+   ]
+  },
+  {
+   "i": 4,
+   "claim": "Excel shows Status per notice (Success or Failed + error) and suspension details as submitted; a notice where TS-UNC was skipped shows Success with empty error",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+   "line": 255,
+   "quote": "row.createCell(col++).setCellValue(processingResult.isSuccess() ? \"Success\" : \"Failed\");",
+   "missing": "Extra weakness: the report looks results up by noticeNo only (resultsMap.put(result.getNoticeNo(), result)), so a notice with several submitted records shows the status of the last result for every row. Not in the acceptance; optional to add.",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+     "line": 258,
+     "quote": "if (!processingResult.isSuccess()) {"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+     "line": 164,
+     "quote": "headersList.add(\"Status\");"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+     "line": 242,
+     "quote": "row.createCell(col++).setCellValue(record.getReasonOfSuspension() != null ?"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+     "line": 452,
+     "quote": "successMessage = \"RDP/DN update completed (TS-UNC suspension skipped - \" + skipReason + \")\";"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+     "line": 64,
+     "quote": "resultsMap.put(result.getNoticeNo(), result);"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java",
+   "line": 342,
+   "quote": "boolean skipSuspension = isPsNotice || isCourtStage;",
+   "note": "Suspension is saved only inside if (!skipSuspension); skip also for no current offender and recipient mismatch. Sebagian is right."
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+   "line": 159,
+   "quote": "String reportPath = reportService.generateUnclaimedReminderReport(unclaimedRecords, processingResults, userId);",
+   "note": "Called right after processUnclaimedReminders; Status/Error Message columns at RP header add. Layout not compared with URA template (cannot verify)."
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java",
+   "line": 242,
+   "quote": "row.createCell(col++).setCellValue(record.getReasonOfSuspension() != null ?",
+   "note": "Suspension columns echo the submitted DTO, not the saved SuspendedNotice. Sebagian is right."
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+   "line": 189,
+   "quote": "reportInfo.put(\"expiresAt\", LocalDateTime.now().plusHours(24).toString());",
+   "note": "expiresAt informational only. Sebagian is right."
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx",
+   "line": 261,
+   "quote": "if (report?.url) {",
+   "note": "Executes download/blob with source UNCLAIMED (SF endpoint line). Step detail about container must be reworded: prod container-name is ocms, download works via the fallback FD:194-195. Keep Sesuai only if detail text is corrected; downgrade to Sebagian if URA will test against real Azure state (cannot verify from repo)."
+  },
+  {
+   "i": 5,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java",
+   "line": 217,
+   "quote": "@PostMapping(\"/submit-unclaimed/report/{reportId}\")",
+   "note": "Endpoint with 404 REPORT_NOT_FOUND exists. Consistency: UI never calls it, so as a user-facing claim it is closer to Sebagian; Sesuai holds only for the narrow step text 'POST ... downloads the report'."
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+   "line": 107,
+   "quote": "/v1/check-unclaimed,/v1/submit-unclaimed,/v1/download/blob,\\",
+   "meaning": "OCMS_UNCLAIMED function allows submit-unclaimed (+ sub-paths via uri::startsWith) and /v1/download/blob; no feature flag or cron gate found"
+  },
+  {
+   "file": "ocmsadminapi/src/main/resources/application-prod.properties",
+   "line": 15,
+   "quote": "azure.blob.container-name=ocms",
+   "meaning": "prod container-name=ocms (base application.properties:110 is offence); report is uploaded to this container"
+  },
+  {
+   "file": "ocmsadminapi/src/main/resources/application.properties",
+   "line": 120,
+   "quote": "azure.blob.unclaimed.output=offence/unclaimed/",
+   "meaning": "download/blob UNCLAIMED base path offence/unclaimed/ (container offence tried first, then fallback)"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS20.1",
+   "status": "Demo paid (50% of 75%), 2 pts",
+   "second_claim_risk": "yes",
+   "reason": "20.1 trace steps cite SubmitForm.tsx and UnclaimedServiceImpl (submit + suspend TS-UNC) and the report is generated inside the same POST /v1/submit-unclaimed call (CT generateUnclaimedReminderReport). 20.1 text is 'temporarily suspend ... under a specific suspension code'; the Excel result is not in that text, but URA can read a result report as part of the submit action. Same points (2) as 20.1."
+  },
+  {
+   "story": "OCMS38.8",
+   "status": "Requirement given - Gen flow, 5 pts (not paid)",
+   "second_claim_risk": "maybe",
+   "reason": "38.8 wants reports opened from the dashboard with export to Excel/PDF. The unclaimed report is downloaded directly after submit, not from the Report module, so different mechanism; but 38.8 'download/save a copy of the report' can be argued to include any Excel report."
+  },
+  {
+   "story": "OCMS47.6",
+   "status": "No requirement, 5 pts",
+   "second_claim_risk": "no",
+   "reason": "47.6 is a refund/unclaimed-refund report (payment report cron, ocmsadminprivateapi); unrelated to unclaimed reminder submit. Name similarity only."
+  }
+ ],
+ "verdict": "FIX WORDING"
+}

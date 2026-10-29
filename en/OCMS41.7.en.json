@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/services/FurnishProcessingService (batchSaveToIntranet, batchSyncStatusToInternet), crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl, workflows/furnish_processing/helpers/FurnishSyncHelper, crud/beans/SystemConstant. ocmseserviceapi workflows/furnish/FurnishApplicationListServiceImpl (status P/A/R to text). ocmsadminui pages/Notice/detail/DecissionDetails, pages/Furnish/form/DecisionForm. ocmsadminapi, thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%); demo: cron enabled, then Internet-Intranet sync. Status 'A' and remarks 'Auto Approved by SYSTEM' are written to Intranet and Internet by the cron, so a reader can tell it was auto-approved from the status and remarks. The part 'user ID displayed as OCMS' is missing: no OCMS string is written as the user; Internet gets upd_user_id 'ocmsiz_app_conn' (a DB account name) and Intranet is updated through native SQL that does not touch upd_user_id, so the 'Updated By' field on the staff screen is probably blank for synced records (conclusion from code, the real DB value cannot verify from repo). The eService portal display of the Approved status was not traced down to UI rendering. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially: the Approved status and system remarks exist; the 'OCMS' user ID does not (blank or a DB account is shown). Ask URA whether the 'Auto Approved by SYSTEM' remarks are enough, or add writing an OCMS user ID",
+  "steps": [
+    {
+      "step": "The submission status in the Intranet DB is set to Approved ('A') for auto-approved records",
+      "detail": "Records that pass the checks go into the approved list (FurnishProcessingService.java:167-170, 137-138), then batchUpdateStatusApproved runs UPDATE ocms_furnish_application SET status='A' (OcmsFurnishApplicationServiceImpl.java:62-74, line 69). A failed SQL is only logged (FurnishProcessingService.java:202-204)."
+    },
+    {
+      "step": "The Approved status is also written to the Internet DB so the eService API returns 'Approved'",
+      "detail": "batchSyncStatusToInternet calls eFurnishService.batchUpdateStatus(txnNos, 'A', 'Auto Approved by SYSTEM', ocmsiz_app_conn) (FurnishProcessingService.java:212-216), which UPDATEs eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:158-171). The eService API maps 'A' to 'Approved' (FurnishApplicationListServiceImpl.java:253-262). Rendering in ocmseserviceui was not traced."
+    },
+    {
+      "step": "The remarks 'Auto Approved by SYSTEM' are stored so it is visible that the system approved it",
+      "detail": "Intranet: SET status='A', remarks='Auto Approved by SYSTEM' (OcmsFurnishApplicationServiceImpl.java:69-70). Internet: the same remarks are passed to batchUpdateStatus (FurnishProcessingService.java:213-214)."
+    },
+    {
+      "step": "The user ID shown for the automatic approval is 'OCMS'",
+      "detail": "There is no 'OCMS' user. Internet gets upd_user_id = DEFAULT_SYSTEM_USER_ID 'ocmsiz_app_conn' (SystemConstant.java:9; FurnishProcessingService.java:214). Intranet is UPDATEd through native SQL that only changes status and remarks (OcmsFurnishApplicationServiceImpl.java:62-74), so the BaseEntity @PreUpdate does not run, and the new synced record is created with updUserId null (FurnishSyncHelper.java:240-244). The staff screen shows 'Updated By' from updUserId (DecissionDetails.tsx:329-331), so for auto-approved records it is probably blank. The real DB value cannot verify from repo."
+    },
+    {
+      "step": "Staff opening the notice see the Approved status and remarks on the furnished hirer/driver detail",
+      "detail": "DecissionDetails shows lastProcessingStage, status, reasonForReview and remarks of the furnish record (DecissionDetails.tsx:150-170); the Furnished Hirer/Driver list shows the status through the FURNISH_STATUS options (FurnishSummaryList.tsx:120-126). The text label for 'A' comes from the standard code in the DB: cannot verify from repo."
+    }
+  ]
+}

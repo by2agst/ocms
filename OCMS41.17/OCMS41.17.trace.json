@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Furnish/form/{DecisionForm,ReplyComposeForm}, pages/Notice/hook/{ActionNotice,useNoticeSubmit}, pages/Furnish/hooks/useFurnishAPI. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController (approve-hirer, approve-driver, send-email, send-sms),services/ManualReviewService}, workflows/furnish/helpers/{FurnishabilityChecker,FurnishNotificationService,FurnishSyncHelper}. Jalur alternatif workflows/furnish/approval/FurnishApprovalController tidak dipanggil UI. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada penjadwalan pengiriman balasan officer",
+  "note": "Status di stories.json: Demo paid (50% of 75%); requirement tidak diberikan terpisah. Approval dan update particulars jalan: satu tombol Submit menyetujui furnish sebagai Hirer atau Driver, memperbarui ONOD, alamat, stage, dan sync ke Internet DB. Perbedaan besar dari story: tidak ada pengiriman pada tanggal dan jam terjadwal. Email/SMS dikirim langsung, sinkron, sesaat setelah approve. Approve dan kirim juga dua request terpisah tanpa rollback. Ada jalur approve kedua (FurnishApprovalController /furnish/officer/approve) yang menyebut OCMS41.15-41.23 di komentar, tetapi tidak dipanggil UI dan tidak ditemukan mapping-nya di api-authorization.properties, sehingga tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian: approval dan update particulars. Jangan klaim pengiriman terjadwal; jadwal tanggal dan jam belum ada. Minta URA konfirmasi apakah kirim langsung dapat diterima atau jadwal harus dibangun",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menyetujui furnish lewat tombol Submit (Decision = Approve, Approve As Hirer atau Driver)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:435-470; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:189-200; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:202-225; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:334-338",
+      "fit": "Sesuai",
+      "detail": "Panel OIC Review meminta Decision Status dan, untuk Approve, Approve As Driver/Hirer (DecisionForm.tsx:435-470). Submit memunculkan dialog konfirmasi (ActionNotice.tsx:189-200) lalu memanggil POST manual-review/approve-hirer atau approve-driver (useFurnishAPI.ts:202-225). Tidak ada aksi terpisah \"menyetujui pengiriman\": menyetujui particulars adalah pemicu yang juga mengirim pesan di compose_list. UEN (ID type B/U) diblokir sebagai Driver di UI (ActionNotice.tsx:163-179) dan di backend (ManualReviewService.java:334-338)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman SMS/email dijalankan pada tanggal dan jam yang sudah dijadwalkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:191-232; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-98; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:166-222",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada penjadwalan: grep \"schedul\" di ocmsadminui/src/pages/Furnish, ocmsadminui/src/pages/Notice, dan ocmsadminapi workflows/furnish tidak menemukan field, parameter, maupun job untuk pengiriman balasan officer. composeFurnish dipanggil langsung setelah approveFurnish sukses (useNoticeSubmit.tsx:198-216) dan backend memanggil emailService.sendEmail (FurnishNotificationService.java:61) atau smsUtil.sendBatchSmsSimple (baris 182) di dalam request. Satu-satunya job furnish di ocmsadminprivateapi yang mengirim email (DailyOfficerNotificationJob) mengirim ringkasan harian ke officer, bukan balasan ke hirer/driver."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars hirer/driver untuk notice di-update saat disetujui",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:362-366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:208-246; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:749-817; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:775-782; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:880-928",
+      "fit": "Sesuai",
+      "detail": "approveSubmission mengecek furnishability OIC (blok bila PS aktif, flag Advisory Notice, atau stage court: FurnishabilityChecker.java:208-246), menyetel status furnish A dan sync ke PII (ManualReviewService.java:362-366), lalu addFurnishedOffender (baris 749-817): offender lama diset N, address lama role itu dihapus (fix OCMS-DF-2026-024, Closed, baris 775-782), ONOD baru H/D dibuat dengan ID, nama, email, telepon, dan alamat furnished_mail ditandai letter_address=Y. changeProcessingStage (baris 880-928) menyetel stage RD1 (Hirer) atau DN1 (Driver), menghitung ulang amount_payable, dan sync VON ke Internet DB. UI memanggil approve-hirer/approve-driver (useFurnishAPI.ts:210-211), bukan /furnish/officer/approve (FurnishApprovalController.java:23-38) yang tidak punya pemanggil UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman dan update particulars berjalan sebagai satu aksi yang disetujui",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:191-232; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:202-225; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:118-200; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:296-297; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:313-314; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:215-216",
+      "fit": "Sebagian",
+      "detail": "Dua request terpisah: approve-hirer/approve-driver dulu (@Transactional hanya membungkus sisi approve, ManualReviewService.java:296, 313), baru bila sukses compose ke send-email/send-sms (useNoticeSubmit.tsx:198-216). Bila email/SMS gagal, particulars sudah tersimpan dan UI hanya menampilkan \"Email/SMS was not successfully sent\" (baris 218-221); tidak ada rollback. Bila checkbox dicentang tetapi compose_list kosong, approve jalan tanpa pesan dan tanpa peringatan (baris 215-216)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi konfirmasi ke officer bahwa persetujuan dan pengiriman selesai",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:210-226; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:204-207; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:254-272",
+      "fit": "Sesuai",
+      "detail": "Setelah approve dan compose sukses, modal alert menampilkan \"Furnished particulars has been saved as the Current Driver/Hirer and the email/SMS has been sent to the recipient.\" (useNoticeSubmit.tsx:223-225, ditampilkan di ActionNotice.tsx:254-272). Bila approve gagal pesannya memuat alasan dan \"Email/SMS was not sent\" (baris 204-207); bila hanya kirim gagal pesannya \"Email/SMS was not successfully sent to the recipient(s)\" (baris 220). Teks menyebut \"sent\", bukan \"scheduled\"."
+    }
+  ]
+}

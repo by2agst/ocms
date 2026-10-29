@@ -1,0 +1,64 @@
+{
+  "story": "OCMS7.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{download/services/LtaDownloadServiceImpl, download/helpers/LtaDownloadHelper, report/jobs/LtaReportJob, report/helpers/LtaReportHelper}, application-prod.properties (email.report.lta.recipients). ocmsadminui pages/Report/lists/{ReportList,ReportListLTA}.tsx, utils/data/LinkData.tsx. ocmsadminapi workflows/ltareport/LtaReportController, api-authorization.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status di sheet: 'Fully paid'. Story menyebut DOS (Department of Statistics), sedangkan code dan OCMS-DF-2026-194 (merujuk OCMS 7 functional document) memakai LTA VRLS sebagai sumber data pemilik kendaraan. Apakah DOS sama dengan LTA tidak bisa dipastikan dari repo (cannot verify from repo); semua step ditulis berdasarkan perilaku code terhadap LTA VRLS. Laporan Excel (Summary, Error, Success, TS-ROV Applied) dikirim lewat email dan disimpan di Azure Blob, dan bisa diunduh dari tab Report LTA di portal staf. Tidak ada dashboard OIC. Banyak defect laporan masih terbuka atau menunggu UAT (OCMS-DF-2026-074, 121, 144, 194), maka fit Sebagian. Tiket dipakai: OCMS-DF-2026-064, 065, 074, 121, 144, 194.",
+  "recommendation": "Klaim pembuatan laporan dan sheet Error. Counts, TS-ROV Applied, dan download masih Sebagian sampai tiket UAT/Open ditutup; routing ke dashboard OIC tidak ada (email saja) dan perlu keputusan URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan ringkasan harian dibuat otomatis setelah hasil dari agency diproses",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/services/LtaDownloadServiceImpl.java:50-55; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/services/LtaDownloadServiceImpl.java:70-77; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/jobs/LtaReportJob.java:153-159",
+      "fit": "Sebagian",
+      "detail": "Laporan dipicu dari LtaDownloadServiceImpl setelah job download selesai (DLS:50-55, 70-77), jadi dibuat per run download (05:00 dan 21:00), bukan satu laporan harian. LtaReportJob juga melewati pembuatan laporan kalau tidak ada record TS-ROV (RJOB:153-159, 195-201), jadi hari tanpa TS-ROV tidak punya laporan. URA menyatakan aturan email itu tetap (OCMS-DF-2026-194). OCMS-DF-2026-074 (Ready to UAT): dua email dengan jumlah berbeda per run dan satu terlambat sekitar 1 jam."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat ringkasan jumlah record yang dikirim, dikembalikan, per error code, dan TS-ROV",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/helpers/LtaReportHelper.java:386-407",
+      "fit": "Sebagian",
+      "detail": "Sheet Summary menulis recordsSubmitted, returnedCode0 sampai returnedCode4, dan returnedTsRov dari metrics batch job (RHELP:386-407). Sumber angka itu log_text batch job yang di-patch async untuk file terenkripsi. OCMS-DF-2026-064 dan OCMS-DF-2026-121 (Ready to UAT, regresi) melaporkan email menampilkan 0 untuk semua angka download-side; angka submitted benar tetapi sisanya 0."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Exception (record error code 1-4) dimuat di sheet Error pada laporan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:539-552; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/helpers/LtaReportHelper.java:177-180",
+      "fit": "Sesuai",
+      "detail": "Setiap record error code 1-4 dikumpulkan sebagai baris error (buildErrorRow: error code, notice, vehicle, deregistered date, tanggal/waktu offence, car park, status TS-ROV; DLH:539-552) dan ditulis ke sheet 'Error' (RHELP:177-180). Isi baris diambil dari record respons, bukan dari tebakan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang kena TS-ROV dimuat lengkap di sheet TS-ROV Applied",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/helpers/LtaReportHelper.java:141-150; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/helpers/LtaReportHelper.java:177-180",
+      "fit": "Sebagian",
+      "detail": "Sheet 'TS-ROV Applied' diisi dari query DB, lalu difilter suspension_type 'TS' dan epr_reason 'ROV' (RHELP:141-150, 177-180). OCMS-DF-2026-144 (Ready to UAT): notice 626400031B yang kena TS-ROV pada 19 Jun 2026 tidak muncul di tab ini karena hanya notice tanpa TS sebelumnya yang masuk. OCMS-DF-2026-065 (Closed) sudah mengganti nama tab dari 'TS-ROV Revived' menjadi 'TS-ROV Applied'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan dirutekan ke dashboard OIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/jobs/LtaReportJob.java:228-241; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/helpers/LtaReportHelper.java:61-62; ocmsadminprivateapi/src/main/resources/application-prod.properties:65; ocmsadminui/src/utils/data/LinkData.tsx:396-398",
+      "fit": "Beda dari flow",
+      "detail": "Laporan dikirim sebagai attachment email ke daftar penerima di properties (email.report.lta.recipients, APPPROD:65; RHELP:61-62) lalu diunggah ke Azure Blob (RJOB:228-241). Tidak ada kode yang mengirim laporan ke dashboard OIC atau membuat work item; menu Work Item di ocmsadminui dikomentari (LinkData.tsx:396-398). Alamat email penerima di properties itu cannot verify sebagai OIC dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC bisa mengunduh laporan dari portal untuk follow-up",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:73-77; ocmsadminui/src/pages/Report/lists/ReportListLTA.tsx:55-56; ocmsadminui/src/pages/Report/lists/ReportListLTA.tsx:90-94; ocmsadminapi/src/main/resources/api-authorization.properties:129-130",
+      "fit": "Sebagian",
+      "detail": "Tab report LTA tampil bila user punya function OCMS_REPORT_LTA (UIREP:73-77), memuat daftar file dari daily-report/search dan tombol Download per file (UILTA:55-56, 90-94); function itu diberi akses ke endpoint lta-report, daily-report, dan download blob (APIAUTH:129-130). Server annotation per role tidak diperiksa lebih jauh. OCMS-DF-2026-194 (Open) mencatat download manual tidak menghasilkan laporan kalau tidak ada record TS-ROV (hanya error code 0), dan hanya menerima satu tanggal, bukan rentang."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS17.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{SuspensionProcessingHelper (validateSuspension, checkOverlappingSuspensionForValidation),TemporarySuspensionHelper.processTS}, workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto} (POST /plus-suspended-notice); ocmsadminprivateapi framework/workflows/plus/notice_management/retrieval/getnotice (POST /plus-offence-notice) dan plus/notice_creation/core/helpers/SuspensionProcessingHelper. Repo lain tidak relevan.",
+  "note": "Story minta OCMS mengecek TS yang sudah ada lalu mengirim pesan ke PLUS. Kode mendeteksi TS lama (VON suspension_type = TS, atau baris suspended_notice dengan due date di masa depan), tetapi tidak dipakai untuk memberi tahu PLUS: untuk kasus utama (notice sudah TS + request TS) dry-run menjawab eligible=true dengan pesan generik 'Validation passed - eligible for suspension', dan eksekusi langsung menumpuk TS baru (komentar di TemporarySuspensionHelper.java:68-70). Satu-satunya pesan terkait adalah 'Overlapping suspension detected' (eligible=false) untuk kombinasi lain. PLUS bisa menarik daftar suspension sendiri lewat /plus-suspended-notice dan /plus-offence-notice; apakah PLUS memakainya sebelum apply cannot verify from repo. Desain multi-TS (reason terbaru, due date terjauh) konsisten dengan ini; tiket OCMS-DF-2026-184 (Pending UAT) menyangkut jalur TS-UNC lain, bukan jalur PLUS.",
+  "recommendation": "Jangan klaim penuh. Klaim yang aman: OCMS tahu ada TS lama dan data TS bisa ditarik PLUS. Pesan 'sudah ada TS' dari OCMS ke PLUS pada alur apply belum ada; minta URA konfirmasi apakah PLUS melakukan cek sendiri lewat /plus-suspended-notice.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah notice sudah punya TS yang berlaku",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:366-370; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:595-617; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:68-70",
+      "fit": "Sebagian",
+      "detail": "Dry-run (checking=true) mengecek VON.suspensionType = TS (SuspensionProcessingHelper.java:367-368) dan baris suspended_notice dengan due_date_of_revival di masa depan (SuspensionProcessingHelper.java:603-610). Jalur eksekusi TemporarySuspensionHelper.processTS tidak mengecek sama sekali; komentarnya (TemporarySuspensionHelper.java:68-70) menyebut lanjut menerapkan TS baru. Jadi pengecekan hanya ada di dry-run, dan hasilnya bukan untuk memberi tahu PLUS. Mirror di ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/helpers/SuspensionProcessingHelper.java:102, :170)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang lolos validasi dan tidak punya TS lama dilanjutkan ke penerapan TS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:445-452; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1198-1207; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:99-102",
+      "fit": "Sesuai",
+      "detail": "Tanpa TS lama dan lolos semua cek, dry-run membalas eligible=true 'Validation passed - eligible for suspension' (SystemConstant.java:287), dan eksekusi menghitung due date lalu menulis VON/suspended_notice. Fakta yang sama dengan OCMS17.20 langkah pertama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika TS lama ada, OCMS mengirim pesan ke PLUS bahwa notice sudah punya TS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:366-370; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1198-1207; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:609-611; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:68-70",
+      "fit": "Beda dari flow",
+      "detail": "Kasus utama (VON sudah TS + request TS): dry-run membalas eligible=true dengan pesan generik, tanpa tanda bahwa TS sudah ada (SuspensionProcessingHelper.java:366-370); eksekusi langsung menerapkan TS baru dan menjawab 'TS Success' (TemporarySuspensionHelper.java:140). Satu-satunya pesan tumpang tindih adalah 'Overlapping suspension detected' (SuspensionProcessingHelper.java:610), eligible=false, hanya untuk notice yang VON-nya bukan TS tetapi suspended_notice masih punya due date ke depan, dan itu error bukan pemberitahuan yang bisa dikonfirmasi. Jadi perilaku code berlawanan dengan story pada kasus utama. Grep sinonim tanpa hasil lain: existing TS, already TS, existingSuspension, OCMS-4006."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS dapat melihat suspension yang sudah ada pada notice lewat endpoint baca OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeControllerPlus.java:33-36; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeServiceImplPlus.java:42-70; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:41-56; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_management/retrieval/getnotice/mapper/NoticeResponseMapper.java:48-75",
+      "fit": "Sebagian",
+      "detail": "POST /plus-suspended-notice mengembalikan baris suspended_notice (filter noticeNo, suspensionType, dateOfRevival[$null], dll). POST /plus-offence-notice (ocmsadminprivateapi) mengembalikan suspensionType, eprReasonOfSuspension, dueDateOfRevival dan, dengan suspendedIndicator=Y, daftar suspended. Data ada, tetapi ini tarikan oleh PLUS, bukan pesan OCMS pada alur validasi TS seperti di story. Apakah PLUS memanggilnya sebelum apply cannot verify from repo."
+    }
+  ]
+}

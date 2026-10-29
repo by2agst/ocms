@@ -1,0 +1,33 @@
+{
+  "story": "OCMS11.56",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, combineNotices, generateMessages, sendBatchSms, saveSendStatus), jobs/NotificationSmsEmailRetryJob}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, properties cron-schedules-*.properties and application-*.properties. Other repos: no related code.",
+  "note": "Status in stories.json is 'Demo paid (50% of 75%)'. The story asks for an SMS reminder listing outstanding NOPOs and referring to the 3rd letter. The code lives in the eNotification job (NotificationSmsEmailJob): RR3 notices are picked, combined per unique owner, sent by SMS in batch and recorded. Gaps: cron.notification.enabled=false in every cron-schedules-*.properties, sms.enable=false in prod with no allowlist, the DataHive refresh is off (cron.enareminder.datahive=false), and the RR3 template text exists only in the DB (cannot verify from repo). The same job also serves the other reminder stages; the DOS number source and the App Service SMS permission cannot be proven from the repo. Ticket: OCMS-DF-2026-180 (ENA only, reminder stages unchanged; eNotification cron awaiting activation).",
+  "recommendation": "Claim partially: selection, per-owner combining, batch send and recording exist. First confirm cron.notification.enabled, sms.enable/allowedSources in PROD and the RR3_SMS_INDIVIDUAL template content in the DB before saying the 3rd-letter SMS is live.",
+  "steps": [
+    {
+      "step": "The job selects notices whose last_processing_stage is RR3 (3rd reminder letter) and that are inside the ENOTEDAYS window",
+      "detail": "queryRecordsForReminder() selects notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, due date (last_processing_date + POS + PDD) <= today + ENOTEDAYS, not suspended (except HST), vehicle type not I/D/V. RR3 is the 3rd-letter stage, so the batch selection matches the story. The reminder stages are not changed by OCMS-DF-2026-180 (ENA only)."
+    },
+    {
+      "step": "The mobile number obtained from DOS/DataHive is used as the SMS destination",
+      "detail": "refreshContactInfo() queries DataHive only when cron.enareminder.datahive=true; it is false in cron-schedules-dev/uat/prod.properties, so the job uses the offender_tel_no already stored in ocms_offence_notice_owner_driver (query lines 1076-1100). Fetching the number from DOS is not in this repo and the updated number/email check is story 11.55. Whether the stored number came from DOS: cannot verify from repo."
+    },
+    {
+      "step": "Notices are grouped per unique owner: one SMS per ID + stage + due date; companies, passports and opted-out IDs are kept out of the SMS batch",
+      "detail": "combineNotices() merges notices with the same idNo, the same stage and the same paymentDueDate into one record (combinedNotices separated by dots, amountPayable summed). The job then drops IDs in the exclusion list and passports (lines 226-245), and only individuals (idType not B) enter smsRecords; companies get email only. Note: ENA individual notices are deliberately NOT combined, but this story is RR3 so they are combined."
+    },
+    {
+      "step": "The SMS text lists the outstanding NOPOs and refers to the 3rd letter reminder",
+      "detail": "The SMS text is loaded from ocms_template_store as {stage}_SMS_INDIVIDUAL[_COMBINED] (RR3_SMS_INDIVIDUAL / RR3_SMS_INDIVIDUAL_COMBINED); the template data carries combinedNotices, noticeCount, amountPayable, paymentDueDate. The template wording (whether it mentions the 3rd letter and all NOPOs) exists only in the DB with no seed in the repo: cannot verify from repo. If the template is missing the SMS is skipped (lines 307-309)."
+    },
+    {
+      "step": "The SMS is sent in batch through SmsUtil/APIM to the driver",
+      "detail": "sendBatchSms() normalises the number, validates the body (GSM-7), splits into batches of 1000 and calls smsUtil.sendBatchSmsSimple(), then polls the status and retries once. But cron.notification.enabled=false in cron-schedules-dev/uat/prod.properties (the scheduler returns immediately, NotificationJobsScheduler.java:49) and sms.enable=false in application-prod.properties:87 with no sms.allowedSources in prod (UAT/dev have ENOTIFICATION). So from the repo this SMS does not go out in PROD until both flags change; actual per-environment values: cannot verify from repo. Ticket OCMS-DF-2026-180 says the eNotification cron is still awaiting activation. Demo remark on the Vault/SMS split and SMS permission for the App Service: cannot verify from repo."
+    },
+    {
+      "step": "The send result is recorded in ocms_sms_notification_records with stage RR3 so the notice is not sent again",
+      "detail": "saveSendStatus() writes an SMS record (service type Reminder, status, batchId, content, processing_stage from the record) per notice; the next reminder query uses NOT EXISTS on ocms_sms_notification_records with stage + service type + retryDays window, so an already sent notice is not picked again. Failures go to the retry path (NotificationSmsEmailRetryJob)."
+    }
+  ]
+}

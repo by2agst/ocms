@@ -1,0 +1,29 @@
+{
+  "story": "OCMS1.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob; ocmseserviceapi workflows/urapg/service/EPaymentCallbackService. ocmsadminapi, ocmsadminui, ocmseserviceui, thirdpartyapi: no NOPO conversion code",
+  "note": "Story status: User Story Removed (5 points), the verdict stays Removed. In the code, 'pre-notice' and 'NOPO' are not two entities: the notice exists in ocms_valid_offence_notice from creation and then moves through stages (ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC) scheduled through next_processing_stage/next_processing_date. After the ENA stage, the waiting period (the STAGEDAYS parameter for code ENA in ocms_parameter) decides when the notice falls to RD1 and goes out as a reminder letter if unpaid. A full payment sets the PS/FP suspension so that notice is no longer selected. No process 'converts the charges into a NOPO' as a separate step, and the waiting period starts when the notice enters ENA, not when the notification was sent successfully (the stage update to RD1 in the eNotification job is commented out, NotificationSmsEmailJob.java:411-414). The content of Appendix B of Annex 1A is not in the repo, so the detailed stage conformance: cannot verify from repo. The RD1 letter itself carries the OCMS1.9 caveats (Toppan upload blocked by config, job not scheduled). Double check note: the story is Removed, so steps that have code are counted as Partial (not Matches) to stay consistent with OCMS1.1-1.5; nothing is claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "After the SMS/email/letter is sent successfully, the payment waiting period starts",
+      "detail": "The waiting period starts when the notice enters the ENA stage: updateProcessingStageToENA sets last=ENA and next=RD1 with nextProcessingDate = today + STAGEDAYS (LtaProcessingStageManager.java:412-435), not when the notification was sent successfully. The eNotification job does not change the stage after a successful send (the update to RD1 is commented out, NotificationSmsEmailJob.java:411-414); the stage only changes on failure / empty contact (NotificationSmsEmailHelper.java:1279-1296). For letter stages the next stage date is set when the file is processed (ToppanUploadHelper.java:1368-1371)."
+    },
+    {
+      "step": "The grace period of X days is configurable through a parameter maintained in OCMS",
+      "detail": "The number of days is not hardcoded: ENA uses ocms_parameter (parameter_id STAGEDAYS, code ENA) and the process fails when the parameter is missing (LtaProcessingStageManager.java:381-408); letter stages use STAGEDAYS per stage (ToppanUploadHelper.java:157-163) and the POS/PDD days also come from ocms_parameter; the e-notification days come from ENOTEDAYS (NotificationSmsEmailHelper.java:1170-1185). The value of X in the database: cannot verify from repo. A staff screen to edit parameters exists in the staff portal (ticket OCMS-SR-2026-039 mentions the system/parameter/edit page), but it was not traced for this story."
+    },
+    {
+      "step": "A notice paid within the grace period is not converted",
+      "detail": "A payment through the portal sets suspensionType='PS', crsReasonOfSuspension='FP' and paymentStatus='FP' when fully paid (EPaymentCallbackService.java:474-486). The Toppan letter query only picks notices with suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:603-611), and the eNotification query also filters on suspension (NotificationSmsEmailHelper.java:1033-1040), so a paid notice does not move up a stage. Other payment paths (AXS, counter) were not traced here."
+    },
+    {
+      "step": "If no payment is made, the outstanding charges are converted to a NOPO",
+      "detail": "No process creates or converts anything into a NOPO after the grace period. The notice is already an ocms_valid_offence_notice row from the start; after ENA it only moves to the next stage (RD1 and onward) and goes out as a reminder letter (LtaProcessingStageManager.java:432-435; ToppanUploadHelper.java:1368-1371). The word NOPO in the repo only appears as a payment channel / archive name (for example findNoticesForNopoarc, OcmsValidOffenceNoticeRepository.java:238; AxsNopo in thirdpartyapi), not as a conversion from a pre-notice. A grep for 'nopo' across ocmsadminprivateapi, ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi was done."
+    },
+    {
+      "step": "The NOPO is processed according to Appendix B of Annex 1A",
+      "detail": "The stage chain after ENA is taken from ocms_stage_map (getNextProcessingStageFromMap, ToppanUploadHelper.java:1814-1816) in the order RD1, RD2, RR3, DN1, DN2, DR3 (ToppanStage.java:19-25) with the admin fee at RR3/DR3 (ToppanUploadHelper.java:1320-1324). The content of Appendix B of Annex 1A is not in the repo, so whether the order, durations, and fees match that Appendix: cannot verify from repo; the ocms_stage_map and ocms_parameter rows in the database: cannot verify from repo."
+    }
+  ]
+}

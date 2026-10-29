@@ -1,0 +1,29 @@
+{
+ "story": "OCMS49.4",
+ "flow_ref": "User story OCMS49.4 (not in any OCMS flow deck)",
+ "code_summary": "ocmseserviceapi workflows/spcp/controller/RedirectController (Singpass login), workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (NRIC search from JWT, not clearance), workflows/receipt/controller/ReceiptController (printslip = payment receipt). ocmseserviceui src/pages/Payment/PaymentSearchResult.ts, src/components/Table.ts (generic empty messages). Other repos (ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi): no clearance slip code.",
+ "note": "The story asks the e-service to show a 'no records under my NRIC' message when the offender has no permanently suspended warrant of arrest in the past X months. A grep for 'clearance' across all six repos is empty: there is no Clearance Slip feature, no permanently-suspended-warrant check per NRIC, no X-month setting and no dedicated message. What exists is Singpass login, NRIC from JWT for parking fine search, generic empty messages on the payment page, and printslip for receipts. The spreadsheet status 'Built - Has gap' is not supported by code in these repos; it may be built on another branch/repo or not on main. The Evidence 20% comes only from login and a reusable NRIC lookup, not the core of the story. To verify: whether Clearance Slip is built in another repo/branch, and the value of X months per URA. Singpass and gateway: cannot verify from repo.",
+ "recommendation": "Confirm with the team where Clearance Slip is built. If it is meant to be on main, mark it Tidak ada code and lower the story status; if not yet built, add an eligibility endpoint (permanently suspended warrant per NRIC within X months), an X-month setting, and the 'no records found under your NRIC' message.",
+ "steps": [
+  {
+   "step": "Offender is logged in to the Online Customer Portal via Singpass to open the Clearance Slip service",
+   "detail": "Singpass/Corppass login exists: RedirectController.java:65 (POST /resolveSpCpArtifact) exchanges the artifact for a session. But there is no Clearance Slip menu, route or page in ocmseserviceui (grep 'clearance' is empty in every repo). The Singpass exchange itself: cannot verify from repo (done by the Singpass gateway)."
+  },
+  {
+   "step": "Offender's NRIC is taken from the login session, not typed in",
+   "detail": "handleIdNoSearchFromJwt (ParkingFinesController.java:279, called from :105-108) takes the ID from the JWT/session (session.getUserId(), :310). It serves the parking fines search (/v1/parkingfines searchType=id), not Clearance Slip, so the mechanism is reusable but not yet used by this story."
+  },
+  {
+   "step": "System checks for permanently suspended warrants of arrest under the NRIC in the past X months",
+   "detail": "No query or service for permanently suspended warrants of arrest per NRIC, and no X-month setting in properties. The nearest code only checks PS-ANS notices (isAnnulledOrPsAns, ParkingFinesServiceImplement.java:258) to mark a notice non-payable, and warrantStages in PaymentSearchResult.ts:771 to choose the payment flow. Neither is a clearance slip eligibility check."
+  },
+  {
+   "step": "If no record is found, the e-service shows a message that there are no records under the NRIC",
+   "detail": "The only empty messages are generic and belong to the fines payment page: 'No offence payment was found.' (PaymentSearchResult.ts:191) and the fallback 'No records found.' in the Table component (Table.ts:599). There is no 'no records under my NRIC' message for Clearance Slip."
+  },
+  {
+   "step": "Offender knows there is no clearance slip to download or print",
+   "detail": "No clearance slip endpoint. POST /v1/printslip (ReceiptController.java:38) only builds a payment receipt PDF/ZIP from receiptNo or notices, not a clearance slip."
+  }
+ ]
+}

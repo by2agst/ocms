@@ -1,0 +1,21 @@
+{
+  "story": "OCMS14.21",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/form/VehicleForm.tsx (VehicleBasicField + ModalConfirm), components/form/DropdownInput.tsx, pages/Notice/form/{NoticeOForm,NoticeEForm,NoticeUForm}.tsx, App.tsx (route notices/edit), pages/Notice/mode/special/SpecialForm.tsx. ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant to this confirmation dialog",
+  "note": "1-point story, status 'Demo paid (50% of 75%)'. The confirmation dialog lives in the staff portal: on the notice edit page, VehicleBasicField (VehicleForm.tsx:33) opens the ModalConfirm 'Vehicle Registration Type Changed' whenever the Registration Type option is changed in any mode other than CREATE, and the dropdown value only changes after the officer presses Yes. The same component is used by the O, E and U notice forms (NoticeOForm.tsx:71, NoticeEForm.tsx:56, NoticeUForm.tsx:855). One thing to watch: the special-notices/edit route only renders an empty TempForm (SpecialForm.tsx:34-37), so there is no dedicated screen for the Special Notice Processing Officer; staff use the general notice edit. Restriction to the Special Notice Processing Officer role is not visible in the UI; only the function mapping OCMS_NOTICE_EDIT exists (api-authorization.properties:46-48) and the role assignment to users cannot be verified from the repo. No relevant maintenance tickets.",
+  "recommendation": "Can be claimed for the confirmation dialog (strong evidence in VehicleForm.tsx). Note for URA: the dialog is in the general notice edit, not on the Special Notices screen (SpecialForm is an empty stub), and after Yes the vehicle number and category are cleared and must be re-entered.",
+  "steps": [
+    {
+      "step": "Officer changes the Vehicle Registration Type on the notice edit page",
+      "detail": "Route notices/edit/:notice_no (App.tsx:152) renders EditForm; NoticeOForm uses VehicleBasicField (NoticeOForm.tsx:71), which has the 'vehicle_type' DropdownInput with onSelect=onVehicleTypeChange (VehicleForm.tsx:172-183). The special-notices/edit route (App.tsx:211-213) only renders an empty TempForm (SpecialForm.tsx:34-37, 79), so staff change the type through the general notice edit. Restriction to the Special Notice Processing Officer role cannot be verified from the repo (only the OCMS_NOTICE_EDIT mapping, api-authorization.properties:46-48)."
+    },
+    {
+      "step": "OCMS shows a confirmation message before the change is applied",
+      "detail": "In every mode other than CREATE (line 50), onVehicleTypeChange stores the option in state, opens the ModalConfirm titled 'Vehicle Registration Type Changed' with the message 'Are you sure you want to change the Vehicle Registration Type ?' (lines 126-130, 162-169) and then throws Error('CONFIRMATION_VEHICLE_TYPE') (line 64). The empty catch in DropdownInput (DropdownInput.tsx:191) swallows that error, so the dropdown value is not changed before confirmation. CREATE mode has no dialog (VehicleForm.tsx:50), which is reasonable because there is no previous value."
+    },
+    {
+      "step": "Officer chooses Yes to proceed or No to cancel",
+      "detail": "The buttons are labelled Yes/No (VehicleForm.tsx:168). Yes runs onComOk (lines 132-158) and closes the dialog; No only closes the dialog (line 167) without changing the form. Extra behaviour the story does not mention: Yes also clears vehicle_no and vehicle_category (lines 147-149) unless the type is X, so the officer must re-enter the vehicle number. The change is only saved to the database on Save (see OCMS14.22)."
+    }
+  ]
+}

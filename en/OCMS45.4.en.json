@@ -1,0 +1,29 @@
+{
+  "story": "OCMS45.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/DailyReportJobsScheduler, framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper,services/PaymentExceptionReportServiceImpl}, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminapi workflows/operational/cronproxy (manual trigger). ocmsadminui pages/Report/lists: no exception report screen. ocmseserviceapi, ocmseserviceui, thirdpartyapi: none",
+  "note": "The story asks for daily summary reports on notices that are temporarily suspended and updated as paid, which the officer can view and download. Status in the sheet: Fully paid. A Payment Exception Report exists and is scheduled daily at 08:00 as the first job of DailyReportJobsScheduler (cron-schedules-prod.properties:255-256, 262; DailyReportJobsScheduler.java:96) with report date = yesterday (PaymentExceptionReportJob.java:618-621). It lists PS-PRA, TS-PAM and refund notices for that date (PaymentExceptionReportHelper.java:56-83, 141); a notice that the officer later updates to PS-FP is not in the query. The report goes out as an Excel attachment by email to the OIC list; there is no report screen in the staff portal. email.enableSmtp=false in prod, but the source PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources so EmailService still sends (application-prod.properties:80-81, EmailService.java:65-69). The real server values and email delivery cannot be verified from the repo. Tickets: OCMS-DF-2026-104 (duplicate emails since 15 May 2026, Closed, Prod deployed), OCMS-SR-2026-112 (CRS/EPR/refund columns added, Closed), OCMS-SR-2026-157 (merged into SR-112, Closed), OCMS-SR-2026-190 (Ready to PRD, not live yet).",
+  "recommendation": "Claim most of it. The daily report and email exist; gaps: no amount payable/mismatch reason column, a notice the officer updated to PS-FP is not included, and no view in the portal.",
+  "steps": [
+    {
+      "step": "OCMS generates the summary report automatically every day",
+      "detail": "DailyReportJobsScheduler runs at 0 0 8 * * ? with enabled=true (cron-schedules-prod.properties:255-256) and runs the Payment Exception Report as its first job (cron-schedules-prod.properties:262, DailyReportJobsScheduler.java:76-96). The report date defaults to yesterday (PaymentExceptionReportJob.java:618-621). Actual execution on the server cannot be verified from the repo."
+    },
+    {
+      "step": "The report contains notices temporarily suspended for a mismatch (TS-PAM)",
+      "detail": "The query picks notices with suspension_type='TS', epr_reason_of_suspension='PAM' and epr_date_of_suspension on the report date (PaymentExceptionReportHelper.java:76-83); rows get exception_type 'TS-PAM' (PaymentExceptionReportHelper.java:255-268). Note: a notice that turned into PS on that date before the job runs is not included. Because TS-PAM in the code only appears for AXS vehicle mismatch (see OCMS45.2), this report in practice does not contain amount mismatches."
+    },
+    {
+      "step": "The report contains the notices that were updated as paid",
+      "detail": "The report contains PS-PRA (partial payments that were updated automatically) and REFUND rows for that date (PaymentExceptionReportHelper.java:70-77, 131-141). A notice that the officer updates to PS-FP through manual payment (PaymentUpdateServiceImpl.java:373-381) is not selected by the query because only PRA/PAM/refund rows are taken. The separate Daily Paid Report lists all paid notices but does not mark which ones came from an exception follow-up; its details were not verified in this chunk."
+    },
+    {
+      "step": "The report holds enough details for follow-up (notice, receipt, amount, reason)",
+      "detail": "Excel columns: S/N, Transaction Date/Time, Exception Type, Notice No., PP Code, Receipt No., Transaction ID, Payment Channel, Amount Paid, CRS Reason, EPR Reason, Refund Date/Time, Refund ID, Refund Reason (PaymentExceptionReportHelper.java:527-529, 550-563). There is no Amount Payable column and no mismatch reason column. The CRS/EPR/refund columns were added through OCMS-SR-2026-112 (Closed, Prod deployed); OCMS-SR-2026-157 asked for similar columns and was merged into SR-112."
+    },
+    {
+      "step": "The officer can view and download the report",
+      "detail": "The job builds the Excel Payment_Exception_Report_yyyyMMdd.xlsx and sends it as an email attachment to email.report.paymentreport.exception.recipients (PaymentExceptionReportJob.java:197-216, application-prod.properties:78). email.enableSmtp=false, but the source PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources (application-prod.properties:80-81) so EmailService still sends (EmailService.java:65-69). There is no screen for this report in ocmsadminui (the Report pages do not list exception/paid). Ticket OCMS-DF-2026-104 (duplicate emails since 15 May 2026, Closed, Prod deployed). The real server values and email delivery cannot be verified from the repo."
+    }
+  ]
+}

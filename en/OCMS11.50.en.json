@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.50",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{models/ToppanStage,jobs/ToppanLettersGeneratorJob,jobs/ToppanUploadJob,helpers/ToppanUploadHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findToppanNoticesForStage), framework/services/comcryptSftpBlob/helper/ComcryptUploadProcessor, application-prod.properties (sftp.upload.disabledServers), cron-schedules-prod.properties (cron.toppanupload). Other repos: no code for these steps. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark: SFTP, code split, SFTP permission for the App Service. DN2 letter generation for drivers exists and is enabled in prod (Toppan Upload cron at 00:15): notice selection, address filter, building the URA-DPT-DN2-D1-* file, the COMCRYPT encryption request. What lowers the claim: application-prod.properties:86 blocks SFTP upload to Toppan, so the file does not reach the vendor, while the stage still advances because the delivery gate is bypassed (ToppanUploadJob.java:424-430). Ticket OCMS-DF-2026-192 (Ready to UAT) covers this and waits for business confirmation; ticket OCMS-DF-2026-170 (closed) is the source of the block. Property values on the server, SFTP permission and the Toppan file layout: cannot verify from repo.",
+  "recommendation": "Claim partially. DN2 file generation exists and is active, but delivery to the vendor is blocked in the prod properties and the stage still advances. Ask URA for proof that the Toppan SFTP block is lifted and that the vendor receives the DN2 file in PRD before claiming in full.",
+  "steps": [
+    {
+      "step": "Notices at stage DN2 that are due are processed by the Toppan letter cron; only unsuspended ones, with the driver as offender",
+      "detail": "ToppanStage contains DN2 (Demand Notice 2, next DR3) and ToppanLettersGeneratorJob processes all stages in order, including DN2 (ToppanStage.java:23; ToppanLettersGeneratorJob.java:151-166). findToppanNoticesForStage('DN2') selects next_processing_stage='DN2', next_processing_date <= today, suspension_type IS NULL, not AN, joined to the row with offender_indicator='Y' (OcmsValidOffenceNoticeRepository.java:583-614), so the addressee is the driver. The Toppan Upload cron is enabled in prod, daily at 00:15 (cron-schedules-prod.properties:61-62)."
+    },
+    {
+      "step": "Only notices that have a letter address (letter_address = Y) are included in the file",
+      "detail": "filterByLetterAddress drops notices without an address row flagged letter_address='Y' before the file is built; if nothing remains, the stage finishes with no action (ToppanUploadJob.java:266-272; ToppanUploadHelper.java:2372-2400). That address comes from the MHA update or a furnish (see OCMS11.49)."
+    },
+    {
+      "step": "OCMS builds the DN2 letter data file for the vendor (named URA-DPT-DN2-D1-timestamp)",
+      "detail": "The file name URA-DPT-{stage}-D1-yyyyMMddHHmmss is created and its content is built by agencyFileExchangeService.createRequestFileContent('TOPPAN_DN2', ...) then uploaded to blob (ToppanUploadJob.java:279-300, 313-317). The story says 'PDF/data files'; the code builds only a data file for Toppan, PDFs are built only for ANL (ToppanUploadJob.java:321-343), which satisfies 'PDF/data'. The record layout belongs to the Toppan format; cannot verify from repo."
+    },
+    {
+      "step": "The file is encrypted and sent to the vendor SFTP for printing and postage",
+      "detail": "ToppanUploadJob requests a COMCRYPT token for encryption (ToppanUploadJob.java:345-360); the COMCRYPT callback does the SFTP upload. But in prod sftp.upload.disabledServers=toppan (application-prod.properties:86), so ComcryptUploadProcessor throws SftpDisabledException and the file never reaches the Toppan SFTP (ComcryptUploadProcessor.java:200-210). Ticket OCMS-DF-2026-170 (closed) put this block in place and OCMS-DF-2026-192 (Ready to UAT) covers its impact. Same fit as the RR3 step in OCMS11.16. Whether the block is also on the server: cannot verify from repo."
+    },
+    {
+      "step": "After the file is delivered, the notice stage advances from DN2 to DR3 and the delivery is recorded",
+      "detail": "confirmDeliveryAndAdvanceStage waits for COMCRYPT to delete the operation record as proof that SFTP succeeded, then calls updateProcessingStage which updates the VON (prev/last/next stage, dates, amount_payable and admin fee), syncs the eVON, tracking tables and letter_address (ToppanUploadJob.java:405-450; ToppanUploadHelper.java:235-335, bulkUpdateVonStage at line 1337). The problem: when the server is blocked by configuration, the gate is bypassed (gateBypassed, ToppanUploadJob.java:424-430), so the stage still advances although the file was not delivered. The notice moves to DR3 without the driver receiving the DN2 letter. Tickets OCMS-DF-2026-192 (Ready to UAT), OCMS-DF-2026-170 (closed, wrong admin fee on same-stage transitions)."
+    }
+  ]
+}

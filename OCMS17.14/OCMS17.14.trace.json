@@ -1,0 +1,91 @@
+{
+  "story": "OCMS17.14",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, plus-suspension-codes),helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper,helpers/SuspensionProcessingHelper}.java, auth/filter/JwtFilter.java. Salinan kedua di ocmsadminprivateapi framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java. Efek ke job: ocmsadminprivateapi AutoRevivalHelper, LtaUploadHelper, MhaNricDataHelper, NotificationSmsEmailHelper, DataHiveUenFinService. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code PLUS",
+  "note": "Endpoint POST plus-apply-suspension menerima daftar notice, suspensionType, reasonOfSuspension, daysToRevive, remarks dan officer dari PLUS, menolak request tanpa field wajib, memaksa suspensionSource = PLUS, lalu menjalankan processTS yang sama dengan staff (cek source permission dari ocms_suspension_reason, stage, paid, overlap PS) dan menulis VON, eVON dan ocms_suspended_notice. PLUS mendapat results[] per notice dengan appCode. Yang belum terbukti atau berbeda: (1) JwtFilter melewati semua URL plus-* (JwtFilter.java:179), jadi pengamanan pemanggil PLUS bergantung pada APIM dan tidak terlihat di repo; (2) kode mana yang boleh dipakai PLUS bergantung pada baris ocms_suspension_reason (source PLUS, status A) yang tidak ada di repo; (3) daysToRevive 0 atau negatif lolos validasi mandatory dan diganti default (sama dengan OCMS17.12); (4) 'tidak escalate' hanya sebagian: VON diberi suspension_type TS dan job MHA, SMS/email dan DataHive UEN memfilter suspension_type IS NULL, tetapi LTA upload hanya mengecualikan PS dan malah memindahkan TS ke RD1 (LtaUploadHelper.java:175), dan seleksi surat Toppan tidak ditemukan memakai filter ini sehingga tidak bisa dipastikan; (5) tidak ada kunci/idempotensi: TS-APP yang telat bisa menimpa PS-APP (OCMS-SR-2026-146, dipatch lewat data, penyebab di sisi timeout PLUS) dan retry PLUS menambah baris suspended_notice baru. Ada dua salinan endpoint (ocmsadminapi dan ocmsadminprivateapi); routing APIM mana yang dipakai PLUS tidak bisa diverifikasi dari repo. Tiket: OCMS-DF-2026-025 (aturan TS-RED PLUS sampai COS), OCMS-DF-2026-027 (sr_no duplikat saat batch dari PLUS), OCMS-SR-2026-146. Cron Auto Revival memakai flag cron.toppanupload.enabled=true (cron-schedules-prod.properties:62); nilai server asli tidak bisa diverifikasi.",
+  "recommendation": "Klaim sebagian: antarmuka PLUS untuk apply TS dengan kode dan hari ada dan menulis data dengan benar. Catat: autentikasi PLUS tidak terlihat di repo, isi kode PLUS bergantung data DB, dan 'tidak escalate' hanya sebagian dihormati job.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS bisa mengirim notice dengan kode suspensi dan jumlah hari.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:486-528; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1157-1182",
+      "fit": "Sesuai",
+      "detail": "plusApplySuspension menerima noticeNo[], suspensionType, reasonOfSuspension, daysToRevive, suspensionRemarks, officerAuthorisingSuspension; field wajib yang kosong dijawab 400 'OCMS-4000 Invalid request' (CTRL:504-528). Jumlah hari dibaca dari daysToRevive (extractDaysToRevive, CTRL:1157-1182), jadi PLUS bisa mengirim kode dan jumlah hari tertentu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya sistem PLUS yang boleh mengirim permintaan ini.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:24",
+      "fit": "Sebagian",
+      "detail": "JwtFilter.isPublicEndpoint menganggap semua path plus-* publik (JwtFilter.java:179), jadi plus-apply-suspension tidak butuh JWT. Proteksi pemanggil (APIM / network / key) tidak terlihat di repo: cannot verify from repo. Endpoint ini mengubah status notice, jadi bukti 'hanya PLUS yang bisa memanggil' tidak ada dari code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspensi dari PLUS dicatat sebagai berasal dari PLUS.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:529-544; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:60-62; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1037-1041",
+      "fit": "Sesuai",
+      "detail": "suspensionSource dipaksa PLUS; request dengan suspensionSource selain PLUS ditolak 400 (CTRL:532-538). Suspension di-record sebagai source PLUS dan processIndicator 'Manual' (CTRL:1037-1041), jadi tabel ocms_suspended_notice membedakan TS dari PLUS dan dari staff."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya kode suspensi yang disediakan untuk PLUS yang diterima.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-336; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:133-137; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:73-77",
+      "fit": "Sebagian",
+      "detail": "Kode hanya diterima jika ada baris ocms_suspension_reason dengan suspension_type TS, reason, suspension_source PLUS dan status A (BASE:294-336), kalau tidak 'Source not authorized to use this Suspension Code'. PLUS bisa mengambil daftar kode lewat plus-suspension-codes (CTRL:133-137). Mekanismenya ada, tetapi kode apa yang tersedia dan berapa hari defaultnya hanya ada di data DB, bukan di repo: cannot verify from repo. Lookup hari default selalu memakai source OCMS meskipun request dari PLUS (TSH:197)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tidak bisa disuspensi ditolak dengan alasan.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:79-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:197-205; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-275",
+      "fit": "Sesuai",
+      "detail": "Sebelum apply, processTS cek stage (BASE:189-275; kode ROV/CLV/NRO punya batas stage sendiri), notice sudah dibayar (crs_reason tidak kosong, TSH:87-90) dan overlap dengan PS (hanya FOR/MID/DIP/RP2/RIP yang mengizinkan TS, TSH:31-33, 159-178). Aturan khusus PLUS TS-RED sampai stage COS (BASE:197-205, OCMS-DF-2026-025). Notice yang gagal mendapat success=false + alasan; request PLUS dengan checking=true menjalankan validasi tanpa menulis (CTRL:995-1000)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice disuspensi tepat selama jumlah hari yang dikirim PLUS.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:181-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:206-208; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:519-523",
+      "fit": "Sebagian",
+      "detail": "Revival date = sekarang + daysToRevive (TSH:188-190). daysToRevive wajib ada (null ditolak, CTRL:519-523), tetapi 0 atau negatif lolos dan diganti default dari ocms_suspension_reason atau 30 hari (TSH:192-208) tanpa pemberitahuan. Fit sama dengan OCMS17.12 (fakta yang sama)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspensi tersimpan dan PLUS menerima hasil per notice.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:113-140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-378; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-465; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997",
+      "fit": "Sesuai",
+      "detail": "Hasilnya sama dengan staff: updateVON (suspension_type TS, reason, tanggal revival terjauh), updateEVON dan baris ocms_suspended_notice baru dengan suspension_source PLUS, remarks, officer dan srNo dari sequence per notice (OCMS-DF-2026-027 sudah diperbaiki). PLUS menerima results[] per notice dengan appCode OCMS-2000 / OCMS-4000 (CTRL:552-555, 1186-1198)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Selama TS aktif, notice tidak boleh naik ke tahap berikutnya.",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:181-215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1032-1036; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:238; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:164-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:440-463",
+      "fit": "Sebagian",
+      "detail": "Notice ber-TS tidak otomatis berhenti di semua job. File enquiry MHA hanya mengambil notice dengan suspension_type null atau TS-HST/TS-UNC (MhaNricDataHelper:196-215), SMS/email ENA memerlukan suspension_type IS NULL (NotificationSmsEmailHelper:1034, kecuali TS-HST), DataHive UEN/FIN juga IS NULL (DataHiveUenFinService:238). LTA upload hanya mengecualikan PS; TS dipindahkan ke RD1 (LtaUploadHelper:175). Seleksi surat Toppan tidak ditemukan memfilter suspension_type: cannot confirm. Saat due date tercapai AutoRevivalHelper me-revive TS dan mempertahankan suspensi lain yang tersisa (AutoRevivalHelper:440-463); job ini ada di cron toppanupload enabled=true (cron-schedules-prod.properties:62), nilai server asli tidak bisa diverifikasi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Permintaan PLUS yang telat atau berulang tidak membatalkan suspensi permanen.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:86-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124-133; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-378",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pengaman terhadap request telat atau berulang: validasi overlap PS dan penulisan VON tidak dalam satu kunci, dan updateVON menimpa suspension_type tanpa cek ulang. OCMS-SR-2026-146: TS-APP dari PLUS yang selesai terlambat menimpa PS-APP, dan retry PLUS memasukkan TS lagi (diperbaiki dengan patch data, penyebab utama timeout 30 detik di sisi PLUS). Tiap retry yang lolos validasi menambah baris ocms_suspended_notice baru (tidak ada idempotency key). Perilaku saat ini di repo belum diubah untuk kasus itu."
+    }
+  ]
+}

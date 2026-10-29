@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.24",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}, crud/ocmsizdb/suspendednotice/{SuspendedNoticeController, SuspendedNoticeServiceImpl}, resources api-authorization.properties. ocmsadminui src/pages/Notice/detail/SuspensionDetail.tsx. Jalur PS otomatis dari cron (ocmsadminprivateapi utilities/suspension_helpers) tidak ditrace di story ini",
+  "note": "Status di stories.json: Fully paid. Setiap PS (dari staff portal maupun PLUS) menambah satu row baru di ocms_suspended_notice dengan tanggal, OIC, alasan, sumber, dan remarks; PS lama tidak dihapus melainkan diberi date_of_revival dan revival_reason. Staff melihatnya di tab Suspension Details pada halaman Notice. Yang perlu dicatat: PS dengan kode sama yang sudah aktif tidak menambah row (kecuali notice berbayar dengan kode refund), error saat me-revive PS lama hanya di-log, dan kolom suspension remarks tidak tampil di list UI. Tiket OCMS-DF-2026-027 (sr_no duplikat), OCMS-DF-2026-070 dan OCMS-DF-2026-075 (PS-APP tidak muncul di Suspension Details) semuanya Closed / Prod deployed dan koreksinya terlihat di main. Hak akses staff ke endpoint list: cannot verify from repo (hanya terlihat terdaftar di api-authorization.properties).",
+  "recommendation": "Bisa diklaim. Kolom remarks tidak tampil di list UI dan jalur PS otomatis cron tidak ditrace di story ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap permanent suspension (dari OCMS atau PLUS) tercatat sebagai row riwayat baru lengkap dengan OIC, tanggal-jam, dan alasan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:474-489; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-141; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:213; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:231-235; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-550; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1036-1040",
+      "fit": "Sesuai",
+      "detail": "processPS memanggil updateDatabase (PermanentSuspensionHelper.java:139-141) -> insertSuspendedNotice yang menambah row ocms_suspended_notice berisi notice_no, date_of_suspension (now), sr_no, suspension_source, suspension_type, reason_of_suspension, officer_authorising_suspension, due_date_of_revival, suspension_remarks, process_indicator (SuspensionBaseHelper.java:443-467). Jalur staff (POST /staff-apply-suspension, SuspensionProcessingController.java:213, :231-235) dan PLUS (:546-550) sama-sama lewat processNoticeList; process_indicator Manual (:1036-1040). sr_no dibuat per notice dari sequence (:997); tiket OCMS-DF-2026-027 (sr_no duplikat, Closed, Prod deployed) tampak sudah dikoreksi di main. Jalur PS otomatis dari cron tidak ditrace di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Riwayat suspension lama tidak dihapus; PS sebelumnya hanya ditandai di-revive",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:245-305; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeServiceImpl.java:606-610",
+      "fit": "Sesuai",
+      "detail": "Bila notice sudah PS dengan kode lain, reviveOldPS mengisi date_of_revival, revival_reason, officer_authorising_revival, revival_remarks pada row PS aktif lalu saveAll; row tidak dihapus (PermanentSuspensionHelper.java:125-130, :245-305). Satu-satunya method hapus, SuspendedNoticeServiceImpl.deleteAllByNoticeNoNative (SuspendedNoticeServiceImpl.java:606-610), tidak punya pemanggil di ocmsadminapi maupun ocmsadminprivateapi. Edge case: PS dengan kode sama yang sudah aktif langsung dibalas 'Success Notice already PS' tanpa row baru, kecuali notice berbayar dengan kode refund (PermanentSuspensionHelper.java:78-97); error saat reviveOldPS hanya di-log dan PS baru tetap diproses (:301-304)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengguna OCMS bisa melihat riwayat suspension notice di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:92-96; ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:100-135; ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:137-170; ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:182-185; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeController.java:55; ocmsadminapi/src/main/resources/api-authorization.properties:50",
+      "fit": "Sesuai",
+      "detail": "Tab Suspension Details di halaman Notice memuat Datagrid resource suspendednoticelist dengan filter noticeNo (SuspensionDetail.tsx:92-96) dan menampilkan type, reason, dateOfSuspension, officerAuthorisingSuspension (:100-135), dueDateOfRevival, revivalReason, dateOfRevival, officerAuthorisingRevival (:137-170) dan suspensionSource (:182-185), semua row termasuk yang sudah di-revive. Endpoint POST /suspendednoticelist (SuspendedNoticeController.java:55) terdaftar di api-authorization.properties:50. Kolom suspension remarks tidak ditampilkan di list. Hak akses per role: cannot verify from repo. Tiket OCMS-DF-2026-070 dan OCMS-DF-2026-075 (PS-APP tidak muncul di Suspension Details, Closed, Prod deployed)."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.46",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, batchPreloadContactInfo, refreshContactInfo, refreshIndividualContactInfo, getContactInfoFromSingpass, updateOcmsContactInfo, validateContactInfo)}, framework/schedulers/NotificationJobsScheduler, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (set stage DR3), properties cron-schedules-prod dan application-prod (cron.enareminder.datahive, cron.notification.enabled, sftp.upload.disabledServers). Repo lain: tidak ada code terkait",
+  "note": "Status 'Demo paid (50% of 75%)'. demo_remark menyebut Vault Code Split untuk ANS dan permission Vault ke api App Service; itu cannot verify from repo (kata 'vault' di repo hanya muncul di konfigurasi Azure Key Vault seperti CustomTokenCredential, tidak di alur eNotification). Tidak ada flow deck. Story ini versi driver dari OCMS12.18 (3rd letter ke vehicle owner): cron eNotification yang sama memilih notice dengan last_processing_stage = DR3 (NotificationSmsEmailHelper.java:1114), jadi fit tiap langkah disamakan dengan OCMS12.18. Pengecekan mobile terbaru dari DataHive (Singpass) ada di code tapi dikunci cron.enareminder.datahive=false di prod (cron-schedules-prod.properties:48), dan cron eNotification sendiri cron.notification.enabled=false (cron-schedules-prod.properties:236); tiket OCMS-DF-2026-180 menulis 'Awaiting eNotification cron to activate'. Nilai property di server asli cannot verify from repo. 'DOS' tidak muncul di code; DOS = DataHive/LTA cannot be confirmed from the repo, di sini dibaca sebagai DataHive. Query tidak memfilter owner_driver_indicator, hanya offender_indicator = 'Y' (offender saat ini), jadi 'driver' diasumsikan dari stage DR3.",
+  "recommendation": "Klaim sebagian. Pemilihan notice stage DR3 dan validasi kontak sesuai story; pengecekan mobile terbaru dari DataHive terkunci cron.enareminder.datahive=false dan cron eNotification off di prod. Klaim penuh menunggu konfirmasi URA/tim bahwa flag dan cron aktif di server asli",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah 3rd letter ke driver terkirim, notice di stage DR3 menjadi kandidat reminder elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:174-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1112-1118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1418-1421",
+      "fit": "Sesuai",
+      "detail": "Surat DR3 dari Toppan menggeser last_processing_stage ke DR3 dan mengisi next_processing_stage/date (ToppanUploadHelper.java:1418-1421). Job eNotification memanggil queryRecordsForReminder() (NJ:162) dan menandai stage tiap baris dari last_processing_stage (NJ:174-180). Query memilih von.last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) dengan onod.offender_indicator = 'Y' dan due date (last_processing_date + POS + PDD) yang masuk jendela ENOTEDAYS (NH:1112-1118). Alur 'surat dulu, baru reminder elektronik' sesuai urutan story. Catatan: stage DR3 bisa maju walau file tidak sampai ke Toppan karena sftp.upload.disabledServers=toppan di prod (application-prod.properties:86; OCMS-DF-2026-192). Nilai ENOTEDAYS/POS/PDD ada di DB, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek nomor mobile terbaru driver individu dari DOS (Singpass via DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2483; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2738; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo dan refreshContactInfo untuk semua record (NJ:185-187). refreshContactInfo hanya query DataHive bila cron.enareminder.datahive=true (NH:92-93, 2468); nilainya false (cron-schedules-prod.properties:48), jadi yang dipakai hanya phoneNo yang sudah ada di record (NH:2468-2477). Jalur live-nya ada: getContactInfoFromSingpass membaca CONTACT dari V_DH_SNDGO_SINGPASSCONTACT_MASTER dan menolak nomor kurang dari 8 karakter (NH:2710-2738). Fit sama dengan OCMS12.18. Nilai flag di server asli cannot verify from repo; 'DOS' = DataHive cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile terbaru disimpan ke data driver di notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2764; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2800-2823; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2468-2477; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Bila jalur DataHive aktif, updateOcmsContactInfo mem-patch offender_tel_no dan email_addr di ocms_offence_notice_owner_driver per noticeNo + idNo (NH:2764, 2800-2823). Karena cron.enareminder.datahive=false (cron-schedules-prod.properties:48) dan refreshContactInfo return lebih awal (NH:2468-2477), update ini tidak jalan di PROD untuk jalur eNotification. Fit sama dengan penyimpanan kontak di OCMS12.18."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder elektronik hanya disiapkan bila driver punya mobile number yang valid",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:443-451; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-266",
+      "fit": "Sesuai",
+      "detail": "validateContactInfo menolak record dengan contactError atau, untuk individu, phoneNo kosong (NH:2259-2290). Di job, record non-ENA yang tidak valid dilewati dengan log 'Skipping record with invalid contact' (NJ:254-266). Channel ditentukan idType: B -> EMAIL, selain itu SMS (NH:443-451). Jadi reminder SMS hanya disiapkan untuk driver yang punya nomor, sesuai tujuan 'so that an electronic reminder can be sent'. Edge case: driver bertipe B (company) diarahkan ke EMAIL dan email untuk stage DR3 dilewati karena 'no template available' (NH:313-317); story hanya bicara mobile number, jadi tidak dihitung sebagai langkah."
+    }
+  ]
+}

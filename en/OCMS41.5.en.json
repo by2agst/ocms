@@ -1,0 +1,45 @@
+{
+  "story": "OCMS41.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishApprovalHelper, helpers/FurnishSyncHelper, helpers/ValidationContext}, crud/beans/SystemConstant (FurnishStage); ocmsadminui pages/Furnish/list/FurnishSummaryList; ocmsadminapi workflows/furnish/helpers/FurnishabilityChecker (comparison with the manual check). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%). This story is the auto-approval check in the Furnish Processing cron: six checks in order (active PS, HST ID, FIN/Passport, stage pair, current offender + role + other ID, prior submission); passing all means auto-approve, failing one means status P with a reason and TS-PDP, then it shows in the Furnished Hirer/Driver list with status P. All six checks exist in code. Points to watch: (a) the cron stage pair list (SystemConstant.java:237-244) differs from the staff manual-check stage list (NPA to CPC) and from the eService list, and the original matrix specification is not in the repo; (b) check 5a passes when no offender with indicator Y exists (fail-open); (c) an exception in the middle of one submission leaves it at P without a reason and it is not re-evaluated. Tickets used: OCMS-DF-2026-073 (ROV/ROV added as a furnishable pair, Closed, Prod deployed), OCMS-DF-2026-092 and -093 (HST on hirer/driver; both Closed, they do not change the verdict). Cron property value on the real server: cannot verify from repo.",
+  "recommendation": "Claim. All six checks and both outcomes (approve or status P) exist in code. Ask URA to confirm the stage pair list against the original auto-approval matrix, and the handling of a notice with no current offender",
+  "steps": [
+    {
+      "step": "The cron takes the newly received submissions and prepares the data for the checks",
+      "detail": "processAllSubmissions runs the sync phase and then the approval phase (FurnishProcessingService.java:54,59). buildValidationContext fetches notices, PS suspensions, HST, offenders and prior submissions for all records in one go (FurnishApprovalHelper.java:99-134). The cron runs every 10 minutes in prod, enabled=true (cron-schedules-prod.properties:305-306); the value on the real server: cannot verify from repo. Only records newly synced in that run are evaluated."
+    },
+    {
+      "step": "Check 1: the notice must not have an active Permanent Suspension (PS)",
+      "detail": "evaluateActivePermanentSuspension checks for a PS suspension with a null dateOfRevival; if one exists, the result is pending 'Notice is permanently suspended' (FurnishApprovalHelper.java:250-258; called at :198-200)."
+    },
+    {
+      "step": "Check 2: the furnished ID must not be listed as HST",
+      "detail": "evaluateHstId checks whether furnishIdNo is in the HST table from the ValidationContext; if so, the result is pending 'HST ID' (FurnishApprovalHelper.java:283-290; called at :202-204)."
+    },
+    {
+      "step": "Check 3: the furnished ID type must not be FIN or Passport",
+      "detail": "checkFinPassportIdType returns pending 'FIN' for id_type F and 'Passport' for id_type P; only NRIC and UEN pass (FurnishApprovalHelper.java:296-313; called at :206-208)."
+    },
+    {
+      "step": "Check 4: the notice is still in a furnishable processing stage pair",
+      "detail": "checkFurnishableStage builds the 'LPS|NPS' pair and compares it with FURNISHABLE_STAGE_PAIRS (FurnishApprovalHelper.java:319-335; SystemConstant.java:237-244); outside the list the result is pending 'Notice is no longer at furnishable stage'. OCMS-DF-2026-073: ROV|ROV used to be missing from the list so valid submissions went to manual; it is there now (ticket Closed, Prod deployed). This list differs from the staff manual-check stages (FurnishabilityChecker.java:51-61) and the eService list; the original matrix from the specification: cannot verify from repo."
+    },
+    {
+      "step": "Check 5: the submitter is still the current offender, no hirer/driver with the same role exists yet, and the ID is not listed as another offender",
+      "detail": "evaluateExistingOffender runs three sub-checks: 5a the offender with indicator 'Y' must equal the submitter ID (pending 'Owner/Hirer (submitter) no longer current offender'), 5b the same role already exists (pending 'Existing Hirer/Driver already exists'), 5c the furnished ID is already listed on the notice (pending 'Furnished ID is already listed as another offender') (FurnishApprovalHelper.java:362-405). Note: if no 'Y' offender exists at all, 5a is skipped (fail-open)."
+    },
+    {
+      "step": "Check 6: there must be no other earlier submission on the same notice",
+      "detail": "evaluatePriorSubmission counts other submissions with the same notice_no and a different txn_no; if any exist, the result is pending 'Prior submission under notice' (FurnishApprovalHelper.java:426-441; called at :218-220)."
+    },
+    {
+      "step": "When all checks pass, the submission is auto-approved",
+      "detail": "When isApproved, executeApproval (FurnishApprovalHelper.java:445-463) adds the hirer/driver as the new offender and deactivates the old one (:546), moves the stage to RD1/DN1 (:649-652; Intranet save :686, eVON sync :703), sets status 'A' with remarks 'Auto Approved by SYSTEM' and applies TS-HST if the ID is HST; status A is written to Intranet and Internet (FurnishProcessingService.java:167-170,212-216). Auto-approval does not send SMS/email to the furnished party (the sendFurnishApprovalSms call is commented out, FurnishApprovalHelper.java:488)."
+    },
+    {
+      "step": "When any check fails, an item for manual approval/rejection is created on the officer dashboard",
+      "detail": "When a check fails, executeManualReview (FurnishApprovalHelper.java:505-531) tries TS-PDP (:754-763; only a warning if it fails and processing continues), sets status 'P', reasonForReview and remarks; statuses are saved per reason group (FurnishProcessingService.java:172-175,189-199). The officer Furnished Hirer/Driver list filters on status P by default (FurnishSummaryList.tsx:60). There is no separate 'work item' entity: the work item is the ocms_furnish_application row with status P. If processing one record throws an exception, that record is not in the update lists (FurnishProcessingService.java:143-147), stays P without a reason, and is not re-evaluated because the Internet is_sync is already 'Y' (from reading the code)."
+    }
+  ]
+}

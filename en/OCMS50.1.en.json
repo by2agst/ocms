@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,Payment,PaymentSearchResult}.ts, pages/Payment/API.ts, pages/Payment/Table/Column.ts, hooks/Auth.ts. ocmseserviceapi workflows/spcp/controller/SpcpController, workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmspii/eocmsoffencenoticeownerdriver (DecryptByKey), crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "The Singpass/Corppass login flow in the Online Customer Portal exists and connects through to the outstanding-fines list: Singpass (Individual) and Corppass (Business) buttons on the ID Number tab, appTxnId creation and redirect to the SPCP gateway, backend verification of the auth response (SP200), an NRIC/entityId session in the PII DB plus a JWT, then an automatic search using the identity from the session. The Singpass/Corppass pages and the SPCP gateway are outside the repo, so that part is cannot verify from repo. The SPCP bypass mode is only enabled in application-dev.properties (spcp.bypass.enabled=true); uat/prod do not set it so it defaults to false (SpcpController.java:41), the real server value cannot verify from repo. The NRIC lookup uses DecryptByKey on the PII DB; the demo remark says PII encryption on the internet side prevented fetching offender particulars, which depends on the environment and cannot verify from repo. Ticket OCMS-SR-2026-186 (investigation into a very low transaction completion rate, status Ready to PRD) was used as a hint only and does not change the verdict.",
+  "recommendation": "Claim the login, session and identity-based search steps. The redirect to Singpass/Corppass is only Sebagian because the handshake is outside the repo; ask for demo or UAT evidence for that part.",
+  "steps": [
+    {
+      "step": "The ID Number tab on the Check and Pay page offers Singpass (Individual users) and Corppass (Business users) login buttons",
+      "detail": "The 'ID Number' tab renders SPLoginBtn and CPLoginBtn; InitSPCPButton attaches onClick handlers that call onSingpass() or onCorppass(). Both individual and business users are covered, as the story text says."
+    },
+    {
+      "step": "Clicking the button creates a transaction ID and sends the browser to the Singpass/Corppass login page through the SPCP gateway",
+      "detail": "onPass calls createTxnID (POST createAppTxnId/v1 in SpcpController), stores sessionID/txnID in the cache, then login() POSTs a form to {SPCP domain}/spcpWeb/ura{SP|CP}services.do. The repo side is complete. The Singpass/Corppass login page, the SPCP gateway and the per-environment appId/domain values are outside the repo: cannot verify from repo."
+    },
+    {
+      "step": "After returning from Singpass/Corppass, the backend verifies the auth response and creates a login session holding the NRIC (and entityId for Corppass) plus a JWT",
+      "detail": "handleRealAuth calls spcpService.getAuthResponse, rejects when responseCode is not SP200 (401) or the NRIC is empty (502), then createSession(sessionId, nric, entityId) in the PII DB and generateToken(sessionId); the UI keeps the token through setAuthToken. The bypass path (handleBypassAuth, lines 108-139) runs only when spcp.bypass.enabled=true, which is only set in application-dev.properties:46; uat/prod default to false. The real response from the SPCP gateway: cannot verify from repo."
+    },
+    {
+      "step": "After a successful login the fines are searched automatically without the user typing anything",
+      "detail": "useAuth.onSuccess sets the user and calls this.search.onSearch(); because a token exists, onSearch uses APIPostSearchFinesSPCP with payload {searchType:'id', filter:'outstanding', $limit, $skip} and no NRIC."
+    },
+    {
+      "step": "The search uses the identity from the session: NRIC for individuals, entityId (UEN) for business users",
+      "detail": "handleIdNoSearchFromJwt validates the Bearer JWT, loads the session from the PII DB, then uses idType='B' + entityId when an entityId exists, otherwise 'N,F' + NRIC. findNoticeNosByIdNoAndOffenderIndicator finds notice_no in eocms_offence_notice_owner_driver using DecryptByKey(id_no), only offender_indicator='Y'. The endpoint rejects (401) when the JWT is missing/expired or the session is absent, and a client-supplied idNo payload is rejected (ALLOWED_KEYS_ID_SEARCH). The data in the real PII DB (demo remark: PII encryption on the internet side) cannot verify from repo."
+    },
+    {
+      "step": "The page shows the user's outstanding fines with their details",
+      "detail": "The backend filters notices not yet FP ('outstanding'), computes totalOutstanding/totalPaid, pagination and allPayableNotices. The UI InitPaymentSPCPUnpaid shows a table with Notice Number, Vehicle Number, Place of Offence, Offence, Status, Amount columns. Note: for the ID search the Date of Offence column is not shown; that is judged in OCMS50.5."
+    }
+  ]
+}

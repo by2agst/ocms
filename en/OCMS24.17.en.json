@@ -1,0 +1,33 @@
+{
+  "story": "OCMS24.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi sftp-prod.properties (server list without State Courts); ocmsadminapi crud/ocmsizdb/OcmsCourtCase (3 columns), workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem}; ocmsadminui Notice/hook/useStagePermissions.tsx (UI message only), utils/models/{Icourtcase,Icsdbatch}.d.ts (types only). ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code",
+  "note": "Status Demo paid (50% of 75%); demo_remark: SFTP, code split, SFTP permission granted to the api App Service server. The story asks OCMS to process State Courts return files with rejected applications: update rejection reason, approved/rejected indicator, revert processing stage, clear batch number. Not found in the six repos: a State Courts SFTP server (sftp-prod.properties:57-107 only has ces, mha, toppan, icms, repccs, lta, cftvhub), a cron or return-file parser, an indicator or batch number column in ocms_court_case (only notice_no, court_payment_due_date, reason). Only the CAS REST casUpdateCourtNotices exists: a per-notice push, not a file and not rejection logic, so it is not credited. The sheet status 'Demo paid' is not supported by code in these repos; it may be built outside the six repos (cannot verify from repo). No relevant maintenance ticket.",
+  "recommendation": "No code for this story in the six repos. Do not claim as done; first confirm whether the code lives in another repo (code split).",
+  "steps": [
+    {
+      "step": "OCMS receives the return file on court application outcomes from State Courts",
+      "detail": "The SFTP server list in sftp-prod.properties:57-107 only has ces, mha, toppan, icms, repccs, lta, cftvhub (icms at lines 87-90 is connection config with no job using it). There is no State Courts server or cron. The SFTP permission to the api App Service in demo_remark cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS processes the rejected applications from the file",
+      "detail": "No return-file parser, rejection handler or cron for court applications exists (grep 'reject', 'court.?appl', 'state.?court' across the six repos). 'reject' only appears in the furnish module (FurnishRejectionServiceImpl) and Toppan, unrelated to court. CasIntegrationController.java:101-102 (casUpdateCourtNotices) accepts a per-notice push from CAS, not a file result, and has no rejected branch."
+    },
+    {
+      "step": "OCMS updates the rejection reason on the affected records",
+      "detail": "The reason column (varchar 200) exists in ocms_court_case (OcmsCourtCase.java:30-31), but no code fills it from a rejection outcome. The only writer to this table in the repos is generic CRUD, and CasIntegrationServiceImpl maps stage/suspension fields, not a court reason."
+    },
+    {
+      "step": "OCMS sets the approved/rejected indicator",
+      "detail": "The OcmsCourtCase entity only has notice_no, court_payment_due_date, reason (lines 24-31): no indicator column. case_appl_status exists only as a TypeScript type (ocmsadminui/src/utils/models/Icourtcase.d.ts) with no backend."
+    },
+    {
+      "step": "OCMS reverts the processing stage of the rejected records",
+      "detail": "There is only a stage update pushed by CAS: CasUpdateNoticeItem carries lastProcessingStage/prevProcessingStage/nextProcessingStage (lines 32-38) and CasIntegrationServiceImpl.java:436-439 copies them as-is onto the notice. This is not a revert triggered by a rejection from a return file; the stage values come from the CAS caller. Not credited because no logic knows what rejected means."
+    },
+    {
+      "step": "OCMS clears the batch number of the rejected records",
+      "detail": "There is no batch column or field in the backend (OcmsCourtCase has no batch number). batch_no / csd_batch_no exist only in the TypeScript types Icsdbatch.d.ts:2 and Icourtcase.d.ts with no matching endpoint or entity."
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "story": "OCMS6.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/{mode/edit/EditView, context/NoticeContext, detail/NoticeODetails (+E/U), hook/useNoticeAttachment, hook/useRepccsMediaLink}, components/form/FileInput, utils/mapping/Notice/Attachment. ocmsadminapi crud/ocmsizdb/OcmsOffenceAttachment/OcmsOffenceAttachmentController, workflows/notice_management/filedownload/downloadfile/FileDownloadController, workflows/notice_creation/core/helpers/FileProcessingHelper, workflows/notice_management/retrieval/repccsmedia. ocmsadminprivateapi framework/services/ces/CesDownloadAttachmentServiceImpl + cron-schedules-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story minta staff bisa view/download bukti foto atau video dengan format dan kualitas asli, kapan saja. Daftar attachment, download satu file (byte mentah) dan download zip ada dan jelas. Yang kurang: tidak ada player video (video hanya bisa diunduh), dan video tidak punya jalur ingest otomatis: hanya dari upload staff atau tetap di server REP CCS (diakses lewat URL). Foto dari CES disimpan byte-per-byte dengan gerbang decode; foto yang gagal decode tidak masuk OCMS. OCMS-SR-2026-056 (Closed, Prod deployed) menyebut foto download tidak bisa dibuka karena blob lama rusak; fix ada di code, tetapi isi blob PRD tidak bisa dicek dari repo. Otorisasi API berbasis function (OCMS_NOTICE_DETAIL memuat /v1/offenceattachmentlist dan /v1/downloads, api-authorization.properties:34-37) tidak dihitung sebagai langkah karena story tidak menyebut hak akses; penugasan function per user: cannot verify from repo. Status story 'Fully paid' diambil dari sheet, bukan dari code.",
+  "recommendation": "Klaim foto (list, preview, download satu file, download zip). Video diklaim sebagian: download ada, tidak ada player dan tidak ada ingest otomatis. Minta konfirmasi URA apakah video dari CES/PLUS memang diharapkan masuk blob OCMS",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuka tab Offence Details sebuah notice dan daftar attachment-nya dimuat",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/mode/edit/EditView.tsx:58; ocmsadminui/src/pages/Notice/mode/edit/EditView.tsx:88; ocmsadminui/src/pages/Notice/context/NoticeContext.tsx:400-412; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsOffenceAttachment/OcmsOffenceAttachmentController.java:75-82",
+      "fit": "Sesuai",
+      "detail": "Route notices/view/:notice_no/offence_details memuat NOTICE_DOC (EditView.tsx:58, 88). NoticeContext.tsx:404 POST offenceattachmentlist {noticeNo}; OcmsOffenceAttachmentController.java:75-82 mengembalikan baris attachment (nama file, mime, size) dari ocms_offence_attachment. Daftar ini tidak dibatasi tanggal, jadi bukti bisa dibuka kapan saja selama baris dan blob-nya ada. Kebijakan retensi Azure Blob: cannot verify from repo (tidak ada code yang menghapus attachment di ocmsadminapi/ocmsadminprivateapi)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Foto dan video ditampilkan terpisah (Offence Photos / Offence Videos) per notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/NoticeODetails.tsx:121-135; ocmsadminui/src/utils/mapping/Notice/Attachment.ts:107-128",
+      "fit": "Sesuai",
+      "detail": "NoticeODetails.tsx:121-135 (juga NoticeEDetails dan NoticeUDetails) menampilkan dua field, o_photo_doc dan o_video_doc. MapGetNoticeAttachment (Attachment.ts:107-128) memisahkan baris berdasarkan nama file yang memuat OFFENCE_PHOTO atau OFFENCE_VIDEO, dan nama aslinya diambil dengan membuang prefix itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Foto bukti dari submission disimpan apa adanya (format dan kualitas asli)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesDownloadAttachmentServiceImpl.java:223-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesDownloadAttachmentServiceImpl.java:296-324; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:221-222",
+      "fit": "Sesuai",
+      "detail": "Cron CES Download Attachments (enabled=true di cron-schedules-prod.properties:222, jalan 07:00) membaca zip dari SFTP dan mengupload byte sumber tanpa konversi: CesDownloadAttachmentServiceImpl.java:306-310 uploadToBlobVerified(image.getFileContent(), ...) dengan Content-MD5, lalu menyimpan mime dan size asli (316-317). Gerbang decodesAsImage (296) menolak file yang tidak bisa di-decode; file itu ditahan di SFTP dan tidak masuk OCMS. OCMS-SR-2026-056 (Closed, Prod deployed): foto hasil download dari staff portal tidak bisa dibuka karena blob lama rusak; fix berupa gerbang decode + self-heal ada di code ini. Isi blob PRD historis: cannot verify from repo. Jalur lain (staff upload, REPCCS, PLUS) tidak dicakup langkah ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Video bukti tersedia untuk notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/FileProcessingHelper.java:79-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/FileProcessingHelper.java:155; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/repccsmedia/RepccsMediaLinkController.java:45-46; ocmsadminui/src/pages/Notice/hook/useRepccsMediaLink.tsx:37-60",
+      "fit": "Sebagian",
+      "detail": "Video hanya masuk lewat dua jalur. (1) Staff create notice: FileProcessingHelper.java:79-83 menggabungkan photos+videos dari DTO lalu moveToPermStorage (155), jadi file dipindah utuh ke blob notice. (2) Notice REPCCS: video tetap di server REP CCS; staff membuka URL lewat POST repccs-violation-media-link (RepccsMediaLinkController.java:45-46, useRepccsMediaLink.tsx:37-60), bukan file di blob OCMS. Cron CES hanya memproses gambar (CesDownloadAttachmentServiceImpl.java:223, 296) dan tidak ada ingest video di enam repo. Apakah video dari sumber lain (CES, PLUS) memang tidak ada: cannot verify from repo. Ketersediaan file di server REP CCS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff bisa melihat (view) foto dan video langsung di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/form/FileInput.tsx:295-306; ocmsadminui/src/components/form/FileInput.tsx:312-318; ocmsadminui/src/pages/Notice/hook/useNoticeAttachment.tsx:35-66",
+      "fit": "Sebagian",
+      "detail": "Preview di layar hanya untuk gambar: FileInput.tsx:300-306 mengambil FileTypeFormat['Image'] dan langsung return false jika mime bukan gambar, sedangkan blob diambil lewat onPreview (useNoticeAttachment.tsx:35-66) dan dibuka di modal (312-318). Tidak ada player video di staff portal; video hanya bisa diunduh (langkah berikutnya) atau, untuk notice REPCCS, dibuka lewat URL eksternal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff mengunduh satu file bukti dalam format aslinya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeAttachment.tsx:35-66; ocmsadminui/src/components/form/FileInput.tsx:254-270; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:238-309",
+      "fit": "Sesuai",
+      "detail": "Klik download memanggil POST downloads {noticeNo, fileName} (useNoticeAttachment.tsx:51-55). FileDownloadController.java:238-309 membaca blob noticeAttachmentsFolder/noticeNo/fileName dan mengembalikan byte mentah (octet-stream, Content-Disposition attachment, 296-299) tanpa transformasi; path traversal dicek di baris 267. FileInput.tsx:254-270 menyimpan Blob dengan nama asli (saveAs(downloaded_file, ori_name)). Jadi format dan kualitas sama dengan yang tersimpan di blob. Kualitas isi blob tergantung proses ingest (lihat langkah foto)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff mengunduh semua foto atau video sebuah notice sekaligus sebagai zip",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/form/FileInput.tsx:222-247; ocmsadminui/src/pages/Notice/hook/useNoticeAttachment.tsx:68-111; ocmsadminui/src/pages/Notice/detail/NoticeODetails.tsx:126",
+      "fit": "Sesuai",
+      "detail": "Tombol Download All memanggil onDownloadAll (useNoticeAttachment.tsx:68-111) yang POST downloads untuk tiap file, lalu FileInput.tsx:240-247 mengemas byte asli ke zip (JSZip) bernama <noticeNo>_OFFENCE_PHOTO.zip atau _OFFENCE_VIDEO.zip (NoticeODetails.tsx:126). Jika satu file gagal, pesan error ditampilkan dan file lain tetap dizip (FileInput.tsx:222-238)."
+    }
+  ]
+}

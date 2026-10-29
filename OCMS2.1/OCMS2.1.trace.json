@@ -1,0 +1,55 @@
+{
+  "story": "OCMS2.1",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi cronservice: framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsnopoarcServiceImpl, utilities/repccs/RepcssNopoarcDatFileGenerator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findRepccsNoticesForNopoarc, updateSentToRepDate), framework/services/comcrypt/helper/ComcryptCallbackHelper (encrypt + SFTP), src/main/resources cron-schedules-*.properties, sftp/sftp-common.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code archival ke REPCCS",
+  "note": "Status di sheet 'No requirement ': requirement tidak diberikan, jadi langkah diturunkan dari teks story dan 'Sesuai' berarti code melakukan apa yang tertulis di story. Code lengkap di ocmsadminprivateapi: query pemilihan notice (PS + reason archival + umur suspension + label sub-system REPCCS), pembuatan file .DAT, upload blob, enkripsi COMCRYPT, upload SFTP lewat callback. Dua catatan: (1) di prod cron.repupload.enabled=false (cron-schedules-prod.properties:194), jadi job otomatis tidak jalan di prod menurut repo; (2) sent_to_rep_date diisi sebelum file terkirim (RepccsnopoarcServiceImpl.java:101-107), sehingga kegagalan enkripsi/SFTP membuat notice tidak pernah dikirim ulang. Nilai parameter ARCHIVAL (EPRARC, CRSARC, PERIOD) dan isi standard code ada di DB: cannot verify from repo. Folder ocmsadminprivateapi/cronservice di root repo adalah salinan lama yang tidak ikut build (property sftp.folders.repccs.in tidak ada); yang dipakai adalah src/main/java. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim sebagian (sekitar 80%): pemilihan notice dan pembuatan file sesuai story. Sebelum diklaim penuh: konfirmasi cron.repupload.enabled di prod, dan pindahkan pengisian sent_to_rep_date ke setelah SFTP sukses. Requirement tidak diberikan, jadi 'pre-defined conditions' dinilai dari query.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job REPCCS Generate File berjalan otomatis setiap hari lewat scheduler",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/RepUploadJobsScheduler.java:38; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/RepUploadJobsScheduler.java:45-48; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:193-194; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:195-196; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/RepccGenerateFilesController.java:33; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/RepccGenerateFilesController.java:53; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob.java:197",
+      "fit": "Sebagian",
+      "detail": "@Scheduled membaca cron.repupload.schedule (prod: 0 1 0 * * ? = 00:01 setiap hari) dengan ShedLock (RepUploadJobsScheduler.java:38). Tetapi cron-schedules-prod.properties:194 mengisi cron.repupload.enabled=false, sehingga RepUploadJobsScheduler.java:45-48 langsung return di prod; hanya uat (cron-schedules-uat.properties:196) dan dev yang true. Ada trigger manual POST /crontest/repccs/execute-scheduled-job (RepccGenerateFilesController.java:33,53). Apakah prod di-override lewat environment variable / App Setting: cannot verify from repo. Archival NOPO adalah service ke-4 dalam job ini (RepccsGenerateFileJob.java:197)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice berdasarkan suspension status: PS dengan reason archival dan belum pernah dikirim ke REPCCS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:390-391; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:399-418; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:58",
+      "fit": "Sesuai",
+      "detail": "findRepccsNoticesForNopoarc() hanya mengambil notice dengan sent_to_rep_date IS NULL, suspension_type='PS' (OcmsValidOffenceNoticeRepository.java:390-391), dan epr_reason_of_suspension IN daftar parameter EPRARC/ARCHIVAL atau crs_reason_of_suspension IN daftar CRSARC/ARCHIVAL (OcmsValidOffenceNoticeRepository.java:399-418), dipanggil dari RepccsnopoarcServiceImpl.java:58. Isi daftar reason ada di ocms_parameter (DB): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Syarat tambahan: suspension sudah lebih lama dari periode archival dan notice milik sub-system REPCCS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:392-398; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:419-428",
+      "fit": "Sesuai",
+      "detail": "LEFT(subsystem_label,3) harus ada di ocms_standard_code (SUB_SYSTEM_LABEL, deskripsi MEV_Vehicle / REPCCS_ENC, status A) (OcmsValidOffenceNoticeRepository.java:392-398), dan epr_date_of_suspension atau crs_date_of_suspension < DATEADD(YEAR, PERIOD/ARCHIVAL, GETDATE()) (OcmsValidOffenceNoticeRepository.java:419-428). Nilai PERIOD dan tanda (negatif/positif) ada di DB: cannot verify from repo; kalau bernilai positif, syarat umur selalu terpenuhi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file daftar archival (.DAT: header, satu detail per notice, trailer)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:71-83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssNopoarcDatFileGenerator.java:65-79; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssNopoarcDatFileGenerator.java:110-128; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssNopoarcDatFileGenerator.java:185-190",
+      "fit": "Sesuai",
+      "detail": "Service mengubah tiap notice_no menjadi NopoarcData (RepccsnopoarcServiceImpl.java:71-75) lalu generateNopoarcDatFileContent (RepcssNopoarcDatFileGenerator.java:65-79) menulis header H+tanggal+jam, detail D+notice_no (10 char)+status+filler, trailer T+jumlah record; nama file REPCCS-OCMS-IN-NOPOARCH-<timestamp> (RepcssNopoarcDatFileGenerator.java:185-190). Status di detail selalu 'S' (hardcode, mapSettlementStatus tidak dipakai, RepcssNopoarcDatFileGenerator.java:120-121). Kalau tidak ada notice, tidak ada file dan hasil job tetap SUCCESS dengan 0 record (RepccsnopoarcServiceImpl.java:60-65). Kesesuaian format dengan spec REPCCS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file ke REPCCS (blob, enkripsi PGP lewat COMCRYPT, upload SFTP)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:92; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:101-107; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsnopoarcServiceImpl.java:114-126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:255-258; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptWorkflowConfigResolver.java:134; ocmsadminprivateapi/src/main/resources/sftp/sftp-common.properties:32; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:489-497",
+      "fit": "Sebagian",
+      "detail": "Urutan di RepccsnopoarcServiceImpl: upload salinan ke blob (:92) -> update sent_to_rep_date semua notice (:101-107, OcmsValidOffenceNoticeRepository.java:489-497) -> SFTP langsung dilewati (:110) -> minta token COMCRYPT (:114). Enkripsi PGP dan upload SFTP ke /REP_IN baru dilakukan nanti di callback (ComcryptCallbackHelper.java:255-258, ComcryptWorkflowConfigResolver.java:134, sftp-common.properties:32). Masalah: sent_to_rep_date sudah diisi sebelum file benar-benar terkirim. Kalau requestToken gagal (:121-123) atau callback/SFTP gagal, notice sudah ditandai terkirim dan tidak dipilih lagi oleh query (OcmsValidOffenceNoticeRepository.java:390), jadi tidak sampai ke REPCCS tanpa intervensi manual. Di prod sftp.enabled=true (application-prod.properties:82) sehingga daftar allowedSources tidak menghalangi (SftpUtil.java:121-124). Penerimaan di REPCCS dan akun SFTP: cannot verify from repo."
+    }
+  ]
+}

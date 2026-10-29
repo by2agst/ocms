@@ -1,0 +1,55 @@
+{
+  "story": "OCMS22.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui: App.tsx (blok COURT kosong), Meta/System.ts (menu parameter Court Batch Limit/Duration, hanya path), pages/NoticeSearch/hook/useSearch.ts (csd_batch_no untuk court case yang sudah summons). ocmsadminapi: crud/ocmsizdb/sequence/SequenceService (getNextBatchId masih comment), crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingService,EligibilityService} (Change Processing Stage per notice, bukan court batch). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code court batch",
+  "note": "Story minta OCMS memberi court application batch number dari seri pre-defined yang melanjutkan nomor sebelumnya, dan meng-update processing stage notice di batch itu. Code tidak punya itu: tidak ada generator nomor batch (SequenceService.java:13-14 menandai getNextBatchId sebagai comment 'add later'), tidak ada kolom/entity court application batch, tidak ada endpoint konfirmasi, dan route COURT di App.tsx:313 kosong. Yang ada hanya mekanisme umum Change Processing Stage (ChangeOfProcessingService.processBatch, :88) yang mengubah stage notice terpilih lewat CPS dengan requestId UUID acak (:91), bukan nomor seri, dan bukan dipicu oleh konfirmasi court application, jadi tidak diklaim. csd_batch_no di useSearch.ts:144-150 adalah batch summons yang sudah di stage COS/COM/COT/COW, fitur lain. Tiket OCMS-SR-2026-107 (patch tambah $100 surcharge saat pindah ke stage court) menyentuh CPS, bukan batch. Perlu verifikasi dengan URA di mana fitur ini dibangun.",
+  "recommendation": "Jangan klaim sebagai selesai. Tidak ada penomoran court application batch maupun update stage berdasarkan batch; CPS per-notice bukan pengganti. Minta URA/tim konfirmasi repo tempat fitur ini dibangun, atau tandai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfirmasi untuk lanjut court application setelah review daftar notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:313",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar atau tombol konfirmasi court application: blok COURT di App.tsx:313 kosong dan tidak ada page yang memanggil API court application. Grep court application, courtbatch, court-batch di ocmsadminui hanya menemukan label report dan menu parameter."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat court application batch number dari seri pre-defined yang melanjutkan nomor sebelumnya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/sequence/SequenceService.java:11-14",
+      "fit": "Tidak ada code",
+      "detail": "SequenceService hanya punya getNextSequence(sequenceName) dan getNextTxnRefNumber; getNextBatchId masih comment 'Add these later when needed' (SequenceService.java:11-14). Tidak ada sequence/format nomor court batch, tidak ada kolom batch di entity OcmsCourtCase (OcmsCourtCase.java:21-31). Grep batch_no / batchNumber di ocmsadminapi dan ocmsadminprivateapi hanya menemukan batch SMS/email."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update processing stage semua notice di batch tersebut",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:88-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:270-292",
+      "fit": "Tidak ada code",
+      "detail": "Yang ada adalah Change Processing Stage: ChangeOfProcessingService.processBatch (:88-92) menerima daftar item dari officer dan EligibilityService menentukan stage tujuan (CPC/CFC, :270-292). Itu per-notice, dipicu manual lewat menu CPS, tidak terikat nomor batch court dan tidak dipicu konfirmasi court application, jadi tidak diklaim sebagai step ini. Di sisi cron, CPC hanya dipakai sebagai next stage setelah DR3/RR3 pada letter Toppan (ToppanUploadHelper.java:1818), bukan karena batch court."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap notice di batch menyimpan nomor batch sehingga bisa diidentifikasi sebagai batch yang dikirim ke address check",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:21-31",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kolom court application batch number di VON maupun OcmsCourtCase (hanya notice_no, court_payment_due_date, reason; OcmsCourtCase.java:21-31). Query MHA upload memilih notice per stage, bukan per batch (MhaNricDataHelper.java:186-193), jadi batch tidak bisa diidentifikasi saat address check."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat melihat batch yang dikirim untuk address check sebelum court application",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:144-150; ocmsadminui/src/utils/Meta/System.ts:18-19; ocmsadminui/src/utils/Meta/System.ts:147-154",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar batch court. useSearch.getNoticesByCourtBatchNo hanya mencari court case dengan csd_batch_no untuk notice yang sudah COS/COM/COT/COW (useSearch.ts:144-150), yaitu batch summons setelah court application, bukan sebelum. Menu parameter Court Batch Limit/Duration (System.ts:18-19, 147-154) hanya entri path; tidak ditemukan referensi backend (grep court-batch, COURT_BATCH di ocmsadminapi dan ocmsadminprivateapi kosong)."
+    }
+  ]
+}

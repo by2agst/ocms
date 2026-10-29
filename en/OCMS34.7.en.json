@@ -1,0 +1,29 @@
+{
+  "story": "OCMS34.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Report/{index.tsx, lists/ReportList.tsx (Workorder Reports tab commented out), lists/ReportListWorkOrder.tsx, lists/ReportListDOS.tsx}, utils/models/Fapi.d.ts (reports/workorder/excel comment); ocmsadminprivateapi workflows/datahiveuenfin/{services/DataHiveUenFinService, models/DataHiveFinData}, schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties; ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (inbound PLUS only). No work order/tagging code in ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story status is blank, traced normally; there is no OCMS flow deck. The story asks the Generate Work Order button to send IDs to ICA/DOS and vehicle numbers to DOS, then show the result (address + update date) as an on-screen listing. The code has none of this as a work order feature. Only the scheduled DataHive UEN/FIN job exists (off in prod: cron.mhadownload.uenfin.enabled=false); it sends FIN/UEN IDs of reminder-stage notices and saves addresses to the address tables, with no on-screen listing. DOS = DataHive/LTA cannot be confirmed from the repo; the only DOS trace is a 'DOS Reports' screen in the staff UI (resource dosvaultrecords) with no controller/authorization in any repo. No vehicle number is sent to an agency for address purposes. Agency update date: not found; only local processing/upd dates are stored. Real server flag value: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the scheduled DataHive FIN/UEN lookup (off in prod) exists; vehicle number submission to DOS, the agency update date and the on-screen listing do not exist. DOS cannot be confirmed from the repo.",
+  "steps": [
+    {
+      "step": "Officer has clicked 'Generate Work Order' and OCMS receives the request",
+      "detail": "There is no Generate Work Order button or endpoint (see OCMS34.6). The Workorder Reports tab is commented out (ReportList.tsx:147-201) and `reports/workorder/excel` is only a type comment (Fapi.d.ts:307)."
+    },
+    {
+      "step": "OCMS sends the IDs to ICA/DOS",
+      "detail": "Same fit as OCMS34.6 step 3: only the scheduled DataHive UEN/FIN job sends IDs (F=FIN, B=UEN) from RD1-DR3 notices (DataHiveUenFinService.java:235-246), not a warrant ID list and not from a button. Off in prod (cron-schedules-prod.properties:52; skipped in MhaDownloadJobsScheduler.java:104); real server value: cannot verify from repo. 'ICA/DOS' does not exist as a named integration: DOS = DataHive/LTA cannot be confirmed from repo (only the DOS Reports screen, ReportListDOS.tsx:82)."
+    },
+    {
+      "step": "OCMS sends the vehicle numbers to DOS",
+      "detail": "No vehicle number submission to an agency for registered address lookup was found. The DataHive query uses the notice ID (id_type F/B), not the vehicle number (DataHiveUenFinService.java:235-246). 'DOS' is not implemented as a backend integration; only a DOS Reports screen (resource dosvaultrecords, ReportListDOS.tsx:82) with no controller or authorization mapping. DOS = DataHive/LTA cannot be confirmed from repo."
+    },
+    {
+      "step": "OCMS receives the latest registered address and update date in real-time",
+      "detail": "The residential address from DataHive FIN (DataHiveFinData.java:45) is saved as mha_reg (DataHiveUenFinService.java:2731, 2744) with a local processing_date_time (:679). It is not real-time (scheduled batch) and no agency update date was found; only OCMS own processing date is stored. Same fit as OCMS34.6 step 4. Off in prod (uenfin.enabled=false); real server value: cannot verify from repo."
+    },
+    {
+      "step": "Results are captured in a listing displayed on screen for work order preparation",
+      "detail": "There is no listing of address lookup results for work orders. DataHive results are written to address tables and not sent to any screen; the only related grid (ReportListWorkOrder, empty resource) is hidden (ReportList.tsx:147-201)."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.44",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (query reminder DN2/DR3, exclusion list, refresh kontak DataHive, combineNotices, batch SMS), framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (stage DN2 -> DR3), framework/workflows/agencies/mha/{upload,download} (pengecekan particulars), utilities/suspension_helpers/SuspensionBaseHelper, framework/workflows/datahiveuenfin/services/DataHiveUenFinService. ocmsadminapi operational/cronproxy/CronProxyService (trigger manual). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code reminder driver",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: Vault Code Split (izin Vault ke App Service cannot verify from repo). Tidak ada flow deck, jadi 'Sesuai' berarti code mengikuti teks story. Story ini menyambung dua hal: opt-out/electronic reminder (sama dengan OCMS12.43) dan pengecekan particulars Epic OCMS8 untuk notice yang next stage-nya DR3. Pengecekan MHA untuk NRIC ada dan aktif di PROD (upload 09:00/14:00/21:00, download 11:30/16:30/23:30), tetapi urutannya berdasarkan tanggal: code tidak menunggu reminder terkirim atau opt-out dicek. Celah: (1) electronic reminder tidak berjalan sendiri (cron.notification.enabled=false, sms.enable=false tanpa allowedSources di PROD); (2) OCMS-DF-2026-183 (Pending Closure) melaporkan di PROD file enquiry MHA menumpuk dan hasil tidak tertulis, OCMS-DF-2026-176 (Ready to UAT) soal timestamp; (3) job DataHive FIN/UEN off di PROD dan passport tidak punya jalur; (4) loadAllExcludedIds fail-open. Tiket yang dipakai: OCMS-DF-2026-183, -176, -177, -134, -130, -180.",
+  "recommendation": "Klaim sebagian (70%). Pengecekan NRIC ke MHA dan penanganan opt-out ada, tetapi electronic reminder tidak berjalan sendiri, ada defect PROD MHA yang belum ditutup (OCMS-DF-2026-183), jalur FIN mati, dan passport tidak punya jalur. Minta bukti hasil MHA tersimpan di PRD setelah OCMS-DF-2026-183 ditutup dan konfirmasi URA soal cakupan FIN/passport.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver yang opt-out dari electronic reminder (exclusion list) dikenali dan dilewati, notice tetap di jalur surat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:237-243; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1216",
+      "fit": "Sesuai",
+      "detail": "Query reminder membuang ID yang ada di ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1131-1134) dan job memeriksa lagi dengan daftar yang di-preload sebelum batch SMS disiapkan: ID di exclusion list dilewati dan untuk reminder tidak ada perubahan stage, notice tetap di jalur surat (NotificationSmsEmailJob.java:226-232); pemegang passport tidak bisa di-eNotify dan dilewati (NotificationSmsEmailJob.java:237-243). Isi exclusion list adalah data DB: cannot verify from repo. Satu hal yang perlu diperhatikan: loadAllExcludedIds mengembalikan set kosong bila pembacaan gagal (fail-open, NotificationSmsEmailHelper.java:1212-1214), jadi pada error baca daftar itu opt-out tidak ditegakkan di gate job. Fit sama dengan langkah exclusion di OCMS12.8."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver yang tidak opt-out menerima electronic reminder yang merujuk ke 2nd letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289-291; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1135-1150; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:401-409; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:48-52",
+      "fit": "Sebagian",
+      "detail": "Pengiriman reminder DN2 memakai batch SMS yang sama dengan OCMS12.43 (NotificationSmsEmailJob.java:289-291). Query reminder tidak mengambil notice yang sudah punya catatan SMS/email untuk stage dan service type yang sama dalam jendela hari tertentu (NotificationSmsEmailHelper.java:1135-1150), jadi tidak terkirim ganda. Sebagian karena cron.notification.enabled=false (cron-schedules-prod.properties:236; NotificationJobsScheduler.java:48-52) dan sms.enable=false tanpa sms.allowedSources di PROD (application-prod.properties:87; SmsUtil.java:401-409); cakupan lengkapnya ada di OCMS12.43. Urutan 'reminder dulu, baru pengecekan' tidak dipaksa code: langkah pengecekan berikutnya berjalan berdasarkan tanggal (next_processing_date), tidak menunggu reminder terkirim."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice driver yang next stage-nya DR3 dipilih untuk pengecekan particulars ke MHA (Epic OCMS8)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:186-199; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "MhaNricDataHelper memilih notice dengan next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), next_processing_date <= besok dan suspension_type NULL atau TS-HST/UNC (MhaNricDataHelper.java:186-199, 208-216), lalu hanya baris owner_driver dengan offender_indicator = 'Y' dan id_type 'N' (MhaNricDataHelper.java:345-346). Notice driver yang next stage-nya DR3 (diisi setelah surat DN2, lihat OCMS12.41) masuk satu hari sebelum jadwal surat DR3. Job upload enabled di PROD, Senin-Sabtu pukul 09:00, 14:00 dan 21:00 (cron-schedules-prod.properties:105-106). Sama dengan langkah pemilihan NRIC di OCMS8.3. Pengecekan berjalan berdasarkan tanggal; code tidak menunggu electronic reminder terkirim atau opt-out dicek."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars driver terbaru (nama, alamat) diterima dari MHA dan disimpan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:197; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:217; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:765-784; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:854; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2321-2322; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:70; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:185-190; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sebagian",
+      "detail": "Upload: MhaNricUploadJob membaca data, membuat nama file request dan menaruh file di blob untuk dienkripsi dan dikirim ke SFTP MHA (MhaNricUploadJob.java:156, 197, 217). Download: nama ditulis ke baris offender (MhaNricDownloadHelper.java:854) dan alamat mha_reg hanya untuk notice yang disebut file dan baris yang masih offender (MhaNricDownloadHelper.java:765-784); alamat baru hanya jadi letter_address bila belum ada alamat bertanda Y (MhaNricDownloadHelper.java:2321-2322). TS-NRO untuk alamat tidak valid ditolak bila last stage RR3/DR3 (SuspensionBaseHelper.java:70, 185-190), sedangkan notice ini masih last stage DN2. Kedua job enabled di PROD (cron-schedules-prod.properties:105-106, 119-120). Sebagian karena OCMS-DF-2026-183 (Pending Closure): file enquiry menumpuk di /mhanro/input dan MHA menolak batch, serta hasil tidak tertulis di PROD; OCMS-DF-2026-176 (Ready to UAT) soal timestamp upd_date; OCMS-DF-2026-130, -134, -177 (Closed) sudah memperbaiki penimpaan alamat dan cek offender. Enkripsi COMCRYPT dan SFTP MHA cannot verify from repo. Fit sama dengan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver pemegang FIN atau passport ikut dicek sebelum 3rd letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-243; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Jalur MHA hanya untuk id_type N (MhaNricDataHelper.java:346). Driver pemegang FIN diambil job DataHive UEN dan FIN yang memilih notice dengan next stage RD1-DR3 dan id_type F atau B (DataHiveUenFinService.java:221-243), tetapi job itu off di PROD (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). Pemegang foreign passport (id_type P) tidak dipilih oleh query mana pun (DataHiveUenFinService.java:239; MhaNricDataHelper.java:346): tidak ada code. Jadi hanya sebagian jenis ID yang tercakup, dan jalur FIN-nya mati. Sama dengan OCMS8.3 dan OCMS8.4."
+    }
+  ]
+}

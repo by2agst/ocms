@@ -1,0 +1,55 @@
+{
+  "story": "OCMS39.14",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/furnish/{FurnishValidationServiceImpl,FurnishApplicationListServiceImpl}, crud/beans/SystemConstant (Furnish.ELIGIBLE_STAGES); ocmsadminapi workflows/furnish/{helpers/FurnishabilityChecker,manual/helpers/ManualFurnishValidationService,stafffurnish/services/StaffFurnishService}; ocmsadminui utils/Meta/System.ts + App.tsx (entri Processing Stage tanpa Route), crud/ocmsizdb/parameter/ParameterController. ocmsadminprivateapi, ocmseserviceui, thirdpartyapi: tidak dipakai untuk aturan stage",
+  "note": "Status story: Fully paid. Requirement text diberikan. Sistem memang menetapkan stage di mana particulars hirer/driver diterima, tetapi sebagai konstanta Java, bukan data yang bisa diatur officer. Portal publik menerima ROV, ENA, RD1, RD2 (cadangan next stage RD1/RD2); staff portal menerima NPA sampai CPC (11 stage) lewat dua salinan konstanta di ocmsadminapi, jadi ada tiga salinan di dua service. Tidak ada konfigurasi per notice type (hanya type U/UPL yang ditolak total di portal publik) dan tidak ada halaman konfigurasi: entri menu 'Processing Stage' di System.ts tidak punya Route. Status sheet 'Fully paid' tidak didukung untuk bagian konfigurasi. Ticket OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed) menunjukkan portal bergantung pada stage di eVON hasil sync. Daftar stage yang benar menurut URA: cannot verify from repo.",
+  "recommendation": "Klaim terbatas pada penegakan stage (portal publik dan staff menolak furnish di luar stage yang tetap). Jangan klaim konfigurasi oleh officer atau pengaturan per notice type; keduanya tidak ada. Minta URA konfirmasi apakah daftar stage tetap diterima untuk story ini dan apakah perbedaan portal publik vs staff disengaja",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Portal publik (eService) hanya menerima furnish hirer/driver untuk notice di stage yang ditetapkan sistem",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:174-184; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:211-213; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:237-242; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:112-113; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:146-148",
+      "fit": "Sesuai",
+      "detail": "isProcessingStageEligible meloloskan notice jika last_processing_stage ada di ELIGIBLE_STAGES (ROV, ENA, RD1, RD2; SystemConstant.java:112) atau, sebagai cadangan, next_processing_stage RD1/RD2 (SystemConstant.java:113; FurnishValidationServiceImpl.java:174-184). Stage lain ditolak dengan FURNISH_NOTICE_STAGE_INELIGIBLE (FurnishValidationServiceImpl.java:211-213) saat submit (:237-242) dan ditandai 'Not Eligible' di daftar notice (FurnishApplicationListServiceImpl.java:146-148). Daftar ini konstanta Java, bukan data. Portal membaca stage dari eVON (internet DB), jadi bergantung pada sync dari intranet; OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed, Prod deployed) memperbaiki notice ROV yang tidak muncul karena is_sync tidak diset. Cocok tidaknya empat stage ini dengan kebutuhan URA: cannot verify from repo (story tidak menyebut stage)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff portal menerima furnish/redirect hirer/driver hanya untuk notice di stage yang ditetapkan sistem",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:51-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:120-125; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:178-184; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:34-38; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:58-62; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:97",
+      "fit": "Sesuai",
+      "detail": "Staff memakai FurnishabilityChecker (StaffFurnishService.java:97) yang menolak notice di luar daftar tetap NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC dengan kode STAGE_NOT_FURNISHABLE (FurnishabilityChecker.java:51-61, 120-125, 178-184, termasuk versi batch). ManualFurnishValidationService menyimpan salinan kedua dari daftar yang sama (ManualFurnishValidationService.java:34-38, 58-62). Daftar ini konstanta Java dan berbeda dari portal publik (ROV, ENA, RD1, RD2); apakah perbedaan itu disengaja: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar stage yang diterima bisa berbeda untuk tiap notice type",
+      "repo": "ocmseserviceapi, ocmsadminapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:205-208; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:112; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:100-125",
+      "fit": "Tidak ada code",
+      "detail": "Daftar stage sama untuk semua notice type. Satu-satunya aturan berbasis type adalah notice type U (UPL) yang ditolak total di portal publik (FurnishValidationServiceImpl.java:205-208), bukan daftar stage per type. Jalur pengecekan staff tidak memeriksa notice type sama sekali (FurnishabilityChecker.java:100-125: PS, AN flag, lalu stage)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengatur stage yang boleh menerima furnish lewat halaman konfigurasi",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/utils/Meta/System.ts:66; ocmsadminui/src/utils/Meta/System.ts:203-206; ocmsadminui/src/App.tsx:375-500; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:48-76",
+      "fit": "Tidak ada code",
+      "detail": "Entri menu 'Processing Stage' ada di System.ts tetapi path-nya null (System.ts:66, 203-206) dan App.tsx hanya mendaftarkan parameter, standardcode, computer-rule-code, suspension-reason dan schedule-public-holiday di blok System (App.tsx:375-500). Tidak ada kolom, parameter ocms_parameter atau kategori Standard Code yang menyimpan stage furnish; semua pembaca memakai konstanta Java (langkah 1-2). Halaman generik Parameter bisa menyimpan baris baru (ParameterController.java:48-76), tetapi tidak ada code furnish yang membacanya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan stage yang diterima berlaku tanpa perubahan code",
+      "repo": "ocmseserviceapi, ocmsadminapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:112-113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:51-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:34-38",
+      "fit": "Tidak ada code",
+      "detail": "Daftar stage ada di tiga salinan konstanta Java di dua service (ocmseserviceapi satu, ocmsadminapi dua: FurnishabilityChecker dan ManualFurnishValidationService), jadi mengubah stage berarti mengubah code dan men-deploy ketiganya; tidak ada data yang bisa diubah officer."
+    }
+  ]
+}

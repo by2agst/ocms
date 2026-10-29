@@ -1,0 +1,45 @@
+{
+  "story": "OCMS8.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: agencies/mha/upload/{MhaNricDataHelper,MhaNricUploadJob}, agencies/mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper}, services/agencyFileExchange/helper/MhaFileFormatHelper (MHA file format), datahiveuenfin/{DataHiveUenFinService,DataHiveUenFinJob} + services/datahive/.../DataHiveFINBatchService (FIN), cron-schedules-prod.properties. Other repos: none",
+  "note": "Status 'Fully paid'. NRIC is sent to MHA through the NRO enquiry file (fixed-width, idNo + timestamp, encrypted by COMCRYPT then SFTP) three times a day and the result is processed by the MHA download job; both are enabled in PROD. FIN is fetched through DataHive (MHA and MOM views), but that job is off in PROD (cron-schedules-prod.properties:52). Passport is not sent anywhere. The MHA result holds name, DOB, address, date of death, life status and an invalid-address tag; there is no citizenship field, so 'citizenship conversion' is only caught for a FIN that became PR/SC through the PRGRANT/SCGRANT views (leading to TS-OLD), not for NRIC holders. Maintenance ticket notes: OCMS-DF-2026-183 (Pending Closure) reports that in PROD enquiry files pile up in /mhanro/input and MHA results were not written to the tables while the report said success; OCMS-DF-2026-176 and -178 (Ready to UAT) cover upd_date stamps moving on untouched rows and summary reports with zero or duplicate counts. OCMS-DF-2026-130, -134, -135, -177 (Closed) already fixed address overwrites and the offender check. One thing to watch on the FIN path: updateOwnerDriverPersonalInfo updates name and DOB with WHERE notice_no only (DataHiveUenFinService.java:2425-2428), so every owner/driver row on that notice is overwritten, not only the offender.",
+  "recommendation": "Claim partially. The NRIC path to MHA is complete but a PROD defect is still open (OCMS-DF-2026-183). The FIN path exists but is off in PROD, passport has no path, and citizenship conversion only covers FIN to PR/SC. Ask URA to confirm the scope of 'foreign passport' and the DataHive activation status.",
+  "steps": [
+    {
+      "step": "OCMS selects notices of local NRIC holders (ID type N) to check with ICA",
+      "detail": "Same as the NRIC routing in OCMS8.1: stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:198), offenderIndicator Y and idType N (lines 345-346), not suspended, not HST. The upload job is enabled in PROD (cron-schedules-prod.properties:105-106)."
+    },
+    {
+      "step": "OCMS selects notices of FIN holders to check with ICA/DOS",
+      "detail": "Query id_type IN ('F','B') offender Y at reminder stage (DataHiveUenFinService.java:221-246, DataHiveUenFinJob.java:185). The selection runs in the DataHive job, which is only active when cron.mhadownload.uenfin.enabled=true (MhaDownloadJobsScheduler.java:101-107), and in PROD it is false (cron-schedules-prod.properties:52). Same fit as the FIN routing in OCMS8.1 and OCMS8.4."
+    },
+    {
+      "step": "OCMS sends the NRIC number to ICA (MHA)",
+      "detail": "MhaNricUploadJob reads the data (line 156), builds the request file name (line 197), puts the file in blob (line 217), then the COMCRYPT callback encrypts it and places it in SFTP /mhanro/input. Record content: idNo (9) + timestamp (MhaFileFormatHelper.java:35-36). Schedule 3 times a day Mon-Sat, enabled in PROD. Partial because of OCMS-DF-2026-183 (Pending Closure, Prod deployed): every run drops a new file without checking whether the previous one was collected, so files pile up and MHA PH2 rejects the whole batch (6 files stranded 13-17 Sep 2026). COMCRYPT encryption and the partner SFTP: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the FIN number to ICA/DOS (DataHive)",
+      "detail": "batchProcessFinRecords calls batchRetrieveFINData (DataHiveUenFinService.java:1113), which sends the FIN as an IN query to the MHA views (V_DH_MHA_FINDEATH, PRGRANT, SCGRANT, LTVP, STP) and MOM views (EPFOREIGNER, WPWORKER) (DataHiveFINBatchService.java:46-54, 370-375). Partial: the job is off in PROD (cron-schedules-prod.properties:52), PROD view names are unverified, DataHive connection cannot verify from repo. Same fit as OCMS8.4."
+    },
+    {
+      "step": "OCMS sends the foreign passport number to ICA/DOS",
+      "detail": "Selection queries exist only for idType N (MhaNricDataHelper.java:346) and F/B (DataHiveUenFinService.java:239). There is no query, file or view for idType P; the only P logic is skipping eNotification (NotificationSmsEmailJob.java:237). Same fit as OCMS8.1 and OCMS8.4."
+    },
+    {
+      "step": "OCMS receives and updates the latest residential address of NRIC holders from MHA",
+      "detail": "The result file is parsed (address: block, street, floor, unit, building, postal, invalid-address tag, address change date; MhaFileFormatHelper.java:44-61). Per record, the address is buffered into the mha_reg record only for the notice named by uraReferenceNo and rows still marked as offender (MhaNricDownloadHelper.java:784, 855), then saved in bulk. An invalid address triggers TS-NRO. Partial because of OCMS-DF-2026-183 (Pending Closure): in PROD the MHA result was reported as not written to ONOD/ONODA/VON while the report said success; OCMS-DF-2026-176 (Ready to UAT) upd_date moves on unchanged rows; OCMS-DF-2026-130, -134, -135, -177 (Closed) were fixed."
+    },
+    {
+      "step": "OCMS receives and updates the latest residential address of FIN holders from ICA/DOS",
+      "detail": "updateAddressForFIN takes the address from the work permit (EP/WP, MOM) or pass (LTVP/STP, MHA) and creates an mha_reg record (DataHiveUenFinService.java:1560, 2523-2570). A FIN without a work permit or pass gets no address; the fallback findAlternativeAddress uses existing LTA/furnish addresses (line 2566), not ICA data. Name and DOB are updated with WHERE notice_no only (lines 2425-2428), so every owner/driver row on that notice is overwritten. The job is off in PROD. Same fit as OCMS8.4."
+    },
+    {
+      "step": "OCMS receives and stores the offender life status (deceased) from ICA/DOS",
+      "detail": "NRIC: lifeStatus and dateOfDeath from the MHA file are written to the offender owner_driver row (MhaNricDownloadHelper.java:855) and 'D' + DoD triggers PS-RIP / PS-RP2 / TS-NRO (line 874). FIN: the FINDEATH view, then processDeathStatusFlow writes the DoD and applies PS-RIP / PS-RP2 (DataHiveUenFinService.java:3285, 3313, 3317). Partial: same data path as the NRIC address (OCMS-DF-2026-183 Pending Closure), and the FIN path is off in PROD."
+    },
+    {
+      "step": "OCMS receives a citizenship change (for example FIN becoming PR/SC) from ICA/DOS",
+      "detail": "The PRGRANT and SCGRANT views are searched by PREVIOUS_FIN and the result is flagged isConverted PR/SC (DataHiveFINBatchService.java:321-334); storeFinDataResult reads prScConverted (DataHiveUenFinService.java:1504) and runs processPRSCGrantFlow (lines 1577-1582, 3241-3262). Only a FIN becoming PR/SC is caught. The MHA file for NRIC has no citizenship field, so a status change of an NRIC holder is not captured. The job is off in PROD."
+    }
+  ]
+}

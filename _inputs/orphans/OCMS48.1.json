@@ -1,0 +1,38 @@
+[
+  {
+    "feature": "Payment acceptance cutoff job (set payment_acceptance_allowed = N untuk court case yang lewat court_payment_due_date)",
+    "source": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:55-83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/controllers/PaymentAcceptanceCutoffController.java:34",
+    "story": "OCMS48.2",
+    "type": "Code tanpa story",
+    "verified": true,
+    "note": "Service mengambil notice dari ocms_court_case dengan court_payment_due_date <= sekarang (OcmsCourtCaseRepository.findNoticeNosDue) lalu UPDATE payment_acceptance_allowed = 'N' hanya di tabel ocms_valid_offence_notice (VON), tidak menyentuh eVON yang dibaca portal (evonService ter-inject tapi tidak dipakai di update). Pemanggilan dari ToppanUploadJobsScheduler.executeDayEndJobs di-comment (baris 123), jadi hanya jalan lewat POST /v1/payment-acceptance-cutoff/execute manual. Tidak ada story epic 48 yang menyebut cutoff otomatis.",
+    "note_en": "The service takes notices from ocms_court_case with court_payment_due_date <= now (OcmsCourtCaseRepository.findNoticeNosDue) and runs UPDATE payment_acceptance_allowed = 'N' only on ocms_valid_offence_notice (VON), not touching eVON, which the portal reads (evonService is injected but not used in the update). The call from ToppanUploadJobsScheduler.executeDayEndJobs is commented out (line 123), so it only runs through the manual POST /v1/payment-acceptance-cutoff/execute. No epic 48 story mentions an automatic cutoff."
+  },
+  {
+    "feature": "casUpdateCourtNotices (CAS memperbarui court notice termasuk payment_acceptance_allowed dan amount_payable)",
+    "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-156; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:246-420; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/validator/CasUpdateValidator.java:32-49",
+    "story": "OCMS48.2",
+    "type": "Code tanpa story",
+    "verified": true,
+    "note": "POST /v1/casUpdateCourtNotices (maks 500 notice) menulis suspension type, stage, amount_payable, payment_acceptance_allowed ke VON dan eVON lewat multi-row UPDATE. Notice dengan payment_status FP ditolak 'Notice already Paid' (CasIntegrationServiceImpl.java:336). Endpoint di-skip dari JwtFilter dan interceptor otorisasi (JwtFilter.java:183; WebConfig.java:85). Sumbernya CAS, bukan PLUS atau officer, jadi tidak cocok dengan story epic 48 mana pun.",
+    "note_en": "POST /v1/casUpdateCourtNotices (max 500 notices) writes suspension type, stages, amount_payable and payment_acceptance_allowed to VON and eVON through a multi-row UPDATE. Notices with payment_status FP are rejected 'Notice already Paid' (CasIntegrationServiceImpl.java:336). The endpoint skips JwtFilter and the authorization interceptor (JwtFilter.java:183; WebConfig.java:85). Its caller is CAS, not PLUS or an officer, so it fits no epic 48 story."
+  },
+  {
+    "feature": "plus-get-court-case-info (PLUS membaca court payment due date dan reason per notice)",
+    "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:167-210; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:620-680",
+    "story": "OCMS48.2",
+    "type": "Code tanpa story",
+    "verified": true,
+    "note": "POST /v1/plus-get-court-case-info mengembalikan courtPaymentDueDate dan reason dari ocms_court_case untuk maks 500 notice. Endpoint baca untuk PLUS, tidak disebut story epic 48.",
+    "note_en": "POST /v1/plus-get-court-case-info returns courtPaymentDueDate and reason from ocms_court_case for up to 500 notices. A read endpoint for PLUS, not mentioned by any epic 48 story."
+  },
+  {
+    "feature": "plus-payment-activation-court di ocmsadminprivateapi (enable/disable flag hanya untuk notice di court stage)",
+    "source": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/payment_activation_court/PaymentActivationCourtController.java:24-58; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/payment_activation_court/PaymentActivationCourtServiceImpl.java:32-73",
+    "story": "OCMS48.2",
+    "type": "Code tanpa story",
+    "verified": true,
+    "note": "Endpoint kembar dari plus-payment-activation: hanya menerima noticeNumber + paymentAcceptanceAllowed (tanpa amount/due date), mengecek last_processing_stage termasuk COURT_STAGES (baris 44), mengupdate eVON dulu lalu VON. Ini satu-satunya tempat cek court stage; repo tidak menunjukkan endpoint mana yang dipanggil PLUS di produksi (cannot verify from repo). Disebut di OCMS48.2 langkah 1 dan 4 sebagai pembanding.",
+    "note_en": "Twin of plus-payment-activation: accepts only noticeNumber + paymentAcceptanceAllowed (no amount/due date), checks that last_processing_stage is in COURT_STAGES (line 44), updates eVON first then VON. This is the only place with a court-stage check; the repo does not show which endpoint PLUS calls in production (cannot verify from repo). Mentioned in OCMS48.2 steps 1 and 4 as a comparison."
+  }
+]

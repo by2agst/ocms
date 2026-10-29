@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{page/upload/{Upload,UploadResult,UploadErrorList},context/NoticeSearchUploadContext,component/NoticeSearchUploadSlot,list/NoticeValidList}, components/SheetUpload.tsx, context/SheetContext.tsx, utils/validation/{Format/ValidFile,NoticeSearch/ValidNoticeSearchUpload}, utils/data/SheetData.ts, App.tsx. ocmsadminapi POST /validoffencenoticelist. There is no dedicated upload endpoint in the backend: the file is read in the browser. Other repos not involved",
+  "note": "Status 'Fully paid'. The story asks to upload a list of notice numbers in CSV format. The code provides a notice list upload, but only in .xlsx format: FileTypeFormat.Sheet contains only xlsx and csv/xls are commented out (ValidFile.ts:154), and the UI text also says 'Accepted file format is only .xlsx' (SheetUpload.tsx:206). The SheetContext parser has a csv branch (SheetContext.tsx:187-193) but a CSV file does not pass FileInput. The template has four columns (Notice No, Summon No, Vehicle No, ID No), so it is not only notice numbers. The configured file size limit is 2 MB (ValidFile.ts:167-170) while the UI text says 10 MB (SheetUpload.tsx:206); which one applies cannot be verified from repo without running the UI. Ticket OCMS-DF-2026-085 concerns the Unclaimed Reminder workflow, not this screen, so it is not used.",
+  "recommendation": "Claim partially (see Sebagian/Beda dari flow steps)",
+  "steps": [
+    {
+      "step": "Officer opens the upload page as an alternative to search",
+      "detail": "The search form toolbar has an 'XLSX File Upload' button that navigates to PathNoticeSearch[type].UPLOAD (NoticeSearchForm.tsx:180-183). The .../upload route renders NoticeSearch.Upload with a SheetUpload of type NOTICE_SEARCH_ALL or NOTICE_SEARCH_OUTSTANDING (App.tsx:107-119; Upload.tsx:59-68)."
+    },
+    {
+      "step": "The list of notice numbers is uploaded as a CSV file",
+      "detail": "Only xlsx is accepted: Sheet: [FileExt.xlsx] with csv and xls commented out (ValidFile.ts:154); the UI hint says 'Accepted file format is only .xlsx' (SheetUpload.tsx:206); the downloaded template is also xlsx. The parser has a csv branch (SheetContext.tsx:187-193) but FileInput takes its format from ValidFile so a CSV cannot be chosen. The size limit is 2 MB in config (ValidFile.ts:167-170) vs 10 MB in the UI text; which applies cannot be verified from repo."
+    },
+    {
+      "step": "The file is read into rows with notice numbers",
+      "detail": "The Search-Notices-Template has the columns Notice No (noticeNo), Summon No, Vehicle No and ID No (SheetData.ts:531-536). setFile reads the file in the browser with SheetRead and maps columns to the header keys (SheetContext.tsx:175-205); onProceed calls onSearch and moves to the result page (Upload.tsx:64-68). There is no upload endpoint in the backend."
+    },
+    {
+      "step": "Each row is looked up in the backend and matching notices are collected",
+      "detail": "onSearch validates each row (yup), then calls POST validoffencenoticelist with noticeNo/vehicleNo/idNo, offenderIndicator=Y and $limit MAX_LIMIT; rows with the same parameters are cached and not duplicated (NoticeSearchUploadContext.tsx:78-159). Results become success (has data) and failed (has error) (:168-178)."
+    },
+    {
+      "step": "OCMS shows the uploaded notices on screen",
+      "detail": "UploadResult renders NoticeValidList (Datagrid) with the notices found, with row/select-all checkboxes, above the 'Record Not Found' error box (UploadResult.tsx:64-76; NoticeValidList.tsx:23-70)."
+    }
+  ]
+}

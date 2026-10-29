@@ -1,0 +1,82 @@
+{
+  "story": "OCMS16.12",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl.handleReductionRequest, checkValidationStatus, helpers/ReductionValidator.validateReductionAmounts + validateDates}; crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus (SQL status ALREADY_REDUCED/PAID/ELIGIBLE/NOT_ELIGIBLE); crud/beans/SystemConstant (ComputerRuleCode, ProcessingStage). ReductionValidator.validateAll/validateEligibility/validateNotPermanentlySuspended dan ReductionRuleService tidak dipanggil dari jalur live. Repo lain: tidak ada code validasi reduction",
+  "note": "Status story di sheet 'Requirement given - Gen flow'; tidak ada flow deck OCMS, jadi Sesuai berarti code melakukan yang tertulis di story (memvalidasi jumlah yang diminta lalu memutuskan boleh/tidak). Validasi jumlah lengkap: amountReduced harus lebih kecil dari amount_payable saat ini (fallback composition_amount), amountPayable baru harus sama dengan saat ini dikurangi amountReduced, dan harus lebih dari nol, ditambah cek tanggal expiry. Keputusan eligibility (paid, rule code, last processing stage) diambil oleh satu query SQL di OcmsValidOffenceNoticeRepository. Dua hal yang perlu diperhatikan. Pertama, notice yang sudah TS-RED dijawab 'ALREADY_REDUCED' dan langsung dianggap sukses sebelum jumlah divalidasi, jadi request kedua dengan jumlah berbeda tidak divalidasi dan tidak diterapkan (ReductionServiceImpl.java:74-78,176-183). Kedua, pengecekan PS (kecuali DIP/FOR/MID/RIP/RP2) di ReductionValidator.validateNotPermanentlySuspended, dan validateAll serta ReductionRuleService, tidak pernah dipanggil; aturan stage/rule code yang berlaku hanya yang ada di SQL. Rentang stage reduction di SQL (sampai CWT) juga berbeda dari PLUS_REDUCTION_COURT_ALLOWED_STAGES (sampai COS) yang dipakai jalur apply-suspension TS-RED (SystemConstant.java:130-135); mana yang benar cannot verify from repo. Tiket: OCMS-DF-2026-072 (closed, Prod deployed) mengubah nilai yang disimpan, bukan aturan validasi; OCMS-DF-2026-025 (closed) menyentuh rentang stage di jalur suspension, bukan jalur ini.",
+  "recommendation": "Klaim sebagian besar. Validasi jumlah dan eligibility ada dan jalan; kurangi untuk kasus notice yang sudah TS-RED (jumlah tidak divalidasi) dan jelaskan aturan stage mana yang dimaksud.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil amount payable notice saat ini sebagai dasar perbandingan (fallback ke composition amount bila kosong)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:167-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-71",
+      "fit": "Sesuai",
+      "detail": "validateReductionAmounts memakai amountPayable dari hasil query validasi; bila null, memakai compositionAmount (ReductionValidator.java:167-175; query mengambil kedua kolom di OcmsValidOffenceNoticeRepository.java:70-71)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah yang dikurangi harus lebih kecil dari amount payable saat ini; sama atau lebih besar ditolak",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:177-186",
+      "fit": "Sesuai",
+      "detail": "Jika amountReduced >= currentAmountPayable, dikembalikan ValidationError INVALID_REDUCTION_AMOUNT (ReductionValidator.java:179-186)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Amount payable baru dari PLUS harus sama dengan amount payable saat ini dikurangi jumlah pengurangan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195",
+      "fit": "Sesuai",
+      "detail": "expectedPayable = current - amountReduced dibandingkan dengan amountPayable request; beda dikembalikan INCONSISTENT_AMOUNTS (ReductionValidator.java:188-195)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Amount payable baru harus lebih dari nol, dan tanggal expiry reduction tidak boleh sebelum tanggal reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:197-202; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:264-271; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:80-96",
+      "fit": "Sesuai",
+      "detail": "newAmountPayable <= 0 dikembalikan NEGATIVE_AMOUNT (ReductionValidator.java:198-202). validateDates menolak expiry yang isBefore dateOfReduction; tanggal sama lolos (ReductionValidator.java:267-271). Keduanya dipanggil berurutan di ReductionServiceImpl.java:80-96. Cek tanggal tidak disebut di story; dimasukkan karena bagian dari keputusan boleh/tidak."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah dibayar tidak boleh dikurangi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:53-54; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:184-189",
+      "fit": "Sesuai",
+      "detail": "Query memberi status PAID bila crs_reason_of_suspension = 'FP' atau epr_reason_of_suspension = 'PRA' (OcmsValidOffenceNoticeRepository.java:53-54); service mengembalikan BusinessError NOTICE_PAID (ReductionServiceImpl.java:184-189). Hanya dua penanda ini yang dicek; penanda bayar lain cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice hanya boleh dikurangi bila rule code dan last processing stage-nya termasuk yang diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:55-69; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:190-199; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:139-141",
+      "fit": "Sesuai",
+      "detail": "SQL CASE: rule code 30305/31302/30302/21300 dengan stage NPA..CWT, atau rule code lain hanya di RR3/DR3 dan stage court; selain itu NOT_ELIGIBLE (OcmsValidOffenceNoticeRepository.java:55-69) lalu BusinessError NOT_ELIGIBLE (ReductionServiceImpl.java:190-195). Aturan sebenarnya tidak ada di story; Sesuai di sini berarti ada keputusan eligibility berbasis stage dan rule code. Cek PS di ReductionValidator.validateNotPermanentlySuspended (ReductionValidator.java:73-94) tidak dipanggil dari jalur live. Rentang stage berbeda dari jalur TS-RED apply-suspension (SystemConstant.java:130-135); mana yang dimaksud cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah yang diminta tetap divalidasi untuk setiap request, termasuk pada notice yang sudah pernah dikurangi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:51-52; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:73-78; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-183; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:80-96",
+      "fit": "Sebagian",
+      "detail": "Status ALREADY_REDUCED (suspension_type = 'TS' dan epr_reason = 'RED', OcmsValidOffenceNoticeRepository.java:51-52) dicek paling awal dan diperlakukan sukses idempotent (ReductionServiceImpl.java:74-78,176-183), sebelum validasi jumlah di ReductionServiceImpl.java:80-96. Akibatnya request kedua dengan jumlah lain pada notice TS-RED tidak divalidasi dan tidak diterapkan, tetapi PLUS menerima sukses. Varian court melewati idempotency (ReductionServiceImpl.java:246)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan: bila semua validasi lolos pengurangan diteruskan, bila ada yang gagal berhenti sebelum data apa pun diubah",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:73-113",
+      "fit": "Sesuai",
+      "detail": "Setiap cek mengembalikan hasil lebih awal (ReductionServiceImpl.java:73-96); load entity dan applyReduction baru dijalankan setelah semuanya lolos (ReductionServiceImpl.java:98-113)."
+    }
+  ]
+}

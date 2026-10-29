@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.54",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController, workflows/furnish/stafffurnish/services/StaffFurnishService (staffFurnish overwrites without a check), workflows/furnish/helpers/FurnishabilityChecker.runAllChecksAndCollectFailures and workflows/furnish/manual/helpers/ManualFurnishValidationService (exist but not the PLUS path). Other repos: no code",
+  "note": "Demo remark in the sheet (PLUS API not pulling data, suspected DB connection drop) cannot be verified from the repo. The search covered both layers and five repos: PlusIntegrationController, StaffFurnishService, OwnerDriverServiceImplPlus, plus every use of checkExistingParticulars/runAllChecksAndCollectFailures. The 'particulars already exist' logic is used only by the eService review path (ManualReviewService) and /furnish/officer/manual, not by plus-* endpoints. In contrast, /plus-furnish always replaces the current offender. The follow-up stories 41.56-41.58 (overwrite after PLUS confirmation) also have no handshake on the PLUS path.",
+  "recommendation": "Do not claim as done. PLUS requests are not checked against already-existing particulars; the data is replaced directly. The check logic exists on other paths (eService review and manual furnish) and can be reused.",
+  "steps": [
+    {
+      "step": "When the PLUS request arrives, OCMS reads the hirer/driver records that already exist for the notice",
+      "detail": "/plus-furnish goes straight to staffFurnish. The only read of old records is findCurrentOffender to remember the old ID for the HST logic (StaffFurnishService.java:196-198), not to judge whether the particulars already exist. /plus-redirect reads the target record by noticeNo + role + idNo (350-362) but only to fail when it is not found or the ID does not match, not to report 'already updated'."
+    },
+    {
+      "step": "OCMS compares the requested hirer/driver with the existing one (same ID and role means already updated)",
+      "detail": "The comparison logic exists in FurnishabilityChecker.runAllChecksAndCollectFailures: same ID and role as the current offender gives HIRER_ALREADY_UPDATED or DRIVER_ALREADY_UPDATED (FurnishabilityChecker.java:280-293), an ID in another role gives FURNISHED_ID_EXISTS (303-306), and another record in the same role gives PREVIOUS_RECORDS_EXIST (311-314). This function is only called from ManualReviewService.java:215 (pending eService submissions). ManualFurnishValidationService.checkExistingParticulars (ManualFurnishValidationService.java:74) is only used by /furnish/officer/manual. No plus-* endpoint calls them, and non-plus endpoints need a staff JWT (JwtFilter.java:179), so PLUS cannot use them."
+    },
+    {
+      "step": "When the same particulars already exist, OCMS does not apply the request again",
+      "detail": "staffFurnish does not stop when the same ID and role is already the current offender. It deactivates the old offender (StaffFurnishService.java:201), deletes the old addresses for that role (206), saves the new record under the key noticeNo + role (231), creates the furnished_mail address (236), then resets the stage to RD1/DN1 and recalculates the amount (240-262). So a second request for the same person is processed again, including a stage reset, instead of being refused."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS24.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi sftp-prod.properties (tanpa State Courts); ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}, auth/filter/JwtFilter, crud/ocmsizdb/OcmsCourtCase (3 kolom), workflows/furnish/stafffurnish/services/StaffFurnishService (placeholder summonNo); ocmsadminui Report/{index.tsx,action/ActionReport.tsx}, Notice/detail/Overview.tsx, utils/models/{Icsdbatch,Icourtoutcomeapproval}.d.ts. ocmsadminprivateapi (selain properties), ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code",
+  "note": "Story minta OCMS memproses return file State Courts: terima summons/charge sheet, update summons number, stage, court mention, indikator approved/rejected, lalu buat summary report. Hanya satu langkah punya code sebagian: penulisan processing stage lewat REST casUpdateCourtNotices (push per notice dari CAS, tanpa return file dan tanpa turunan approved/rejected). Selebihnya tidak ada: tidak ada penerima file, tidak ada field summon_no di backend (placeholder TODO di StaffFurnishService.java:1567), tidak ada entity court mention atau indikator, dan menu Court Summon Reports/Court Rejected Reports hanya judul dengan path kosong. Tiket OCMS-SR-2026-164 (notice ditutup di CAS sebagai WWP tetapi masih outstanding di OCMS, di-patch manual) menjadi petunjuk bahwa hasil court tidak otomatis sampai ke OCMS; petunjuk saja. Status 'Demo paid' tidak didukung code. Isi file State Courts, permission SFTP, dan proteksi APIM untuk casUpdateCourtNotices: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penulisan stage lewat casUpdateCourtNotices yang terkait (Sebagian); minta URA/tim konfirmasi di repo mana pemrosesan return file State Courts dan laporan summons dibangun, atau tandai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima summons dan charge sheet dari return file State Courts untuk aplikasi yang disetujui",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/sftp/sftp-prod.properties:57-107; ocmsadminui/src/utils/models/Icsdbatch.d.ts:1-11",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada SFTP server State Courts (sftp-prod.properties:57-107) dan tidak ada penerima/parser summons atau charge sheet. Field filename_chargesheet/b_lob_chargesheet hanya TypeScript type di UI (Icsdbatch.d.ts:1-11). Permission SFTP ke api App Service server (demo remark): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update summons number pada notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1567",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada field summon_no di entity backend (grep summon_no/summonNo di crud ocmsadminapi dan ocmsadminprivateapi: nol hasil). Furnish memakai placeholder: 'this.summonNo = null; // TODO: Add when summon_no field is available in database' (StaffFurnishService.java:1567). /v1/summon hanya ada di api-authorization.properties:23 tanpa controller."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update processing stage notice sesuai hasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:96-119; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:183",
+      "fit": "Sebagian",
+      "detail": "Penulisan stage ke VON/eVON ada lewat casUpdateCourtNotices: last/prev/next_processing_stage, suspension_type, amount_payable ditimpa dari JSON CAS (CasIntegrationServiceImpl.java:96-119); notice yang sudah FP ditolak (CasIntegrationServiceImpl.java:322-344). Ini push per notice dari pihak luar, bukan hasil pemrosesan return file State Courts, dan OCMS tidak menurunkan stage dari hasil approved/rejected. Endpoint lewat JwtFilter (JwtFilter.java:183); proteksi APIM: cannot verify from repo. Sebagian karena mekanisme generik, bukan jalur yang disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update court mention details dan indikator approved/rejected",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/Overview.tsx:337-341; ocmsadminui/src/utils/models/Icourtoutcomeapproval.d.ts:1-27; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31",
+      "fit": "Tidak ada code",
+      "detail": "Backend tidak punya tabel/entity court mention atau indikator approved/rejected: hanya ocms_court_case dengan notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31). UI menampilkan 'Summary of Court Mention Date' dari COURT.mention_date (Overview.tsx:337-341) tetapi datanya diambil dari endpoint courtcase yang tidak punya controller; type Icourtoutcomeapproval (Icourtoutcomeapproval.d.ts:1-27) hanya TypeScript."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghasilkan summary report atas summons yang sudah diupdate",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:69-72; ocmsadminui/src/pages/Report/action/ActionReport.tsx:50-56",
+      "fit": "Tidak ada code",
+      "detail": "Menu 'Court Summon Reports' dan 'Court Rejected Reports' hanya judul dengan path kosong (Report/index.tsx:69-72) dan resource courtcasesummary di-comment (ActionReport.tsx:50-56). Tidak ada endpoint report/summon di ocmsadminapi atau generator report summons di ocmsadminprivateapi, dan api-authorization.properties tidak punya mapping report summons (kata summon hanya di baris 23)."
+    }
+  ]
+}

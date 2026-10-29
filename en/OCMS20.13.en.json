@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi MhaNricDataHelper.queryUnclaimedAndHstData + MhaNricDownloadHelper.storeUncHstResults (MHA enquiry for adhoc NRIC), DataHiveUenFinService.findAlternativeAddress (foreigner alternative address from lta_reg/furnished_mail, not appeals); ocmsadminapi OwnerDriverControllerPlus (inbound endpoints called by PLUS). No outbound client to PLUS, appeal table or X-months setting in the six repos",
+  "note": "Story status: No requirement (requirement not given), traced normally from the story text. The story asks OCMS, after finding no change in the ICA/DOS address (NRIC) or a change in vehicle ownership (foreigners), to check PLUS for appeals from that ID in the past X months including the address in the appeal. Only the NRIC address enquiry to MHA for the adhoc queue exists (MhaNricDataHelper.java:442-447), without a 'no change' verdict. Every PLUS integration in the code is inbound: PLUS calls OCMS through plus-* endpoints (e.g. OwnerDriverControllerPlus.java:27,39). There is no outbound call to PLUS, no appeal data or appeal address, and no X-months setting. DOS = DataHive/LTA cannot be confirmed from the repo. The alternative address OCMS looks for on foreigners comes from lta_reg/furnished_mail (DataHiveUenFinService.java:3564-3600), not from appeals.",
+  "recommendation": "Not claimed: no requirement was given and the appeal check against PLUS does not exist in the code. Only the NRIC address enquiry to MHA can be mentioned as groundwork",
+  "steps": [
+    {
+      "step": "OCMS identifies that there is no change in the ICA/DOS registered address for NRIC holders",
+      "detail": "NRIC IDs (idType N) in ocms_adhoc_nro_temp are sent to MHA (MhaNricDataHelper.java:442-447) and the resulting address is saved to ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3135,3223). There is no comparison with the previous address and no 'no change' verdict; an address change is only visible if the officer opens the data. 'DOS' as a source is not implemented: DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "OCMS identifies a change in vehicle ownership for foreigner vehicle owners",
+      "detail": "The UNC adhoc queue for foreigners (id_type F/B) is read only for the DataHive address query (DataHiveUenFinService.java:325-328). No vehicle ownership change check connected to the UNC path exists in the six repos."
+    },
+    {
+      "step": "OCMS checks PLUS for any appeals from the ID in the past X months",
+      "detail": "There is no outbound client/URL to PLUS in the six repos (grep for plus in properties and Java: only the APIM header name and inbound plus-* endpoints), no 'X months' setting, and no appeal table/endpoint in ocmsadminapi or ocmsadminprivateapi. The only PLUS interaction involving an ID is PLUS calling OCMS to read/update owner-driver data (OwnerDriverControllerPlus.java:27,39) - the opposite direction from the story."
+    },
+    {
+      "step": "The appeal check includes the address provided in the appeal",
+      "detail": "There is no storage or field for an address-from-appeal. plus-update-offence-notice-owner-driver (OwnerDriverControllerPlus.java:39) lets PLUS write owner/driver fields into OCMS on PLUS's own initiative, not OCMS pulling appeal addresses for a given period."
+    },
+    {
+      "step": "OCMS identifies whether an alternative address was provided through the appeal",
+      "detail": "findAlternativeAddress (DataHiveUenFinService.java:3564-3600) looks for a foreigner's alternative address in ocms_offence_notice_owner_driver_addr of type lta_reg (error_code 0) or furnished_mail, not from appeals, and is called only when DataHive returns no address. Because its source differs from the story, it is not counted as code for this story."
+    }
+  ]
+}

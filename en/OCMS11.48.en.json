@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.48",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (refreshIndividualContactInfo, combineNotices, generateMessages, sendBatchSms)}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, application-prod.properties (sms.enable), cron-schedules-prod.properties (cron.notification.enabled, cron.enareminder.datahive). Other repos: no code for these steps. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark about Vault, SMS and code split. The SMS flow for drivers is the same as for owners: stage DN1 candidates, number refresh from DataHive, merging per recipient + stage + due date, template DN1_SMS_INDIVIDUAL, batch send to Postman2 through APIM. In the repo everything is held back by configuration: cron.notification.enabled=false in every environment, sms.enable=false in prod without sms.allowedSources (only dev/UAT have ENOTIFICATION), and the DataHive refresh is off (cron.enareminder.datahive=false). The DN1 template text lives in the DB. Ticket OCMS-DF-2026-180 waits for the cron to be activated. SMS/Vault permissions and server values: cannot verify from repo.",
+  "recommendation": "Claim partially. Batch SMS code for drivers exists, but it is inactive in every environment per the repo and SMS is refused in prod. Ask for proof of the cron activation, sms.allowedSources in PRD and the DN1 template text before claiming in full.",
+  "steps": [
+    {
+      "step": "OCMS gets the driver's latest mobile number from DOS (DataHive) for the SMS batch",
+      "detail": "refreshIndividualContactInfo queries the CONTACT column of V_DH_SNDGO_SINGPASSCONTACT_MASTER in DataHive and overwrites phoneNo (NotificationSmsEmailHelper.java:2710-2760, 1434-1451). The whole block is skipped when cron.enareminder.datahive != 'true' (lines 2468-2478), and the value is false in dev, UAT and prod (cron-schedules-prod.properties:48), so the old number in the DB is used. Same fit as OCMS11.47 and OCMS11.9. DataHive/DOS content: cannot verify from repo."
+    },
+    {
+      "step": "OCMS identifies the unique individual drivers and combines their outstanding NOPOs into one SMS",
+      "detail": "combineNotices groups records by recipient id key (I_{idNo}) + stage + due date, joins the notice numbers with a dot and sums amountPayable (NotificationSmsEmailHelper.java:2151-2227, key at 2230-2250). One driver with several NOPOs at stage DN1 and the same due date gets one SMS. But NOPOs with a different due date, or at a different stage, are not merged, so 'unique per batch job' only holds per stage and date combination. Same fit as the equivalent step in OCMS11.4 and OCMS11.9."
+    },
+    {
+      "step": "The SMS lists the outstanding NOPOs and refers to the 1st letter reminder/notification",
+      "detail": "The template is chosen from the name DN1_SMS_INDIVIDUAL (or _COMBINED for merged notices), placeholders are filled with noticeNo/combinedNotices, noticeCount, vehicleNo, amountPayable, paymentDueDate, then the text is validated for Postman2/GSM-7 (NotificationSmsEmailHelper.java:274-345, 410-438, 459-476, 1553-1580). The template text lives in ocms_template_store (DB), no seed in the repo; whether it mentions the 1st letter reminder: cannot verify from repo. A missing template means the SMS is skipped (line 308). Same fit as OCMS11.9."
+    },
+    {
+      "step": "The SMS is sent to drivers in a batch job (opt-outs and passport holders excluded)",
+      "detail": "The job drops exclusion-list ids and passport holders (NotificationSmsEmailJob.java:222-244), then sendBatchSms splits the records into batches of 1000, normalizes the numbers and calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION to APIM Postman2 (NotificationSmsEmailHelper.java:1527-1530, 1607-1612; SmsUtil.java:572-600). The sending code exists, but in the repo sms.enable=false in prod (application-prod.properties:87) with no sms.allowedSources, so SmsUtil refuses with status 'disabled' (SmsUtil.java:401-410), and the scheduler is off (cron.notification.enabled=false, cron-schedules-prod.properties:236). Ticket OCMS-DF-2026-180 waits for the cron to be activated. Same fit as OCMS11.4 and OCMS11.9. SMS permission on the App Service and server values: cannot verify from repo."
+    }
+  ]
+}

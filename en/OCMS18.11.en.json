@@ -1,0 +1,25 @@
+{
+  "story": "OCMS18.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/PS/form/PSForm.tsx (confirmation, POST staff-apply-suspension, result prompt, notice re-read), utils/api/index.ts (CRUD swallows errors). ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-apply-suspension) and helpers/PermanentSuspensionHelper, SuspensionBaseHelper. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "1-point story (status 'Demo paid (50% of 75%)'). The staff portal does show the modal 'Permanent Suspension Applied Successfully to N Notices.' and a failure table per notice. The gap: the success prompt is computed from a results list that can be empty. When the request fails at HTTP/network level, CRUD only fills response.error and PSForm never checks it, so the UI still shows 'Applied Successfully to 0 Notices' with no error. No relevant maintenance ticket.",
+  "recommendation": "Claim partially: the success/failure prompt flow exists, but the false success on a failed request should be fixed before claiming in full.",
+  "steps": [
+    {
+      "step": "Officer submits the permanent suspension in the staff portal and the server returns a result per notice (success + message)",
+      "detail": "After confirmation (PSForm.tsx:83-90), onAPI calls POST staff-apply-suspension (PSForm.tsx:149). The controller processes each notice through PermanentSuspensionHelper.processPS (SuspensionProcessingController.java:213-237), which returns {noticeNo, srNo, success, message}; success is answered with 'PS Success' (PermanentSuspensionHelper.java:150). The envelope is always appCode OCMS-2000 'Update Success.' and failures are per notice in results[] (SuspensionProcessingController.java:1106-1118). There is a risk: updateDatabase catches Exception and only returns an error response (SuspensionBaseHelper.java:493-496), so if the suspended_notice insert fails after VON was updated, the transaction does not roll back because no exception escapes [Medium confidence, needs runtime verification]."
+    },
+    {
+      "step": "The portal shows a success prompt when the permanent suspension was applied",
+      "detail": "PSForm.tsx:211-219 shows the modal 'Permanent Suspension Applied Successfully to {success.length} Notices.' when failed.length == 0. But results is read from res.result?.data.results ?? [] (PSForm.tsx:151) without checking res.error. CRUD swallows HTTP/network errors and only fills response.error (utils/api/index.ts:204-214), so when the request fails (e.g. 500, timeout) both success and failed are empty and the UI still shows the success prompt 'to 0 Notices' with isError=false. On the normal path the prompt is correct."
+    },
+    {
+      "step": "Notices that failed are shown with the reason and are not counted as successes",
+      "detail": "Items with success=false go into the failed list with the server message (PSForm.tsx:153-159); PS-FP/PRA notices rejected on the UI side also go into failed with 'Not allowed to apply new PS code to paid Notice(s).' (PSForm.tsx:104-110). The prompt turns into an error: '{n} out of {total} Notices Failed to Applied Permanent Suspension. Please see the details error each notices in table.' (PSForm.tsx:213-216). This covers per-notice business failures, not a failed request (see step 2)."
+    },
+    {
+      "step": "The latest notice data is re-read so the officer sees the suspension was really saved in OCMS",
+      "detail": "For successful notices, PSForm calls validoffencenoticelist with noticeNo[$in] and replaces the notice data in the result table with the latest database data (PSForm.tsx:162-182), so the suspension type/reason shown is what was saved, not just the POST response."
+    }
+  ]
+}

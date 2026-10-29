@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui hooks/Auth.ts, pages/Furnish/{Landing,Furnish,API,Form/OParticulars,Form/Particulars,Summary}.ts, components/form/{Contact,Email}.ts; ocmseserviceapi workflows/spcp/{controller/UserInfoController,service/SpcpServiceImpl}, workflows/furnish/FurnishSubmissionController, application-prod.properties. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this story",
+  "note": "Story status 'Fully paid'. The MyInfo flow for individuals exists: after notices are selected the UI automatically calls POST /v1/userinfo, the backend calls MyInfo through the SPCP gateway, and name, mobile number and email fill the form. Gaps: the NRIC/FIN is not shown on the page (the ID field is commented out, the ID comes from the session at submit) and Confirm Email is not filled. If MyInfo fails or returns nothing, the UI stays silent and the Full Name field stays disabled until the user presses Clear. The real MyInfo response, Singpass and the server value of spcp.bypass: cannot verify from repo (application-prod.properties does not set spcp.bypass, default false in UserInfoController.java:32).",
+  "recommendation": "Claim partially: name, mobile number and email are filled from MyInfo; the ID is not shown on the page. Confirm with URA whether the ID must be visible on the form",
+  "steps": [
+    {
+      "step": "The individual logs in with Singpass on the Furnish page; the session carries the NRIC and the transaction id",
+      "detail": "The Singpass button on Landing calls onFurnishSingpass(), which runs onSingpass(isBack, 'FURNISH') (Landing.ts:88, Auth.ts:170-172). After login, Auth.ts:360 stores the authID as the txn id that fetchAndApplyUserInfo later uses (Furnish.ts:187) together with the Furnish-specific appId (env.ts:66-69, value comes from VITE env). The Singpass handshake and the real appId value: cannot verify from repo."
+    },
+    {
+      "step": "After notices are selected the page requests MyInfo data automatically (a Retrieve MyInfo button also exists)",
+      "detail": "notices.onSelected immediately calls fetchAndApplyUserInfo() (Furnish.ts:439). It uses authType SP, the txn id and the appId, then calls APIGetUserInfo (:185-196). The image button 'Retrieve MyInfo with Singpass' in OParticulars (:186-189) triggers the same function (:127-133, Furnish.ts:455-457). If authType, txn id or appId is empty the function returns without a message (:190)."
+    },
+    {
+      "step": "The backend fetches the MyInfo data through the SPCP gateway using appId, txnNo and the NRIC from the session",
+      "detail": "POST /v1/userinfo takes userId from the JWT (not from the FE) and for authType SP calls spcpService.getMyInfoData(appId, txnNo, userId) (UserInfoController:95-98). SpcpServiceImpl:100-118 calls the gateway URL /spcpDS/myinfo/getMyinfoData/v1 (application-prod.properties:61). Bypass mode (hardcoded data) is active only when spcp.bypass.enabled=true (UserInfoController:90, default false at :32); that property exists only in application-dev.properties:46 and is absent from application-prod.properties. The MyInfo response content and the real server values: cannot verify from repo."
+    },
+    {
+      "step": "Name, contact number and email from MyInfo fill the owner form",
+      "detail": "APIGetUserInfo reads name, email (or emailUser@emailHost produced by splitEmailField) and mobileNo.countryCode/number (API.ts:425-436). applyUserInfoToFields fills oName, oContactCode, oContactNo, oEmail through setValue (Furnish.ts:215-220), and the name is locked with disabled=true (OParticulars.ts:179). Three things to watch: (1) oComEmail is not filled, so the user must retype Confirm Email and paste is disabled (Email.ts:95-97); (2) if MyInfo fails or is empty, API.ts:432 returns success=false and the UI shows no message, while Full Name stays disabled until the user presses Clear (OParticulars.ts:158); (3) the form only shows country code +65 (Contact.ts:121-127), so a non-SG MyInfo number may not match what is displayed."
+    },
+    {
+      "step": "The ID (NRIC/FIN) is also filled automatically and visible on the page",
+      "detail": "The ID/ID type and address fields in the owner form are commented out (OParticulars.ts:204-215) and the review summary shows only Full Name, Mobile Number, Email (Summary.ts:117-148). The NRIC/FIN is used but comes from the JWT session at submit (FurnishSubmissionController:81-84), not from the MyInfo data filled into the page. So the identity is guaranteed by the backend, but the user does not see an ID filled in as the story example ('Name, ID, Contact number') says."
+    }
+  ]
+}

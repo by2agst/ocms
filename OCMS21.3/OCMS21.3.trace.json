@@ -1,0 +1,55 @@
+{
+  "story": "OCMS21.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{NoticeValidationHelper (notice lama FP/PRA dianggap duplicate), NoticeRecordHelper (PS-DBB tanpa refund), PermanentSuspensionHelper.createRefundRecord (refund hanya jalur manual), SuspensionBaseHelper.getPsRefundCodes}; ocmsadminprivateapi notification_sms_email/helpers/NotificationSmsEmailHelper (pengirim generik) + properties prod. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait.",
+  "note": "Status di sheet: 'Requirement given - Gen flow'. Tidak ada kode yang mengirim SMS/email 'notice dibatalkan dan refund akan diproses' setelah PS-DBB. Skenario 'duplicate sudah dibayar' di kode berarti notice lama sudah dibayar (FP/PRA) sehingga notice baru disuspend PS-DBB; notice yang dibayar tidak disuspend/di-refund oleh DBB. Record refund hanya dibuat di jalur suspend manual untuk code di PS_REFUND_CODES (data DB, tidak bisa diverifikasi dari repo). Pengirim SMS/email generik ada tetapi tidak dipicu dan dimatikan di properties prod. Tidak ada ticket maintenance relevan.",
+  "recommendation": "Jangan klaim sebagai selesai. Minta URA mendefinisikan notice mana yang di-refund pada skenario duplicate dibayar, lalu bangun trigger refund dan notifikasinya",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice duplicate yang sudah dibayar disuspend permanen oleh OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:508-511; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:497-503; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:121-124",
+      "fit": "Sebagian",
+      "detail": "Bila notice lama sudah dibayar (PS dengan crs reason FP/PRA), notice BARU yang dibuat mendapat PS-DBB. Notice yang sudah dibayar itu sendiri tidak disuspend oleh DBB. Suspend manual PS atas notice yang sudah dibayar hanya diizinkan untuk code di PS_REFUND_CODES (SuspensionBaseHelper.java:121-124); apakah DBB ada di daftar itu cannot verify from repo (data ocms_standard_code)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah SMS/email pemberitahuan sudah terkirim pada hari yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:212-219",
+      "fit": "Tidak ada code",
+      "detail": "Sama dengan OCMS21.2 langkah 2: tidak ada kode yang mengaitkan PS-DBB dengan catatan ocms_sms_notification_records hari yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Refund diproses untuk notice yang sudah dibayar itu",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:146-147; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:321-330; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:497-503",
+      "fit": "Sebagian",
+      "detail": "Pembuatan record refund (ocms_refund_notice) ada di jalur suspend manual PermanentSuspensionHelper.createRefundRecord, hanya untuk PS code yang ada di PS_REFUND_CODES (data DB, cannot verify DBB termasuk). Jalur otomatis PS-DBB saat pembuatan notice (NoticeRecordHelper.java:497-503) tidak memanggil refund sama sekali."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi SMS/email menyatakan notice dibatalkan dan refund akan diproses",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:509-529",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada template atau teks pembatalan + refund di enam repo (grep cancel/refund hanya menemukan laporan pembayaran dan record refund). Template di DB cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS/email terkirim ke pemilik kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:509-529; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-578; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS21.2 langkah 5: pengirim generik ada tetapi tidak dipicu oleh suspend DBB; prod: sms.enable=false (application-prod.properties:87), email.enableSmtp=false (80), cron.notification.enabled=false (cron-schedules-prod.properties:236); nilai server asli cannot verify from repo."
+    }
+  ]
+}

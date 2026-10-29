@@ -1,0 +1,37 @@
+{
+  "story": "OCMS17.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/TS/form/TSDetails.tsx, utils/{validation,mapping}/TS/TS.ts; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (extractDaysToRevive),helpers/TemporarySuspensionHelper}, helpers/SuspensionBaseHelper (insertSuspendedNotice). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status Fully paid, 2 point. Field Number of Days adalah TextInput biasa (tidak readonly), jadi officer bisa memperpendek atau memperpanjang. Server memakai angka dari UI untuk menghitung due date of revival. Gap: batas 1-999 dan format digit hanya dicek di UI; server tidak punya batas atas, dan nilai <=0 atau non-angka diam-diam diganti dengan jumlah hari default code (bukan ditolak). Selain itu aturan multiple TS membuat VON mengikuti tanggal revival terjauh, jadi memperpendek durasi di bawah TS yang sudah ada tidak mengubah tanggal di VON; suspended_notice tetap menyimpan tanggal TS ini. Tidak ada tiket maintenance yang mengubah verdict.",
+  "recommendation": "Boleh diklaim; catat validasi rentang hari hanya di UI",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Field jumlah hari bisa diubah officer setelah terisi otomatis",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSDetails.tsx:101-110; ocmsadminui/src/pages/TS/form/TSDetails.tsx:72-73",
+      "fit": "Sesuai",
+      "detail": "Number of Days adalah TextInput isNumber tanpa readonly/disabled (TSDetails.tsx:101-110); auto-populate hanya mengisi nilai awal (:72-73), officer bisa menimpa dengan nilai lebih kecil atau lebih besar."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai hasil ubahan dicek formatnya (angka, lebih dari 0, maksimal 999)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/TS/TS.ts:36-50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1157-1180; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:182-190",
+      "fit": "Sebagian",
+      "detail": "Aturan yup: digit, <=999, >0, required (TS.ts:36-50). Hanya di UI. Server extractDaysToRevive tidak punya batas (SuspensionProcessingController.java:1157-1180) dan calculateRevivalDate hanya memakai nilai bila >0, kalau tidak jatuh ke default code atau 30 hari (TemporarySuspensionHelper.java:182-190), jadi request langsung ke API dengan 0 atau teks tidak ditolak."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah hari hasil ubahan dipakai untuk menghitung tanggal revival suspensi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/utils/mapping/TS/TS.ts:26; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:99; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:186-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:125-133",
+      "fit": "Sesuai",
+      "detail": "UI mengirim day_no sebagai dueDateOfRevival (TS.ts:26); server mengambilnya (SuspensionProcessingController.java:1157-1167) dan calculateRevivalDate memakai now + daysToRevive (TemporarySuspensionHelper.java:99, 186-190). suspended_notice menyimpan tanggal TS ini (:125-133). Aturan multiple TS: VON mengambil tanggal terjauh (:103-122), jadi pemendekan di bawah TS yang sudah ada tidak terlihat di VON."
+    }
+  ]
+}

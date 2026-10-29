@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi agencies/mha/download (MhaNricDownloadHelper), workflows/unclaimedreport, workflows/autorevival, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, application-prod.properties. Tidak ada code yang mendeteksi perubahan alamat lalu mengirim ulang reminder. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Story minta OCMS mengirim ulang reminder ke individu (lewat PDF/data file ke vendor) bila alamat registered berubah. Tidak ada trigger kirim ulang: tidak ada deteksi perubahan alamat (lihat OCMS20.8 langkah 5), dan hasil enquiry unclaimed hanya masuk tabel sementara ocms_temp_unc_hst_addr, tidak ke alamat letter. Jalur reguler MHA memang menulis alamat mha_reg dan letter_address di ONOD, dan notice TS-UNC masuk lagi ke enquiry reguler, tetapi itu bukan pemicu kirim ulang. Reminder baru hanya terbentuk lewat mekanisme generik: auto revival TS-UNC lalu pembuatan letter Toppan, yang cron day-end-nya tidak memanggil generator letter (di-comment) dan SFTP Toppan dimatikan di prod properties. Maintenance ticket: OCMS-DF-2026-192 (masih terbuka). Status story: Requirement given - Gen flow.",
+  "recommendation": "Jangan klaim penuh. Deteksi perubahan alamat dan pemicu kirim ulang tidak ada; hanya pembuatan letter Toppan generik dan penulisan alamat MHA reguler yang bisa dipakai ulang",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi bahwa alamat registered tempat reminder dikirim berubah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:317-340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:100",
+      "fit": "Tidak ada code",
+      "detail": "Sama dengan OCMS20.8 langkah 5: tidak ada pembanding alamat lama dan baru, report 15 kolom tanpa pemanggil (UnclaimedReportServiceImpl.java:110), cron harian hanya membuat daftar 11 kolom TS-UNC (DailyReportJobsScheduler.java:100)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat terbaru dipakai sebagai alamat surat individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2324; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3223; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:182-217",
+      "fit": "Sebagian",
+      "detail": "Jalur MHA reguler menulis alamat mha_reg ke ONOD dan menandai letter_address='Y' bila belum ada (MhaNricDownloadHelper.java:2324), dan notice TS-UNC ikut di-enquiry ulang (MhaNricDataHelper.java:182-217). Hasil enquiry adhoc dari unclaimed hanya masuk ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3223, 3248) dan tidak diterapkan ke alamat letter. Jadi alamat surat bisa ikut terbarui lewat jalur reguler, bukan karena perubahan terdeteksi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim ulang reminder ke individu secara otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:70-72; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:159",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada trigger kirim ulang berdasarkan perubahan alamat. Satu-satunya jalan reminder baru terbentuk adalah auto revival TS-UNC generik (kode UNC masuk daftar revival, AutoRevivalHelper.java:70-72) lalu pembuatan letter oleh stage berikutnya; keduanya tidak melihat hasil enquiry alamat. Tidak ada fungsi resend untuk reminder di ocmsadminapi/ocmsadminprivateapi/ocmsadminui (grep resend hanya menemukan furnish rejection, CES, retry notifikasi, vhub)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file PDF/data reminder untuk vendor cetak dengan alamat terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS20.7 langkah 4: mekanisme letter Toppan generik ada, tetapi tidak jalan otomatis. Pembuatan letter oleh cron day-end tidak berjalan: pemanggilan toppanLettersGeneratorService.executeJob() di-comment (ToppanUploadJobsScheduler.java:118), letter hanya lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34); ticket OCMS-DF-2026-192 (job manual gagal di produksi, status Ready to UAT) masih terbuka. Letter memakai alamat letter yang tercatat saat itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dikirim ke vendor untuk cetak dan pos ke alamat terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS20.7 langkah 5. sftp.upload.disabledServers=toppan di application-prod.properties:86, jadi upload SFTP ke Toppan dimatikan di prod; gate delivery dilewati dan stage tetap maju tanpa delivery (OCMS-DF-2026-192); nilai server asli cannot verify from repo."
+    }
+  ]
+}

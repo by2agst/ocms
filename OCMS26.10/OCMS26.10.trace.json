@@ -1,0 +1,37 @@
+{
+  "story": "OCMS26.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl} (casUpdateCourtNotices menolak notice FULL_PAYMENT), crud/ocmsizdb/OcmsCourtCase; ocmsadminui pages/Notice/form/History.tsx. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code adjudication",
+  "note": "Requirement status tidak diberikan di stories.json (blank); story ditrace normal. Story minta OCMS menerima adjudication update untuk notice yang settled dan meng-update notice agar petugas tahu State Courts sudah memprosesnya. Code tidak punya penerima adjudication atau penanda 'diproses State Courts'. Yang ada hanya REST casUpdateCourtNotices (push per notice dari CAS) yang menimpa stage/suspension, dan notice yang payment_status-nya FULL_PAYMENT justru ditolak dengan 'Notice already Paid' / OCMS-4002 (CasIntegrationServiceImpl.java:336-343). Jika 'settled' di story berarti sudah dibayar, jalur ini berlawanan dengan story; jika berarti settled di court, code tidak membedakannya. Arti 'settled' tidak bisa dipastikan dari repo. Step update notice diberi Sebagian agar konsisten dengan OCMS26.6 langkah update processing stage. Tiket OCMS-SR-2026-164 dan OCMS-SR-2026-179 jadi petunjuk bahwa sinkron court CAS ke OCMS belum penuh (petunjuk, bukan bukti). Tiket OCMS-DF-2026-173 memakai kata 'Settled' untuk notice Fully Paid, petunjuk bahwa istilah settled di operasional berarti sudah dibayar (bukan bukti). Status internal di sisi State Courts dan isi kontrak CAS: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya update stage/suspension generik dari CAS yang ada, dan notice yang sudah dibayar ditolak. Minta URA/tim klarifikasi arti 'settled' dan di mana hasil adjudication disimpan, atau tandai sebagai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima case adjudication update untuk notice yang settled",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:26-74",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penerima adjudication update. casUpdateCourtNotices (CasIntegrationController.java:101-102) hanya menerima push stage/suspension per notice dari CAS tanpa field adjudication result (CasUpdateNoticeItem.java:26-74); tidak dikreditkan. Sinonim yang dicoba di enam repo (UI dan API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Di backend nol hasil; hanya type TypeScript di UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di-update sesuai hasil adjudication",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:336-343; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:430-459",
+      "fit": "Sebagian",
+      "detail": "casUpdateCourtNotices menimpa stage, suspension dan amount di VON/eVON dari kiriman CAS (CasIntegrationServiceImpl.java:430-459), tetapi notice FULL_PAYMENT ditolak 'Notice already Paid' (CasIntegrationServiceImpl.java:336-343). Tidak ada penyimpanan adjudication result itu sendiri. Arti 'settled' (paid atau settled di court) cannot be determined from repo. Fit sama dengan OCMS26.6 langkah update processing stage."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Petugas tahu bahwa State Courts sudah memproses notice yang settled",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/History.tsx:71-100; ocmsadminui/src/pages/Notice/form/History.tsx:170-172; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penanda atau status 'sudah diproses State Courts' di ocms_court_case (OcmsCourtCase.java:24-31) maupun di VON. Tab Court Application History di History.tsx:170-172 di-comment, grid-nya (History.tsx:71-100) tidak punya backend. Satu-satunya pesan berkaitan adalah peringatan 'Notice has been submitted to State Court' di useStagePermissions.tsx:86 (pembatasan edit), yang bukan penanda hasil adjudication; tidak dikreditkan."
+    }
+  ]
+}

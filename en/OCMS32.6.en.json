@@ -1,0 +1,33 @@
+{
+  "story": "OCMS32.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem} (CAS endpoints only), crud/ocmsizdb/OcmsCourtCase. ocmsadminprivateapi datahiveuenfin/DataHiveUenFinService (work item placeholder). ocmsadminui utils/models/Icourtoutcomeapproval.d.ts, utils/data/LinkData.tsx, utils/mapping/NoticeUPL.ts, pages/Notice/{form/History,hook/useODH}.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status is blank (requirement not given in the sheet). The story asks OCMS to match the court mention outcome on the notice against the adjudication update from State Courts, then create a work item for errors routed to the OIC dashboard. No step has code: no receiver for State Courts data exists in the six repos, there is no outcome comparison logic, no error detection, no work item is created for court errors (the existing work items belong to UPL and a DataHive placeholder), and the Work Items menu in the staff portal is commented out. The CAS endpoint (casUpdateCourtNotices) exists but is not an adjudication feed from State Courts and compares nothing, so it is not credited. Relevant maintenance ticket: OCMS-SR-2026-164 (36 notices closed in CAS as WWP but still outstanding in OCMS, patched manually) shows CAS court result sync has no automatic reconciliation; this is a hint, not proof. State Courts and CAS sources cannot verify from repo.",
+  "recommendation": "Do not claim. No code for outcome matching, error detection, work item, or OIC dashboard. Ask URA/the team to confirm which repo receives the State Courts adjudication, or mark as a gap",
+  "steps": [
+    {
+      "step": "Court mention outcomes updated for each notice are recorded in OCMS",
+      "detail": "No screen or endpoint records court mention outcomes. Icourtoutcomeapproval.d.ts:1 is only a type definition with no user in ocmsadminui/src (grep). Entity ocms_court_case only has notice_no, courtPaymentDueDate, reason (OcmsCourtCase.java:25-31), not a mention outcome. The Court Application History tab in History.tsx:170-172 is commented out. The court update in useODH.tsx:378-400 is also commented out. /v1/courtmention is listed in api-authorization.properties:23 but there is no courtmention controller in ocmsadminapi, so whether a generic CRUD exists cannot verify from repo."
+    },
+    {
+      "step": "OCMS receives case adjudication updates from State Courts",
+      "detail": "No receiver for State Courts data (SFTP/batch/file) exists in the six repos (grep adjudicat*, court mention, court SFTP in both layers: no relevant hits). The nearest endpoint, POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101), is called by CAS, not State Courts, and the CasUpdateNoticeItem payload only carries stage, suspension, amountPayable, paymentAcceptanceAllowed, eprReason (dto:26-74), with no adjudication outcome. This endpoint is not credited for this step."
+    },
+    {
+      "step": "OCMS matches the court mention outcome on the notice against the adjudication update from State Courts",
+      "detail": "No comparison logic. updateCourtNotices only checks that the notice exists (:324), is not Full Payment yet (:336) and the date format is valid (:350), then overwrites the columns sent by CAS with an UPDATE (:363, :384). Grep reconcil/tally/mismatch/discrepan in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi only hits other modules (notice creation, payment reduction, furnish), not court. There is no matching cron in ocmsadminprivateapi."
+    },
+    {
+      "step": "The system detects notices whose outcome does not match as errors",
+      "detail": "No condition flags an outcome mismatch. The only failure statuses in casUpdateCourtNotices are OCMS-4002 not found, Notice already Paid, and OCMS-4000 invalid date; all three are returned to CAS in the response, not recorded as a matching error for the OIC."
+    },
+    {
+      "step": "The system creates a work item for each matching error",
+      "detail": "No work item is created for court errors. The existing work items belong to other features: UPL Endorsement (MapPostApprovalWorkItem, NoticeUPL.ts:172-195, work_ref 'UPL Endorsement' in constant.ts:301) and DataHive FIN, which is only a log placeholder without insert (DataHiveUenFinService.java:2920-2924). No work item table entity exists in ocmsadminapi/ocmsadminprivateapi (grep workitem/work_item)."
+    },
+    {
+      "step": "The error work item appears on the OIC dashboard for follow-up",
+      "detail": "The Work Items menu in the staff portal is commented out ('UNCONFIRMED', LinkData.tsx:396-398). WorkItem.ts:1-12 is only a path/title; there is no pages/WorkItem folder or work item list component in ocmsadminui/src/pages (ls), and ValidSearchWorkItem (validation/Dashboard.ts:11) is not used anywhere. No OIC dashboard for court mention errors exists."
+    }
+  ]
+}

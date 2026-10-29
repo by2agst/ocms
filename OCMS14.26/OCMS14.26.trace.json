@@ -1,0 +1,55 @@
+{
+  "story": "OCMS14.26",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper.processTsClvLooping}, utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils, framework/workflows/casvipvehicle (refresh CAS), framework/schedulers/ToppanUploadJobsScheduler, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.applyClvSuspensionForVipVehicles, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findToppanNoticesForStage. ocmsadminapi: SuspensionBaseHelper (stage CLV), AutoSuspensionHelper.triggerClvSuspension (tidak ada caller). ocmsadminui: utils/constant.ts (APPLY_TS_ALLOWED memuat CLV). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story status 'Requirement given - Gen flow'. Classified vehicle di code = vehicle_registration_type 'V' (VIP), diisi dari tabel ocms_vip_vehicle saat notice dibuat (SpecialVehUtils.java:88,142) dan tabel itu di-refresh cron CAS 02:00 (cron-schedules-prod.properties:336-337); isi API CAS cannot verify from repo. Penerapan TS-CLV yang benar-benar jalan harian ada di auto-revival cron (AutoRevivalHelper.processTsClvLooping): notice di RR3/DR3 bertipe V dan belum PS-FP diberi TS-CLV. Jalur kedua di ToppanUploadHelper (setelah letter RR3/DR3) memakai regex nomor kendaraan ^V[A-Z0-9]+$, bukan tabel VIP, dan hanya jalan kalau letter generation dipicu manual (ToppanUploadJobsScheduler.java:118 dikomentari, sesuai fakta addendum). Periode suspend tidak ada di code: diambil dari kolom no_of_days_for_revival tabel ocms_suspension_reason (default 30 hari kalau tidak ketemu); komentar code menyebut 21 hari tapi nilai di DB cannot verify from repo. Tidak ada UI staff khusus untuk story ini; daftar TS staff memuat CLV (constant.ts:111-112) tapi tidak dicek ke server. Tiket: OCMS-SR-2026-051 (tabel VIP di-patch lewat DB, tidak ada layar maintenance) dan OCMS-DF-2026-117 (reapply TS-CLV/HST dipertanyakan user; closed tanpa perubahan code).",
+  "recommendation": "Klaim sebagian besar. Penerapan TS-CLV di RR3/DR3 oleh auto-revival cron ada dan aktif di properties prod. Jangan klaim periode (nilai ada di DB) dan jangan klaim 'tidak escalate' penuh: hanya antrean letter Toppan yang dicek terhadap suspension, tahap lain tidak ditelusuri.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Classified (VIP) vehicle dikenali sehingga notice-nya bertipe V",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:86-88; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:138-143; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:336-337",
+      "fit": "Sesuai",
+      "detail": "Saat notice dibuat, SpecialVehUtils.isVip(vehNo) menanyakan tabel ocms_vip_vehicle (status A) lewat OcmsVipVehicleService.isVipVehicle (SpecialVehUtils.java:88,138-143) dan hasilnya menjadi tipe V. Tabel diisi cron CAS VIP refresh tiap 02:00, enabled=true di prod (cron-schedules-prod.properties:336-337); isi API CAS cannot verify from repo. OCMS-SR-2026-051: user minta patch tabel ini lewat DB, tidak ada layar maintenance. Ini prasyarat story, bukan inti suspend."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan TS-CLV pada notice classified vehicle yang berada di tahap RR3/DR3",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1048-1050; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111-1112; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1126-1129; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:178; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sesuai",
+      "detail": "Auto-revival job memanggil processTsClvLooping (AutoRevivalJob.java:178): ambil VON dengan last_processing_stage RR3/DR3 (AutoRevivalHelper.java:1048-1050), lewati yang bukan tipe V atau sudah PS-FP (:1111-1112), lalu tsHelper.processTS(noticeNo, OCMS, \"CLV\", null, ...) (:1126-1129). Job ini bagian day-end scheduler 00:15 (ToppanUploadJobsScheduler.java:119), cron.toppanupload.enabled=true di prod (cron-schedules-prod.properties:61-62); nilai server asli cannot verify from repo. Berjalan juga saat tidak ada notice yang di-revive (AutoRevivalJob.java:108-109)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "TS-CLV hanya bisa dipasang di tahap sebelum pengadilan (RR3/DR3)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:67; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:181-184; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:222-225",
+      "fit": "Sesuai",
+      "detail": "checkStageAllowed menolak CLV selain di stage RR3 atau DR3 dengan pesan 'CLV code can only be applied at RR3 or DR3 stage' (CLV_ALLOWED_STAGES SuspensionBaseHelper.java:67, cabang :181-184). Aturan yang sama ada di ocmsadminapi (SuspensionBaseHelper.java:222-225). Stage court CRT/CRC ditolak lebih dulu (:167-170)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Periode suspend sesuai suspension code (CLV)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:128; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:222-248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:713",
+      "fit": "Sebagian",
+      "detail": "Periode tidak ditulis di code: calculateRevivalDate mencari no_of_days_for_revival di tabel ocms_suspension_reason untuk reason CLV (TemporarySuspensionHelper.java:232-243) dan jatuh ke 30 hari kalau tidak ada (:246-248). Komentar ToppanUploadHelper.java:713 menyebut 21 hari, tapi itu komentar; nilai di DB cannot verify from repo. Mekanismenya benar, isi periode tidak bisa dibuktikan dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang disuspend tidak naik ke tahap berikutnya (tidak escalate)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:317-318; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:333-335",
+      "fit": "Sebagian",
+      "detail": "updateVON mengisi suspension_type=TS dan due_date_of_revival di VON (SuspensionBaseHelper.java:317-318). Antrean letter Toppan (findToppanNoticesForStage) hanya mengambil von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), jadi notice TS tidak ikut letter berikutnya. Stage lain (mis. rujukan ke court) tidak ditelusuri. Jalur kedua ToppanUploadHelper.applyClvSuspensionForVipVehicles (:333-335,691-731) memilih VIP dengan regex ^V[A-Z0-9]+$ pada nomor kendaraan, bukan tabel VIP, dan hanya jalan kalau letter generation dipicu manual (ToppanUploadJobsScheduler.java:118 dikomentari)."
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "story": "OCMS39.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/System/{list/StandardCodeList,form/StandardCodeForm}.tsx + App.tsx route /system/standardcode + context/OptionsContext.tsx (CPS_REASON_CHANGE) + pages/CPS/form/CPSForm.tsx + utils/Meta/System.ts (Complaint/Complainant Code hanya Meta); ocmsadminapi crud/ocmsizdb/standardcode/{StandardCode,StandardCodeController,StandardCodeRepository,StandardCodeServiceImpl} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_STANDARDCODE), crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController,ChangeOfProcessingService,OcmsChangeOfProcessing}, crud/ocmsizdb/OcmsCourtCase; ocmsadminprivateapi framework/workflows/plus/notice_creation/core/helpers/SuspensionProcessingHelper. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak membaca standard code",
+  "note": "Status story: Fully paid. Requirement text diberikan. Demo remark: Complaint Code, Complainant Code. Halaman Standard Code generik (list, create, edit description/status) ada dan dicek authorization-nya di server (OCMS_SYSTEM_STANDARDCODE), tetapi kategori baru tidak bisa dibuat dari UI dan repo tidak punya seed, jadi 'sekitar 100 kode' di DB: cannot verify from repo. Dari tiga contoh di story: reasons for change in processing stage (CPS_REASON_CHANGE) memang mengisi dropdown CPS tetapi tidak divalidasi di server dan aturan OTH hardcoded; kode hasil court mention/trial dan hasil warrant of arrest tidak punya entity, controller atau pembaca sama sekali. Complaint Code dan Complainant Code (demo remark) hanya entri menu di System.ts:9-10, 43-44, 111-118 tanpa Route di App.tsx dan tanpa controller, jadi bukan layar yang berfungsi. Satu job di ocmsadminprivateapi membaca beberapa kategori hanya saat start. Tidak ada maintenance ticket yang mengubah penilaian.",
+  "recommendation": "Klaim sebagian: maintenance kode lewat halaman Standard Code (tambah, ubah deskripsi/status) dan alasan perubahan stage di CPS. Jangan klaim kode hasil court mention/trial, warrant of arrest, maupun layar Complaint/Complainant Code. Minta URA konfirmasi daftar sekitar 100 kode dan di sistem mana kode court dikelola",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman Standard Code dan memilih kategori (reference code) untuk melihat daftar kode",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:402-424; ocmsadminui/src/pages/System/list/StandardCodeList.tsx:75-93; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:85-92; ocmsadminapi/src/main/resources/api-authorization.properties:169-170",
+      "fit": "Sesuai",
+      "detail": "Route /system/standardcode (App.tsx:402-424) menampilkan semua kode per kategori: filter reference code memanggil POST /standardcodelist (StandardCodeList.tsx:75-93, StandardCodeController.java:85-92). Function OCMS_SYSTEM_STANDARDCODE (api-authorization.properties:169-170) dicek di server oleh OcmsAuthorizationInterceptor; role pemegang function cannot verify from repo. Jumlah kode di DB (story menyebut sekitar 100): cannot verify from repo, tidak ada seed SQL ocms_standard_code di enam repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menambah kode standar baru di kategori yang sudah ada",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/StandardCodeForm.tsx:64-71; ocmsadminui/src/pages/System/form/StandardCodeForm.tsx:109-141; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:52-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:139-171; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:176-204; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeRepository.java:72-73",
+      "fit": "Sesuai",
+      "detail": "Form create mengirim POST /standardcode berisi referenceCode, code, description dan codeStatus (StandardCodeForm.tsx:64-71); controller menyimpan lewat service.save (StandardCodeController.java:52-83). Duplikat dicek di UI lewat POST /standardcodeexists (StandardCodeController.java:139-171), bukan di POST /standardcode. Dropdown Reference Code hanya berisi kategori Active yang sudah ada (StandardCodeController.java:176-204, StandardCodeRepository.java:72-73), jadi kategori baru tidak bisa dibuat dari UI; kode baru hanya bisa ditambah ke kategori yang sudah punya baris. Sama dengan penilaian OCMS39.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengubah deskripsi atau status (Active/Defunct) sebuah kode standar",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/StandardCodeForm.tsx:73-88; ocmsadminui/src/pages/System/form/StandardCodeForm.tsx:139-143; ocmsadminui/src/pages/System/form/StandardCodeForm.tsx:174-184; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:94-134",
+      "fit": "Sesuai",
+      "detail": "Edit memanggil POST /standardcodepatch/{referenceCode}/{code} (StandardCodeForm.tsx:73-88). Controller hanya menerima description dan codeStatus (PATCH_ALLOWED_FIELDS, StandardCodeController.java:94-134); referenceCode dan code terkunci (StandardCodeForm.tsx:139-143, @NonEditable). Status A/D lewat toggle Active/Defunct (StandardCodeForm.tsx:174-184). Tidak ada endpoint delete; menonaktifkan = Defunct."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alasan perubahan processing stage (reason of change) diambil dari kode yang dikonfigurasi",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/context/OptionsContext.tsx:343-358; ocmsadminui/src/context/OptionsContext.tsx:430-432; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:421-424; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:455-461; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:163-165; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/OcmsChangeOfProcessing.java:48-49; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1054",
+      "fit": "Sebagian",
+      "detail": "Dropdown Reason of Change di form CPS diisi dari ocms_standard_code kategori CPS_REASON_CHANGE, hanya baris Active (OptionsContext.tsx:343-358, 430-432; CPSForm.tsx:455-461), jadi menambah atau men-defunct-kan kode di halaman Standard Code mengubah pilihan alasan. Tetapi server tidak mencocokkan alasan dengan daftar itu: reason dari request disimpan apa adanya ke kolom reason_of_change (3 karakter; OcmsChangeOfProcessing.java:48-49, ChangeOfProcessingService.java:1054), dan satu-satunya aturan per kode, 'OTH wajib diisi remark', hardcoded di UI (CPSForm.tsx:421-424) dan di controller (ChangeOfProcessingController.java:163-165). Baris CPS_REASON_CHANGE di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfigurasi kode hasil court mention / trial",
+      "repo": "ocmsadminapi, ocmsadminui",
+      "code_ref": "ocmsadminapi/src/main/resources/api-authorization.properties:21-23; ocmsadminui/src/utils/models/Icourttrial.d.ts:9; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:17-31",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada entity, controller atau kategori kode untuk hasil court mention atau trial di enam repo (grep courttrial, courtmention, trial_outcome, mention di src ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi). Jejaknya hanya: mapping OCMS_NOTICE_SEARCH menyebut /v1/courtmention dan /v1/courttrial (api-authorization.properties:21-23) tanpa controller dengan path itu; tipe TypeScript Icourttrial hanya mendeklarasikan field trial_outcome dan roms_outcome (Icourttrial.d.ts:9, 27) tanpa halaman atau pembaca; satu-satunya entity court di ocmsadminapi, OcmsCourtCase, hanya punya notice_no, court_payment_due_date dan reason (OcmsCourtCase.java:17-31). Halaman Standard Code generik secara teknis bisa menyimpan kategori apa pun, tetapi kategori baru tidak bisa dibuat dari dropdown dan tidak ada code yang membaca kode trial. Data outcome kemungkinan dikelola sistem lain (field roms_outcome menyiratkan sumber luar): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfigurasi kode hasil warrant of arrest",
+      "repo": "ocmsadminapi, ocmsadminui",
+      "code_ref": "ocmsadminapi/src/main/resources/api-authorization.properties:21-23; ocmsadminui/src/utils/models/Iwarrantofarrest.d.ts:7",
+      "fit": "Tidak ada code",
+      "detail": "Sama dengan langkah sebelumnya: /v1/warrantofarrest dan /v1/summon dipetakan di api-authorization.properties:21-23 tanpa controller; tipe Iwarrantofarrest hanya mendeklarasikan outcome_of_warrant (Iwarrantofarrest.d.ts:7) tanpa halaman, entity, atau pembaca. Pencarian synonym (warrant, WOA, outcome_of_warrant) di enam repo tidak menemukan code backend untuk warrant. Pengelola data ini: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan kode berlaku tanpa perubahan code atau deploy",
+      "repo": "ocmsadminui, ocmsadminapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminui/src/context/OptionsContext.tsx:343-358; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeServiceImpl.java:27-30; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/helpers/SuspensionProcessingHelper.java:58-71",
+      "fit": "Sebagian",
+      "detail": "Pilihan di UI dimuat ulang dari POST /standardcodelist dengan codeStatus A (OptionsContext.tsx:343-358) dan ocmsadminapi membaca standard code per pemanggilan tanpa cache (StandardCodeServiceImpl.java:27-30), jadi perubahan terbaca tanpa deploy. Pengecualian: SuspensionProcessingHelper PLUS di ocmsadminprivateapi memuat PROCESSING_STAGE, PS_REASONS_ALLOW_TS dan CPC_CFC_ELIGIBLE_CODES sekali di @PostConstruct (SuspensionProcessingHelper.java:58-71), sehingga perubahan baru terbaca setelah service restart. Selain itu banyak aturan memakai nilai kode tetap di code (mis. 'OTH' di CPS, daftar stage suspension), jadi mengubah daftar kode tidak selalu mengubah perilaku. ocmseserviceapi tidak membaca standard code (grep tanpa hasil)."
+    }
+  ]
+}

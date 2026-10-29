@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.22",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/agencies/toppan/upload/{models/ToppanStage,jobs/ToppanLettersGeneratorJob,jobs/ToppanUploadJob,helpers/ToppanUploadHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findToppanNoticesForStage), cron-schedules-prod.properties and application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no Toppan letter-generating code.",
+  "note": "The story asks OCMS to send the 3rd reminder as PDF/data files to the vendor for printing and postage. The Toppan Generate Letters cron (enabled in prod, 00:15) selects notices with next_processing_stage RR3, builds one data file URA-DPT-RR3-D1-<timestamp>, uploads it to blob and asks COMCRYPT to encrypt and send it to the Toppan SFTP. What lowers the claim: (1) uploads to Toppan are blocked at application-prod.properties:86 (sftp.upload.disabledServers=toppan), so the RR3 file does not reach the vendor in the repo configuration; (2) because of ticket OCMS-DF-2026-192 (Ready to UAT, not closed) the delivery gate is bypassed while blocked, so the notice stage still advances to DN1 although the letter was not delivered (ToppanUploadJob.java:424-430, 443-446); (3) only the ANL letter has PDFs (ToppanUploadJob.java:323-332), the RR3 reminder is a data file only, which fits 'PDF/data'. File format contents and real receipt at Toppan: cannot verify from repo. Ticket OCMS-DF-2026-170 (Closed) is the origin of the Toppan SFTP block according to ticket 192.",
+  "recommendation": "Claim partially. The RR3 data file generation exists and the cron is on, but delivery to Toppan is blocked in the prod configuration and the stage advances without delivery confirmation. A full claim waits for URA to confirm the Toppan SFTP block is lifted and OCMS-DF-2026-192 is done.",
+  "steps": [
+    {
+      "step": "Notices that have been checked and are due for the 3rd reminder (RR3) are selected for the letter",
+      "detail": "findToppanNoticesForStage('RR3') selects notices with next_processing_stage = RR3, next_processing_date <= today, suspension_type NULL, an_flag not 'Y', and joins the owner with offender_indicator 'Y' without an id_type filter, so individuals and companies are both included (OcmsValidOffenceNoticeRepository.java:584-614). ToppanStage sets RD2 -> RR3 -> DN1 with a 14-day gap (ToppanStage.java:20-21). The cron cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62). The MHA/DataHive checks run earlier (see OCMS11.16, OCMS11.21)."
+    },
+    {
+      "step": "The RR3 letter is built as a data file (not PDF) containing notices that have a valid mailing address",
+      "detail": "Only notices with letter_address 'Y' are kept (filterByLetterAddress, ToppanUploadJob.java:266), then the file is named URA-DPT-RR3-D1-<yyyyMMddHHmmss> and its content is built by agencyFileExchangeService.createRequestFileContent('TOPPAN_RR3', ...) (ToppanUploadJob.java:279-290). PDFs are only built for stage ANL (:323-332); RR3 is a data file only, which satisfies 'PDF/data files' in the story. File content format: cannot verify from repo."
+    },
+    {
+      "step": "The file is sent to the vendor (Toppan) over SFTP for printing and postage",
+      "detail": "The original file is uploaded to Azure Blob (ToppanUploadJob.java:314) then a token is requested from COMCRYPT (:349); the COMCRYPT callback encrypts and uploads to the Toppan SFTP. But sftp.upload.disabledServers=toppan at application-prod.properties:84-86 blocks uploads to Toppan (the callback throws SftpDisabledException per ticket OCMS-DF-2026-192), so the file does not reach the vendor in the repo configuration. Real delivery, PGP keys and Toppan receipt: cannot verify from repo."
+    },
+    {
+      "step": "After delivery the notice stage moves on (DN1) and the vehicle owner is treated as informed",
+      "detail": "confirmDeliveryAndAdvanceStage calls updateProcessingStage (RR3 -> DN1) only after delivery is confirmed, but when Toppan is blocked (sftp.upload.disabledServers) the gate is bypassed (gateBypassed, ToppanUploadJob.java:424-430) and the stage still advances (:443-446), so in prod the notice moves to DN1 without the letter being delivered. This behaviour comes from OCMS-DF-2026-192 (Ready to UAT, not closed). Related ticket OCMS-DF-2026-170."
+    }
+  ]
+}

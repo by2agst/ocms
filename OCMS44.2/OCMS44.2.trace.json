@@ -1,0 +1,37 @@
+{
+  "story": "OCMS44.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Payment/PaymentCash.tsx + utils/mapping/Payment/Cash.ts (tampilan satu notice di halaman Update Manual Payment), pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx + hook/useBatchOperation.ts (daftar outstanding terpisah). ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentUpdateController}. Tidak ada code di repo lain.",
+  "note": "Status 'Fully paid' di sheet. Halaman pembayaran menampilkan satu notice (Notice No., Vehicle No., Amount Paid terisi dari amountPayable) dan tidak memfilter outstanding: notice yang sudah paid tetap tampil dengan alert dan form terkunci (PaymentCash.tsx:236-243, 277-284). Daftar outstanding yang sebenarnya (filter suspension type, offenderIndicator Y, kolom amount payable, checkbox) ada di halaman Search Outstanding Notices, tetapi checkbox-nya dipakai untuk operasi batch (suspend, revive, furnish) dan CSV, bukan untuk mencatat pembayaran. Ada dua edge case: (1) notice yang tidak ditemukan tetap membuka form dengan tombol Update (PaymentCash.tsx:157-174, 236-243, 397) dan server membalas error 500 generik (PaymentUpdateController.java:52-60); (2) field Summons No./NTAC No. selalu kosong karena dimap ke string kosong (Cash.ts:18). Tidak ada maintenance ticket yang mengubah verdict.",
+  "recommendation": "Boleh diklaim sebagian: detail satu notice dan amount payable tampil di halaman pembayaran. Daftar outstanding dan pemilihan beberapa notice untuk bayar belum tersambung; perbaiki edge case notice tidak ditemukan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan notice hasil pencarian beserta detail dan amount payable",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:157-182; ocmsadminui/src/pages/Payment/PaymentCash.tsx:290-339; ocmsadminui/src/utils/mapping/Payment/Cash.ts:13-24; ocmsadminui/src/pages/Payment/PaymentCash.tsx:236-243; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateController.java:52-60; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:147-152",
+      "fit": "Sebagian",
+      "detail": "Setelah Search, halaman menampilkan Notice No., Vehicle No. dan mengisi Amount Paid dengan amountPayable (PaymentCash.tsx:290-339; Cash.ts:19-21). Hanya satu notice per pencarian ($limit 1, PaymentCash.tsx:50-63). Gap: kalau notice tidak ketemu, data null tetapi form tetap tampil dengan tombol Update (PaymentCash.tsx:157-174, 236-243, 397); POST berikutnya gagal 'Notice not found' di service dan controller membalas 500 generik (PaymentUpdateServiceImpl.java:147-152; PaymentUpdateController.java:52-60). Summons No./NTAC No. selalu kosong (Cash.ts:18)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya notice yang masih outstanding yang ditampilkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:236-243; ocmsadminui/src/pages/Payment/PaymentCash.tsx:277-284; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:105-124; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:137-139; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:178",
+      "fit": "Sebagian",
+      "detail": "Halaman pembayaran tidak memfilter: notice PS-FP/PS-PRA atau TS-PP tetap tampil, dengan alert 'has been paid' dan field terkunci (PaymentCash.tsx:236-243, 277-284). Bug kecil: pengecekan TS-PP untuk memuat data pembayaran membandingkan eprDateOfSuspension (field tanggal) dengan 'PP' (PaymentCash.tsx:117, 169) padahal flag disabled memakai eprReasonOfSuspension (PaymentCash.tsx:241). Filter outstanding yang sebenarnya ada di daftar Search Outstanding Notices: suspension type kosong/TS, atau PS dengan reason tertentu, offenderIndicator Y, kolom amount payable (NoticeSearchOutstandingList.tsx:105-124, 137-139, 178), tetapi itu halaman terpisah dari alur pembayaran."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice(s) dari hasil untuk mencatat pembayaran",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:148-214; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:145-152; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:137; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:239; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:303",
+      "fit": "Sebagian",
+      "detail": "Di halaman pembayaran 'memilih' berarti mengetik satu Notice No. lalu Search; tidak ada pemilihan beberapa notice (PaymentCash.tsx:148-214). Daftar outstanding punya checkbox (NoticeSearchOutstandingList.tsx:145-152), tetapi aksinya adalah operasi batch: staff-check-suspension-eligibility, staff-revive-eligibility, furnish-redirect-check (useBatchOperation.ts:137, 239, 303) dan export CSV; tidak ada aksi menuju /payment/cash (grep 'payment' di pages/NoticeSearch: 0 hasil)."
+    }
+  ]
+}

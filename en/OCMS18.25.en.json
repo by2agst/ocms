@@ -1,0 +1,33 @@
+{
+  "story": "OCMS18.25",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{PermanentSuspensionHelper, SuspensionBaseHelper}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (queries for LTA upload, MHA upload, Toppan letters), framework/workflows/agencies/{lta/upload, mha/upload, toppan/upload}, framework/workflows/autorevival/helpers/AutoRevivalHelper, framework/schedulers/ToppanUploadJobsScheduler, cron-schedules-prod.properties. ocmseserviceapi workflows/parkingfines/ParkingFinesController (filter on payment_acceptance_allowed)",
+  "note": "Status in stories.json: Fully paid. After a PS, VON/eVON are marked suspension_type=PS and the batch jobs that were checked (LTA upload, MHA upload, Toppan letters) select notices with an empty suspension_type or one that is not PS, while auto-revival takes only TS. Online payment is switched off through payment_acceptance_allowed=N for codes in PS_DISABLE_PAYMENT; the content of that list is in the DB (cannot verify from repo). Not every job was checked one by one (for example LTA download, admin fee, furnish), so the claim 'no follow-up action at all' cannot be fully proven from the repo. The ticket history shows leaks that were fixed: OCMS-DF-2026-002 (LTA enquiry included PS notices), OCMS-DF-2026-133 (PS entered the MHA queue from the unclaimed flow), OCMS-DF-2026-139 and OCMS-SR-2026-119 (PS-APP revived by the cron), OCMS-DF-2026-097 (payment flag of PS-ANS stayed Y); all Closed / Prod deployed. The SMS/email notification job is switched off in prod (cron.notification.enabled=false), so it is not counted. Toppan letter generation does not run through the cron (the executeJob call is commented out), only through the manual trigger.",
+  "recommendation": "Claim with notes: the PS marker and the filters in the LTA/MHA/Toppan jobs and auto-revival exist; online payment depends on DB data and Toppan runs only through the manual trigger. Do not state that every job was checked.",
+  "steps": [
+    {
+      "step": "OCMS marks the notice as permanently suspended in the main data and in the eService copy",
+      "detail": "updateVON sets suspension_type=PS, epr_reason_of_suspension, epr_date_of_suspension (SuspensionBaseHelper.java:345-348) and updateEVON copies them to eVON (:399-401), called from updateDatabase in processPS (PermanentSuspensionHelper.java:139-144). A failed eVON sync is only logged and does not cancel the PS (SuspensionBaseHelper.java:431-434)."
+    },
+    {
+      "step": "A PS-ed notice can no longer be paid online",
+      "detail": "For PS codes in PS_DISABLE_PAYMENT, updateVON and updateEVON set payment_acceptance_allowed=N (SuspensionBaseHelper.java:352-356, :406-409) and the eService parking fines search only lets records with flag Y through (ParkingFinesController.java:258, :347, :409). The code list is read from ocms_standard_code (SuspensionBaseHelper.java:139-142); its content, and whether APP/CAN/CFA/VST are in it, cannot be verified from the repo (the comment at :351 is not proof). Ticket OCMS-DF-2026-097 (PS-ANS flag stayed Y, Closed) shows this flag was once inconsistent."
+    },
+    {
+      "step": "The LTA upload no longer includes PS notices",
+      "detail": "streamLtaUploadData selects only notices with (suspension_type IS NULL OR suspension_type != 'PS') (OcmsValidOffenceNoticeRepository.java:73), used by LtaUploadHelper (LtaUploadHelper.java:90); the ltaupload cron is enabled=true in prod (cron-schedules-prod.properties:134-135). Ticket OCMS-DF-2026-002 (LTA enquiry included PS notices, Closed, Prod deployed) is the history of a leak in another LTA path."
+    },
+    {
+      "step": "The MHA (NRIC/NRO) upload no longer includes PS notices",
+      "detail": "findNoticesForMhaNricUpload requires von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:538-541, method :581) and is used by MhaNricDataHelper (MhaNricDataHelper.java:81); the mhaupload cron is enabled=true in prod (cron-schedules-prod.properties:105-106). Ticket OCMS-DF-2026-133 (PS notices entered the MHA queue through the unclaimed submit, Closed, Prod deployed) is a leak in the ocmsadminapi path that has been fixed."
+    },
+    {
+      "step": "Reminder and notice letters sent to Toppan no longer include PS notices",
+      "detail": "findToppanNoticesForStage filters on von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611, method :614) and is called by ToppanUploadHelper (ToppanUploadHelper.java:1887). But the call to letter generation in the daily schedule is commented out (ToppanUploadJobsScheduler.java:118), so letters are only produced through the manual trigger even though the toppanupload cron is enabled=true (cron-schedules-prod.properties:61-62). The filter exists, its automatic run does not; fit Sebagian."
+    },
+    {
+      "step": "The auto-revival job does not lift a PS automatically",
+      "detail": "Auto-revival looks for TEMPORARY suspended_notice rows that are due (AutoRevivalHelper.java:119-123), so a PS (no revival due date) is not touched; the job runs from the toppanupload schedule (ToppanUploadJobsScheduler.java:119, cron-schedules-prod.properties:76). Ticket OCMS-DF-2026-139 (PS-APP revived by the cron) and OCMS-SR-2026-119 (~11K PS notices with legacy due dates were auto-revived) are earlier leaks; both are Closed, but the remaining ~11K notices are patched only on user request, so old data may still be affected: cannot verify from repo."
+    }
+  ]
+}

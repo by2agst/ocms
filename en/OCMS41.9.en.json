@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/list/FurnishSummaryList (+ form/SearchForm), components/datagrid/{Datagrid,column,table/TableHeader}, hooks/useTable, pages/Notice/mode/update/UpdateForm, pages/Notice/detail/DecissionDetails, pages/Furnish/{form/DecisionForm,hooks/useFurnishAttachment}, utils/data/LinkData, App.tsx. ocmsadminapi crud/BaseImplement ($sort), crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController, crud/ocmsizdb/OcmsFurnishApplicationDoc/*Controller. ocmsadminprivateapi FurnishSyncHelper (last_processing_stage column). Not called by the UI: ocmsadminapi workflows/furnish/dashboard/FurnishDashboardController. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%). The staff Furnished Hirer/Driver screen shows furnish application rows with status P with notice no, vehicle no, offence date/time, stage, status, submission date/time, submitter name and furnished name; clicking the notice no opens the notice detail with the furnished data and supporting documents. Different from the story wording: the 'Current Processing Stage' column reads the furnish application's own last_processing_stage (a snapshot at submission, copied in FurnishSyncHelper.java:189), not the running notice stage; there is no default order (only clicking a column header), and there is no ID number column so it cannot be sorted by ID from the screen. The FurnishDashboardController in ocmsadminapi (POST /furnish/officer/list with sortBy and a live notice stage) is not called by the UI and is not in api-authorization.properties, so it is not counted as evidence. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially: the list, main columns and click-through to details with supporting documents exist; a default order by submission date and sorting by ID do not, and the stage shown is a snapshot",
+  "steps": [
+    {
+      "step": "The officer opens the Furnished Hirer/Driver screen, which shows submissions with status Pending (P)",
+      "detail": "The 'Furnished Hirer/Driver' menu (LinkData.tsx:318-327, 386) goes to route /furnished-list (App.tsx:192-194). The Datagrid loads furnishapplicationlist with a default filter of status P (FurnishSummaryList.tsx:59-62, 71-79); the search form also defaults status to P (SearchForm.tsx:33-38). P rows appear after the cron sync (every 10 minutes in prod); see story 41.8."
+    },
+    {
+      "step": "The key columns are shown: notice number, vehicle number, submission date and time, current processing stage",
+      "detail": "Columns: Notice No (link), Vehicle No, Offence Date and Time, Current Processing Stage, Status, Submission Date & Time (creDate), Submitter's Name, Furnished Name, Hirer or Driver Indicator (FurnishSummaryList.tsx:81-154). Notice number, vehicle and submission date/time match. The 'Current Processing Stage' column uses source lastProcessingStage (column/index.tsx:200-205) from the furnish application record, which is a snapshot copied during the sync (FurnishSyncHelper.java:189), not the running notice stage."
+    },
+    {
+      "step": "The list is sorted by submission date and time and/or owner/hirer ID number",
+      "detail": "There is no default order: the Datagrid uses a sortBy with an empty source (Datagrid.tsx:226-229). Clicking a column header (sortable defaults to true, TableHeader.tsx:42-56) sends $sort[field] (useTable.ts:111) which the server processes (BaseImplement.java:70, 671-698), so the Submission Date & Time column (FurnishSummaryList.tsx:128-131) can be sorted manually. The owner/hirer ID column is not shown in the grid (FurnishSummaryList.tsx:81-154), so there is no sort control by ID on the screen; the generic API would accept $sort[ownerIdNo] but nothing sends it."
+    },
+    {
+      "step": "The officer clicks the notice to see the furnished particulars detail together with the supporting documents",
+      "detail": "The notice number link opens #/notices/update/{notice}/{txnNo} in a new tab (FurnishSummaryList.tsx:97-103). UpdateForm loads NOTICE_VALID and FURNISH_APPLICATION by txnNo (UpdateForm.tsx:90-106). DecisionForm and DecisionDetails use useFurnishAttachment for the document list (furnishapplicationdoclist) and download (furnish-downloads) (useFurnishAttachment.ts:55, 107; DecisionForm.tsx:47; DecissionDetails.tsx:35). Documents exist after the cron sync (story 41.8); the file content cannot verify from repo."
+    }
+  ]
+}

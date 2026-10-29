@@ -1,0 +1,29 @@
+{
+  "story": "OCMS15.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: pages/CPS/{list/CPSList.tsx, form/CPSForm.tsx, hook/useCPSFormData.ts}, utils/mapping/CPS/CPS.ts, utils/constant.ts (CPS_ALLOWED_NEW_STAGES), context/OptionsContext.tsx. ocmsadminapi: crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService (stages the server accepts), OcmsChangeOfProcessing entity. Other repos: not relevant",
+  "note": "The New Processing Stage and Reason of Change dropdowns exist, Remark exists (max 200 characters, mandatory when reason is OTH), and the input is sent to OCMS for checking. Gap: the stage list in the dropdown (constant.ts:149-158) differs from the list the server accepts (EligibilityService.java:49-50). ENA is offered but always rejected by the server, CFC is accepted by the server but not offered, and the list is the same for every notice (not filtered by Owner/Driver). The contents of standardcode PROCESSING_STAGE and CPS_REASON_CHANGE live in the DB: cannot verify from repo. No maintenance ticket touches these dropdowns.",
+  "recommendation": "Claim with a note: 4 Sesuai, 1 Sebagian (the dropdown stage list is not aligned with the server rules, ENA).",
+  "steps": [
+    {
+      "step": "Officer selects the New Processing Stage from a drop-down list",
+      "detail": "The dropdown exists: options come from standardcode PROCESSING_STAGE (OptionsContext.tsx:543-551), then are filtered by CPS_ALLOWED_NEW_STAGES = ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC (constant.ts:149-158; CPSList.tsx:268). The list is the same for every row, not filtered by Owner/Driver. But ENA is in neither DRIVER_STAGES nor OWNER_HIRER_DIRECTOR_STAGES (EligibilityService.java:49-50), so choosing ENA is always rejected with INELIGIBLE_STAGE (:108-113); CFC is accepted by the server but not offered by the UI. Contents of the standardcode table: cannot verify from repo."
+    },
+    {
+      "step": "Officer selects the Reason of Change from a drop-down list",
+      "detail": "A Reason of Change DropdownInput on each row (CPSList.tsx:285-307) loads its options from standardcode CPS_REASON_CHANGE (OptionsContext.tsx:430-433). The list of values (including the OTH code used by the remark rule) lives in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Officer enters a Remark (mandatory when reason = OTH)",
+      "detail": "The Remark TextInput allows max 200 characters (CPSList.tsx:321), matching the remarks column length 200 on the entity (OcmsChangeOfProcessing.java:54-55). Remark is required when reason is OTH, checked in useCPSFormData.ts:68-70 and in Apply to All (CPSForm.tsx:421-424). The OTH rule is not in the story but does not contradict it."
+    },
+    {
+      "step": "Required fields (new stage, reason) are checked before moving on",
+      "detail": "validateAll rejects notices without newProcessingStage or reasonOfChange (useCPSFormData.ts:62-67). It runs when moving to the Summary tab (CPSForm.tsx:578-580) and on Proceed to CPS (:94-105); the result is an error modal and marked rows."
+    },
+    {
+      "step": "The officer's input is sent to OCMS so the new stage can be checked",
+      "detail": "toValidateRequest maps each notice to an item {noticeNo, newStage, reason, remark, letterAddress} (CPS.ts:35-50) and POSTs it to change-processing-stage/validate (CPSForm.tsx:112-116). The server-side check result is covered in OCMS15.8."
+    }
+  ]
+}

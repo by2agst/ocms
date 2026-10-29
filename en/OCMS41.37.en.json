@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.37",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper,helpers/FurnishSyncHelper}, crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl. ocmsadminui pages/Furnish/{list/FurnishSummaryList.tsx,form/DecisionForm.tsx}. ocmseserviceapi workflows/furnish/{FurnishSubmissionServiceImpl,FurnishApplicationListServiceImpl}",
+  "note": "Status 'Demo paid (50% of 75%)'. The Pending status (code 'P') is set automatically by the Furnish Processing cron, written to the Intranet DB and synced to the Internet DB, and the staff list filters on status P by default. Not matching: the story asks for 'my user ID' to be displayed, while the cron uses the technical account ocmsiz_app_conn and no officer user exists when Pending is set. The 'Pending' text label in the UI comes from the FURNISH_STATUS options (DB data) and cannot be verified from the repo.",
+  "recommendation": "Claim partially: automatic Pending status and the staff list exist; showing the officer's user ID does not (system account only)",
+  "steps": [
+    {
+      "step": "OCMS automatically sets the request status to Pending when it fails auto-approval",
+      "detail": "executeManualReview sets submission.setStatus(STATUS_PENDING='P') in memory (FurnishApprovalHelper.java:95, 529-531), then FurnishProcessingService.batchSaveToIntranet calls batchUpdateStatusPending (FurnishProcessingService.java:189-198), which runs UPDATE ocms_furnish_application SET status = 'P' (OcmsFurnishApplicationServiceImpl.java:85). Records from eService are also created with status P (FurnishSubmissionServiceImpl.java:210 in ocmseserviceapi)."
+    },
+    {
+      "step": "The Pending status is also written to the Internet side so both sides agree",
+      "detail": "batchSyncStatusToInternet calls eFurnishService.batchUpdateStatus(..., 'P', reason, DEFAULT_SYSTEM_USER_ID) (FurnishProcessingService.java:225-228), which updates eocms_furnish_application.status and upd_user_id (EocmsFurnishApplicationServiceImpl.java:159-166)."
+    },
+    {
+      "step": "Staff can see Pending requests when browsing in OCMS",
+      "detail": "FurnishSummaryList.tsx uses defaultFilters 'status[$in]': ['P'] (line 60) and shows the status column through FURNISH_STATUS (lines 121-124), with data from POST furnishapplicationlist (OcmsFurnishApplicationController.java:52). The 'Pending' label text comes from the FURNISH_STATUS options in the DB and cannot be verified from the repo."
+    },
+    {
+      "step": "The Pending status is shown with the officer's user ID",
+      "detail": "The cron writes the Internet upd_user_id = DEFAULT_SYSTEM_USER_ID 'ocmsiz_app_conn' (SystemConstant.java:9, FurnishProcessingService.java:227); the Intranet record is created with the same cre_user_id and upd_user_id null (FurnishSyncHelper.java:242-244) and the Pending UPDATE does not touch the user columns (OcmsFurnishApplicationServiceImpl.java:85). DecisionForm.tsx only shows 'Created By' and 'Updated By' (lines 414, 419), so what appears is the system account or blank, not an officer's user ID. No officer is involved when Pending is set."
+    }
+  ]
+}

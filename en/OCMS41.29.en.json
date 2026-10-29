@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.29",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/{FurnishNotificationService,FurnishSyncHelper}, utilities/emailutility/EmailService, crud/ocmsizdb/OcmsEmailNotificationRecords, workflows/furnish/rejection/* (jalur kedua, tidak dipakai UI); ocmsadminui pages/Notice/hook/useNoticeSubmit.tsx. ocmsadminprivateapi (DailyOfficerNotificationJob hanya digest harian officer): bukan jadwal kirim email furnish",
+  "note": "Status: Demo paid (50% of 75%). The story asks OCMS to schedule sending the email at a set date/time and to reject updating the particulars. Reject works: the furnish application status becomes R and the notice owner/driver is not changed. Scheduling does not exist: the email is sent synchronously through EmailService.sendEmail when the send-email endpoint is called, and recorded with date_sent = now; there is no column, queue or cron that stores or sends an email at a later time. The only furnish cron (DailyOfficerNotificationJob) is a daily digest to officers, not the OIC email send. A second path, POST /v1/furnish/officer/reject (FurnishRejectionServiceImpl), sends the email then rejects, also without a schedule, and is not called by the UI. Property email.enableSmtp=true in application.properties:133 (no override in application-prod.properties); when false, EmailService.sendEmail returns false. The value on the real server cannot be verified from the repo.",
+  "recommendation": "Claim partially: reject works. Scheduled email sending has no code; email is sent immediately. Do not claim the scheduling steps",
+  "steps": [
+    {
+      "step": "OCMS rejects the update: the furnish application status becomes Rejected with the OIC remarks",
+      "detail": "POST manual-review/reject calls ManualReviewService.rejectSubmission, which sets status R and the OIC remarks (or 'Rejected by <user>' when empty), updates, then syncs to PII (ManualReviewService.java:466-471). A request without txnNo or reviewedBy gets 400 (ManualReviewController.java:262-272)."
+    },
+    {
+      "step": "The hirer/driver particulars on the notice are not updated",
+      "detail": "rejectSubmission only touches the furnish application (ManualReviewService.java:453-482). Owner/driver updates exist only in approveHirer/approveDriver (ManualReviewService.java:297-315, 421). So the furnished particulars are not written to the notice on reject."
+    },
+    {
+      "step": "OCMS stores the email send schedule (date and time)",
+      "detail": "There is no schedule field or parameter anywhere: EmailRequest only has from/to/subject/htmlContent/cc/attachments (EmailRequest.java:12-17), the OcmsEmailNotificationRecords table only stores date_sent (OcmsEmailNotificationRecords.java:50), and the email form UI has no date/time input (ReplyEmail.tsx:31-60). Grep for scheduled/schedule/sendAt/sendLater in ocmsadminui, ocmsadminapi, ocmsadminprivateapi: 0 relevant hits for furnish email."
+    },
+    {
+      "step": "The email is sent automatically at the scheduled date/time",
+      "detail": "The email is sent immediately: the send-email endpoint calls ManualReviewService.sendEmail (ManualReviewService.java:494-515), then FurnishNotificationService.sendAndRecordEmail calls emailService.sendEmail right then (FurnishNotificationService.java:61). No job or scheduler delays it; the only furnish cron, DailyOfficerNotificationJob, sends a daily digest to officers, not the OIC email. Property email.enableSmtp=true (application.properties:133); when false EmailService returns false (EmailService.java:40-43). The value on the real server cannot be verified from the repo."
+    },
+    {
+      "step": "The email send is recorded (success/failure status and time)",
+      "detail": "Each send is stored in OcmsEmailNotificationRecords: ref_no, stage, batch_id, service_type FURNISH, recipient, subject, content, status S/E, msg_error and date_sent (FurnishNotificationService.java:63-90). The record exists, but date_sent = LocalDateTime.now() (FurnishNotificationService.java:77), the send time, not a schedule chosen by the OIC."
+    }
+  ]
+}

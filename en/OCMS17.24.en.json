@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.24",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{TemporarySuspensionHelper,TsDueDateRule,SuspensionBaseHelper}, workflows/payment_reduction/reduction/helpers/ReductionPersistenceService, workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl. ocmsadminprivateapi utilities/suspension_helpers/{TemporaryRevivalHelper,RevivalBaseHelper}, framework/workflows/agencies/lta/download/helpers/{LtaProcessingStageManager,LtaBatchTsRovProcessor}, framework/workflows/synctxndata/AxsTransactionValidator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository",
+  "note": "The story asks for the longest period: earliest start date and latest end date. End date: VON.due_date_of_revival takes the furthest date on the staff/PLUS TS, TS-RED and TS-UNC paths (TsDueDateRule.furthest), and after a partial revival it is refilled with the furthest date of the remaining TS. Start date: not matching, VON.epr_date_of_suspension is set to the time of the newest TS (SuspensionBaseHelper.java:347) and after a partial revival uses the most recently created TS (RevivalBaseHelper.java:343); each TS's own start date is only kept in the ocms_suspended_notice rows and no field computes 'earliest'. Two cron paths still overwrite due_date_of_revival without comparing: LTA TS-ROV per record (LtaProcessingStageManager.java:194) and AXS TS-PAM (AxsTransactionValidator.java:103). Ticket OCMS-DF-2026-184 (TS-UNC overwrote a further TS-MS date) is Pending UAT Verification; on main the UnclaimedServiceImpl path already uses TsDueDateRule.furthest (line 421), but its UAT status cannot be verified from the repo. Escalation is held while suspension_type is set (see OCMS17.22), not by a date comparison.",
+  "recommendation": "Claim partially: the furthest end date is right on the main paths, the earliest start date is not there, and two cron paths do not compare dates. Do not claim 'earliest start date' as done.",
+  "steps": [
+    {
+      "step": "When a TS is applied via staff/PLUS, the end date on VON follows the furthest revival date",
+      "detail": "processTS compares the new TS due date with VON.dueDateOfRevival and uses the further one for VON/eVON (TemporarySuspensionHelper.java:110-118, 124), while the ocms_suspended_notice row keeps that TS's own date (line 131)."
+    },
+    {
+      "step": "The TS-RED (reduction) and TS-UNC paths also use the furthest revival date",
+      "detail": "TsDueDateRule.furthest returns the later date (TsDueDateRule.java:22-30) and is used by ReductionPersistenceService (lines 105-106) and UnclaimedServiceImpl (line 421). Ticket OCMS-DF-2026-184 reported 23 notices whose TS-MS due date was overwritten by TS-UNC; the fix is on main but the ticket is still Pending UAT Verification (deployment status cannot be verified from the repo)."
+    },
+    {
+      "step": "All other TS-creating paths (LTA, AXS) also keep the furthest end date",
+      "detail": "The LTA TS-ROV batch compares and keeps the furthest date (LtaBatchTsRovProcessor.java:241-245), but LtaProcessingStageManager.applyTsRovStatus writes dueDateOfRevival directly (line 194, called from LtaBatchCode0Processor) and AxsTransactionValidator.applyTsPamSuspension overwrites VON.dueDateOfRevival with the new TS-PAM date (line 103), with no comparison against existing TS. A notice with a far TS followed by a short TS-ROV/TS-PAM can lose the furthest date on VON. This is the same pattern as the cause of ticket OCMS-DF-2026-184."
+    },
+    {
+      "step": "The start date on the notice is the earliest of all the TS",
+      "detail": "updateVON sets epr_date_of_suspension from LocalDateTime.now() for every new TS (SuspensionBaseHelper.java:343, 347), so the start date on VON is that of the newest TS. After a partial revival, VON is filled from the most recently created TS (RevivalBaseHelper.java:343, ocmsadminprivateapi). Each TS's start date only exists in the ocms_suspended_notice rows; no code computes the earliest start date. A code comment says this behaviour came from UAT feedback; whether that replaces the story requirement cannot be verified from the repo."
+    },
+    {
+      "step": "The notice does not escalate while any TS is valid, until the last TS ends",
+      "detail": "Auto revival only revives due TS (TemporaryRevivalHelper.java:215-221, 250) and refills VON with the furthest date of the remaining TS (RevivalBaseHelper.java:339-344), so suspension_type stays set until the last TS ends. While it is set, reminder letters are not generated (OcmsValidOffenceNoticeRepository.java:610). Note: the stage can still move through the LTA upload and SMS/email has an exception, see OCMS17.22."
+    }
+  ]
+}

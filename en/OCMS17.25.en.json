@@ -1,0 +1,33 @@
+{
+  "story": "OCMS17.25",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionPersistenceService}, workflows/notice_creation/core/helpers/TsDueDateRule. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/agencies/toppan/upload, notification_sms_email, utilities/suspension_helpers/RevivalBaseHelper",
+  "note": "There is no standalone 'is there a reduction' check. A reduction from PLUS (POST /plus-apply-reduction) is recorded as a TS with reason RED: VON.suspension_type='TS', epr_reason='RED', due_date_of_revival = the furthest of the existing TS and the reduction expiry (ReductionPersistenceService.java:101-106), plus rows in ocms_suspended_notice and ocms_reduced_offence_amount. Because of that, reminder jobs that exclude a non-null suspension_type also hold the notice during the reduction period. The reminder queries never read ocms_reduced_offence_amount. A court reduction (/plus-apply-reduction-court) only changes amount_payable without a suspension (ReductionServiceImpl.java:266-269); that is at court stages, so not relevant to reminders, but nothing is held. Same gaps as OCMS17.22: the LTA upload still advances TS stages, SMS/email has an exception and is off in prod, and Toppan letter generation only runs via manual trigger. Tickets OCMS-DF-2026-072 (amount_payable in ocms_reduced_offence_amount stored pre-reduction) and OCMS-DF-2026-028 (TS-RED revival) are Closed/Prod deployed; revival now recalculates from the stage (RevivalBaseHelper.java:561-581) instead of reading that table.",
+  "recommendation": "Claim partially: a reduction holds reminders through TS-RED, but there is no explicit reduction check and the LTA/SMS/email gaps are the same as OCMS17.22.",
+  "steps": [
+    {
+      "step": "A reduction from PLUS is recorded on the notice as TS-RED (suspension_type TS, reason RED)",
+      "detail": "POST /plus-apply-reduction (ReductionController.java:29) ends in ReductionPersistenceService, which sets VON suspension_type='TS' and epr_reason='RED' (lines 101-103) and inserts a TS-RED ocms_suspended_notice row (lines 123-139)."
+    },
+    {
+      "step": "The reduction period (expiry) is stored and merged with other TS using the furthest date",
+      "detail": "VON due_date_of_revival = TsDueDateRule.furthest(VON date, reduction expiry) (ReductionPersistenceService.java:104-106; TsDueDateRule.java:22-30). The reduction history with its expiry is stored in ocms_reduced_offence_amount (lines 151-168). Same fit as OCMS17.24 step 2."
+    },
+    {
+      "step": "Reminder letters are not generated for notices in a TS or reduction period",
+      "detail": "Toppan letter selection uses 'von.suspension_type IS NULL' (OcmsValidOffenceNoticeRepository.java:610; ToppanUploadHelper.java:1887; ToppanUploadJob.java:248); since TS-RED sets suspension_type='TS', notices in a reduction period are excluded too. Letters are only generated through the manual trigger because executeJob() is commented out (ToppanUploadJobsScheduler.java:118). Same fit as OCMS17.22 step 3."
+    },
+    {
+      "step": "OCMS explicitly checks whether a reduction exists on the notice before reminders go out",
+      "detail": "No reminder query reads ocms_reduced_offence_amount or checks epr_reason='RED'; all of them only look at suspension_type (OcmsValidOffenceNoticeRepository.java:610; NotificationSmsEmailHelper.java:1034-1035, 1120-1121). The outcome is right while the TS-RED is still on VON, but a reduction check as such does not exist. A court reduction creates no TS-RED at all (ReductionServiceImpl.java:266-269)."
+    },
+    {
+      "step": "Overlapping TS and reduction periods are combined into one longest period",
+      "detail": "Reduction and other TS both use the furthest date for VON (ReductionPersistenceService.java:104-106; TemporarySuspensionHelper.java:110-118), so the notice stays held until the longest period ends. The start date follows the note in OCMS17.24 step 4 (newest TS is used)."
+    },
+    {
+      "step": "Other paths (LTA upload, SMS/email) also neither advance nor send reminders for TS-RED notices",
+      "detail": "The LTA upload still advances TS notices (including TS-RED) from ROV to RD1 (OcmsValidOffenceNoticeRepository.java:73; LtaUploadHelper.java:172-176), and the SMS/email queries only exclude TS other than TS-HST; in prod cron.notification.enabled=false (cron-schedules-prod.properties:236) and sms.enable=false (application-prod.properties:87), real server values cannot be verified from the repo. Same fit as OCMS17.22 steps 4 and 5."
+    }
+  ]
+}

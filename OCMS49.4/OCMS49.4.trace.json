@@ -1,0 +1,55 @@
+{
+ "story": "OCMS49.4",
+ "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+ "flow_ref": "User story OCMS49.4 (tidak ada di flow deck OCMS)",
+ "code_summary": "ocmseserviceapi workflows/spcp/controller/RedirectController (login Singpass), workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (pencarian per NRIC dari JWT, bukan clearance), workflows/receipt/controller/ReceiptController (printslip = receipt pembayaran). ocmseserviceui src/pages/Payment/PaymentSearchResult.ts, src/components/Table.ts (pesan kosong generik). Repo lain (ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi): tidak ada code clearance slip.",
+ "note": "Story minta e-service menampilkan pesan 'tidak ada record atas NRIC' saat offender tidak punya warrant of arrest yang permanently suspended dalam X bulan terakhir. Grep 'clearance' di keenam repo kosong: tidak ada fitur Clearance Slip, tidak ada cek warrant permanently suspended per NRIC, tidak ada setting X bulan, dan tidak ada pesan khusus. Yang ada hanya login Singpass, pengambilan NRIC dari JWT untuk pencarian denda parkir, pesan kosong generik di halaman bayar, dan printslip untuk receipt. Status 'Built - Has gap' di spreadsheet tidak didukung code di repo ini; mungkin dibangun di branch/repo lain atau belum di main. Angka Evidence 20% hanya dari login dan lookup NRIC yang bisa dipakai ulang, bukan dari inti story. Perlu verifikasi: apakah Clearance Slip memang dibangun di repo/branch lain dan nilai X bulan menurut URA. Singpass dan gateway cannot verify from repo.",
+ "recommendation": "Konfirmasi dengan tim di mana Clearance Slip dibangun. Kalau memang di main, tandai Tidak ada code dan turunkan status story; bila belum dibangun, buat endpoint eligibility (warrant permanently suspended per NRIC dalam X bulan), setting X bulan, dan pesan 'no records found under your NRIC'.",
+ "steps": [
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Offender sudah login ke Online Customer Portal lewat Singpass untuk membuka layanan Clearance Slip",
+   "repo": "ocmseserviceapi",
+   "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/RedirectController.java:65",
+   "fit": "Sebagian",
+   "detail": "Login Singpass/Corppass ada: RedirectController.java:65 (POST /resolveSpCpArtifact) menukar artifact jadi sesi. Tapi tidak ada menu, route, atau halaman Clearance Slip di ocmseserviceui (grep 'clearance' kosong di semua repo). Pertukaran Singpass sendiri cannot verify from repo (dilakukan gateway Singpass)."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "NRIC offender diambil dari sesi login, bukan diketik",
+   "repo": "ocmseserviceapi",
+   "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279",
+   "fit": "Sebagian",
+   "detail": "handleIdNoSearchFromJwt (ParkingFinesController.java:279, dipanggil dari :105-108) mengambil ID dari JWT/sesi (session.getUserId(), :310). Ini untuk pencarian denda parkir (/v1/parkingfines searchType=id), bukan untuk Clearance Slip, jadi mekanismenya bisa dipakai ulang tapi belum dipakai story ini."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Sistem cek apakah ada warrant of arrest yang permanently suspended atas NRIC dalam X bulan terakhir",
+   "repo": "ocmseserviceapi",
+   "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:258",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada query atau service untuk warrant of arrest yang permanently suspended per NRIC, dan tidak ada setting X bulan di properties. Code terdekat hanya mengecek notice PS-ANS (isAnnulledOrPsAns, ParkingFinesServiceImplement.java:258) untuk menandai notice tidak bisa dibayar, serta warrantStages di PaymentSearchResult.ts:771 untuk memilih alur bayar. Keduanya bukan pengecekan eligibility clearance slip."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Jika tidak ada record, e-service menampilkan pesan bahwa tidak ada record atas NRIC",
+   "repo": "ocmseserviceui",
+   "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:191",
+   "fit": "Tidak ada code",
+   "detail": "Pesan kosong yang ada hanya generik dan milik halaman bayar denda: 'No offence payment was found.' (PaymentSearchResult.ts:191) dan fallback 'No records found.' di komponen Table (Table.ts:599). Tidak ada pesan 'tidak ada record atas NRIC saya' untuk Clearance Slip."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Offender tahu tidak ada clearance slip untuk di-download/print",
+   "repo": "ocmseserviceapi",
+   "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/controller/ReceiptController.java:38",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada endpoint clearance slip. POST /v1/printslip (ReceiptController.java:38) hanya membuat PDF/ZIP receipt pembayaran berdasarkan receiptNo atau notices, bukan clearance slip."
+  }
+ ]
+}

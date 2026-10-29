@@ -1,0 +1,64 @@
+{
+  "story": "OCMS32.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem} (hanya endpoint CAS), crud/ocmsizdb/OcmsCourtCase. ocmsadminprivateapi datahiveuenfin/DataHiveUenFinService (work item placeholder). ocmsadminui utils/models/Icourtoutcomeapproval.d.ts, utils/data/LinkData.tsx, utils/mapping/NoticeUPL.ts, pages/Notice/{form/History,hook/useODH}.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story kosong (requirement tidak diberikan di sheet). Story minta OCMS mencocokkan outcome court mention di notice dengan adjudication update dari State Courts, lalu membuat work item untuk error ke dashboard OIC. Tidak ada step yang punya code: penerima data State Courts tidak ada di enam repo, tidak ada logika pembanding outcome, tidak ada deteksi error, work item untuk error court tidak dibuat (work item yang ada milik UPL dan placeholder DataHive), dan menu Work Items di staff portal di-comment. Endpoint CAS (casUpdateCourtNotices) ada tetapi bukan adjudication dari State Courts dan tidak membandingkan apa pun, jadi tidak dikreditkan. Tiket pemeliharaan relevan: OCMS-SR-2026-164 (36 notice ditutup di CAS sebagai WWP tetapi masih outstanding di OCMS, di-patch manual) menunjukkan sinkronisasi hasil court dari CAS belum punya rekonsiliasi otomatis; ini petunjuk, bukan bukti. Sumber State Courts dan CAS cannot verify from repo.",
+  "recommendation": "Jangan klaim. Tidak ada code untuk pencocokan outcome, deteksi error, work item, atau dashboard OIC. Minta URA/tim konfirmasi repo mana yang menerima adjudication State Courts, atau tandai gap",
+  "steps": [
+    {
+      "step": "Hasil court mention yang di-update untuk tiap notice tercatat di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Icourtoutcomeapproval.d.ts:1-30; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:18-31",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar atau endpoint yang merekam outcome court mention. Icourtoutcomeapproval.d.ts:1 hanya type definition tanpa satu pun pemakai di ocmsadminui/src (grep). Entity ocms_court_case hanya punya notice_no, courtPaymentDueDate, reason (OcmsCourtCase.java:25-31), bukan outcome mention. Tab Court Application History di History.tsx:170-172 di-comment. Update court di useODH.tsx:378-400 juga di-comment. /v1/courtmention ada di api-authorization.properties:23 tetapi tidak ada controller courtmention di ocmsadminapi, jadi apakah ada CRUD generik cannot verify from repo.",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    },
+    {
+      "step": "OCMS menerima case adjudication update dari State Courts",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:26-74",
+      "fit": "Tidak ada code",
+      "detail": "Penerima dari State Courts (SFTP/batch/file) tidak ada di enam repo (grep adjudicat*, court mention, SFTP court di kedua layer: 0 hasil relevan). Satu-satunya endpoint terdekat POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101) dikirim CAS, bukan State Courts, dan payload CasUpdateNoticeItem hanya berisi stage, suspension, amountPayable, paymentAcceptanceAllowed, eprReason (dto:26-74), tanpa outcome adjudication. Endpoint ini tidak dikreditkan untuk step ini.",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    },
+    {
+      "step": "OCMS mencocokkan outcome court mention di notice dengan adjudication update dari State Courts",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:324-390",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada logika pembanding. updateCourtNotices hanya mengecek notice ada (:324), belum Full Payment (:336) dan format tanggal valid (:350), lalu menimpa kolom hasil kiriman CAS lewat UPDATE (:363, :384). Grep reconcil/tally/mismatch/discrepan di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi hanya mengenai modul lain (notice creation, payment reduction, furnish), bukan court. Tidak ada cron pencocokan di ocmsadminprivateapi.",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    },
+    {
+      "step": "Sistem mendeteksi notice yang outcome-nya tidak cocok sebagai error",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:324-390",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kondisi yang menandai outcome tidak cocok. Satu-satunya status gagal di casUpdateCourtNotices adalah OCMS-4002 not found, Notice already Paid, dan OCMS-4000 tanggal tidak valid; ketiganya dikembalikan ke CAS di response, bukan dicatat sebagai error pencocokan untuk OIC.",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    },
+    {
+      "step": "Sistem membuat work item untuk setiap error pencocokan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2924; ocmsadminui/src/utils/mapping/NoticeUPL.ts:172-195",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pembuatan work item untuk error court. Work item yang ada milik fitur lain: UPL Endorsement (MapPostApprovalWorkItem, NoticeUPL.ts:172-195, work_ref 'UPL Endorsement' di constant.ts:301) dan DataHive FIN yang hanya placeholder log tanpa insert (DataHiveUenFinService.java:2920-2924). Tidak ada tabel work item di entity ocmsadminapi/ocmsadminprivateapi (grep workitem/work_item).",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    },
+    {
+      "step": "Work item error muncul di dashboard OIC untuk di-follow up",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:396-398; ocmsadminui/src/utils/Meta/WorkItem.ts:1-12",
+      "fit": "Tidak ada code",
+      "detail": "Menu Work Items di staff portal di-comment ('UNCONFIRMED', LinkData.tsx:396-398). WorkItem.ts:1-12 hanya path/title; tidak ada folder pages/WorkItem atau komponen daftar work item di ocmsadminui/src/pages (ls), dan ValidSearchWorkItem (validation/Dashboard.ts:11) tidak dipakai di mana pun. Dashboard OIC untuk error court mention tidak ada.",
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": ""
+    }
+  ]
+}

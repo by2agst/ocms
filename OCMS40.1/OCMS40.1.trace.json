@@ -1,0 +1,46 @@
+{
+  "story": "OCMS40.1",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari, folder pages/epic40 tidak ada), ocmsadminapi (tidak ada endpoint query ad-hoc; hanya trigger cron lta-enquiry), ocmsadminprivateapi workflows/agencies/lta/{upload,download} (batch ROV tiap 03:00/19:00 dan 05:00/21:00, controller manual LtaUploadController), ocmsadminui pages/Notice/detail/OwnerDetails.tsx (tampilan LTA address per notice)",
+  "note": "Story minta officer mengirim vehicle number + offence date ke DOS dan langsung menerima info ownership. Status story di stories.json kosong (tidak ada requirement/status yang diberikan), jadi ditrace normal. Layar ad-hoc (Epic40) tidak bisa diakses: route dan menu dikomentari dan folder epic40 tidak ada. Yang ada hanya jalur batch ROV: LTA Enquiry File Upload mengirim vehicle_no + notice_date_and_time lewat file SFTP dan LTA Process Result File menyimpan owner ke ocms_offence_notice_owner_driver, ditampilkan per notice di Notice detail. Itu bukan query ad-hoc per officer dan bukan sinkron. OCMS-DF-2026-160 (Pending Closure) mencatat 894 notice keluar dari loop ROV tanpa ownership. DOS tidak diimplementasikan sebagai integrasi di backend: DOS = DataHive/LTA cannot be confirmed from the repo; server SFTP LTA dan nilai properties asli cannot verify from repo.",
+  "recommendation": "Klaim hanya sebagai Sebagian: jalur batch ROV mengirim vehicle number + offence date dan menyimpan ownership, tetapi layar ad-hoc dan query per officer belum ada (route/menu dikomentari). Minta URA konfirmasi apakah DOS = LTA/DataHive dan apakah batch cukup untuk story ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman query ad-hoc di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:331; ocmsadminui/src/utils/data/LinkData.tsx:255-259; ocmsadminui/src/utils/data/LinkData.tsx:405; ocmsadminui/src/utils/Meta/SearchVault.ts:1-12",
+      "fit": "Tidak ada code",
+      "detail": "Path /search-vault (judul 'Agencies Information') dan item menu 'Ad-hoc Vault Query' didefinisikan (SearchVault.ts:1-12, LinkData.tsx:255-259), tapi route di App.tsx:331 dan menu.push di LinkData.tsx:405 dikomentari, begitu juga import Epic40 (App.tsx:54); folder pages/epic40 tidak ada di ocmsadminui. Halaman tidak bisa dibuka dari staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) hanya daftar laporan tanpa controller atau authorization mapping, bukan form query; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi vehicle number dan offence date, UI mengirim ke API",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/UPLOffender.tsx:11; ocmsadminui/src/utils/mapping/index.ts:37; ocmsadminui/src/utils/validation/index.ts:43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:33-34",
+      "fit": "Tidak ada code",
+      "detail": "Komponen form SearchVaultUEN/SearchVaultUIN hanya tersisa sebagai import yang dikomentari (UPLOffender.tsx:11, ReportListDOS.tsx:25); mapping dan validation epic40 juga dikomentari (utils/mapping/index.ts:37, utils/validation/index.ts:43). Di ocmsadminapi tidak ada endpoint yang menerima vehicle number + offence date untuk satu query; yang berbau enquiry hanya trigger batch tanpa parameter POST /lta-enquiry/trigger (CronProxyController.java:33-34), dan ocmsadminapi tidak punya proxy ke /v1/datahive/query di ocmsadminprivateapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim vehicle number dan offence date ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:88; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:116-120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/LtaUploadController.java:41-45; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:135",
+      "fit": "Sebagian",
+      "detail": "Yang ada hanya batch LTA Enquiry File Upload (cron.ltaupload.enabled=true di prod, jadwal 03:00 dan 19:00, cron-schedules-prod.properties:134-135). Batch memilih semua notice di stage ROV (LtaUploadHelper.java:88) dan menulis vehicleNo + noticeDateAndTime ke file (LtaUploadHelper.java:116-120). Trigger manual POST upload (LtaUploadController.java:41-45) tidak menerima parameter. Jadi bukan query ad-hoc per officer dan memakai notice yang sudah ada. sftp.upload.disabledServers=toppan saja (application-prod.properties:86), LTA tidak dimatikan. Tujuan 'DOS' = LTA/DataHive cannot be confirmed from the repo; server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima info vehicle ownership dan menampilkannya ke officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDatabaseOperations.java:120-167; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:149; ocmsadminui/src/pages/Notice/detail/OwnerDetails.tsx:186-191",
+      "fit": "Sebagian",
+      "detail": "LTA Process Result File (cron.ltadownload.enabled=true, 05:00 dan 21:00, cron-schedules-prod.properties:148-149) memperbarui ocms_offence_notice_owner_driver (LtaDatabaseOperations.java:120-167) dan Notice detail menampilkan 'LTA Registered Address' dan 'LTA Mail Address' (OwnerDetails.tsx:186-191). Info hanya muncul per notice setelah batch jalan, bukan hasil langsung dari query officer. OCMS-DF-2026-160 (Pending Closure): 894 notice keluar dari loop ROV tanpa ownership dan resend TS-ROV tidak konsisten, jadi ownership tidak selalu terisi."
+    }
+  ]
+}

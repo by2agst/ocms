@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/spcp/controller/SpcpController (NRIC/UEN session + JWT), workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmspii/eocmsoffencenoticeownerdriver, crud/ocmsezdb/eocmsvalidoffencenotice. ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts, Table/Column.ts, API.ts. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant",
+  "note": "The story asks that an offender logged in with Singpass (individual or business) can view all outstanding fines under their ID or company, with details (date of offence, car park, vehicle number, amount). The code supports this: the login session stores the NRIC (individual) or entityId/UEN (Corppass), the ID search loads notices from the PII DB with id_type N,F or B and offender_indicator = 'Y', filters outstanding (payment_status not FP), and the UI shows notice number, vehicle, car park + date + time, offence code and amount. Note: annulled/PS-ANS notices also appear in the outstanding list as non-payable, and the amount shows '-' for non-payable rows. If the PII query fails (for example the decryption key cannot be opened), the catch in findParkingFinesByIdNo returns an empty list, shown as 'no fines'; this matches the demo remark 'Internet PII encryption', but the Internet DB/key state cannot verify from repo. The Singpass/Corppass handshake cannot verify from repo.",
+  "recommendation": "Can be claimed: the code path from the login session to the outstanding list is complete. Condition: the PII DB and decryption key in the Internet environment must be tested directly (demo remark), and a real Singpass/Corppass login cannot be proven from the repo",
+  "steps": [
+    {
+      "step": "The offender is logged in through Singpass (individual) or Corppass (business) and the session carries the NRIC or UEN",
+      "detail": "getAuthResponse calls handleRealAuth; after Singpass/Corppass auth, createSession(sessionId, nric, entityId) stores the NRIC and entityId (UEN for Corppass) in the PII DB, then generateToken(sessionId) issues the JWT (SpcpController.java:199, 203). The bypass path is only active when spcp.bypass.enabled=true (default false, SpcpController.java:41; true only in application-dev.properties:46). The Singpass/Corppass handshake itself cannot verify from repo."
+    },
+    {
+      "step": "The system loads all notices under the offender's ID or their company",
+      "detail": "The ID and type come from the session, not from the request: entityId present -> idType 'B' and idNo = UEN, otherwise idType 'N,F' and idNo = NRIC (ParkingFinesController.java:308-311). The native query matches DecryptByKey(id_no) and id_type, and only offender_indicator = 'Y' (EocmsOffenceNoticeOwnerDriverRepository.java:22-30); the service opens and closes the symmetric key (ServiceImpl.java:108-117). Notices are then loaded from eVON through findAllByNoticeNoInWithoutCrsFilter. If the query throws, findParkingFinesByIdNo returns an empty list (catch at the end of the method) so the UI shows message E7; the availability of the decryption key in the Internet DB (demo remark) cannot verify from repo."
+    },
+    {
+      "step": "The list contains all fines that are still outstanding",
+      "detail": "All results are counted first: totalOutstanding = payment_status not 'FP', totalPaid = 'FP' (ParkingFinesController.java:325-331); the 'outstanding' filter only passes those that are not FP (:334-337). The eVON query covers notices without CRS suspension, court stages, annulled/PS-ANS, and FP/PRA within 6 months (EocmsValidOffenceNoticeRepository.java:81-102). Annulled/PS-ANS notices are counted outstanding even though non-payable. The case of an already paid notice still shown as outstanding because of the intranet-internet sync was fixed in OCMS-DF-2026-168 / OCMS-SR-2026-167 (Closed, Prod deployed)."
+    },
+    {
+      "step": "Each fine shows the date of offence, car park, vehicle number and amount payable",
+      "detail": "For ID search the columns are Notice Number, Vehicle Number, Place of Offence, Offence, Status, Amount (Column.ts:181-198). The Place of Offence column shows the car park name (pp_name) plus 'Date:' and 'Time:' from notice_date_and_time (FormatPlaceOfOffence, :76-95); the separate 'Date of Offence' column is only used by vehicle/notice search. Amount uses the '$' format for payable rows and '-' for non-payable (:109-122). The mapping of response data is in API.ts:49-71."
+    },
+    {
+      "step": "The offender selects fines from the list to continue to payment",
+      "detail": "InitPaymentSPCPUnpaid renders the outstanding table with checkboxes, a payment mode choice and a Pay button (PaymentSearchResult.ts:1028-1046). Selection survives page changes through mergeSelections (:198-208) and only payable rows can be ticked (:243). This selection fact is the same as OCMS50.6 step 1."
+    }
+  ]
+}

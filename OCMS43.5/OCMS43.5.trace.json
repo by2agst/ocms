@@ -1,0 +1,73 @@
+{
+  "story": "OCMS43.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/schedulers/MonthlyReportJobsScheduler, framework/workflows/paymentReport/{services/MonthlyPaidReportServiceImpl,jobs/MonthlyPaidReportJob,helpers/MonthlyPaidReportHelper}, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminui pages/Cron/list/CronList.tsx (hanya trigger). Tiga repo lain: tidak ada code untuk story ini.",
+  "note": "Status story: Fully paid (status_with_ura). Monthly Paid Report jalan tanggal 1 pukul 08:30 untuk bulan lalu dan dikirim sebagai lampiran Excel. Tetapi isinya tidak persis sesuai story: (a) 'agency lain (JTC, MND)' diturunkan dari 'PP code tidak ada di daftar car park REPCCS' lalu semuanya diberi label JTC (MonthlyPaidReportHelper.java:182-202), MND tidak dibedakan, dan sheet JTC hanya memuat FP, bukan PRA (baris 721); (b) tidak ada satu sheet yang memuat semua field story: sheet JTC tidak punya receipt number, payment source, maupun nama tempat (hanya PP code), sedangkan sheet eService/AXS/Offline punya receipt tapi tidak punya Vehicle No, Offence Date and Time, dan rule code (baris 477-487); tiket OCMS-SR-2026-148 (field Vehicle No, Offence Date/Time, LPS, NPS di laporan bulanan) tercatat Prod deployed tetapi tidak terlihat di commit main ini, versi yang ter-deploy: cannot verify from repo; (c) total JTC di Summary memakai semua record JTC termasuk PRA (baris 224, 394) sedangkan sheet hanya FP; (d) penerima adalah daftar email individu staf URA (application-prod.properties:75), tidak ada yang bisa dipastikan sebagai URA Finance. Tiket lain: OCMS-DF-2026-013, OCMS-SR-2026-016, OCMS-SR-2026-088, OCMS-SR-2026-153 (Closed/Prod deployed). email.enableSmtp=false di prod tetapi MONTHLY_PAID_REPORT ada di allowedSources (application-prod.properties:80-81); pengiriman SMTP nyata: cannot verify from repo.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian). Job bulanan dan pengiriman email ada; isi laporan belum memuat semua field yang disebut story dalam satu daftar, MND tidak dibedakan, dan penerima URA Finance tidak terbukti dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan bulanan secara otomatis setiap bulan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:283; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:75; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/MonthlyPaidReportServiceImpl.java:42",
+      "fit": "Sesuai",
+      "detail": "cron.monthlyreport.schedule=0 30 8 1 * ? dan enabled=true di prod; job 2 = Monthly Paid Report; periode default adalah bulan sebelumnya (MonthlyPaidReportServiceImpl.java:42). Nilai server asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat notice yang dibayar sepanjang bulan itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:91-92; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:100-128; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:195; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:210",
+      "fit": "Sebagian",
+      "detail": "Query memilih crs_reason_of_suspension IN ('PRA','FP') dengan YEAR/MONTH(crs_date_of_suspension) (baris 91-92), jadi pembayaran dipetakan ke bulan lewat tanggal suspension. Seperti laporan harian, hasil dideduplikasi per notice dengan hanya transaksi terbaru (baris 100-128), dan record URA dengan sender tak dikenal masuk uncategorized dan dikeluarkan dari total (baris 195, 210). Logika sama dengan OCMS43.4 langkah 2, maka fit sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan membedakan koleksi di car park agensi lain (JTC, MND)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:182; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:202; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:721",
+      "fit": "Sebagian",
+      "detail": "Notice dianggap milik agensi lain bila PP code tidak ada di daftar car park REPCCS (icarparkRepository.findAllCarparkIds, baris 160; dicek di baris 182) dan semuanya masuk sheet 'JTC Collections' (baris 202); MND atau agensi lain tidak dibedakan. Sheet itu hanya memuat record FP (baris 721), PRA tidak muncul. OCMS-SR-2026-088 (car park URA yang sudah closed salah masuk JTC) Closed/Prod deployed. Daftar car park REPCCS asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat field detail notice (nomor notice, tanggal/jam, tempat, jumlah bayar, tanggal bayar, receipt, kendaraan, tipe, denda, rule, sumber bayar, status notice)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:477-487; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:697-711",
+      "fit": "Sebagian",
+      "detail": "Field terbagi di dua jenis sheet. Sheet JTC (baris 697-711) memuat Notice No, Notice Date And Time, PP Code (bukan nama tempat), Vehicle No, Vehicle Category dan Registration Type, Computer Rule Code, Composition Amount, Amount Paid, Suspension Type + CRS reason (status), dan tanggal bayar, tetapi tidak ada Receipt No dan tidak ada payment source. Sheet eService/AXS (baris 477-487) memuat Receipt No, Amount Paid, Amount payable, PP code, CRS/EPR reason, tetapi tidak ada Vehicle No, Offence Date and Time, vehicle type, maupun rule code. Tiket OCMS-SR-2026-148 meminta Vehicle No dan Offence Date and Time di laporan bulanan (Prod deployed menurut tiket) tetapi tidak ada di commit main ini: cannot verify from repo versi mana yang berjalan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat ringkasan total koleksi per channel dan untuk agensi lain",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:224; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:394; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:721",
+      "fit": "Sebagian",
+      "detail": "Sheet Summary menghitung jumlah per channel dan 'Total Amount Collected on Behalf of JTC' dari jtcCollectionRecords (baris 394, calculateTotalAmount memakai amount_paid). jtcCollectionCount memakai semua record JTC (baris 224) termasuk PRA, sedangkan sheet JTC hanya FP (baris 721); laporan harian memakai hitungan FP saja (DailyPaidReportHelper.java:198 area). Jadi angka ringkasan JTC bulanan bisa berbeda dari isi sheet. Tiket OCMS-DF-2026-013 (total JTC $0 pada laporan harian) Closed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghasilkan file Excel bulanan dan mengirimkannya lewat email sebagai lampiran",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:262-276; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:227; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81",
+      "fit": "Sesuai",
+      "detail": "MonthlyPaidReportJob membuat workbook (sheet Summary, eService, AXS, Offline, JTC, Refund; MonthlyPaidReportHelper.java:262-276) dan mengirim lewat EmailService dengan lampiran dan source MONTHLY_PAID_REPORT (baris 215, 227); ada email terpisah untuk no data dan failure (baris 285, 327). email.enableSmtp=false di prod tetapi MONTHLY_PAID_REPORT ada di email.smtp.allowedSources (application-prod.properties:80-81), jadi tidak ditahan. Pengiriman SMTP nyata: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim ke URA Finance",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:75; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:51-52",
+      "fit": "Sebagian",
+      "detail": "Penerima diambil dari email.report.paymentreport.monthly.recipients (MonthlyPaidReportJob.java:51-52), berisi 21 alamat individu @ura.gov.sg (application-prod.properties:75). Tidak ada alamat atau grup yang bisa dipastikan sebagai URA Finance; tiket OCMS-SR-2026-016 menambah petugas rekonsiliasi JTC, bukan Finance. Daftar penerima yang berjalan di server: cannot verify from repo."
+    }
+  ]
+}

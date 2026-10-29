@@ -1,0 +1,37 @@
+{
+  "story": "OCMS50.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult,PaymentProcess}.ts and Table/{TablePayment,Column}.ts (fine selection, total in the browser). ocmseserviceapi workflows/spcp/controller/SpcpController, workflows/parkingfines/ParkingFinesController.handleIdNoSearchFromJwt, workflows/urapg/service/UraPaymentService.generateTransaction (total recomputed from the DB). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no payment-total code",
+  "note": "Sheet status 'Built - Has gap', demo_remark: Internet PII encryption, offender particulars cannot be fetched (an environment issue, not evidence about the code). The total is computed in the browser: TablePayment.getTotal sums amount_payable of the ticked rows and shows it in the 'Total Amount Payable' row (desktop) and the card footer (mobile); it updates on every tick change, across pagination pages (server-side paging for Singpass users). Gap: the figure the offender sees is never compared with the figure sent to the gateway; UraPaymentService.generateTransaction recomputes the total from amount_payable in the DB (double) and does not accept a total from the UI. Select-all covers the visible page only. The Singpass/Corppass handshake and the amount the gateway really charges: cannot verify from repo. No maintenance ticket directly changes this total calculation.",
+  "recommendation": "Claimable for the total calculation and display in the UI. The server-side recomputation is only Sebagian because nothing matches it against the total the offender saw",
+  "steps": [
+    {
+      "step": "Offender logs in via Singpass (individual) or Corppass (business) and the session carries the NRIC/entity",
+      "detail": "After the SPCP auth response arrives, entityId is read for CorpPass only (line 172), then createSession(sessionId, nric, entityId) stores the identity in the PII DB (line 199) and a JWT is issued. Bypass mode (spcp.bypass.enabled=true) exists only in application-dev.properties:46. The Singpass/Corppass handshake itself: cannot verify from repo."
+    },
+    {
+      "step": "The logged-in user's outstanding fines are listed and can be selected for payment",
+      "detail": "handleIdNoSearchFromJwt validates the JWT, reads NRIC/entityId from the session (lines 309-310) and loads the user's notices with the outstanding filter. The UI calls APIPostSearchFinesSPCP with filter 'outstanding' (PaymentSearch.ts:463-466) and renders the selectable table through InitPaymentSPCPUnpaid (PaymentSearchResult.ts:1028-1042)."
+    },
+    {
+      "step": "Offender ticks the fines to pay; only payable fines get a checkbox",
+      "detail": "table.checkbox = true (line 193). onShowCheckbox gives a checkbox only when isSelect = 'Y' and the notice is not a transaction in progress (line 243). mergeSelections (198-208) merges this page's selection with the other pages' selection so cross-page selections still count. Select-all covers the visible page only (onSelectAll calls the same mergeSelections, lines 230-232)."
+    },
+    {
+      "step": "The total amount payable is computed from the selected fines",
+      "detail": "getTotal takes notice.amount_payable of each selected row, drops empty/0 values, adds them with lodash sum and formats '$' (lines 52-60). mergeSelections sets table.total from the whole cross-page selection (PaymentSearchResult.ts:207). The addition uses JavaScript numbers in the browser, not the server."
+    },
+    {
+      "step": "The total amount payable is displayed and changes when the selection changes",
+      "detail": "RowTotalAmount shows the label 'Total Amount Payable' and the figure as the last table row (lines 62-92); on mobile a card footer with the same label is used (lines 96-107). Because the label is read from table.total, refilled on every onSelect, the figure changes when ticks change. The Amount column shows '-' for rows that cannot be paid (Column.ts:119), so they do not look counted."
+    },
+    {
+      "step": "The same total is shown again in the transaction summary before paying",
+      "detail": "SelectedNoticesTable on the payment process page uses the same table and sets table.total = table.getTotal(data) from formData.selected (line 123) under the 'Transaction Summary' header."
+    },
+    {
+      "step": "The amount actually charged is computed by the server and equals the total the offender saw",
+      "detail": "generateTransaction receives a list of notices and the payment method, not a total. The server loads the notices from the DB (filter crs_reason_of_suspension IS NULL, line 155), adds amount_payable with double (lines 190-198) and sends amountPayable to the gateway (line 213). Nothing compares it with the total the offender saw, and this method does not check payment_acceptance_allowed. If amount_payable changes between the screen and the pay click, the charged figure can differ from the displayed one. The amount the gateway receives: cannot verify from repo."
+    }
+  ]
+}

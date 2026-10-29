@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.35",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (RD2 reminder candidates, CorpPass DataHive email refresh, combineNotices, email template, sendEmail)}, utilities/emailutility/EmailService (email.enableSmtp/email.smtp.allowedSources gate), application-{dev,uat,prod}.properties, cron-schedules-prod.properties. Other repos: no relevant code.",
+  "note": "Status in stories.json: Demo paid (50% of 75%). The email flow for company hirers (id_type B) after the 2nd letter exists: candidates with last stage RD2, notices of the same company merged per UEN + stage + due date, template RD2_EMAIL_COMPANY (or _COMBINED), email sent per record through EmailService. Blockers in the repo configuration: (1) cron.notification.enabled=false in every environment; (2) in prod email.enableSmtp=false and email.smtp.allowedSources does not contain ENOTIFICATION (application-prod.properties:80-81), so EmailService refuses; (3) the CorpPass DataHive email refresh is off (cron.enareminder.datahive=false). The email template text (whether it refers to the 2nd letter and lists the NOPOs) is in ocms_template_store (DB), cannot verify from repo; if the template is missing the email is skipped. There is no hirer-specific filter (offender_indicator 'Y'). Ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. Per-environment property values in Azure, DOS/Vault, and email permission for the App Service: cannot verify from repo.",
+  "recommendation": "Partial claim: the RD2 email flow for companies exists, but in the prod properties email and the eNotification cron are off and the template content cannot be verified from the repo",
+  "steps": [
+    {
+      "step": "OCMS gets the latest email address of the company hirer from the data source (DOS)",
+      "detail": "Companies are looked up in DataHive CorpPass by UEN (column CP_ACCOUNT_EMAIL, refreshCompanyContactInfo, NotificationSmsEmailHelper.java:2496-2530) and the new email is saved through updateOcmsCompanyContactInfo (2676-2705), called from NotificationSmsEmailJob.java:185-188. But refreshContactInfo only runs when cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:2461-2485) and the property is false in dev/uat/prod (cron-schedules-prod.properties:48), so the email stored in ocms_offence_notice_owner_driver is used. DataHive = 'DOS' in the story: cannot verify from repo. Same fit as OCMS11.10."
+    },
+    {
+      "step": "OCMS identifies the unique company hirer (UEN) and combines their outstanding NOPOs into one email",
+      "detail": "combineNotices uses the recipient key B_<UEN> + stage + due date, sums amount_payable and fills combinedNotices (NotificationSmsEmailHelper.java:2151-2227; getRecipientKey 2230-2250; called from NotificationSmsEmailJob.java:191). Partial because the key includes the due date, so one company with notices on different due dates gets more than one email. Same fit as OCMS11.10."
+    },
+    {
+      "step": "A company that opted out or has no valid email address is not sent an email",
+      "detail": "UENs in ocms_enotification_exclusion_list are skipped (NotificationSmsEmailJob.java:226-231; the reminder query also drops them, NotificationSmsEmailHelper.java:1131-1134). validateContactInfo for id_type B only passes when the email is filled (NotificationSmsEmailHelper.java:2259-2275); failed records are skipped (NotificationSmsEmailJob.java:254-266). The exclusion list content is DB data: cannot verify from repo."
+    },
+    {
+      "step": "The email contains the outstanding NOPOs and refers to the 2nd letter reminder",
+      "detail": "For reminders, nextProcessingStage is set to the last stage (RD2) (NotificationSmsEmailJob.java:174-180), so determineTemplateName yields RD2_EMAIL_COMPANY or RD2_EMAIL_COMPANY_COMBINED (NotificationSmsEmailHelper.java:459-472); the template is split into subject and body (274-345) with data noticeNo, combinedNotices, noticeCount, amountPayable, paymentDueDate (410-437). The template text is in ocms_template_store (DB), so whether it mentions the 2nd letter reminder and lists the NOPOs: cannot verify from repo; emails for stages DN1/DN2/DR3 are deliberately skipped because no template exists (313-316), which does not apply to RD2."
+    },
+    {
+      "step": "The email is sent to the company hirer in the batch job",
+      "detail": "The job sends email only for id_type B (NotificationSmsEmailJob.java:353-354) through sendEmail with source ENOTIFICATION (378-388; NotificationSmsEmailHelper.java:556-590). EmailService refuses to send when email.enableSmtp=false unless the source is in email.smtp.allowedSources (EmailService.java:33-37, 65-72). Prod: enableSmtp=false and the allowlist has no ENOTIFICATION (application-prod.properties:80-81); uat: enableSmtp=false but the allowlist contains ENOTIFICATION (application-uat.properties:78-79); dev: enableSmtp=true (application-dev.properties:81-82). Plus cron.notification.enabled=false (cron-schedules-prod.properties:236). So in the prod configuration in the repo, no email is sent; actual SMTP delivery and the email permission for the App Service: cannot verify from repo. Ticket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'."
+    }
+  ]
+}

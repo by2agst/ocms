@@ -1,0 +1,82 @@
+{
+  "story": "OCMS10.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, utilities/smsutility/SmsUtil, crud/ocmsizdb/OcmsSmsNotificationRecords, framework/schedulers/NotificationJobsScheduler, properties application-{dev,uat,prod} dan cron-schedules-prod. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code pengiriman SMS AN (ocmsadminapi hanya membuat notice dan flag AN)",
+  "note": "Status sheet: Demo paid (50% of 75%). Tidak ada flow deck. AN SMS dikirim oleh job eNotification yang sama dengan SMS ENA biasa (NotificationSmsEmailJob): notice dengan an_flag='Y' memakai template AN_SMS (NotificationSmsEmailHelper.java:279-281, 371) lalu dikirim lewat Postman2 batch (:1611). Tiga hal membuat klaim tidak penuh. (1) Story minta satu SMS per unique individual owner, tapi code sengaja satu SMS per notice (NotificationSmsEmailJob.java:249, 279; NotificationSmsEmailHelper.java:2171-2173): owner dengan 3 AN menerima 3 SMS. (2) Hasil batch dinilai all-or-nothing (NotificationSmsEmailHelper.java:1674; NotificationSmsEmailJob.java:374): satu SMS gagal membuat seluruh batch (sampai 1000) dianggap tidak terkirim sehingga PS-ANS tidak diterapkan ke satu pun AN di batch itu (NotificationSmsEmailJob.java:400-402). (3) Pengiriman nyata diblokir konfigurasi di repo: cron.notification.enabled=false di dev/uat/prod (cron-schedules-prod.properties:236), sms.enable=false dan tanpa sms.allowedSources di prod (application-prod.properties:87). Query pemilihan ENA juga menyingkirkan notice bertipe kendaraan I/D/V dan notice yang sudah PS-ANS (NotificationSmsEmailHelper.java:1061-1062), padahal AN OCMS-side bisa bertipe S/D/V/I (CreateNoticeServiceImpl.java:843-846). Isi template AN_SMS ada di database (ocms_template_store), bukan di repo: cannot verify from repo. Gateway Postman2 dan izin SMS di App Service: cannot verify from repo. Tiket: OCMS-DF-2026-180 (Closed, Prod deployment) mengubah rumus payment due date ENA; apakah AN_SMS memakai placeholder itu cannot verify.",
+  "recommendation": "Klaim sebagian. Jalur kirim SMS AN sudah ada (template AN_SMS, batch Postman2, catat status), tapi minta URA konfirmasi aturan satu SMS per owner (code: per notice), perbaiki penilaian batch yang all-or-nothing, dan pastikan flag cron/sms diaktifkan di environment target",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile owner individu sudah diperoleh dari DOS sebelum SMS dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-187; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo dan refreshContactInfo (NotificationSmsEmailJob.java:185-187), tapi refreshContactInfo hanya query DataHive kalau cron.enareminder.datahive=true; nilainya false di semua environment (cron-schedules-prod.properties:48), jadi yang dipakai nomor yang sudah tersimpan di owner/driver (NotificationSmsEmailHelper.java:2461-2476). Tidak ada integrasi bernama DOS di repo; apakah DataHive = DOS dan apakah nomor tersimpan berasal dari sana cannot verify from repo. Pengambilan nomor itu sendiri adalah lingkup OCMS10.5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Batch job memilih notice AN yang siap diberi tahu ke owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:992; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1021; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1029-1031; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1061-1062; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:843-846; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForEna mengambil notice last_processing_stage='ENA' dengan offender_indicator='Y' dan men-select an_flag (NotificationSmsEmailHelper.java:1021,1029-1031), dipanggil di NotificationSmsEmailJob.java:161. Query ini generik untuk semua notice ENA, bukan khusus AN. Ia menyingkirkan vehicle_registration_type I/D/V (:1061) dan notice yang sudah PS-ANS (:1062), padahal AN OCMS-side dicek untuk tipe S/D/V/I (CreateNoticeServiceImpl.java:843-846) dan jalur EHT/Certis membuat notice langsung PS-ANS. Jadi AN bertipe I/D/V dan AN jalur EHT/Certis tidak masuk batch SMS ini. Scheduler cron.notification.enabled=false di dev/uat/prod (cron-schedules-prod.properties:236); hanya jalan lewat trigger manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner individu (bukan company) dikenali dan dipilih untuk channel SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:443-451; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:271-277; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353-354",
+      "fit": "Sesuai",
+      "detail": "determineDeliveryChannel mengembalikan EMAIL hanya untuk idType 'B' dan SMS untuk NRIC/FIN/Passport (NotificationSmsEmailHelper.java:443-451); job melewati record idType 'B' dari batch SMS (NotificationSmsEmailJob.java:271-277) dan sendSms = idType bukan 'B' (:353-354). Passport dan ID di exclusion list dikeluarkan lebih dulu (:226-245) dan dialihkan ke jalur letter."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap unique individual owner dalam satu batch hanya menerima satu SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:249; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:279-283; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2169-2173",
+      "fit": "Beda dari flow",
+      "detail": "combineNotices sengaja tidak menggabungkan notice ENA milik individu: tiap notice dapat key unik recipientKey+'_ENA_'+noticeNo (NotificationSmsEmailHelper.java:2169-2173) dan job menambah SEMUA record valid ke smsRecords dengan komentar 'each notice gets its own SMS (no deduplication by phone)' (NotificationSmsEmailJob.java:249,279-283). Satu owner dengan 3 AN menerima 3 SMS, bukan 1. Sama dengan fit di OCMS1.6 (story sibling untuk notice biasa)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi SMS AN dibuat dari template AN_SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:279-281; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:366-376; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1569-1570",
+      "fit": "Sebagian",
+      "detail": "Notice dengan an_flag='Y' masuk generateAnMessages (NotificationSmsEmailHelper.java:279-281) yang mengambil template 'AN_SMS' dari database (:371) lalu isinya divalidasi GSM-7 (:1570). Kalau template tidak ada, hanya log error dan SMS dilewati tanpa alarm lain (:372-376). Template AN_SMS tidak ada di repo (tidak ada seed/SQL); keberadaan dan isinya di ocms_template_store cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS dikirim ke tiap owner lewat batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:287-292; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1611; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/application-uat.properties:82; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Job memanggil sendBatchSms bila notification.sms.enabled=true (NotificationSmsEmailJob.java:287-292) yang mengirim ke Postman2 lewat smsUtil.sendBatchSmsSimple (NotificationSmsEmailHelper.java:1611). Tapi di repo: scheduler mati (cron.notification.enabled=false, cron-schedules-prod.properties:236), prod sms.enable=false tanpa sms.allowedSources (application-prod.properties:87) sehingga SMS dengan source ENOTIFICATION diblokir SmsUtil; UAT hanya membuka lewat sms.allowedSources=ENOTIFICATION (application-uat.properties:82). Nilai sebenarnya per environment, gateway Postman2, dan izin SMS di App Service cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil kirim tiap SMS dinilai per penerima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1674; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:374; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:400-402",
+      "fit": "Sebagian",
+      "detail": "sendBatchSms mengembalikan totalFailure == 0 (NotificationSmsEmailHelper.java:1674) dan job memakai nilai batch itu untuk SEMUA record: smsSent = sendSms && batchSmsStatus (NotificationSmsEmailJob.java:374). Satu SMS gagal dalam batch (hingga 1000) membuat semua AN di batch dianggap belum terkirim, sehingga PS-ANS tidak diterapkan ke satu pun (:400-402) dan retry job memproses ulang. Status per pesan tetap diambil dari Postman2 (mapBatchStatusToRecords), tapi keputusan lanjut per notice memakai flag batch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status kirim SMS disimpan per notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:396; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:601-660; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:690-700",
+      "fit": "Sesuai",
+      "detail": "saveSendStatus menyimpan satu record per notice (untuk notice gabungan dipecah) ke ocms_sms_notification_records dengan status S atau E (NotificationSmsEmailHelper.java:601-660, 690-700), dipanggil di NotificationSmsEmailJob.java:396. Setelah SMS sukses, job juga menerapkan PS-ANS dan memajukan next_processing_date (:400-408); itu tidak diminta story ini dan dicatat di orphans."
+    }
+  ]
+}

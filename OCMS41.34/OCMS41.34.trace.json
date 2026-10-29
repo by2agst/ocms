@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.34",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/manualreview/services/ManualReviewService (rejectSubmission, tidak ada suspension), workflows/furnish/helpers/FurnishPersistenceService (TS-PDP 21 hari saat submission). ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (TS-PDP saat submission masuk manual review), autorevival/helpers/AutoRevivalHelper (re-apply TS-PDP hanya bila ada furnish berstatus pending)",
+  "note": "Story berstatus User Story Removed, tidak diklaim. Reject (ManualReviewService.rejectSubmission) hanya mengubah status ke R dan menyinkronkan ke PII DB; tidak ada pemanggilan suspension di titik reject, dan tidak ada nilai 'X hari' yang bisa diatur untuk masa menunggu. Suspension TS-PDP yang ada dibuat saat submission masuk (bukan saat reject): 21 hari di FurnishPersistenceService untuk jalur adminapi dan lewat tsHelper.processTS dengan durasi default di jalur cron. Saat TS-PDP itu habis masa, cron revival hanya memasang ulang bila masih ada furnish berstatus pending; untuk status R tidak dipasang ulang, jadi notice bisa naik stage selama owner belum furnish ulang. Itu kebalikan dari maksud story. Sesuai aturan Removed, step yang ada code-nya paling tinggi Sebagian.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menolak submission dan email permintaan informasi tambahan dikirim ke owner/hirer",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:453-471; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:214-217",
+      "fit": "Sebagian",
+      "detail": "Reject menyimpan status R (ManualReviewService.java:466-471). Email dikirim lewat panggilan send-email terpisah setelah reject sukses, langsung, tidak dijadwalkan (useNoticeSubmit.tsx:214-217). Sebagian karena aturan Removed dan karena email tidak dijadwalkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis men-suspend notice dengan suspension code tertentu saat reject",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:453-479",
+      "fit": "Tidak ada code",
+      "detail": "rejectSubmission tidak memanggil tsHelper/suspension apa pun (ManualReviewService.java:453-479). FurnishRejectionServiceImpl.handleRejection (:38-111) juga tidak. Suspension TS-PDP hanya dibuat saat submission masuk: FurnishPersistenceService.applyTsPdpSuspension (:287-312) dan FurnishApprovalHelper.executeManualReview/createTsPdpSuspension (FurnishApprovalHelper.java:499-536, 751-783), jadi bukan pemicu reject."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension berlaku selama X hari (dapat diatur) sambil menunggu informasi owner/hirer",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishPersistenceService.java:287-292; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:760-768",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada durasi untuk masa menunggu setelah reject. Durasi TS-PDP yang ada ditetapkan saat submission: hardcoded plusDays(21) di FurnishPersistenceService.java:291, atau default tsHelper.processTS dengan daysToRevive null (FurnishApprovalHelper.java:760-768). Tidak ada property atau parameter X hari untuk reject (grep pada properties adminapi/adminprivateapi tidak menemukan)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak naik stage selama owner/hirer belum furnish ulang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:974; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1005-1013; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/AutoRevivalHelper.java:262-289",
+      "fit": "Tidak ada code",
+      "detail": "Saat TS-PDP jatuh tempo, cron revival memasang ulang TS-PDP hanya bila ada furnish record pending (AutoRevivalHelper.java:1005-1013; versi adminapi :262-289 log 'approved/rejected - TS-PDP not re-applied'). Setelah R tidak ada perlindungan lagi, jadi notice dapat naik stage. Ini berlawanan dengan maksud story. Terkait tiket OCMS-DF-2026-032 (perbaikan re-apply TS-PDP untuk furnish pending)."
+    }
+  ]
+}

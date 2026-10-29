@@ -1,0 +1,29 @@
+{
+  "story": "OCMS45.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/synctxndata/{CronSyncTxnData,AxsTransactionValidator}, crud/beans/SystemConstant, utilities/suspension_helpers/TemporarySuspensionHelper, framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper. ocmsadminapi workflows/notice_creation/core/helpers/AutoSuspensionHelper (triggerPamSuspension has no caller). ocmsadminui pages/Dashboard/Dashboard.tsx (empty). ocmseserviceapi, ocmseserviceui, thirdpartyapi: no TS-PAM or work item",
+  "note": "The story asks that a notice that cannot be updated as paid (example: amount mismatch) is temporarily suspended under a specific suspension code and that a work item with the details is created on the officer's dashboard. Status in the sheet: Fully paid. The TS-PAM (Payment Amount Mismatch) code exists (SystemConstant.java:49) and is applied through TemporarySuspensionHelper.processTS, but the only trigger in the code is an AXS vehicle number that does not match (CronSyncTxnData.java:459-499, AxsTransactionValidator.java:47-64). An amount mismatch is not treated as an exception: underpayment becomes PS-PRA (permanent), overpayment becomes PS-FP plus a refund (CronSyncTxnData.java:574-615, 640-646). triggerPamSuspension in ocmsadminapi has no caller. There is no work item on the dashboard: Dashboard.tsx only renders an empty div (Dashboard.tsx:21-33) and no work item entity/endpoint exists; the exception information only appears in the daily Excel/email (see OCMS45.4). Tickets OCMS-SR-2026-112 and OCMS-SR-2026-190 show exceptions are followed through the report, not a work item. The contents of ocms_suspension_reason (PAM revival days) cannot be verified from the repo.",
+  "recommendation": "Do not claim in full. Built: TS-PAM for AXS vehicle mismatch. Not built: TS for amount mismatch and the dashboard work item. Ask URA/the team whether the daily report is accepted as a replacement for the work item.",
+  "steps": [
+    {
+      "step": "OCMS checks incoming payments and finds those that cannot be updated as paid (example: amount mismatch)",
+      "detail": "The only check that sends a payment to the exception path is an AXS vehicle number that does not match (CronSyncTxnData.java:459-472, AxsTransactionValidator.java:47-64). An amount mismatch (the story's example) is not detected as an exception: underpayment is processed automatically as PS-PRA, overpayment as PS-FP plus a refund (CronSyncTxnData.java:568-598). A payment to an already paid notice becomes a DBP refund straight away (CronSyncTxnData.java:419-433)."
+    },
+    {
+      "step": "OCMS temporarily suspends the notice under a specific suspension code",
+      "detail": "For an AXS vehicle mismatch, tsHelper.processTS applies a TS with reason PAYMENT_AMOUNT_MISMATCH = 'PAM' (CronSyncTxnData.java:486-499, SystemConstant.java:49), then VON/eVON get payment_acceptance_allowed='N' and eservice message E14 (CronSyncTxnData.java:506-518); TS-PAM may be stacked on a notice that already has a PS (TemporarySuspensionHelper.java:202-205). For an amount mismatch there is no TS: the result is PS-PRA/PS-FP (permanent). triggerPamSuspension in ocmsadminapi (AutoSuspensionHelper.java:172) has no caller. The PAM revival days in ocms_suspension_reason cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS creates a work item for that notice",
+      "detail": "After TS-PAM the code only writes suspended_notice as an audit trail (through processTS, CronSyncTxnData.java:486-499; saveAll at 632-635); no work item/task is created. A grep for work item, worklist, work_list, task, dashboard in ocmsadminapi, ocmsadminprivateapi and ocmsadminui only found the Furnish dashboard and other contexts unrelated to payment."
+    },
+    {
+      "step": "The work item holds the details: notice number, date and time paid, amount payable, amount paid, receipt details, reason for mismatch",
+      "detail": "There is no work item, but part of the details is recorded elsewhere. The TS-PAM remark contains the transaction vehicle, the notice vehicle and the receipt number (AxsTransactionValidator.java:132-135). The daily exception report has the columns Transaction Date/Time, Notice No., Receipt No., Amount Paid, CRS/EPR Reason (PaymentExceptionReportHelper.java:527-529). There is no Amount Payable column and no mismatch reason column in the report. These details only arrive as a next-day Excel/email, not as a work item."
+    },
+    {
+      "step": "The work item appears on the officer's dashboard so it can be followed up",
+      "detail": "The staff portal dashboard is an empty page: Dashboard.tsx only renders a DataForm with an empty row div (Dashboard.tsx:21-33) and is the index and fallback route (App.tsx:79-81). There is no work item list API. Sibling OCMS38.1 (single-page summary of work items) depends on the same thing."
+    }
+  ]
+}

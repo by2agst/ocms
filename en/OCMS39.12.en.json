@@ -1,0 +1,37 @@
+{
+  "story": "OCMS39.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/System/{list/StandardCodeList,form/StandardCodeForm}.tsx + App.tsx route /system/standardcode + context/OptionsContext.tsx (CPS_REASON_CHANGE) + pages/CPS/form/CPSForm.tsx + utils/Meta/System.ts (Complaint/Complainant Code only as Meta); ocmsadminapi crud/ocmsizdb/standardcode/{StandardCode,StandardCodeController,StandardCodeRepository,StandardCodeServiceImpl} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_STANDARDCODE), crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController,ChangeOfProcessingService,OcmsChangeOfProcessing}, crud/ocmsizdb/OcmsCourtCase; ocmsadminprivateapi framework/workflows/plus/notice_creation/core/helpers/SuspensionProcessingHelper. ocmseserviceapi, ocmseserviceui, thirdpartyapi: do not read standard codes",
+  "note": "Story status: Fully paid. Requirement text is given. Demo remark: Complaint Code, Complainant Code. The generic Standard Code page (list, create, edit description/status) exists and its authorization is checked on the server (OCMS_SYSTEM_STANDARDCODE), but new categories cannot be created from the UI and the repo has no seed, so 'about 100 codes' in the DB: cannot verify from repo. Of the three examples in the story: reasons for change in processing stage (CPS_REASON_CHANGE) do fill the CPS dropdown but are not validated on the server and the OTH rule is hardcoded; court mention/trial outcome codes and warrant of arrest outcome codes have no entity, controller or reader at all. Complaint Code and Complainant Code (demo remark) are only menu entries in System.ts:9-10, 43-44, 111-118 without a Route in App.tsx and without a controller, so they are not working screens. One job in ocmsadminprivateapi reads several categories only at startup. No maintenance ticket changes the assessment.",
+  "recommendation": "Partial claim: code maintenance through the Standard Code page (add, change description/status) and the CPS reasons for changing stage. Do not claim court mention/trial outcome codes, warrant of arrest outcome codes, or the Complaint/Complainant Code screens. Ask URA to confirm the list of about 100 codes and in which system the court codes are managed",
+  "steps": [
+    {
+      "step": "Officer opens the Standard Code page and picks a category (reference code) to see its codes",
+      "detail": "Route /system/standardcode (App.tsx:402-424) shows all codes per category: the reference code filter calls POST /standardcodelist (StandardCodeList.tsx:75-93, StandardCodeController.java:85-92). Function OCMS_SYSTEM_STANDARDCODE (api-authorization.properties:169-170) is checked on the server by OcmsAuthorizationInterceptor; the roles holding the function: cannot verify from repo. The number of codes in the DB (the story says about 100): cannot verify from repo, there is no ocms_standard_code SQL seed in the six repos."
+    },
+    {
+      "step": "Officer adds a new standard code to an existing category",
+      "detail": "The create form sends POST /standardcode with referenceCode, code, description and codeStatus (StandardCodeForm.tsx:64-71); the controller saves through service.save (StandardCodeController.java:52-83). Duplicates are checked in the UI through POST /standardcodeexists (StandardCodeController.java:139-171), not in POST /standardcode. The Reference Code dropdown only lists existing Active categories (StandardCodeController.java:176-204, StandardCodeRepository.java:72-73), so a new category cannot be created from the UI; new codes can only be added to a category that already has rows. Same assessment as OCMS39.6."
+    },
+    {
+      "step": "Officer changes the description or the status (Active/Defunct) of a standard code",
+      "detail": "Edit calls POST /standardcodepatch/{referenceCode}/{code} (StandardCodeForm.tsx:73-88). The controller only accepts description and codeStatus (PATCH_ALLOWED_FIELDS, StandardCodeController.java:94-134); referenceCode and code are locked (StandardCodeForm.tsx:139-143, @NonEditable). Status A/D is an Active/Defunct toggle (StandardCodeForm.tsx:174-184). There is no delete endpoint; deactivating means Defunct."
+    },
+    {
+      "step": "The reasons for change in processing stage (reason of change) come from the configured codes",
+      "detail": "The Reason of Change dropdown on the CPS form is filled from ocms_standard_code category CPS_REASON_CHANGE, Active rows only (OptionsContext.tsx:343-358, 430-432; CPSForm.tsx:455-461), so adding or defuncting a code on the Standard Code page changes the reason choices. But the server does not match the reason against that list: the reason from the request is stored as sent in column reason_of_change (3 characters; OcmsChangeOfProcessing.java:48-49, ChangeOfProcessingService.java:1054), and the only per-code rule, 'OTH requires a remark', is hardcoded in the UI (CPSForm.tsx:421-424) and in the controller (ChangeOfProcessingController.java:163-165). The CPS_REASON_CHANGE rows in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Officer configures court mention / trial outcome codes",
+      "detail": "There is no entity, controller or code category for court mention or trial outcomes in the six repos (grep courttrial, courtmention, trial_outcome, mention in src of ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi). Only traces exist: the OCMS_NOTICE_SEARCH mapping names /v1/courtmention and /v1/courttrial (api-authorization.properties:21-23) but no controller has those paths; the TypeScript type Icourttrial only declares the fields trial_outcome and roms_outcome (Icourttrial.d.ts:9, 27) without a page or reader; the only court entity in ocmsadminapi, OcmsCourtCase, has just notice_no, court_payment_due_date and reason (OcmsCourtCase.java:17-31). The generic Standard Code page can technically store any category, but a new category cannot be created from the dropdown and no code reads trial codes. The outcome data is probably managed by another system (the roms_outcome field implies an outside source): cannot verify from repo."
+    },
+    {
+      "step": "Officer configures warrant of arrest outcome codes",
+      "detail": "Same as the previous step: /v1/warrantofarrest and /v1/summon are mapped in api-authorization.properties:21-23 without a controller; the type Iwarrantofarrest only declares outcome_of_warrant (Iwarrantofarrest.d.ts:7) without a page, entity or reader. A synonym search (warrant, WOA, outcome_of_warrant) over the six repos found no backend code for warrants. Who manages this data: cannot verify from repo."
+    },
+    {
+      "step": "Code changes take effect without a code change or deploy",
+      "detail": "UI choices are reloaded from POST /standardcodelist with codeStatus A (OptionsContext.tsx:343-358) and ocmsadminapi reads standard codes on every call without a cache (StandardCodeServiceImpl.java:27-30), so changes are read without a deploy. Exception: the PLUS SuspensionProcessingHelper in ocmsadminprivateapi loads PROCESSING_STAGE, PS_REASONS_ALLOW_TS and CPC_CFC_ELIGIBLE_CODES once in @PostConstruct (SuspensionProcessingHelper.java:58-71), so a change is only read after a service restart. In addition many rules use fixed code values in the program (for example 'OTH' in CPS, the suspension stage lists), so changing the code list does not always change behaviour. ocmseserviceapi does not read standard codes (grep found nothing)."
+    }
+  ]
+}

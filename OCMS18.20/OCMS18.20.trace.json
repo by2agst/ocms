@@ -1,0 +1,55 @@
+{
+  "story": "OCMS18.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension, helpers/PermanentSuspensionHelper.processPS + reviveOldPS, SuspensionBaseHelper.updateDatabase. Salinan di ocmsadminprivateapi utilities/suspension_helpers/PermanentSuspensionHelper.",
+  "note": "Revive otomatis PS lama lalu pasang PS baru tanpa menghapus riwayat sudah ada: reviveOldPS mengisi dateOfRevival, revivalReason (PSR untuk PLUS, CSR untuk notice berbayar), officer, remarks pada baris ocms_suspended_notice aktif, lalu baris baru disisipkan (PermanentSuspensionHelper.java:125-130, 245-305). Yang tidak sesuai: OCMS tidak menunggu atau memeriksa konfirmasi PLUS; panggilan execute pertama dengan kode berbeda sudah langsung menimpa, dan tidak ada flag konfirmasi. Risiko: exception di reviveOldPS ditelan (PermanentSuspensionHelper.java:301-304) sehingga PS baru tetap dipasang walau baris lama gagal di-revive. Demo remark menyebut 'PLUS cannot overwrite existing PS' (sisi PLUS: cannot verify from repo). Ticket OCMS-DF-2026-075 (closed) mengubah jalur PS-over-PS untuk notice berbayar dan OCMS-DF-2026-152 (Ready to DEV) menyangkut response refund.",
+  "recommendation": "Klaim sebagian besar untuk sisi OCMS: revive otomatis dan riwayat tidak dihapus terbukti di code. Konfirmasi dari PLUS tidak diperiksa OCMS, dan status demo 'PLUS cannot overwrite' harus diselesaikan dengan tim PLUS sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima konfirmasi dari PLUS untuk menimpa permanent suspension yang ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-551; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:119-130",
+      "fit": "Sebagian",
+      "detail": "Tidak ada parameter konfirmasi. 'Konfirmasi' hanyalah panggilan POST /plus-apply-suspension (checking=false) dengan kode PS baru; OCMS tidak membedakan panggilan itu dari permintaan pertama dan tidak menunggu konfirmasi sebelumnya (PermanentSuspensionHelper.java:125-130). Dialog konfirmasi ada di UI PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS me-revive otomatis permanent suspension yang ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:245-305; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:172-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:460-517",
+      "fit": "Sesuai",
+      "detail": "reviveOldPS mencari baris ocms_suspended_notice milik notice dengan suspensionType PS dan dateOfRevival null, lalu mengisi dateOfRevival = sekarang, revivalReason (PSR bila source PLUS dan tidak berbayar, CSR bila berbayar, PermanentSuspensionHelper.java:259-271), officerAuthorisingRevival, revivalRemarks, processIndicator Manual dan menyimpannya (PermanentSuspensionHelper.java:277-295). Dijalankan sebelum PS baru dipasang (PermanentSuspensionHelper.java:127-130). Risiko: exception ditelan dan proses lanjut (PermanentSuspensionHelper.java:301-304), kondisi 'No active PS found' hanya di-log (PermanentSuspensionHelper.java:297-299). Salinan ocmsadminprivateapi serupa (ocmsadminprivateapi PermanentSuspensionHelper.java:460-517)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan kode permanent suspension baru pada notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:132-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-377; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467",
+      "fit": "Sesuai",
+      "detail": "Setelah revive, calculateRevivalDate mengembalikan null untuk PS (PermanentSuspensionHelper.java:133, 379-383) dan updateDatabase memperbarui VON dan eVON dengan kode baru serta menyisipkan baris ocms_suspended_notice baru (PermanentSuspensionHelper.java:139-141, SuspensionBaseHelper.java:474-497). Untuk notice berbayar dengan kode refund, CRS di VON/eVON dikosongkan dan refund dibuat (SuspensionBaseHelper.java:365-374; PermanentSuspensionHelper.java:146-147), sesuai OCMS-DF-2026-075."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Catatan permanent suspension sebelumnya tidak dihapus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:277-295; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467",
+      "fit": "Sesuai",
+      "detail": "Revive hanya mengubah kolom pada baris lama (setDateOfRevival, revivalReason, dan seterusnya, PermanentSuspensionHelper.java:279-286) lalu saveAll; tidak ada pemanggilan delete di PermanentSuspensionHelper dan baru disisipkan sebagai baris tambahan (SuspensionBaseHelper.java:466). Riwayat tetap ada di ocms_suspended_notice dengan dateOfRevival terisi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim hasil ke PLUS bahwa kode suspension baru berhasil diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:149-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:552-555",
+      "fit": "Sesuai",
+      "detail": "Response {noticeNo, srNo, success:true, message:'PS Success'} dengan appCode OCMS-2000, HTTP 200 (PermanentSuspensionHelper.java:150; SuspensionProcessingController.java:552-555, 1191-1192). Pada PS refund ditambah refundNoticeId; OCMS-DF-2026-152 (Ready to DEV/In SIT) melaporkan nilai yang salah sebelum perbaikan, kode main sudah mengembalikan ID refund asli (PermanentSuspensionHelper.java:358-370). Penerimaan dan penimpaan di PLUS ('PLUS cannot overwrite existing PS' pada demo remark): cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS14.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/form/VehicleForm.tsx (onComOk), pages/Notice/hook/useNoticeSubmit.tsx (useNoticeEdit), utils/mapping/Notice/Notice.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{Controller,ServiceImpl,Entity}, api-authorization.properties. ocmsadminprivateapi autorevival/helpers/AutoRevivalHelper, notification_sms_email/helpers/NotificationSmsEmailHelper, toppan/upload/helpers/ToppanUploadHelper, syncintranetinternet/SyncIntranetInternetService, OcmsValidOffenceNoticeRepository. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story 1 poin, status 'Demo paid (50% of 75%)'. Penyimpanan perubahan tipe sudah ada: setelah Yes nilai masuk ke form (VehicleForm.tsx:137-138), Save mengirim POST validoffencenoticepatch dengan vehicleRegistrationType dan updUserId (useNoticeSubmit.tsx:61-98, Notice.ts:179, 331), dan OcmsValidOffenceNoticeController.patchPost (baris 92-113) memanggil patchWithFiles yang memperbarui kolom vehicle_registration_type. Bagian 'notice diproses sesuai tipe' hanya Sebagian: proses lain memang membaca kolom ini (looping TS-CLV hanya untuk tipe V, SMS/email mengecualikan tipe V, laporan Classified Vehicle, sync ke eVON), tetapi patch tidak punya efek samping: perubahan V ke S tidak me-revive TS-CLV yang sedang aktif dan tidak mengubah stage. Selain itu, TS-CLV pertama saat Toppan upload RR3/DR3 memakai pola nomor kendaraan berawalan V (ToppanUploadHelper.java:706), bukan tipe, sehingga hasilnya bisa tidak konsisten dengan tipe yang diubah manual. Server tidak memvalidasi nilai tipe atau stage notice di jalur patch ini (hanya UI). Role Special Notice Processing Officer dan nilai konfigurasi server cannot verify from repo. Tidak ada tiket maintenance yang mengubah verdict.",
+  "recommendation": "Dapat diklaim untuk penyimpanan perubahan tipe. Bagian 'diproses sesuai tipe' belum penuh: tidak ada hook saat V berubah ke S (TS-CLV aktif tidak di-revive) dan TS-CLV awal di Toppan upload memakai pola nomor kendaraan, bukan tipe. Minta URA konfirmasi perilaku yang diharapkan saat tipe diubah.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah Yes, vehicle registration type baru masuk ke form edit",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:132-150; ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:158",
+      "fit": "Sesuai",
+      "detail": "onComOk mengisi prev['vehicle_type'] dan prev['vehicle_type_data'] dengan opsi terpilih (VehicleForm.tsx:137-138) lalu menutup dialog (baris 158). Tipe X mengisi vehicle_no dan kategori default (baris 140-145); tipe lain mengosongkan keduanya (baris 146-149). Fakta yang sama dengan langkah 3 OCMS14.21, maka fit-nya sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menyimpan; portal mengirim vehicleRegistrationType ke API patch",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:61-98; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:154-157; ocmsadminui/src/utils/mapping/Notice/Notice.ts:165-182; ocmsadminui/src/utils/mapping/Notice/Notice.ts:297-333; ocmsadminui/src/pages/Notice/mode/edit/EditForm.tsx:195-217",
+      "fit": "Sesuai",
+      "detail": "Pada mode EDIT, Save memanggil useNoticeEdit yang POST ke 'validoffencenoticepatch' dengan {noticeNo, ...notice} (useNoticeSubmit.tsx:61-98, 154-157). MapAPINoticeValidEdit menyertakan vehicleRegistrationType bila vehicle_type terisi (Notice.ts:179, 317) dan updUserId (Notice.ts:331). UI tidak memblokir edit menurut stage: pengecekan non_editable dikomentari (EditForm.tsx:210-217)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "API memperbarui kolom vehicle_registration_type pada ocms_valid_offence_notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:92-113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:73-75; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:123-124; ocmsadminapi/src/main/resources/api-authorization.properties:46-48",
+      "fit": "Sesuai",
+      "detail": "POST /validoffencenoticepatch (OcmsValidOffenceNoticeController.java:92-113) mengubah payload menjadi entity lalu memanggil patchWithFiles (OcmsValidOffenceNoticeServiceImpl.java:73-75) yang menjalankan super.patch, yaitu partial update generik atas kolom vehicle_registration_type (OcmsValidOffenceNotice.java:123-124). Tidak ada validasi nilai tipe atau stage di controller/service (validasi hanya di UI); endpoint masuk fungsi OCMS_NOTICE_EDIT (api-authorization.properties:46-48). Assignment role cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice diproses sesuai tipe baru oleh proses berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111-1112; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1061; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:728; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:305; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:706",
+      "fit": "Sebagian",
+      "detail": "Proses lain membaca kolom ini: looping TS-CLV hanya untuk tipe V (AutoRevivalHelper.java:1111-1112), SMS/email mengecualikan tipe I, D, V (NotificationSmsEmailHelper.java:1061, 1151), laporan Classified Vehicle memilih tipe V (OcmsValidOffenceNoticeRepository.java:728) dan sync menyalin tipe ke eVON (SyncIntranetInternetService.java:305). Tetapi patch tidak punya efek samping: V ke S tidak me-revive TS-CLV aktif (berjalan sampai due date) dan tidak mengubah stage. TS-CLV pertama saat Toppan upload RR3/DR3 memakai nomor kendaraan berawalan V (ToppanUploadHelper.java:706), bukan tipe: notice yang dijadikan V dengan nomor bukan berawalan V baru tertangkap looping harian, dan notice berawalan V yang dijadikan S masih bisa kena TS-CLV. Job yang aktif di server cannot verify from repo."
+    }
+  ]
+}

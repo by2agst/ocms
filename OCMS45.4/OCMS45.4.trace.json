@@ -1,0 +1,55 @@
+{
+  "story": "OCMS45.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/DailyReportJobsScheduler, framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper,services/PaymentExceptionReportServiceImpl}, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminapi workflows/operational/cronproxy (trigger manual). ocmsadminui pages/Report/lists: tidak ada layar laporan exception. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada",
+  "note": "Story minta laporan ringkasan harian atas notice yang di-suspend sementara dan yang sudah di-update sebagai paid, yang bisa dilihat dan di-download officer. Status story di sheet: Fully paid. Payment Exception Report ada dan dijadwalkan harian 08:00 sebagai job pertama DailyReportJobsScheduler (cron-schedules-prod.properties:255-256, 262; DailyReportJobsScheduler.java:96) dengan tanggal laporan = kemarin (PaymentExceptionReportJob.java:618-621). Isinya notice PS-PRA, TS-PAM dan refund pada tanggal itu (PaymentExceptionReportHelper.java:56-83, 141); notice yang kemudian di-update officer menjadi PS-FP tidak masuk query. Laporan dikirim sebagai attachment Excel lewat email ke daftar OIC; tidak ada layar laporan di staff portal. email.enableSmtp=false di prod, tetapi source PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources sehingga EmailService tetap mengirim (application-prod.properties:80-81, EmailService.java:65-69). Nilai server sebenarnya dan penerimaan email cannot verify from repo. Tiket: OCMS-DF-2026-104 (email ganda sejak 15 Mei 2026, Closed, Prod deployed), OCMS-SR-2026-112 (kolom CRS/EPR/refund ditambah, Closed), OCMS-SR-2026-157 (digabung ke SR-112, Closed), OCMS-SR-2026-190 (Ready to PRD, belum live).",
+  "recommendation": "Klaim sebagian besar. Laporan harian dan email ada; celah: tidak ada kolom amount payable/alasan mismatch, notice yang sudah di-update officer jadi PS-FP tidak ikut, dan tidak ada tampilan di portal.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan ringkasan setiap hari secara otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:262; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:76-96; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:618-621",
+      "fit": "Sesuai",
+      "detail": "DailyReportJobsScheduler jalan 0 0 8 * * ? dengan enabled=true (cron-schedules-prod.properties:255-256) dan menjalankan Payment Exception Report sebagai job pertama (cron-schedules-prod.properties:262, DailyReportJobsScheduler.java:76-96). Tanggal laporan default kemarin (PaymentExceptionReportJob.java:618-621). Jalan sebenarnya di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat notice yang di-suspend sementara karena mismatch (TS-PAM)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:76-83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:255-268",
+      "fit": "Sesuai",
+      "detail": "Query memilih notice dengan suspension_type='TS', epr_reason_of_suspension='PAM' dan epr_date_of_suspension pada tanggal laporan (PaymentExceptionReportHelper.java:76-83); baris diberi exception_type 'TS-PAM' (PaymentExceptionReportHelper.java:255-268). Catatan: notice yang pada tanggal itu sudah berubah jadi PS sebelum job jalan tidak ikut. Karena TS-PAM di code hanya muncul untuk vehicle mismatch AXS (lihat OCMS45.2), laporan ini praktis tidak memuat mismatch amount."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat notice yang sudah di-update sebagai paid",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:70-77; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:131-141; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:373-381",
+      "fit": "Sebagian",
+      "detail": "Laporan memuat PS-PRA (bayar sebagian yang otomatis di-update) dan REFUND pada tanggal itu (PaymentExceptionReportHelper.java:70-77, 131-141). Notice yang officer update menjadi PS-FP lewat manual payment (PaymentUpdateServiceImpl.java:373-381) tidak dipilih oleh query karena hanya PRA/PAM/refund yang diambil. Laporan paid terpisah (Daily Paid Report) memuat semua notice paid tetapi tidak menandai mana yang berasal dari follow-up exception; tidak diverifikasi detailnya di chunk ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat detail yang cukup untuk follow-up (notice, receipt, amount, alasan)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:527-529; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:550-563",
+      "fit": "Sebagian",
+      "detail": "Kolom Excel: S/N, Transaction Date/Time, Exception Type, Notice No., PP Code, Receipt No., Transaction ID, Payment Channel, Amount Paid, CRS Reason, EPR Reason, Refund Date/Time, Refund ID, Refund Reason (PaymentExceptionReportHelper.java:527-529, 550-563). Tidak ada kolom Amount Payable maupun alasan mismatch. Kolom CRS/EPR/refund ditambahkan lewat OCMS-SR-2026-112 (Closed, Prod deployed); OCMS-SR-2026-157 meminta kolom serupa dan digabung ke SR-112."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat melihat dan men-download laporan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:197-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:204; ocmsadminprivateapi/src/main/resources/application-prod.properties:78-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-69",
+      "fit": "Sesuai",
+      "detail": "Job membuat Excel Payment_Exception_Report_yyyyMMdd.xlsx dan mengirimnya sebagai attachment email ke email.report.paymentreport.exception.recipients (PaymentExceptionReportJob.java:197-216, application-prod.properties:78). email.enableSmtp=false, tetapi source PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources (application-prod.properties:80-81) sehingga EmailService tetap mengirim (EmailService.java:65-69). Tidak ada layar laporan ini di ocmsadminui (halaman Report tidak memuat exception/paid). Tiket OCMS-DF-2026-104 (email ganda sejak 15 Mei 2026, Closed, Prod deployed). Nilai server asli dan penerimaan email cannot verify from repo."
+    }
+  ]
+}

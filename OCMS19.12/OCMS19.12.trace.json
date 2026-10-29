@@ -1,0 +1,55 @@
+{
+  "story": "OCMS19.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Revival/form/RevivalForm (onAPI, onSubmit, modal), components/modal/ModalAlert. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController.createStaffBatchResponse, helpers/{RevivalBaseHelper,TemporaryRevivalHelper,PermanentRevivalHelper}}. Repo lain: tidak relevan",
+  "note": "Status di sheet: Fully paid (1 point); tidak ada flow deck. Server mengembalikan hasil per notice (success true/false dan message) dalam envelope data.results; UI menggabungkan hasil request PS dan TS lalu menampilkan modal 'Revival Applied Successfully to N Notices.' dengan ikon centang, atau modal error berisi jumlah berhasil dan gagal. Celahnya: prompt sukses tidak sepenuhnya mencerminkan keadaan akhir, karena kegagalan sinkronisasi eVON, pengembalian amount TS-RED dan pembuatan refund hanya di-log lalu hasil per notice tetap success. Selain itu, kalau request TS melempar exception setelah request PS sudah ter-commit, officer hanya melihat 'Error: ...' tanpa tahu notice PS mana yang sudah ter-revive [Medium confidence: dari pembacaan code, tidak diuji]. Tidak ada tiket maintenance yang spesifik untuk prompt ini.",
+  "recommendation": "Boleh diklaim untuk prompt sukses/gagal revival di staff portal. Sebutkan bahwa kegagalan sub-langkah (eVON, amount TS-RED, refund) tidak muncul di prompt.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Server mengembalikan hasil revival per notice (success, appCode, message) dalam envelope data.results",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:792-815; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:186-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:251-255; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:664; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1101-1117",
+      "fit": "Sesuai",
+      "detail": "Helper TS/PS mengembalikan createSuccessResponse dengan success=true, appCode OCMS-2000 dan message 'TS Revival Success' / 'PS Revival Success' (RevivalBaseHelper.java:807-815; TemporaryRevivalHelper.java:186-190; PermanentRevivalHelper.java:251-255), atau createErrorResponse dengan success=false (RevivalBaseHelper.java:792-800). Controller membungkusnya dengan createStaffBatchResponse (SuspensionProcessingController.java:664, 1106-1117). Envelope selalu OCMS-2000 'Update Success.' walau ada notice gagal; kegagalan per notice ada di results (1109-1112)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UI menggabungkan hasil request PS dan TS menjadi daftar berhasil dan gagal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:125-134; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:153-162; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:165-202",
+      "fit": "Sesuai",
+      "detail": "onAPI membaca res.result.data.results dari tiap POST dan memisahkan item success=true ke list success, selain itu ke list failed (RevivalForm.tsx:125-134, 153-162). Untuk notice yang berhasil, UI mengambil ulang data terbaru lewat validoffencenoticelist (165-188) lalu menyimpannya ke state batch tanpa duplikat (190-202)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kalau semua berhasil, officer melihat prompt sukses 'Revival Applied Successfully to N Notices.'",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:219-221; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:230-235; ocmsadminui/src/components/modal/ModalAlert.tsx:35-45; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:262-267",
+      "fit": "Sesuai",
+      "detail": "Jika success.length > 0 dan failed.length = 0, pesan 'Revival Applied Successfully to N Notices.' dengan isError=false dipasang ke ModalAlert (RevivalForm.tsx:219-221, 230-235). ModalAlert menampilkan ikon centang hijau untuk isError=false (ModalAlert.tsx:35-45). Saat modal ditutup UI pindah ke /notices/revival/view (RevivalForm.tsx:262-267)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kalau ada yang gagal, officer melihat prompt error dengan jumlah berhasil dan gagal, bukan prompt sukses",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:216-228; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:236-244",
+      "fit": "Sesuai",
+      "detail": "Respons kosong menghasilkan 'Error: No response received...' (RevivalForm.tsx:216-218); sebagian gagal menghasilkan 'N Applied Successfully. M Failed...' dan semua gagal 'All M Notices Failed to Apply Revival...' dengan isError=true (222-228). Exception ditangkap dan ditampilkan sebagai 'Error: ...' (236-244). Prompt sukses tidak muncul kecuali tidak ada notice gagal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Prompt sukses mencerminkan keadaan akhir sebenarnya (semua sub-langkah revival benar-benar berhasil)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:603-605; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:919-923; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:340-344; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:148-163; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:236-244",
+      "fit": "Sebagian",
+      "detail": "Sukses dilaporkan setelah update suspended_notice dan VON, padahal kegagalan sinkronisasi eVON (RevivalBaseHelper.java:603-605), pengembalian amount TS-RED (919-923) dan pembuatan refund PS-FP/PRA (PermanentRevivalHelper.java:340-344, 'Revival succeeded but refund creation failed') hanya di-log, dan hasil per notice tetap success=true. Selain itu request PS dan TS dikirim berurutan; kalau POST kedua melempar exception setelah yang pertama ter-commit, UI hanya menampilkan 'Error: ...' (RevivalForm.tsx:148-163, 236-244) tanpa daftar notice yang sudah ter-revive [Medium confidence: perilaku POST hook saat error tidak diuji]."
+    }
+  ]
+}

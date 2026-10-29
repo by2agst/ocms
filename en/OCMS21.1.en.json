@@ -1,0 +1,45 @@
+{
+  "story": "OCMS21.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl (processSingleNotice step 5a, batch prefetch), helpers/NoticeValidationHelper.checkDuplicateOffenseDetailsPreCreation, helpers/NoticeProcessingHelper.setDbbSuspensionFlags, helpers/NoticeRecordHelper (applyPreSetDbbFlags, buildSuspensionRecords)}; ocmsadminprivateapi workflows/repccs/notice_creation/core (copy of the same path for the REPCCS webhook); ocmseserviceapi parkingfines/ParkingFinesController (filter paymentAcceptanceAllowed); ocmsadminui utils/constant.ts (PS code list). thirdpartyapi: no related code.",
+  "note": "Sheet status: 'Demo paid (50% of 75%)'. The story asks for automatic permanent suspension of duplicate notices (rule, date-time, car park, suspension; about 5 scenarios). The code does this at notice creation: a new notice that matches an existing notice (vehicle + rule + car park + date/time) is created straight away as PS-DBB, using 5 conditions on the existing notice (active, PS-FOR, PS-ANS for type O only, paid FP/PRA, other suspension). The notice that gets suspended is the NEW incoming one; older outstanding notices are not swept again. The URA list of the 5 scenarios is not in the repo, so the match cannot be confirmed. Gaps: duplicates inside the same batch do not detect each other, and ocmsadminapi fails open when the check errors. No relevant maintenance ticket (OCMS-DF-2026-086 only mentions the epr/crs reason columns and does not change the verdict). Real property values and DB seeding (e.g. ocms_offence_rule_code) cannot verify from repo.",
+  "recommendation": "Claim detection and PS-DBB at notice creation. Fix/confirm: duplicates within one batch and the fail-open behaviour on query error. Ask URA to confirm the list of 5 scenarios",
+  "steps": [
+    {
+      "step": "When a new notice is created, OCMS automatically runs the duplicate check before the notice is saved",
+      "detail": "processSingleNotice calls checkDuplicateOffenseDetailsPreCreation and then setDbbSuspensionFlags before createNoticeRecord (Sub-step 5a, commented 'DBB must be checked before FOR'). The same path exists in ocmsadminprivateapi (REPCCS webhook). It applies to all create-notice endpoints in CreateNoticeController (create-notice, staff-create-notice, plus-create-notice, repccsWebhook-create-notice)."
+    },
+    {
+      "step": "A notice is a duplicate candidate when vehicle, offence rule and car park match an existing notice",
+      "detail": "The check only runs when vehicleNo, noticeDateAndTime, computerRuleCode and ppCode are all filled (387-388). Candidates are fetched per vehicle+date (CreateNoticeServiceImpl.java:720) and then filtered on the same computerRuleCode and the same ppCode (400-403). This covers 'offence rule' and 'car park' in the story."
+    },
+    {
+      "step": "Notice date and time are compared according to the offence type",
+      "detail": "Offence type O (parking): only the date is compared. Type E (enforcement): date + hour + minute (seconds ignored). Other/U: exact date-time. The offence type is read from the offence rule table (CreateNoticeServiceImpl.java:968-971). These per-type rules are labelled 'OCMS 21' in the code; the story only says 'notice date and time' without detail, so the O vs E detail cannot be matched to the requirement."
+    },
+    {
+      "step": "Scenario 1: the existing notice is still active, so the new notice is a duplicate",
+      "detail": "When the existing notice has a null/empty suspensionType, isDuplicate=true with reason 'Existing notice is active (not suspended)'."
+    },
+    {
+      "step": "Scenarios 2 and 3: the existing notice is PS-FOR or PS-ANS (ANS only for offence type O)",
+      "detail": "An existing PS notice with epr reason FOR is a duplicate; reason ANS is a duplicate only when offenseType = O (parking), not for E."
+    },
+    {
+      "step": "Scenarios 4 and 5: the existing notice is already paid (PS-FP/PRA) or has another suspension type (e.g. TS)",
+      "detail": "crsReason FP or PRA is a duplicate (notice already paid). A suspension type other than PS (e.g. TS) is also treated as duplicate (515-518). PS with another code is not a duplicate (continue, 513). The code has 5 duplicate conditions in total, but the story only says 'about 5 scenarios' without a list, so a match with the URA list cannot be confirmed from the repo."
+    },
+    {
+      "step": "The duplicate notice is created straight away under the special permanent suspension code PS-DBB",
+      "detail": "setDbbSuspensionFlags + applyPreSetDbbFlags fill the VON at INSERT: suspension_type='PS' (SystemConstant.PERMANENT, line 31), epr_reason_of_suspension='DBB' (line 43), due_date_of_revival=null, then an ocms_suspended_notice record is created with remarks 'DBB: <reason> - Original notice: <noticeNo>'. In the Staff Portal, DBB is also in the manual PS code list (ocmsadminui/src/utils/constant.ts:115)."
+    },
+    {
+      "step": "The duplicate check still works for notices in the same batch and when the query fails",
+      "detail": "Duplicate candidates are only loaded from the DB before the batch loop (CreateNoticeServiceImpl.java:706-757); the map is not updated while new notices are built and saved together at the end of the batch, so two duplicate notices in the same file/batch do not detect each other (finding from reading the code; not executed). If the check errors, ocmsadminapi silently returns 'noDuplicate' (NoticeValidationHelper.java:538-539), so the notice is created without PS-DBB (fail-open), whereas ocmsadminprivateapi throws an exception (539-540). The TS-OLD fallback (query failed 3 times) is only reachable on the path without prefetch (440-442). No maintenance ticket for this feature."
+    },
+    {
+      "step": "The offender is not fined twice: payment of the PS-DBB notice is closed",
+      "detail": "applyPreSetDbbFlags sets payment_acceptance_allowed = NOT_ALLOWED ('N'); eService only shows payable notices with the filter paymentAcceptanceAllowed = 'Y' (ParkingFinesController.java:258). Other channels (AXS, counter) cannot verify from repo."
+    }
+  ]
+}

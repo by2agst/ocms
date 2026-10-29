@@ -1,0 +1,55 @@
+{
+  "story": "OCMS17.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/TSForm.tsx (onSubmit, pesan), pages/TS/page/TSView.tsx, pages/NoticeSearch/component/FailedNoticesList.tsx; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper}.java (results[] success/message). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Backend mengembalikan results[] per notice dengan success true ('TS Success') atau success false plus message alasan (stage tidak eligible, notice sudah dibayar, sudah ada PS, source tidak berhak, dsb.). UI menghitung hasil dan menampilkan pop-up: semua berhasil ('Temporary Suspension Applied Successfully to N Notices.'), campuran ('N Applied Successfully. M Failed...') atau semua gagal; notice gagal tampil di tabel 'Failed to TS Notices' dengan kolom Description berisi message alasan, notice sukses tampil di daftar TSList di halaman view. Celah: jika satu request batch (20 notice) error atau timeout, UI menandai seluruh batch sebagai gagal dengan teks error, padahal backend bisa saja sudah menerapkan TS (akar masalah OCMS-SR-2026-022; fix hanya memperkecil batch dan menambah cek res.error, tidak ada rekonsiliasi status). Alasan error sistem pada DB berupa teks generik 'System error. Please inform Administrator'. Tiket: OCMS-SR-2026-022 (pop-up '0 notices', Closed/Prod deployed), OCMS-DF-2026-116 (link notice di daftar gagal membuka halaman kosong, Closed/Prod deployment; link sekarang notices/view/{noticeNo} di FailedNoticesList.tsx, tidak diuji).",
+  "recommendation": "Bisa diklaim untuk prompt berhasil/gagal beserta alasan per notice. Catat celah timeout: satu batch bisa ditampilkan gagal padahal backend sudah menerapkan TS.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengembalikan berhasil atau gagal untuk tiap notice.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-536; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:541-548; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1106-1117",
+      "fit": "Sesuai",
+      "detail": "Notice yang berhasil dikembalikan dengan success=true dan message 'TS Success' (TSH:140, BASE:541-548); notice gagal dengan success=false dan message alasan (BASE:528-536). Semua dibungkus results[] di bawah 'OCMS-2000 Update Success.' (CTRL:1106-1117), jadi status per notice dibaca dari results[].success, bukan dari appCode."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang gagal disertai alasan kegagalannya.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:73-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-275; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:323-336; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:158-179",
+      "fit": "Sesuai",
+      "detail": "Alasan gagal spesifik dikembalikan sebagai message: source tidak berhak ('Source not authorized to use this Suspension Code', BASE:331), stage tidak eligible / notice di Court (BASE:193-275), notice sudah dibayar (TSH:87-90, EligibilityMessage.TS_NOTICE_PAID), sudah ada PS yang tidak mengizinkan TS (TSH:175-176), notice tidak ada ('Invalid Notice Number', TSH:64). Teks lengkap EligibilityMessage ada di SystemConstant dan tidak dibaca ulang di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan berhasil menampilkan jumlah notice yang disuspensi.",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSForm.tsx:167-208; ocmsadminui/src/pages/TS/page/TSView.tsx:72-82",
+      "fit": "Sesuai",
+      "detail": "onSubmit menghitung success/failed dan menampilkan ModalAlert: semua berhasil -> 'Temporary Suspension Applied Successfully to N Notices.' (TSForm:181-183). Setelah modal ditutup UI pindah ke /notices/ts/view (TSForm:228) dan TSView menampilkan notice yang berhasil di TSList dengan data VON terbaru (TSForm:127-148)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan gagal dan daftar menampilkan tiap notice gagal beserta alasannya.",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSForm.tsx:184-190; ocmsadminui/src/pages/NoticeSearch/component/FailedNoticesList.tsx:59-84; ocmsadminui/src/pages/TS/page/TSView.tsx:83-90",
+      "fit": "Sesuai",
+      "detail": "Hasil campuran -> '{n} Applied Successfully. {m} Failed. Please see the details error each notices in table.'; semua gagal -> 'All {m} Notices Failed to Apply Temporary Suspension...' (TSForm:184-190), pop-up ditandai error. Tabel FailedNoticesList menampilkan Notice No (link ke notices/view/{noticeNo}) dan kolom Description = message alasan dari backend (FailedNoticesList:80), baris merah, judul 'Failed to TS Notices' (TSView:83-90)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat error sistem atau timeout, officer diberi tahu bahwa gagal.",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSForm.tsx:109-113; ocmsadminui/src/pages/TS/form/TSForm.tsx:177-181; ocmsadminui/src/pages/TS/form/TSForm.tsx:199-205",
+      "fit": "Sebagian",
+      "detail": "Jika request batch error/timeout (res.error), seluruh notice di batch 20 itu dimasukkan ke failed dengan message error mentah (TSForm:109-113). Backend bisa saja sudah selesai menerapkan TS (akar masalah OCMS-SR-2026-022; fix hanya batch 20 + cek res.error), jadi status 'gagal' di UI bisa salah dan tidak ada pengecekan ulang status. Jika tidak ada respons sama sekali UI menampilkan 'Error: No response received. Please check notice status before retrying.' (TSForm:180). Alasan error DB di backend hanya 'System error. Please inform Administrator' (TSH:136). Seberapa sering timeout terjadi di prod tidak bisa diverifikasi dari repo."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,Payment,PaymentSearchResult}.ts, pages/Payment/API.ts, pages/Payment/Table/Column.ts, hooks/Auth.ts. ocmseserviceapi workflows/spcp/controller/SpcpController, workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmspii/eocmsoffencenoticeownerdriver (DecryptByKey), crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait",
+  "note": "Alur login Singpass/Corppass di Online Customer Portal ada dan terhubung sampai daftar denda outstanding: tombol Singpass (Individual) dan Corppass (Business) di tab ID Number, pembuatan appTxnId dan redirect ke gateway SPCP, verifikasi auth response di backend (SP200), session NRIC/entityId di PII DB plus JWT, lalu pencarian otomatis memakai identitas dari session. Halaman Singpass/Corppass dan gateway SPCP ada di luar repo, jadi bagian itu cannot verify from repo. Mode bypass SPCP hanya aktif di application-dev.properties (spcp.bypass.enabled=true); uat/prod tidak mengaturnya sehingga default false (SpcpController.java:41), nilai di server asli cannot verify from repo. Lookup NRIC memakai DecryptByKey di PII DB; remark demo menyebut PII encryption di internet membuat offender particulars tidak bisa diambil, ini bergantung environment dan cannot verify from repo. Tiket OCMS-SR-2026-186 (investigasi completion rate transaksi sangat rendah, status Ready to PRD) dipakai sebagai petunjuk saja dan tidak mengubah verdict.",
+  "recommendation": "Klaim langkah login, session, dan pencarian berdasarkan identitas session. Langkah redirect ke Singpass/Corppass hanya Sebagian karena handshake ada di luar repo; minta bukti demo atau UAT untuk bagian itu.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tab ID Number di halaman Check and Pay menyediakan tombol login Singpass (Individual users) dan Corppass (Business users)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:561-586; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:335-353",
+      "fit": "Sesuai",
+      "detail": "Tab 'ID Number' me-render tombol SPLoginBtn dan CPLoginBtn; InitSPCPButton memasang onClick yang memanggil onSingpass() atau onCorppass(). Untuk individual dan business user sama-sama tersedia, sesuai teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Klik tombol membuat transaction ID dan mengarahkan browser ke halaman login Singpass/Corppass lewat gateway SPCP",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/hooks/Auth.ts:133-154; ocmseserviceui/src/hooks/Auth.ts:83-131; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:62-80",
+      "fit": "Sebagian",
+      "detail": "onPass memanggil createTxnID (POST createAppTxnId/v1 di SpcpController), menyimpan sessionID/txnID di cache, lalu login() mem-POST form ke {SPCP domain}/spcpWeb/ura{SP|CP}services.do. Sisi repo lengkap. Halaman login Singpass/Corppass, gateway SPCP, dan nilai appId/domain per environment ada di luar repo: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah kembali dari Singpass/Corppass, backend memverifikasi auth response dan membuat session login dengan NRIC (dan entityId untuk Corppass) serta JWT",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:82-101; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:144-219; ocmseserviceui/src/hooks/Auth.ts:359",
+      "fit": "Sesuai",
+      "detail": "handleRealAuth memanggil spcpService.getAuthResponse, menolak jika responseCode bukan SP200 (401) atau NRIC kosong (502), lalu createSession(sessionId, nric, entityId) di PII DB dan generateToken(sessionId); UI menyimpan token lewat setAuthToken. Jalur bypass (handleBypassAuth, baris 108-139) hanya jalan bila spcp.bypass.enabled=true, yang hanya diset di application-dev.properties:46; uat/prod default false. Respons asli dari gateway SPCP cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah login berhasil, daftar denda dicari otomatis tanpa user mengetik apa pun",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Payment.ts:115-137; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:446-470; ocmseserviceui/src/pages/Payment/API.ts:101-118",
+      "fit": "Sesuai",
+      "detail": "useAuth.onSuccess mengisi user lalu memanggil this.search.onSearch(); karena token ada, onSearch memakai APIPostSearchFinesSPCP dengan payload {searchType:'id', filter:'outstanding', $limit, $skip} tanpa NRIC."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pencarian memakai identitas dari session: NRIC untuk individual, entityId (UEN) untuk business user",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-317; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:142-163; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:22-31; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverServiceImpl.java:109-118",
+      "fit": "Sesuai",
+      "detail": "handleIdNoSearchFromJwt memvalidasi Bearer JWT, mengambil session dari PII DB, lalu idType='B' + entityId bila entityId ada, selain itu 'N,F' + NRIC. findNoticeNosByIdNoAndOffenderIndicator mencari notice_no di eocms_offence_notice_owner_driver dengan DecryptByKey(id_no), hanya offender_indicator='Y'. Endpoint menolak (401) bila JWT hilang/kedaluwarsa/session tidak ada, dan payload idNo dari client ditolak (ALLOWED_KEYS_ID_SEARCH). Data di PII DB environment asli (remark demo: PII encryption di internet) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan daftar denda outstanding milik user beserta detailnya",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:319-358; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1028-1046; ocmseserviceui/src/pages/Payment/Table/Column.ts:181-200",
+      "fit": "Sesuai",
+      "detail": "Backend memfilter notice yang belum FP ('outstanding'), menghitung totalOutstanding/totalPaid, paginasi, dan allPayableNotices. UI InitPaymentSPCPUnpaid menampilkan tabel dengan kolom Notice Number, Vehicle Number, Place of Offence, Offence, Status, Amount. Catatan: untuk pencarian ID kolom Date of Offence tidak ditampilkan; itu dinilai di OCMS50.5."
+    }
+  ]
+}

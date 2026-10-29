@@ -1,0 +1,64 @@
+{
+  "story": "OCMS41.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Furnish/form/{DecisionForm,ReplyComposeForm,ReplyEmail,ReplySMS}, pages/Furnish/components/{ComposeEditor,SelectTemplate}, pages/Furnish/hooks/useFurnishAPI, pages/Notice/{hook/useNoticeSubmit,form/Form}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, utilities/{emailutility/EmailService,smsutility/SmsUtil}, application(-prod).properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk langkah ini",
+  "note": "Status di stories.json: Demo paid (50% of 75%); requirement punya status. Demo remark: 'Using ad-hoc sms/email'. Opsi Send Email/SMS ada di form keputusan, officer memilih channel dan penerima, lalu setelah approval tersimpan email/SMS dikirim lewat SMTP dan APIM SMS dan dicatat. Satu langkah Sebagian: isi template (apakah mengajak membayar) disimpan di template store di database, bukan di repo, jadi cannot verify from repo; OCMS-DF-2026-136 (Closed, Prod deployed) mencatat dropdown template pernah kosong. Hal yang perlu diwaspadai: pesan hanya terkirim bila officer menekan 'Add to send list' (compose_list tidak kosong); mencentang Send Email/SMS saja tanpa itu hanya menyimpan approval (useNoticeSubmit.tsx:215-233). Kegagalan kirim tidak membatalkan approval. Pengiriman asli ke SMTP URA dan APIM SMS cannot verify from repo; di repo email.enableSmtp=true (application.properties:133) dan sms.enable=true (application-prod.properties:36), nilai di server sebenarnya cannot verify from repo.",
+  "recommendation": "Klaim: opsi kirim email/SMS setelah approval, pilihan channel dan penerima, serta pencatatan terbukti. Konfirmasi ke URA bahwa isi template memang mengajak membayar (ada di database, tidak di repo)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The officer assesses the details and approves the particulars as Hirer or Driver",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:436-470; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:193-200; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:205-225; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:171-255",
+      "fit": "Sesuai",
+      "detail": "Box 'OIC Review' punya Decision Status dan, bila Approve, pilihan 'Approve As' Driver/Hirer (DecisionForm.tsx:436-470). Submit memanggil approveFurnish ke manual-review/approve-hirer atau approve-driver (useNoticeSubmit.tsx:193-200; useFurnishAPI.ts:205-225; ManualReviewController.java:171-255). Logika approval dan efek ke notice (HST, stage) di luar lingkup story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The decision form offers a Send Email/SMS option",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:471-481; ocmsadminui/src/pages/Notice/form/Form.tsx:88-90; ocmsadminui/src/pages/Notice/form/Form.tsx:240-247",
+      "fit": "Sesuai",
+      "detail": "Checkbox 'Send Email/SMS' (sendEmailSms) ada di box OIC Review (DecisionForm.tsx:471-481); bila dicentang tab 'Reply' muncul (Form.tsx:88-90, 240-247). Opsi ini hanya tampil selama submission belum Approved/Rejected (DecisionForm.tsx:435)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The officer chooses email and/or SMS and the recipient, the furnished hirer/driver",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/ReplyComposeForm.tsx:57-80; ocmsadminui/src/pages/Furnish/form/ReplyComposeForm.tsx:91-112; ocmsadminui/src/pages/Furnish/components/ComposeEditor.tsx:211-266",
+      "fit": "Sesuai",
+      "detail": "Message Mode Email atau SMS dipilih per entri dan 'Add to send list' menambah entri ke compose_list, sehingga satu approval bisa membawa email dan SMS sekaligus (ReplyComposeForm.tsx:57-80, 91-112). Dropdown Recipients (Owner/Driver/Hirer) mengisi emailTo atau mobile dari furnishEmailAddr/furnishTelNo bila indikator cocok, atau dari data owner bila Owner (ComposeEditor.tsx:211-266). Penerima tidak dipaksa hanya furnished person; officer bisa memilih Owner."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The officer picks a ready-made message that advises the hirer/driver to settle the notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:28-61; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:71-104; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:108-117",
+      "fit": "Sebagian",
+      "detail": "SelectTemplate memuat template FURNISH_* dari POST templatestorelist dan menyaringnya menurut keputusan dan penerima, misalnya Approve + Hirer = FURNISH_EMAIL_HIRER / FURNISH_SMS_HIRER, Driver = FURNISH_EMAIL_DRIVER / FURNISH_SMS_DRIVER (SelectTemplate.tsx:28-61, 71-117), lalu merender via templatestore/render. Isi template disimpan di database, bukan di repo, jadi apakah kalimatnya memberi tahu offence dan meminta membayar cannot verify from repo. Officer juga bisa menyunting isi (ComposeEditor). OCMS-DF-2026-136 (Closed, Prod deployed) mencatat dropdown template pernah kosong; saya tidak memverifikasi perbaikannya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The system saves the approval, then sends the emails/SMS in the send list",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:193-233; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:118-203",
+      "fit": "Sesuai",
+      "detail": "Urutan submit: approveFurnish (atau rejectFurnish) dulu; bila sukses dan sendEmailSms dicentang serta compose_list tidak kosong, composeFurnish mengirim SMS sebagai satu batch ke manual-review/send-sms dan email satu per satu ke manual-review/send-email (useNoticeSubmit.tsx:193-233; useFurnishAPI.ts:118-203). Bila approval gagal, email/SMS tidak dikirim (useNoticeSubmit.tsx:202-208); bila kirim gagal, approval tetap dan pesan error ditampilkan (useNoticeSubmit.tsx:219-222). Edge case: sendEmailSms dicentang tanpa 'Add to send list' tidak mengirim apa pun dan hanya melaporkan approval (useNoticeSubmit.tsx:215,230-231). Jalur reject juga mengirim pesan, di luar story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The email and SMS are sent to the recipient and each send is recorded",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:300-345; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:401-415; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:494-520; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:585-610; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-84; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:166-217; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/emailutility/EmailService.java:40-43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/smsutility/SmsUtil.java:237-241; ocmsadminapi/src/main/resources/application-prod.properties:36; ocmsadminapi/src/main/resources/application.properties:133",
+      "fit": "Sesuai",
+      "detail": "send-email memvalidasi txnNo, noticeNo, recipient, subject, htmlBody lalu memanggil sendAndRecordEmail (ManualReviewController.java:300-345; ManualReviewService.java:494-520), send-sms menerima single atau array dan memanggil sendAndRecordSms / batch (ManualReviewController.java:401-415; ManualReviewService.java:585-610). FurnishNotificationService mengirim lewat EmailService (SMTP) dan SmsUtil (APIM batch SMS) lalu menyimpan record service_type FURNISH dengan status S/E ke tabel email/SMS notification (FurnishNotificationService.java:50-84, 166-217). Tidak dimatikan config di repo: email.enableSmtp=true (application.properties:133; EmailService.java:40-43) dan sms.enable=true (application-prod.properties:36; SmsUtil.java:237-241); nilai server sebenarnya dan penerimaan nyata oleh SMTP/APIM cannot verify from repo."
+    }
+  ]
+}

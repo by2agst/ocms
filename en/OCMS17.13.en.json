@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/TSForm.tsx (onSubmit, messages), pages/TS/page/TSView.tsx, pages/NoticeSearch/component/FailedNoticesList.tsx; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper}.java (results[] success/message). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The backend returns a results[] per notice with success true ('TS Success') or success false plus a reason message (stage not eligible, notice already paid, PS already present, source not authorized, etc.). The UI counts the results and shows a pop-up: all succeeded ('Temporary Suspension Applied Successfully to N Notices.'), mixed ('N Applied Successfully. M Failed...') or all failed; failed notices appear in the 'Failed to TS Notices' table with a Description column holding the reason message, successful notices appear in the TSList on the view page. Gap: if one batch request (20 notices) errors or times out, the UI marks the whole batch as failed with the error text even though the backend may already have applied the TS (root cause of OCMS-SR-2026-022; the fix only reduced the batch size and added a res.error check, there is no status reconciliation). Database errors give only the generic text 'System error. Please inform Administrator'. Tickets: OCMS-SR-2026-022 ('0 notices' pop-up, Closed/Prod deployed), OCMS-DF-2026-116 (notice link in the failed list opened a blank page, Closed/Prod deployment; the link is now notices/view/{noticeNo} in FailedNoticesList.tsx, not tested).",
+  "recommendation": "Claimable for the success/failure prompt with a reason per notice. Note the timeout gap: a batch can be shown as failed although the backend already applied the TS.",
+  "steps": [
+    {
+      "step": "The system returns success or failure for every notice.",
+      "detail": "A successful notice returns success=true and message 'TS Success' (TSH:140, BASE:541-548); a failed one returns success=false and a reason message (BASE:528-536). Everything is wrapped in results[] under 'OCMS-2000 Update Success.' (CTRL:1106-1117), so per-notice status is read from results[].success, not from appCode."
+    },
+    {
+      "step": "A failed notice comes with the reason it failed.",
+      "detail": "Specific failure reasons are returned as the message: source not authorized ('Source not authorized to use this Suspension Code', BASE:331), stage not eligible / notice in Court (BASE:193-275), notice already paid (TSH:87-90, EligibilityMessage.TS_NOTICE_PAID), an existing PS that does not allow TS (TSH:175-176), unknown notice ('Invalid Notice Number', TSH:64). The full EligibilityMessage texts live in SystemConstant and were not re-read here."
+    },
+    {
+      "step": "A success message shows how many notices were suspended.",
+      "detail": "onSubmit counts success/failed and shows a ModalAlert: all succeeded -> 'Temporary Suspension Applied Successfully to N Notices.' (TSForm:181-183). After the modal closes the UI moves to /notices/ts/view (TSForm:228) and TSView lists the successful notices in TSList with the latest VON data (TSForm:127-148)."
+    },
+    {
+      "step": "A failure message and a list show each failed notice with its reason.",
+      "detail": "Mixed result -> '{n} Applied Successfully. {m} Failed. Please see the details error each notices in table.'; all failed -> 'All {m} Notices Failed to Apply Temporary Suspension...' (TSForm:184-190), and the pop-up is flagged as an error. The FailedNoticesList table shows Notice No (link to notices/view/{noticeNo}) and a Description column = the reason message from the backend (FailedNoticesList:80), red rows, titled 'Failed to TS Notices' (TSView:83-90)."
+    },
+    {
+      "step": "On a system error or timeout the officer is told it failed.",
+      "detail": "If a batch request errors or times out (res.error), every notice in that group of 20 is put into failed with the raw error message (TSForm:109-113). The backend may already have applied the TS (root cause of OCMS-SR-2026-022; the fix was only batch 20 + the res.error check), so the 'failed' status in the UI can be wrong and there is no status re-check. With no response at all the UI shows 'Error: No response received. Please check notice status before retrying.' (TSForm:180). A database error in the backend only gives 'System error. Please inform Administrator' (TSH:136). How often timeouts occur in prod cannot be verified from the repo."
+    }
+  ]
+}

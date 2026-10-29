@@ -1,0 +1,64 @@
+{
+  "story": "OCMS17.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plusApplySuspension, processNoticeList, processSingleNotice),helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}}; tabel VON, eVON dan ocms_suspended_notice lewat service crud. Tiruan di ocmsadminprivateapi framework/workflows/plus/notice_creation/core dan utilities/suspension_helpers. Repo lain tidak relevan.",
+  "note": "Setelah validasi lolos, POST /plus-apply-suspension menerapkan TS dengan kode dan jumlah hari dari PLUS: due date = sekarang + daysToRevive, VON dan eVON diperbarui, satu baris ocms_suspended_notice ditulis (source PLUS, process_indicator Manual, sr_no baru per notice sesuai OCMS-DF-2026-027, Closed), lalu PLUS dijawab 'TS Success' dengan appCode OCMS-2000. Untuk notice yang sudah punya TS, OCMS tidak meminta atau menyimpan konfirmasi PLUS: TS baru langsung ditumpuk (reason terbaru, due date VON terjauh, TemporarySuspensionHelper.java:104-118). Sinkron eVON bersifat best-effort: kalau gagal hanya di-log. daysToRevive 0 atau negatif diganti default tabel/30 hari tanpa error. Nilai ocms_suspension_reason dan jadwal PLUS cannot verify from repo.",
+  "recommendation": "Klaim sebagai selesai untuk penerapan TS dan pesan sukses. Catat bahwa syarat konfirmasi PLUS untuk notice dengan TS lama tidak diperiksa OCMS, dan sinkron eVON best-effort.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Validasi lolos dan notice tidak punya TS lama, sehingga TS siap diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:54-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1030-1065",
+      "fit": "Sesuai",
+      "detail": "processSingleNotice (checking=false) memanggil TemporarySuspensionHelper.processTS yang menjalankan field wajib, notice ada, source, stage, paid dan PS (TemporarySuspensionHelper.java:54-96); lolos berarti lanjut ke langkah tulis. Fakta yang sama dengan OCMS17.18 langkah kedua."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk notice yang sudah punya TS dan PLUS sudah konfirmasi, OCMS tetap menerapkan TS baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:68-70; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:104-118",
+      "fit": "Sebagian",
+      "detail": "TS baru memang diterapkan di atas TS lama (reason VON = terbaru, due date VON = yang terjauh; baris suspended_notice menyimpan due date TS itu sendiri). Tetapi OCMS tidak punya flag atau pemeriksaan konfirmasi PLUS: request yang sama diproses sama persis dengan dan tanpa konfirmasi. Konfirmasi hanya ada jika PLUS memintanya sendiri (cannot verify from repo). Sama dengan langkah konfirmasi di OCMS17.19."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghitung due date revival dari jumlah hari yang diminta PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:99-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:181-214; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1157-1180",
+      "fit": "Sesuai",
+      "detail": "daysToRevive (PLUS) atau dueDateOfRevival (UI) dibaca oleh extractDaysToRevive; due date = LocalDateTime.now() + daysToRevive hari (TemporarySuspensionHelper.java:188-190). Tepi: nilai 0 atau negatif tidak ditolak, jatuh ke jumlah hari default di ocms_suspension_reason (sumber OCMS) atau 30 hari (TemporarySuspensionHelper.java:192-208)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menandai notice (VON dan eVON) sebagai TS dengan kode suspensi yang diminta",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:120-127; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-352; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:383-437",
+      "fit": "Sesuai",
+      "detail": "updateVON mengisi suspension_type = TS, epr_reason_of_suspension = kode, epr_date_of_suspension = sekarang, due_date_of_revival (SuspensionBaseHelper.java:345-348) dan menyimpan. updateEVON menyalin type dan reason ke eVON; kalau eVON gagal atau tidak ditemukan hanya di-log dan suspension tetap jalan (SuspensionBaseHelper.java:431-434), jadi sinkron eVON best-effort. Due date VON mengikuti yang terjauh (TemporarySuspensionHelper.java:104-118); tiket OCMS-DF-2026-184 (Pending UAT) menyangkut jalur TS-UNC lain, bukan jalur ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat suspension di ocms_suspended_notice untuk jumlah hari yang diminta",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:129-133; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-470; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1030-1065",
+      "fit": "Sesuai",
+      "detail": "insertSuspendedNotice menulis noticeNo, sr_no, suspension_source = PLUS, type TS, reason, officer, due_date_of_revival milik TS ini, remarks, process_indicator = Manual dan cre_user_id. sr_no diambil dari sequence SUSPENDED_NOTICE_SEQ untuk setiap notice (SuspensionProcessingController.java:997), sesuai perbaikan OCMS-DF-2026-027 (Closed, Prod deployed). Tiap notice diproses sendiri sehingga batch bisa sebagian sukses."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan sukses ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:541-551; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:553-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1195",
+      "fit": "Sesuai",
+      "detail": "processTS mengembalikan {noticeNo, srNo, success:true, message:'TS Success'}; addAppCodeToResults menambahkan appCode OCMS-2000 dan response dikirim sebagai HTTP 200. Mirror di ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:117). Penerimaan dan penampilan di PLUS cannot verify from repo."
+    }
+  ]
+}

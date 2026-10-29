@@ -1,0 +1,102 @@
+{
+  "id": "OCMS52.9",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "steps": [
+    {
+      "step": {
+        "en": "After the Day-End combined job (cron.toppanupload, 00:15) finishes, one SMS is sent to every number in cron.sms.alert.recipients",
+        "id": "Setelah job gabungan Day-End (cron.toppanupload, 00:15) selesai, satu SMS dikirim ke setiap nomor di cron.sms.alert.recipients"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:129",
+      "detail": {
+        "en": "executeDayEndJobs runs its sub-jobs through runJob (each exception is caught and recorded as false) and then always calls sendDayEndSms (line 129 and 158-176), which calls JobSmsAlertHelper.sendAlert. sendAlert splits cron.sms.alert.recipients by comma and sends to each non-empty number (JobSmsAlertHelper.java:51-58). Schedule '0 15 0 * * ?' with enabled=true is in cron-schedules-prod.properties:61-62; recipients are in application-prod.properties:90. Whether the SMS really reaches the phones (APIM SMS gateway) cannot be verified from the repo.",
+        "id": "executeDayEndJobs menjalankan sub-job lewat runJob (tiap exception ditangkap dan dicatat false) lalu selalu memanggil sendDayEndSms (line 129 dan 158-176), yang memanggil JobSmsAlertHelper.sendAlert. sendAlert memecah cron.sms.alert.recipients per koma dan kirim ke tiap nomor yang tidak kosong (JobSmsAlertHelper.java:51-58). Schedule '0 15 0 * * ?' dengan enabled=true ada di cron-schedules-prod.properties:61-62; recipients ada di application-prod.properties:90. Apakah SMS benar-benar sampai ke HP (gateway APIM SMS) cannot be verified from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "The Day-End SMS reads 'Job Status: Day End main - X/6 Success, oths - Y/3 Success'",
+        "id": "SMS Day-End berbunyi 'Job Status: Day End main - X/6 Success, oths - Y/3 Success'"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:158-174",
+      "detail": {
+        "en": "The format string is the same, main has 6 names, but othsNames is List.of(job6Name, job7Name) (line 160), so the denominator is 2 and the message reads 'oths - Y/2 Success', not Y/3 (the Javadoc at line 154 says 3, the code does not; ticket OCMS-SR-2026-041 lists 9 sub-tasks, the 9th TS-PDP looping is not in the list). Also lines 118, 120-121, 123 and 126 are commented out: Toppan Upload (Generate letters), HST Auto Suspension, HST Looping Suspension and Payment Acceptance Cutoff never run, so with this code X is at most 2 of 6 (Auto Revival, Admin Fee) and Y at most 2 of 2 (NRO Temp Cleanup, PII Session Cleanup). The SMS therefore says nothing about Toppan letter generation.",
+        "id": "Format string-nya sama, main punya 6 nama, tapi othsNames adalah List.of(job6Name, job7Name) (line 160), jadi denominator-nya 2 dan pesan berbunyi 'oths - Y/2 Success', bukan Y/3 (Javadoc line 154 bilang 3, code-nya tidak; ticket OCMS-SR-2026-041 menyebut 9 sub-task, yang ke-9 TS-PDP looping tidak ada di list). Selain itu line 118, 120-121, 123 dan 126 di-comment: Toppan Upload (Generate letters), HST Auto Suspension, HST Looping Suspension dan Payment Acceptance Cutoff tidak pernah jalan, jadi dengan code ini X maksimal 2 dari 6 (Auto Revival, Admin Fee) dan Y maksimal 2 dari 2 (NRO Temp Cleanup, PII Session Cleanup). Artinya SMS ini tidak bilang apa-apa soal generate letter Toppan."
+      }
+    },
+    {
+      "step": {
+        "en": "After the CES upload job (CesGenerateFileJob) an SMS 'Job Status: CES - X/N Success' is sent",
+        "id": "Setelah job CES upload (CesGenerateFileJob) SMS 'Job Status: CES - X/N Success' dikirim"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:239-278",
+      "detail": {
+        "en": "The job calls sendCesUploadSms (lines 255-278, N = 3 expected files ANS, OFFENCE_RULE, WANTED) only in the InterruptedException and Exception catches (lines 241 and 245). On normal completion or when single files fail (lines 231-237) it returns a JobResult and sends no SMS; the comment at lines 225-229 says the async comcrypt callback is the single source of truth. A generation failure of one file is passed to the callback tracker through markCesGenerationFailure (lines 159, 188, 217).",
+        "id": "Job memanggil sendCesUploadSms (line 255-278, N = 3 file: ANS, OFFENCE_RULE, WANTED) hanya di catch InterruptedException dan Exception (line 241 dan 245). Saat selesai normal atau saat satu file gagal (line 231-237) job hanya return JobResult tanpa SMS; komentar di line 225-229 bilang callback comcrypt yang async adalah sumber kebenaran satu-satunya. Kegagalan generate satu file diteruskan ke tracker callback lewat markCesGenerationFailure (line 159, 188, 217)."
+      }
+    },
+    {
+      "step": {
+        "en": "The CES encrypted-upload callback sends 'Job Status: CES - X/3 Success' when all three files have reported, or after a timeout",
+        "id": "Callback CES encrypted-upload mengirim 'Job Status: CES - X/3 Success' saat ketiga file sudah lapor, atau setelah timeout"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:424-440",
+      "detail": {
+        "en": "recordCesUploadStatus (lines 358-370) stores each file status and sends once all 3 tags are present (atomic claim in ComcryptBatchJobUpdateHelper.markCesFileSftpStatus, line 221). sendCesEncryptUploadSms counts only status UPLOADED and uses CES_EXPECTED_FILE_COUNT = 3 (lines 424-436). A watchdog CesUploadJobsScheduler.sweepCesUploadSmsTimeout (line 79-80, every 60 s) sends with the files reported so far after cron.ces.callback.timeout.minutes=10 (application-prod.properties:91). Whether the comcrypt partner callbacks really arrive cannot be verified from the repo. Ticket OCMS-SR-2026-150 (count-file check for this alert) is Ready to DEV / In SIT, so this behaviour may still change.",
+        "id": "recordCesUploadStatus (line 358-370) menyimpan status tiap file dan mengirim begitu ketiga tag ada (atomic claim di ComcryptBatchJobUpdateHelper.markCesFileSftpStatus, line 221). sendCesEncryptUploadSms hanya menghitung status UPLOADED dan memakai CES_EXPECTED_FILE_COUNT = 3 (line 424-436). Watchdog CesUploadJobsScheduler.sweepCesUploadSmsTimeout (line 79-80, tiap 60 detik) mengirim dengan file yang sudah lapor setelah cron.ces.callback.timeout.minutes=10 (application-prod.properties:91). Apakah callback comcrypt dari partner benar-benar datang cannot be verified from repo. Ticket OCMS-SR-2026-150 (cek count file untuk alert ini) masih Ready to DEV / In SIT, jadi perilaku ini masih bisa berubah."
+      }
+    },
+    {
+      "step": {
+        "en": "The alert is controlled only by cron.sms.alert.enabled and still sends when sms.enable is false",
+        "id": "Alert hanya dikontrol cron.sms.alert.enabled dan tetap terkirim saat sms.enable false"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:336-342",
+      "detail": {
+        "en": "JobSmsAlertHelper.sendAlert returns early only when cron.sms.alert.enabled is false (line 34), when recipients are empty or when the message is empty. It calls SmsUtil.sendSmsForAlert, which goes straight to performSendSms and skips the sms.enable check that sendSms applies (lines 317-330). Prod properties: sms.enable=false (line 87), cron.sms.alert.enabled=true (line 89), so the alert path is on while business SMS is off. Real server values cannot be verified from the repo.",
+        "id": "JobSmsAlertHelper.sendAlert hanya berhenti lebih awal kalau cron.sms.alert.enabled false (line 34), recipients kosong atau pesan kosong. Ia memanggil SmsUtil.sendSmsForAlert yang langsung ke performSendSms dan melewati cek sms.enable yang dipakai sendSms (line 317-330). Prod properties: sms.enable=false (line 87), cron.sms.alert.enabled=true (line 89), jadi jalur alert nyala sementara SMS bisnis mati. Nilai asli di server cannot be verified from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "A job that did not run or failed counts as not-success in the numerator; denominators are fixed in code",
+        "id": "Job yang tidak jalan atau gagal dihitung bukan-sukses di numerator; denominator fixed di code"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:161-170",
+      "detail": {
+        "en": "Day-End: the numerator counts a name only when taskResults.get(name) is TRUE, so a missing (commented out) or failed job adds nothing; the denominators are mainNames.size() (6) and othsNames.size() (2). CES job: every expected tag starts as UNKNOWN and only OK adds one (CesGenerateFileJob.java:257-274); callback: only UPLOADED adds one and the denominator is the constant 3 (ComcryptCallbackHelper.java:68, 430-436). The fixed denominators are as stated, but the Day-End one is 2, not 3 (see step 2).",
+        "id": "Day-End: numerator menghitung nama hanya kalau taskResults.get(name) TRUE, jadi job yang hilang (di-comment) atau gagal tidak menambah; denominator-nya mainNames.size() (6) dan othsNames.size() (2). Job CES: setiap tag dimulai UNKNOWN dan hanya OK yang menambah (CesGenerateFileJob.java:257-274); callback: hanya UPLOADED yang menambah dan denominator-nya konstanta 3 (ComcryptCallbackHelper.java:68, 430-436). Denominator fixed sesuai pernyataan, tapi yang Day-End nilainya 2, bukan 3 (lihat step 2)."
+      }
+    },
+    {
+      "step": {
+        "en": "The environment tag is added to the message so UAT and PROD alerts can be told apart",
+        "id": "Tag environment ditambahkan ke pesan supaya alert UAT dan PROD bisa dibedakan"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/JobSmsAlertHelper.java:49",
+      "detail": {
+        "en": "sendAlert calls injectEnvTag (line 49), which returns spring.profiles.active in upper case plus a space in front of the message (lines 78-80), so the SMS text starts with e.g. 'PROD Job Status: ...'. The profile value on each server cannot be verified from the repo.",
+        "id": "sendAlert memanggil injectEnvTag (line 49) yang mengembalikan spring.profiles.active huruf besar plus spasi di depan pesan (line 78-80), jadi teks SMS diawali misalnya 'PROD Job Status: ...'. Nilai profile di tiap server cannot be verified from repo."
+      }
+    }
+  ],
+  "note": {
+    "en": "Evidence is 5 Sesuai + 2 Sebagian of 7 steps. The alert helper is shared and works as described (env tag, bypass of sms.enable, recipient loop). The Day-End message does not match the acceptance text (oths denominator is 2) and only 2 of its 6 main jobs exist at all because letter generation, HST jobs and the cutoff are commented out; the story title 'Toppan Day-End' overstates what the SMS reports. The CES job itself sends an SMS only when it ends abnormally; the normal alert comes from the encrypted-upload callback or the 10 minute timeout. Delivery to real phones, the APIM SMS gateway, comcrypt callbacks and the live property values cannot be verified from the repo. Ticket OCMS-SR-2026-150 may still change the CES alert. The recipient phone numbers are in application-prod.properties and uat; do not attach those files to the claim. No URA deck or workbook sheet exists for this alert; the only source is tickets OCMS-SR-2026-040 and 041.",
+    "id": "Evidence 5 Sesuai + 2 Sebagian dari 7 step. Helper alert-nya dipakai bersama dan bekerja seperti yang ditulis (env tag, bypass sms.enable, loop recipient). Pesan Day-End tidak sama dengan teks acceptance (denominator oths 2) dan hanya 2 dari 6 main job yang benar-benar ada karena generate letter, job HST dan cutoff di-comment; judul story 'Toppan Day-End' melebihkan apa yang dilaporkan SMS. Job CES sendiri hanya mengirim SMS kalau berakhir abnormal; alert normal datang dari callback encrypted-upload atau timeout 10 menit. Pengiriman ke HP asli, gateway SMS APIM, callback comcrypt dan nilai property live cannot be verified from repo. Ticket OCMS-SR-2026-150 masih bisa mengubah alert CES. Nomor HP penerima ada di application-prod.properties dan uat; jangan lampirkan file itu ke claim. Tidak ada deck atau sheet workbook URA untuk alert ini; sumbernya hanya ticket OCMS-SR-2026-040 dan 041."
+  },
+  "corrections": [
+    "Acceptance 1 says 'oths - Y/3 Success'; the code builds 'oths - Y/2 Success' (ToppanUploadJobsScheduler.java:160). Change to Y/2 or note the difference.",
+    "Acceptance 1 and the demo imply X can reach 6; with the commented-out jobs (ToppanUploadJobsScheduler.java:118, 120, 121, 123, 126) X is at most 2, so a real UAT/PROD SMS reads at most '2/6'.",
+    "Title and user story say 'Toppan Day-End job'; the combined Day-End job does not run Toppan letter generation (line 118 commented, also sftp.upload.disabledServers=toppan in application-prod.properties:86). Reword to 'Day-End combined job'.",
+    "Acceptance 2 'After the CES upload job ... an SMS is sent' is too strong: CesGenerateFileJob sends it only on InterruptedException/Exception (lines 241, 245); the normal SMS comes from the encrypted-upload callback (3 of 3 files) or the 10 minute timeout watchdog.",
+    "Demo step 'Trigger the CES upload job and check the SMS' will not show an SMS right away on a normal run; expect it after the callbacks or after cron.ces.callback.timeout.minutes (10 in prod).",
+    "SMS text is prefixed with the upper-case profile, e.g. 'PROD Job Status: ...' (JobSmsAlertHelper.java:78-80); the quoted acceptance strings omit the prefix."
+  ]
+}

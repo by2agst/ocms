@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts, Table/Column.ts, hooks/Auth.ts, components/modal/ModalSPCP.ts; ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (pencarian vehicle, E2/E4/E5, pencarian ID via JWT), crud/ocmsezdb/eocmsvalidoffencenotice + eocmsusermessage, workflows/spcp/SpcpController. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan",
+  "note": "Story minta halaman mengajak offender login Singpass saat ada fine outstanding yang non-payable di bawah kendaraan yang dicari, agar detailnya bisa dilihat. Code punya mekanisme non-payable: untuk pencarian vehicle, notice di stage court (CPC, CFC, COM, COS, COW, CWM, CWW, CTW, CWT) ditandai payment_acceptance N dengan pesan E2 (ParkingFinesServiceImplement.java:386-391), baris tampil tanpa checkbox dengan ikon info yang membuka teks pesan. Tetapi teks E2 diambil dari DB (getMessage -> eocms_user_message, :59-66), isinya tidak ada di repo; kutipan di OCMS-DF-2026-011 menunjukkan teks E2 mengarahkan ke 'search using your ID number at www.ura.gov.sg/pf', bukan ke login Singpass, dan UI tidak punya tombol login di pesan itu (formatMessageWithLink hanya mengubah 'chat with us'). Tombol Singpass/Corppass ada di tab ID Number halaman yang sama, dan setelah login pencarian ID menampilkan notice non-payable (E4/E5) dengan detail. Handshake Singpass cannot verify from repo; wording pesan di PRD cannot verify from repo.",
+  "recommendation": "Klaim sebagian: deteksi non-payable dan tampilan detail setelah login ada. Prompt login Singpass yang eksplisit belum terbukti di code; minta URA konfirmasi teks pesan E2 di PRD atau tambahkan tombol login di pesan itu",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencari fine berdasarkan nomor kendaraan",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:590-597; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:617; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:113-115; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:385-420",
+      "fit": "Sesuai",
+      "detail": "Tab 'Vehicle Number' memakai input nomor kendaraan dan captcha Turnstile (PaymentSearch.ts:590-597, 617), lalu POST v1/parkingfines {vehicleNo}. handleVehicleNoSearch (ParkingFinesController.java:385-420) memanggil findParkingFinesByVehicleNo. Pencarian ini tanpa login karena /v1/parkingfines publik di JwtFilter (JwtFilter.java:133)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem menandai fine outstanding di kendaraan itu yang tidak bisa dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:33; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:386-400; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:48-61; ocmseserviceui/src/pages/Payment/API.ts:52",
+      "fit": "Sesuai",
+      "detail": "applyVehicleNoConditionLogic: jika last_processing_stage termasuk COURT_PROCESSING_STAGES (:33) maka paymentAcceptanceAllowed = 'N' dengan pesan E2 (:386-391); selain itu memakai flag payment_acceptance_allowed dari eVON dan eservice_message_code (:392-399). findAllByVehicleNoIn hanya mengambil notice tanpa crs_reason_of_suspension dan tanpa an_flag Y (EocmsValidOffenceNoticeRepository.java:48-61). UI mengubah N menjadi isSelect = 'N' (API.ts:52). Perbaikan E1 vs E2 untuk vehicle search ada di OCMS-DF-2026-007, dan pesan court tanpa notice outstanding di OCMS-DF-2026-011 (keduanya Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan prompt agar offender login Singpass",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:59-66; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:387-391; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:51-58; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-273",
+      "fit": "Sebagian",
+      "detail": "Mekanisme pesan ada: baris non-payable punya ikon info yang membuka modal berisi message dari API (PaymentSearchResult.ts:234-273). Isi pesan E2 dibaca dari eocms_user_message lewat getMessage (ParkingFinesServiceImplement.java:59-66) dan tidak ada di repo. Kutipan teks E2 di OCMS-DF-2026-011 berbunyi '...please search using your ID number at www.ura.gov.sg/pf...', tanpa kata Singpass, dan tidak ada tombol atau link login di modal itu: formatMessageWithLink hanya mengubah 'chat with us' jadi link (PaymentSearchResult.ts:51-58). Jadi prompt login Singpass yang eksplisit tidak terbukti; teks aktual di PRD cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender bisa login Singpass atau Corppass dari halaman pencarian",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:336-352; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:561-588; ocmseserviceui/src/hooks/Auth.ts:156-168; ocmseserviceui/src/components/modal/ModalSPCP.ts:32",
+      "fit": "Sebagian",
+      "detail": "Tombol Singpass (individu) dan Corppass (bisnis) ada di tab 'ID Number' halaman Payment dan memanggil onSingpass/onCorppass (PaymentSearch.ts:336-352, 561-588; Auth.ts:156-168). Tombol itu bagian dari pencarian ID biasa, tidak dipicu oleh hasil non-payable. Komponen ModalSPCP ('Login with Singpass', ModalSPCP.ts:32) didefinisikan tetapi tidak ada yang merender <uds-modal-spcp> di src. Halaman login generik yang ada bukan prompt yang dimaksud story, jadi Sebagian. Login Singpass itu sendiri cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah login, offender melihat detail fine non-payable",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-312; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:212-231; ocmseserviceui/src/pages/Payment/Table/Column.ts:97-122; ocmseserviceui/src/pages/Payment/Table/Column.ts:139-177; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-273",
+      "fit": "Sesuai",
+      "detail": "handleIdNoSearchFromJwt mengambil identitas dari JWT/session lalu findParkingFinesByIdNo mengembalikan notice non-payable: annulled atau PS-ANS dengan pesan E5 (:212-220), FP/PRA tanpa pesan (:221-224), dan stage court dengan acceptance N dengan pesan E4 lewat applyCpcConditionLogic. Tabel menampilkan nomor notice, kendaraan, tempat/tanggal/jam offence, kode offence, dan pesan di modal; kolom amount diganti '-' untuk baris non-payable (Column.ts:109-122) dan status '-' (Column.ts:139-177). Pencarian ID hanya memuat baris PII dengan offender_indicator = 'Y'. Identitas Singpass dan isi PII di Internet DB (remark demo 'PII encryption') cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS15.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui: pages/CPS/{list/CPSList.tsx, form/CPSForm.tsx, hook/useCPSFormData.ts}, utils/mapping/CPS/CPS.ts, utils/constant.ts (CPS_ALLOWED_NEW_STAGES), context/OptionsContext.tsx. ocmsadminapi: crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService (daftar stage yang diterima server), OcmsChangeOfProcessing entity. Repo lain: tidak relevan",
+  "note": "Dropdown New Processing Stage dan Reason of Change ada, Remark ada (maks 200 karakter, wajib kalau reason OTH), dan input dikirim ke OCMS untuk dicek. Celah: daftar stage di dropdown (constant.ts:149-158) tidak sama dengan daftar yang diterima server (EligibilityService.java:49-50). ENA ditawarkan tapi selalu ditolak server, CFC diterima server tapi tidak ditawarkan, dan daftar sama untuk semua notice (tidak difilter per Owner/Driver). Isi standardcode PROCESSING_STAGE dan CPS_REASON_CHANGE ada di DB: cannot verify from repo. Tidak ada maintenance ticket yang menyentuh dropdown ini.",
+  "recommendation": "Klaim dengan catatan: 4 Sesuai, 1 Sebagian (daftar stage dropdown tidak selaras dengan aturan server, ENA).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih New Processing Stage dari drop-down list",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/list/CPSList.tsx:260-283; ocmsadminui/src/utils/constant.ts:149-158; ocmsadminui/src/context/OptionsContext.tsx:543-551; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:49-50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:108-113",
+      "fit": "Sebagian",
+      "detail": "Dropdown ada: options dari standardcode PROCESSING_STAGE (OptionsContext.tsx:543-551) lalu disaring CPS_ALLOWED_NEW_STAGES = ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC (constant.ts:149-158; CPSList.tsx:268). Daftar sama untuk semua baris, tidak difilter per Owner/Driver. Tapi ENA tidak ada di DRIVER_STAGES maupun OWNER_HIRER_DIRECTOR_STAGES (EligibilityService.java:49-50), jadi pilihan ENA selalu ditolak INELIGIBLE_STAGE (:108-113); CFC diterima server tapi tidak ditawarkan UI. Isi tabel standardcode: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih Reason of Change dari drop-down list",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/list/CPSList.tsx:285-307; ocmsadminui/src/context/OptionsContext.tsx:430-433",
+      "fit": "Sesuai",
+      "detail": "DropdownInput Reason of Change per baris (CPSList.tsx:285-307) memuat options dari standardcode CPS_REASON_CHANGE (OptionsContext.tsx:430-433). Daftar nilainya (termasuk kode OTH yang dipakai rule remark) ada di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi Remark (wajib kalau reason = OTH)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/list/CPSList.tsx:309-326; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:421-424; ocmsadminui/src/pages/CPS/hook/useCPSFormData.ts:68-70; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/OcmsChangeOfProcessing.java:54-55",
+      "fit": "Sesuai",
+      "detail": "TextInput Remark maks 200 karakter (CPSList.tsx:321), sama dengan kolom remarks length 200 di entity (OcmsChangeOfProcessing.java:54-55). Remark wajib bila reason OTH, dicek di useCPSFormData.ts:68-70 dan di Apply to All (CPSForm.tsx:421-424). Remark wajib untuk OTH tidak ada di story tapi tidak bertentangan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Field wajib (stage baru, reason) dicek sebelum lanjut",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/hook/useCPSFormData.ts:62-67; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:94-105; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:578-580",
+      "fit": "Sesuai",
+      "detail": "validateAll menolak notice tanpa newProcessingStage atau reasonOfChange (useCPSFormData.ts:62-67). Dipanggil saat pindah ke tab Summary (CPSForm.tsx:578-580) dan saat klik Proceed to CPS (:94-105); hasilnya modal error dan baris ditandai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Input officer dikirim ke OCMS supaya validitas stage baru bisa dicek",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/CPS/CPS.ts:11-24; ocmsadminui/src/utils/mapping/CPS/CPS.ts:35-50; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:112-116; ocmsadminui/src/pages/CPS/hook/useCPSFormData.ts:84-89",
+      "fit": "Sesuai",
+      "detail": "toValidateRequest memetakan tiap notice ke item {noticeNo, newStage, reason, remark, letterAddress} (CPS.ts:35-50) dan dikirim POST change-processing-stage/validate (CPSForm.tsx:112-116). Hasil pengecekan di server dibahas di OCMS15.8."
+    }
+  ]
+}

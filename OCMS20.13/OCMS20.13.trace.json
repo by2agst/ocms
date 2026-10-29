@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi MhaNricDataHelper.queryUnclaimedAndHstData + MhaNricDownloadHelper.storeUncHstResults (enquiry MHA untuk NRIC adhoc), DataHiveUenFinService.findAlternativeAddress (alamat alternatif foreigner dari lta_reg/furnished_mail, bukan appeal); ocmsadminapi OwnerDriverControllerPlus (endpoint inbound dari PLUS). Tidak ada client outbound ke PLUS, tabel appeal, atau setting X bulan di enam repo",
+  "note": "Status story: No requirement (requirement tidak diberikan), ditelusuri normal dari teks story. Story minta OCMS, setelah tidak ada perubahan alamat ICA/DOS (NRIC) atau ada perubahan kepemilikan kendaraan (foreigner), mengecek ke PLUS appeal dari ID itu dalam X bulan terakhir termasuk alamat di appeal. Yang ada hanya enquiry alamat NRIC ke MHA untuk antrian adhoc (MhaNricDataHelper.java:442-447) tanpa vonis 'tidak berubah'. Semua integrasi PLUS di code adalah arah masuk: PLUS memanggil OCMS lewat endpoint plus-* (mis. OwnerDriverControllerPlus.java:27,39). Tidak ada panggilan keluar ke PLUS, tidak ada data appeal atau alamat dari appeal, dan tidak ada setting X bulan. DOS = DataHive/LTA tidak bisa dipastikan dari repo. Alamat alternatif yang dicari OCMS untuk foreigner berasal dari lta_reg/furnished_mail (DataHiveUenFinService.java:3564-3600), bukan dari appeal.",
+  "recommendation": "Tidak diklaim: requirement tidak diberikan dan pengecekan appeal ke PLUS tidak ada di code. Hanya enquiry alamat NRIC ke MHA yang bisa disebut sebagai fondasi",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi bahwa tidak ada perubahan alamat terdaftar ICA/DOS untuk pemegang NRIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:442-447; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3223",
+      "fit": "Sebagian",
+      "detail": "ID NRIC (idType N) di ocms_adhoc_nro_temp dikirim ke MHA (MhaNricDataHelper.java:442-447) dan alamat hasilnya disimpan ke ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3135,3223). Tidak ada perbandingan dengan alamat sebelumnya dan tidak ada vonis 'tidak ada perubahan'; perubahan alamat hanya terlihat oleh officer bila membuka datanya. 'DOS' sebagai sumber tidak diimplementasikan: DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi perubahan kepemilikan kendaraan untuk pemilik kendaraan foreigner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:325-328",
+      "fit": "Tidak ada code",
+      "detail": "Antrian adhoc UNC untuk foreigner (id_type F/B) hanya dibaca untuk query alamat DataHive (DataHiveUenFinService.java:325-328). Tidak ada cek perubahan kepemilikan kendaraan yang terhubung ke jalur UNC di enam repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa ke PLUS apakah ada appeal dari ID tersebut dalam X bulan terakhir",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:27; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:39",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada client/URL outbound ke PLUS di enam repo (grep plus di properties dan Java: hanya nama header APIM dan endpoint inbound plus-*), tidak ada setting 'X bulan', dan tidak ada tabel/endpoint appeal di ocmsadminapi maupun ocmsadminprivateapi. Satu-satunya interaksi PLUS terkait ID adalah PLUS yang memanggil OCMS untuk membaca/mengubah owner-driver (OwnerDriverControllerPlus.java:27,39) - arah kebalikan dari story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan appeal mencakup alamat yang diberikan dalam appeal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:39",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penyimpanan atau field alamat-dari-appeal. plus-update-offence-notice-owner-driver (OwnerDriverControllerPlus.java:39) membiarkan PLUS menulis field owner/driver ke OCMS atas inisiatif PLUS, bukan OCMS yang menarik alamat appeal dalam periode tertentu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi apakah ada alamat alternatif yang diberikan dari appeal",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3564-3600",
+      "fit": "Tidak ada code",
+      "detail": "findAlternativeAddress (DataHiveUenFinService.java:3564-3600) mencari alamat alternatif foreigner dari ocms_offence_notice_owner_driver_addr bertipe lta_reg (error_code 0) atau furnished_mail, bukan dari appeal, dan hanya dipanggil saat DataHive tidak mengembalikan alamat. Karena sumbernya berbeda dari story, tidak dihitung sebagai code story ini."
+    }
+  ]
+}

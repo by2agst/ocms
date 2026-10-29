@@ -1,0 +1,33 @@
+{
+  "story": "OCMS9.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (loadAllExcludedIds, batchPreloadContactInfo, refreshCompanyContactInfo, sendEmail)}, schedulers/NotificationJobsScheduler, workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor, services/datahive/contact/{DataHiveContactServiceImpl, helpers/ContactQueryBuilder, helpers/ContactResponseParser}, cron-schedules-prod.properties. ocmsadminapi/ocmsadminui/ocmseserviceapi/ocmseserviceui/thirdpartyapi: no code for these steps",
+  "note": "Status in stories.json is 'Fully paid'. The story asks for this order: check the exclusion list, send the UEN to DOS, receive the latest email, send the email the same day. 'DOS' does not appear in the code; what exists is DataHive (a Corppass view in Snowflake), assumed to be the same as DOS/Vault in the demo remark; that and the Vault/email permission on the App Service cannot be verified from the repo. There are two UEN lookup paths: (1) at LTA download (LtaSnowflakeProcessor, cron ltadownload enabled=true in prod) which stores the email in ocms_offence_notice_owner_driver with no exclusion list check at all; (2) at the eNotification cron (refreshCompanyContactInfo), which is gated by the flag cron.enareminder.datahive=false in dev/uat/prod, and its exclusion check runs AFTER the UEN has been sent to DataHive. The main eNotification cron itself has cron.notification.enabled=false in every environment, so company emails through this cron do not run automatically yet (OCMS-DF-2026-180 is also waiting for the cron to be activated). Only one email is received (first row of CP_ACCOUNT_EMAIL), not several addresses.",
+  "recommendation": "Claim partially. Proven: the UEN lookup to DataHive Corppass at LTA download with the email stored, and the email sending in the eNotification cron. Not proven: the exclusion list being checked before the UEN is sent, several email addresses, and the eNotification cron is still disabled in every environment. Ask URA to confirm whether DataHive = DOS.",
+  "steps": [
+    {
+      "step": "OCMS checks that the company UEN is not on the e-notification exclusion list",
+      "detail": "loadAllExcludedIds() reads every id_no from ocms_enotification_exclusion_list (H:1207-1213); in the job loop, an ID in that set is skipped and, for stage ENA, patched to RD1 the next day (J:226-231). The check covers UENs because the key is id_no regardless of idType."
+    },
+    {
+      "step": "Only UENs that pass the exclusion check are sent to DOS",
+      "detail": "The order is reversed. In the eNotification cron, batchPreloadContactInfo(records) and refreshContactInfo() (J:185-187) run for ALL records, including UENs on the exclusion list; the exclusion list is only loaded at J:194 and checked at J:226. In the LTA download path, lookupContact (LS:81) is called with no exclusion list check at all (no exclusion reference in the lta/download folder). So an opted-out UEN is still sent to DataHive."
+    },
+    {
+      "step": "OCMS sends the company UEN to DOS (DataHive Corppass)",
+      "detail": "At LTA download, processSnowflakeFunction calls dataHiveContactService.lookupContact(ownerId, ownerIdType, notice) (LS:81); for UEN types, the ID is sent to the Corppass view with the query ENTITY_ID IN (...) AND ACCOUNT_STATUS = 'ACTIVE' (QB:83, DC:149-152). The ltadownload cron has enabled=true in prod (cron-schedules-prod.properties:149). The second path in the eNotification cron (H:2419-2429, H:2508-2520) is gated by cron.enareminder.datahive=false. That DataHive = DOS and the Vault access of the App Service cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS receives the company's latest email address from DOS",
+      "detail": "ContactResponseParser.parseCorppassResponse only takes CP_ACCOUNT_EMAIL from firstRow (RP:84-103), so one address, not several. 'Latest' depends only on the content of the view (prod uses *_MASTER, dev/uat *_DELTA); the code does not compare dates. In the eNotification cron path there is an extra requirement ACCOUNT_TYPE = A01 and ACCOUNT_STATUS = ACTIVE (H:2548-2556); if it does not match, stage ENA is patched to RD1. The A01 rule is not in the story text."
+    },
+    {
+      "step": "OCMS stores the received email on the notice owner/driver record",
+      "detail": "If the lookup returns an email, updateContactInfoFromResult patches emailAddr into ocms_offence_notice_owner_driver per noticeNo (LS:145, LS:176-187) and then sets the stage to ENA. The eNotification cron path does the same through updateOcmsCompanyContactInfo (H:2676-2698) when the datahive flag is on."
+    },
+    {
+      "step": "OCMS sends the email notification to the company on the same day",
+      "detail": "For idType B, the job calls notificationHelper.sendEmail (J:378-388, H:556-580) to the address from ocms_offence_notice_owner_driver. The daily schedule is 11:00 (cron.notification.schedule=0 0 11 * * ?, prod:237) but cron.notification.enabled=false in dev, uat and prod (prod:236, the scheduler returns at SCH:49), and the prod:234 comment says it is deliberately off to avoid sending SMS/Email. A manual endpoint POST /notification-sms-email/execute exists. OCMS-DF-2026-180 (Closed) also notes 'Awaiting eNotification cron to activate'. Real email delivery to companies cannot be verified from the repo."
+    }
+  ]
+}

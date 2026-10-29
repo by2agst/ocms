@@ -1,0 +1,55 @@
+{
+  "story": "OCMS17.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/{NoticeSearchAllList,NoticeSearchOutstandingList},component/{NoticeSearchSlot,NoticeSearchUploadSlot},hook/{ApplyOperationAction,useBatchOperation},page/upload/UploadResult}, pages/TS/page/TS, utils/constant (BATCH_OPERATION_FUNCTION_MAP); ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/SuspensionProcessingHelper} (POST /staff-check-suspension-eligibility), api-authorization.properties OCMS_APPLY_TS, config/WebConfig + auth/interceptor/OcmsAuthorizationInterceptor. Penerapan TS itu sendiri (reason, days, remarks, confirm) milik OCMS17.6-17.13",
+  "note": "Status stories.json: Fully paid, 3 points. Officer bisa mencentang notice (per baris atau select-all, maks 1000) di daftar pencarian dan di hasil upload, memilih 'Apply Operation' TS lalu menekan Select, dan notice terpilih dibawa ke halaman TS. Sebelum itu ada pengecekan eligibility ke server yang tidak disebut di story: kalau satu saja notice tidak eligible, seluruh pilihan diblokir dengan modal error (tidak ada pilihan lanjut untuk sisanya), dan kalau request eligibility gagal, hasilnya kosong tanpa pesan lalu officer dibawa ke halaman TS yang tidak menampilkan apa-apa. Ticket OCMS-DF-2026-025 (Closed, Prod deployed) mengembalikan cek PS ke data VON; code sekarang membaca VON. Pembatasan fungsi Apply TS ada di UI (hasFunction) dan di server (mapping OCMS_APPLY_TS lewat interceptor); nilai role per user cannot verify from repo.",
+  "recommendation": "Layak diklaim untuk pemilihan notice dan pengiriman ke halaman TS. Catat dua gap perilaku: satu notice tidak eligible memblokir seluruh pilihan, dan kegagalan request eligibility diam-diam.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice (per baris atau semua) di daftar hasil pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:35-82; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:145-152; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:122-129; ocmsadminui/src/utils/constant.ts:96",
+      "fit": "Sesuai",
+      "detail": "Kedua daftar memasang checkbox select row dan select all (NoticeSearchOutstandingList.tsx:145-152; NoticeSearchAllList.tsx:122-129). Select-all mengambil seluruh hasil lewat POST validoffencenoticelist dan ditolak dengan modal bila total melebihi NOTICE_SEARCH_LIMIT = 1000 (NoticeSearchOutstandingList.tsx:35-82; constant.ts:96)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice di daftar hasil upload",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-74; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchUploadSlot.tsx:82-88",
+      "fit": "Sesuai",
+      "detail": "UploadResult.tsx:64-74 memasang checkbox row dan select-all pada NoticeValidList, dengan slot Apply Operation yang sama (NoticeSearchUploadSlot.tsx:126-145) dan onSubmit meneruskan baris terpilih (:82-88)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih operasi Temporary Suspension (TS) untuk notice terpilih lalu menekan Select",
+      "repo": "ocmsadminui; ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:281-302; ocmsadminui/src/utils/constant.ts:275-277; ocmsadminapi/src/main/resources/api-authorization.properties:58-59; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:78-79",
+      "fit": "Sesuai",
+      "detail": "Dropdown 'Apply Operation' dan tombol Select (NoticeSearchSlot.tsx:281-302) hanya menampilkan opsi yang fungsinya dimiliki user: TS dipetakan ke APPLY_TS (constant.ts:275-277, filter hasFunction di NoticeSearchSlot.tsx:285-288). Di server, fungsi OCMS_APPLY_TS memberi akses ke validoffencenoticelist, staff-apply-suspension dan suspensionreasonlist (api-authorization.properties:58-59) dan interceptor otorisasi terdaftar (WebConfig.java:78-79). Catatan: staff-check-suspension-eligibility ada di fungsi OCMS_NOTICE_SEARCH (properties:21-24), bukan OCMS_APPLY_TS. Role per user cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah notice terpilih boleh di-TS sebelum lanjut ke bulk TS",
+      "repo": "ocmsadminui; ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:135-158; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:121-169; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:277-310; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:275-312",
+      "fit": "Sebagian",
+      "detail": "handleTS memanggil validation['TS'] yang POST ke /staff-check-suspension-eligibility (ApplyOperationAction.tsx:136; useBatchOperation.ts:136-139). Server menolak notice di court stage, di luar stage NPA/ROV/ENA/RD1/RD2/RR3/DN1/DN2/DR3/CPC/CFC, yang sudah paid/PRA, atau PS yang reason-nya bukan FOR/MID/DIP/RP2/RIP (SuspensionProcessingHelper.java:275-312; controller SuspensionProcessingController.java:277-310). Cek ini tidak ada di story. Dua hal yang perlu diwaspadai: (1) bila satu notice saja tidak eligible, seluruh pilihan diblokir dengan modal error dan tidak ada opsi lanjut untuk notice yang eligible (ApplyOperationAction.tsx:139-149); (2) bila request gagal, blok catch mengosongkan success dan failed (useBatchOperation.ts:160-163), handleTS tetap setBatch dengan notices kosong dan menavigasi ke /notices/ts, yang tidak merender apa-apa (TS.tsx:108). Ticket OCMS-DF-2026-025 (Closed, Prod deployed): cek PS sekarang membaca VON (notice.getSuspensionType, helper :303-310). Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice terpilih dibawa ke halaman TS sebagai dasar bulk temporary suspension",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:106-119; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:151-157; ocmsadminui/src/pages/TS/page/TS.tsx:30-110; ocmsadminui/src/App.tsx:162",
+      "fit": "Sesuai",
+      "detail": "setBatch menyimpan notice lolos eligibility ke DataContext lalu nav('/notices/ts') (useBatchOperation.ts:106-119; ApplyOperationAction.tsx:151-157). Route ts/* merender halaman TS (App.tsx:162), yang memuat ulang notice terpilih per 30 notice lewat validoffencenoticelist (TS.tsx:30-65) dan menampilkan TSForm (TS.tsx:108-110). Pengisian reason, days, remarks dan penerapan TS dinilai di OCMS17.6-17.13, bukan di sini."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS8.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/agencies/mha/download/{helpers/MhaNricRecordValidator (selectMostRecentRecord: tanggal sama atau kosong menandai TS-NRO), jobs/MhaNricDownloadJob (meneruskan TS_NRO_FLAG), helpers/MhaNricDownloadHelper (menerapkan TS-NRO secara batch)}, utilities/suspension_helpers/TemporarySuspensionHelper, workflows/autorevival/helpers/AutoRevivalHelper (revival otomatis), services/datahive/.../DataHiveFINBatchService + workflows/datahiveuenfin/services/DataHiveUenFinService (jalur FIN). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status stories: 'Requirement given - Gen flow'. Jalur NRIC (file hasil MHA, job aktif di PROD) sudah mengerjakan kasus 'tidak bisa memutuskan': bila dua baris duplicate (UIN + notice sama) punya Date of Address Change sama atau kosong, baris pertama dipertahankan, record di-flag dan notice disuspend TS-NRO dengan remark 'Duplicate same date: <tanggal>'. Gap: TS-NRO adalah kode umum yang juga dipakai untuk invalid address, field kritis kosong, dan life status tidak konsisten; TS-NRO hanya dipasang bila notice belum punya suspension; TS-NRO punya tanggal revival otomatis (noOfDaysForRevival dari tabel suspension_reason, nilainya cannot verify from repo) sehingga notice bisa berjalan lagi tanpa keputusan OIC; alamat baris pertama tetap ditulis sebagai letter address sementara notice disuspend; jalur FIN dari DataHive tidak punya aturan suspend untuk konflik alamat. Maintenance ticket: OCMS-DF-2026-177 (Closed) mengubah kapan suspension TS-NRO boleh dipasang (hanya bila ID masih offender); code-nya sudah memuat Scenario A/B (MhaNricDownloadHelper.java:836-846), pembuktian di PROD cannot verify from repo.",
+  "recommendation": "Klaim jalur NRIC untuk deteksi konflik dan pemasangan TS-NRO. Tandai Sebagian untuk 'tidak ter-escalate selama menunggu OIC' karena revival otomatis, dan Tidak ada code untuk konflik alamat FIN. Pertimbangkan kode suspension khusus tanpa auto-revival untuk kasus ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS tidak bisa memilih alamat otomatis karena dua alamat duplicate punya tanggal update sama atau kosong",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:335-356",
+      "fit": "Sesuai",
+      "detail": "selectMostRecentRecord: bila semua Date of Address Change null, atau semua tanggal non-null identik, baris pertama dipertahankan dan setFlagTsNro(true) dipanggil (MhaNricRecordValidator.java:341-356). Sisi pembanding (tanggal berbeda, ambil terbaru) ada di OCMS8.7."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record ditandai dengan alasan konflik alamat untuk suspension",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:343-346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:352-356; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:950-956; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1119-1122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1159-1163",
+      "fit": "Sesuai",
+      "detail": "Alasan disimpan sebagai tsNroReason 'True duplicate with missing Date Address Change' atau 'Duplicate same date: <tanggal>' (MhaNricRecordValidator.java:345,354-355). Job menyalin flag ke record sebagai TS_NRO_FLAG='Y' dan TS_NRO_REASON (MhaNricDownloadJob.java:950-956); helper membacanya (MhaNricDownloadHelper.java:1119-1122) dan memakai alasan itu sebagai remark suspension (:1159-1163)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menangguhkan sementara notice dengan suspension code TS-NRO",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1137-1146; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1630-1670; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2745-2755",
+      "fit": "Sesuai",
+      "detail": "Notice yang diflag dikumpulkan hanya bila VON belum punya suspensionType (MhaNricDownloadHelper.java:1137-1146), dicek ulang sebelum apply (:1630-1655), lalu dipasang lewat tsHelper.processTSBatch dengan SuspensionReason.NRO dan remark per notice (:2745-2755). Scenario A OCMS-DF-2026-177 (Closed): bila ID di file bukan offender lagi, record dilewati tanpa suspension (:836-846); pembuktian di PROD cannot verify from repo. Kode NRO dipakai bersama untuk alasan lain (invalid address, field kritis kosong), jadi 'kode tertentu' dibedakan lewat remark, bukan kode sendiri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak ter-escalate selama menunggu keputusan OIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2677-2714; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:127-131; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:69-73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:394-398",
+      "fit": "Sebagian",
+      "detail": "TS-NRO diberi tanggal revival = hari ini + noOfDaysForRevival dari tabel suspension_reason (MhaNricDownloadHelper.java:2677-2714; TemporarySuspensionHelper.java:127-131). AutoRevivalHelper me-revive TS yang dueDateOfRevival-nya sudah lewat, dan NRO ada di daftar reason-nya (AutoRevivalHelper.java:69-73, 394-398). Jadi notice hanya tertahan selama N hari (nilai N cannot verify from repo) lalu bisa lanjut tanpa keputusan OIC. Tidak ada mekanisme yang menahan notice sampai OIC memutuskan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hal yang sama berlaku bila DataHive mengembalikan 2 alamat FIN yang tidak bisa diputuskan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:500-508; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2533-2552; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1131-1136",
+      "fit": "Tidak ada code",
+      "detail": "Untuk FIN, dua baris EPFOREIGNER dengan LAST_CHANGE_ADDRESS_DT sama atau kosong: kondisi 'existing == null || after(existing)' membuat baris pertama bertahan tanpa flag atau suspension (DataHiveFINBatchService.java:500-508). Alamat work permit lalu menang atas alamat pass tanpa melihat konflik (DataHiveUenFinService.java:2533-2552). TS-NRO di jalur FIN hanya dipasang untuk FIN yang tidak ditemukan di DataHive (trackSuspension('TS', 'NRO') lalu processFINNotFoundFlow, DataHiveUenFinService.java:1131-1136), bukan untuk konflik alamat."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.27",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (no season parking field), crud/beans/SystemConstant (Subsystem/RequestSource without SPMS), workflows/notice_creation/core/SuspensionProcessingController (generic PS). ocmsadminprivateapi: no SPMS job/property (application-prod.properties). thirdpartyapi: only cesTpApiARelay and axsNopo. ocmsadminui, ocmseserviceapi, ocmseserviceui: no SPMS/season parking code",
+  "note": "URA status 'No requirement': the requirement text is not given, so the story was traced from the user story text only. The story asks OCMS to send notices issued against vehicles with a URA season parking ticket to SPMS so SPMS can check and raise a PS request. There is no code for SPMS or season parking in the six repos (grep spms, season parking, season_park, seasonparking, seasonpass, ssp: 0 hits), in either the UI or the API. The only thing present is the generic PS mechanism (staff-apply-suspension, plus-apply-suspension), which does not know an SPMS source, so it is counted as Sebagian. No maintenance ticket mentions SPMS or season parking. The SPMS integration may be built outside these six repos: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the generic PS mechanism exists; there is no season parking notice identification, no sending to SPMS, and no request channel from SPMS. Ask URA/the team in which repo the SPMS integration was built, or mark as a gap",
+  "steps": [
+    {
+      "step": "Notices issued against vehicles with a URA season parking ticket can be identified",
+      "detail": "The VON entity only has vehicleNo and vehicleRegistrationType (OcmsValidOffenceNotice.java:121-124); there is no season parking column, flag or lookup. A case-insensitive grep for spms, season parking, season_park, seasonparking, seasonpass and ssp across the six repos (java, ts, tsx, properties, sql, yml, xml; excluding node_modules, build, the stale cronservice copy) returns 0 hits."
+    },
+    {
+      "step": "OCMS selects the season parking notices to send to SPMS",
+      "detail": "The workflows folder in ocmsadminprivateapi holds adminfee, agencies (ces, lta, mha, repccs, toppan, vhub), autorevival, datahive*, plus, uraPg and others; there is no job, cron or property for SPMS. The prod configuration only sets email and SFTP sources that do not mention SPMS (application-prod.properties:81-86)."
+    },
+    {
+      "step": "OCMS sends those notices to SPMS through an interface",
+      "detail": "sftp.upload.allowedSources in prod is only COMCRYPT_ENCRYPTED_LTA and COMCRYPT_ENCRYPTED_CES (application-prod.properties:83); there is no SPMS host, client or endpoint in the six repos. Whether the SPMS integration lives outside the repos (middleware, another team): cannot verify from repo."
+    },
+    {
+      "step": "SPMS checks the notices and raises a PS request to OCMS",
+      "detail": "thirdpartyapi only has the cesTpApiARelay and axsNopo workflows (for example AxsNopoController.java:23-26); there is no inbound endpoint from SPMS. The SPMS side itself (checking and deciding to raise a PS) is an external system: cannot verify from repo."
+    },
+    {
+      "step": "OCMS can apply the permanent suspension requested",
+      "detail": "A generic PS mechanism exists: an officer through staff-apply-suspension (SuspensionProcessingController.java:213) and PLUS through plus-apply-suspension (:485). But the SPMS source is unknown: Subsystem is only OCMS, PLUS, REPCCS_EHT (SystemConstant.java:18-24) and RequestSource is only OCMS_STAFF, PLUS, CRON (:304-308); no season parking reason code is visible in the repo (the contents of ocms_suspension_reason are in the DB: cannot verify from repo). An officer can only apply a manual PS based on a request received outside the system. This is a general mechanism, not the feature the story names."
+    }
+  ]
+}

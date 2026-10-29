@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.20",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/hstreport/{services/HstReportServiceImpl,helpers/HstReportHelper,config/HstReportConfig}, framework/schedulers/{DailyReportJobsScheduler,MonthlyReportJobsScheduler}, framework/workflows/agencies/mha/{upload,download} (jalur MHA/DataHive untuk ID HST), cron-schedules-prod.properties, application-prod.properties; ocmsadminapi workflows/reports/system/hst/HstReportController, api-authorization.properties; ocmsadminui pages/Report/lists/ReportListHST.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'Requirement given - Gen flow'. An HST report exists, but it is produced as part of the monthly cycle, not when the indicator is set. HST Monthly Query (once a month at 08:30) puts all HST IDs into ocms_adhoc_nro_temp, the MHA/DataHive enquiry file carries those IDs, the results are stored in ocms_temp_unc_hst_addr, and then the 08:00 Daily Report job calls checkAndGenerateReports. The 'MonthlyHSTDataReport' holds HST ID, Name, Old Address (HST), New Address (MHA/DataHive), Address Changed, Invalid Address, MHA/DataHive Response Date and is uploaded to blob (HstReportServiceImpl.java:258-290); the 'Work Items' statistics report is emailed to the OIC, but email.enableSmtp=false in prod and the email request has no source in the allowlist, so the email is not sent in prod. The story names ICA/DOS: the code uses MHA/DataHive; 'DOS' cannot be confirmed from the repo. The report is only produced when there are new results (hasUnprocessedHstResults). The staff 'HST Reports' page (ReportListHST.tsx) reads columns (change_in_info, old/new_registered_addres) that do not exist on the OcmsHst entity, and the two ad-hoc endpoints /v1/hst/reports/* have no caller in the UI. The MHA cron status on the real server: cannot verify from repo (OCMS-DF-2026-125 says the MHA cron was not yet switched on in PRD at that time).",
+  "recommendation": "Claim partially. The report content (ID, name, old address, new address, MHA/DataHive response date) exists in code, but it depends on the MHA/DataHive cycle, the email to the OIC is not sent in prod, and ICA/DOS cannot be confirmed from the repo.",
+  "steps": [
+    {
+      "step": "OCMS generates a summary report for IDs that carry the indicator",
+      "detail": "The report is not produced when the indicator is set. The flow: the Monthly Report job (1st of the month, 08:30) calls queueHstIdsForMonthlyCheck, which fills ocms_adhoc_nro_temp with all HST IDs (HstReportServiceImpl.java:152-202; MonthlyReportJobsScheduler.java:76); the MHA/DataHive enquiry file carries those IDs (MhaNricUploadJob.java:160, MhaNricDownloadJob.java:693); then the 08:00 Daily Report job calls checkAndGenerateReports (DailyReportJobsScheduler.java:99), which only produces a report when there are unprocessed results (HstReportHelper.java:353-377). cron.dailyreport and cron.monthlyreport are enabled=true in prod (cron-schedules-prod.properties:255-256, 275-276). The MHA cron status on the real server: cannot verify from repo (OCMS-DF-2026-125; OCMS-DF-2026-126 covers FIN IDs in the queue)."
+    },
+    {
+      "step": "The report contains the offender's particulars (ID and name)",
+      "detail": "fetchHstDataWithAddressComparison joins ocms_hst with ocms_temp_unc_hst_addr (HstReportHelper.java:381-416) and the 'HST Address Comparison' sheet fills the columns 'HST ID' and 'Name' (449-450)."
+    },
+    {
+      "step": "The report contains the date OCMS last checked against ICA/DOS records",
+      "detail": "The column 'MHA/DataHive Response Date' is filled from response_date_time (HstReportHelper.java:476-483) in the Data Comparison report. The monthly report version from HstReportConfig (10 columns, HstReportConfig.java:48-59) has no check date. The source used is MHA/DataHive; that this equals ICA/DOS in this story cannot be confirmed: DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "The report contains the last known registered address",
+      "detail": "The column 'Old Address (HST)' holds the address on the HST record (blk, street, floor-unit, building, postal; HstReportHelper.java:452-459) and 'New Address (MHA/DataHive)' holds the address from the check (461-468), plus 'Address Changed' and 'Invalid Address' (470-476). The address on the HST record comes from the latest mha_reg address in ONOD that is pre-filled at apply time (HstManagementServiceImpl.java:234-295)."
+    },
+    {
+      "step": "The officer uses the report to follow up with ICA/DOS",
+      "detail": "The Excel file is uploaded to blob (HstReportServiceImpl.java:258-290). The Work Items email to the OIC carries no source and email.enableSmtp=false with an allowlist that has no HST source in prod (application-prod.properties:80-81), so it is not sent; the recipient list is also a hard-coded default (line 44). The staff page Report > HST (ReportListHST.tsx:32-60) reads the hst resource with columns change_in_info, hst_cre_date, old/new_registered_addres that do not exist on the OcmsHst entity (OcmsHst.java:25-56), so those columns are probably empty (maybe another DB view, cannot verify from repo). The ad-hoc endpoints /v1/hst/reports/* (HstReportController.java:41,81) are not called from the UI. No code links the report to the follow-up with the agency."
+    }
+  ]
+}

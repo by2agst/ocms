@@ -1,0 +1,33 @@
+{
+  "story": "OCMS49.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui hooks/Auth.ts (Singpass/Corppass login), utils/env.ts (app IDs), route/route.ts, pages/Payment/PaymentSearch.ts. ocmseserviceapi workflows/spcp/controller/SpcpController, SpcpServiceImpl, auth/filter/JwtFilter, application-dev.properties. No Clearance Slip code in any of the six repos.",
+  "note": "Only a generic Singpass login exists (used by Payment and Furnish). The Clearance Slip service itself is missing: grep 'clearance' is empty in all six repos, portal routes are only payment and furnish-particulars, there is no Singpass app ID for Clearance, and no settled-WOA check or clearance slip lookup by ID. The sheet status 'Built - Has gap' is not proven by the repos; it may live in another repo/branch. To verify: (1) another repo/branch for Clearance Slip; (2) Singpass contract and Clearance app ID (cannot verify from repo); (3) spcp.bypass.enabled in UAT/prod (dev true, default false); (4) there is no OCMS flow deck; (5) UAT not checked.",
+  "recommendation": "Big gap: ask the team to point to the Clearance Slip repo/branch or change the story status. Until then, claim only the generic Singpass login.",
+  "steps": [
+    {
+      "step": "Offender has settled the warrant of arrest (WOA) as a precondition",
+      "detail": "No check that the WOA is settled before the Clearance Slip service. The only WOA mention is help text on the Payment search page (PaymentSearch.ts:128). No 'clearance' in any of the six repos."
+    },
+    {
+      "step": "Portal has a Clearance Slip service/page that can be accessed",
+      "detail": "Routes are only payment, payment/processing, payment/success, payment/failure and furnish-particulars (route.ts:17-38). No Clearance Slip route, menu or page; grep clearance is empty in ocmseserviceui and ocmseserviceapi."
+    },
+    {
+      "step": "Offender chooses to log in with Singpass (individual)",
+      "detail": "onSingpass calls onPass with type SP (Auth.ts:156-161), so individual Singpass login exists. But feature is only PAYMENT or FURNISH (Auth.ts:22) and app IDs are only SPCP_PAYMENT_APP_ID and SPCP_FURNISH_APP_ID (utils/env.ts:60-69); no Clearance app ID. Callers are only the Payment page (PaymentSearch.ts:341) and Furnish."
+    },
+    {
+      "step": "Portal creates a transaction ID then redirects the offender to the Singpass page",
+      "detail": "createTxnID POSTs to the CREATE_TXN_ID endpoint (Auth.ts:69-81), then login() submits a form to spcpWeb (Auth.ts:83,121). On the API, SpcpController.createAppTxnId (SpcpController.java:62) forwards to SpcpServiceImpl. The mechanism is generic and works, but uses the Payment/Furnish app ID, not Clearance. The Singpass page itself: cannot verify from repo."
+    },
+    {
+      "step": "After login, portal receives the offender's ID (NRIC) from Singpass",
+      "detail": "getAuthResponse (SpcpController.java:82) fetches the auth result; if spcp.bypass.enabled is true it returns a hardcoded NRIC (SpcpController.java:91,108). That flag is true only in application-dev.properties:46; default is false (SpcpController.java:41) and prod does not set it. The real path calls SpcpServiceImpl; the actual Singpass/APIM reply: cannot verify from repo. This identity is used by other features; nothing uses it for Clearance Slip yet."
+    },
+    {
+      "step": "Page checks whether a clearance slip can be generated for the offender's ID",
+      "detail": "No endpoint, service or query for clearance slips. The existing 'slip' code only prints payment receipts (ReceiptController, PrintSlipRequest), not clearance. No settled-WOA lookup per NRIC."
+    }
+  ]
+}

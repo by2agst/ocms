@@ -1,0 +1,46 @@
+{
+  "story": "OCMS18.21",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST /plus-apply-suspension), helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}, crud/ocmsizdb/OcmsRefundNotice/{OcmsRefundNoticeServiceImpl, OcmsRefundNotice}. ocmsadminprivateapi framework/workflows/paymentReport/{helpers/PaymentExceptionReportHelper, jobs/PaymentExceptionReportJob}, resources cron-schedules-prod.properties, application-prod.properties. Tidak ada code Cumulus di enam repo",
+  "note": "Status di stories.json: No requirement (requirement tidak diberikan), story ditrace normal dari teks. Yang ada: PS-APP/CAN/CFA/VST di atas notice berbayar membuat row refund (ocms_refund_notice) dengan refund_notice_id RE{YYYYMMDD}{NNN}, dan row itu muncul di Daily/Monthly Payment Exception Report. Yang tidak ada: interface ke Cumulus. Kata 'cumulus' tidak muncul di enam repo, dan thirdpartyapi tidak punya code refund sama sekali. Pembuatan refund bersifat non-blocking: bila gagal atau amountPaid kosong, PS tetap tersimpan tanpa refund advice (PermanentSuspensionHelper.java:372-376). Pengiriman email report di prod dimatikan di properties (email.enableSmtp=false); nilai server sebenarnya cannot verify from repo. Autentikasi PLUS (JwtFilter melewati plus-*, bergantung APIM) cannot verify from repo.",
+  "recommendation": "Klaim sebagian: pembuatan refund advice dan kemunculannya di exception report ada. Interface ke Cumulus (OCMS46) tidak ada di repo; jangan diklaim tanpa bukti dari sistem lain. Tiket terkait: OCMS-DF-2026-075, OCMS-DF-2026-070, OCMS-SR-2026-112.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima permanent suspension (PS-APP/CAN/CFA/VST) dari PLUS atas notice yang sudah dibayar dan menerimanya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-487; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:531-550; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1053-1055; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:113-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-192; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:123-126",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension memaksa suspensionSource=PLUS (SuspensionProcessingController.java:531-543), lalu processNoticeList -> processSingleNotice memanggil psHelper.processPS (:546-550, :1053-1055). Notice berbayar dikenali dari crs_reason_of_suspension != null; validatePaidNotice menolak kode PS di luar PS_REFUND_CODES dengan OCMS-4003 (PermanentSuspensionHelper.java:180-192, dipanggil :113-117). Daftar kode dibaca dari ocms_standard_code (SuspensionBaseHelper.java:123-126); isi tabel itu (APP/CAN/CFA/VST) cannot verify from repo. Autentikasi PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat refund advice (row ocms_refund_notice) untuk notice berbayar yang di-PS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-147; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:321-366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:42-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNotice.java:28-58",
+      "fit": "Sesuai",
+      "detail": "Setelah VON/eVON/suspended_notice diupdate (PermanentSuspensionHelper.java:139-144), createRefundRecord dipanggil (:147). Syarat: crs reason asli tidak null dan kode ada di PS_REFUND_CODES (:324-329), amountPaid > 0 (:332-336). receipt_no diambil dari ocms_web_txn_detail (txns.get(0), urutan tidak ditentukan; notice migrasi tanpa transaksi memakai receipt sintetis MIG-<noticeNo>, :339-347). refund_reason = kode PS bila sumber PLUS, 'PSR' bila lain (:352-354). OcmsRefundNoticeServiceImpl.createIfNotExists membuat refund_notice_id dari sequence (:55-56), menyimpan receipt, notice, refund_amount, amount_paid, pp_code, suspension fields dan CRS asli (:58-78); bila sudah ada untuk receipt+notice, ID lama dikembalikan (:47-52). Edge case: bila amountPaid kosong atau pembuatan refund error, suspension tetap tersimpan dan refund dilewati tanpa error ke caller (:324-336, :372-376). Tiket OCMS-DF-2026-075 (PS-APP di atas paid notice tidak membuat refund, Closed, Prod deployed) adalah riwayat jalur ini; re-apply idempotent sekarang menangani kasus itu (:82-95). OCMS-DF-2026-070 terkait (refund details tidak terbentuk, Closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Refund advice di-interface ke Cumulus agar tindak lanjut refund bisa dilakukan",
+      "repo": "ocmsadminapi, ocmsadminprivateapi, thirdpartyapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:78; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:121-141",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada interface Cumulus. Kata 'cumulus' (case-insensitive) tidak muncul di source, resource, atau config enam repo. Refund advice berhenti sebagai row ocms_refund_notice (OcmsRefundNoticeServiceImpl.java:78). thirdpartyapi tidak punya code refund sama sekali. Di ocmsadminprivateapi, refund dibaca hanya oleh report (PaymentExceptionReportHelper.java:121-141) dan dibuat oleh CronSyncTxnData (CronSyncTxnData.java:98-100); tidak ada file, SFTP, atau API call keluar untuk refund. Interface Cumulus (Epic OCMS46) mungkin dibangun di sistem lain: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Refund advice terlihat oleh staf untuk tindak lanjut refund (Daily/Monthly Payment Exception Report)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:121-148; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:164-168; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:55-56; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:161-170; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276; ocmsadminprivateapi/src/main/resources/application-prod.properties:78; ocmsadminprivateapi/src/main/resources/application-prod.properties:80",
+      "fit": "Sebagian",
+      "detail": "PaymentExceptionReportHelper memilih ocms_refund_notice dengan cre_date = tanggal report (:121-148) dan menambahkannya sebagai exception_type REFUND dengan refund_notice_id dan refund_reason (:164-168). PaymentExceptionReportJob mengirim email ke penerima exception (property email.report.paymentreport.exception.recipients, PaymentExceptionReportJob.java:55-56; nilai prod di application-prod.properties:78; pengiriman :161-170). Cron daily 08:00 enabled=true (cron-schedules-prod.properties:255-256), monthly tgl 1 08:30 (:275-276). Tetapi email.enableSmtp=false di application-prod.properties:80, sehingga di repo pengiriman email dimatikan; nilai server sebenarnya cannot verify from repo. Ini kanal report ke staf URA, bukan interface Cumulus. Tiket OCMS-SR-2026-112 (kolom refund ID/date, Closed, Prod deployed)."
+    }
+  ]
+}

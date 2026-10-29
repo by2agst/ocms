@@ -1,0 +1,89 @@
+{
+ "id": "OCMS52.2",
+ "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "The staff menu has an entry 'Batch Update Mailing Address' that opens the page /batch-update-odh.",
+    "id": "Menu staff punya entry 'Batch Update Mailing Address' yang membuka halaman /batch-update-odh."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:329-337",
+   "detail": {
+    "en": "LinkBatchUpdateODH (LinkData.tsx:329-337) has the label 'Batch Update / Mailing Address' (two lines) and path MetaBatchUpdateODH.INDEX.path = '/batch-update-odh' (Meta/BatchUpdateODH.ts:1,6); it is pushed into the menu list at LinkData.tsx:387, but the menu is then filtered by the functionUrls in the user's token (LinkData(user.functionUrls) in MainLayout.tsx:34 runs filterMenusByUrl), so the entry is not shown to every user, and PrivateRoute.tsx:41-52 shows an access-denied page on the route when the functionUrls do not match. App.tsx:241-244 routes 'batch-update-odh' to BatchUpdateODH.UpdateBatchODHPage. On the API side the paths /v1/staff-furnish/search-by-id and /v1/staff-furnish/batch-update-address belong to the permission OCMS_BATCH_UPDATE_ADDRESS (api-authorization.properties:89-90). What functionUrls contain for a role, and which roles hold the permission in a real environment, cannot be verified from the repo.",
+    "id": "LinkBatchUpdateODH (LinkData.tsx:329-337) berlabel 'Batch Update / Mailing Address' (dua baris) dan path MetaBatchUpdateODH.INDEX.path = '/batch-update-odh' (Meta/BatchUpdateODH.ts:1,6); entry ini di-push ke list menu di LinkData.tsx:387, tapi menu lalu difilter oleh functionUrls di token user (LinkData(user.functionUrls) di MainLayout.tsx:34 menjalankan filterMenusByUrl), jadi entry tidak tampil untuk semua user, dan PrivateRoute.tsx:41-52 menampilkan halaman access-denied di route itu kalau functionUrls tidak cocok. App.tsx:241-244 mengarahkan route 'batch-update-odh' ke BatchUpdateODH.UpdateBatchODHPage. Di sisi API path /v1/staff-furnish/search-by-id dan /v1/staff-furnish/batch-update-address masuk permission OCMS_BATCH_UPDATE_ADDRESS (api-authorization.properties:89-90). Isi functionUrls untuk suatu role, dan role mana yang punya permission di environment asli, tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "Search by offender ID lists only outstanding notices where that ID is the current offender (offender_indicator = 'Y'), leaving out PS-FP and PS-PRA and other permanent suspensions except DIP, FOR, MID, RIP, RP2, in pages.",
+    "id": "Search by offender ID hanya menampilkan notice outstanding yang ID itu current offender (offender_indicator = 'Y'), tanpa PS-FP dan PS-PRA dan permanent suspension lain kecuali DIP, FOR, MID, RIP, RP2, dengan paging."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:171-215",
+   "detail": {
+    "en": "SearchForm.tsx:28 POSTs staff-furnish/search-by-id; StaffFurnishController.java:330 passes limit/skip to StaffFurnishService.searchOutstandingNoticesByIdNo (line 743), which uses the native query in OcmsValidOffenceNoticeRepository.java:171-215 (PageRequest from limit/skip in OcmsValidOffenceNoticeServiceImpl.java:1047-1060). The SQL joins ocms_offence_notice_owner_driver on id_no = :idNo AND offender_indicator = 'Y' AND (suspension_type != 'PS' OR suspension_type IS NULL). So every PS notice is excluded, including those whose reason is DIP, FOR, MID, RIP or RP2: the exception list in the Javadoc of StaffFurnishService.searchOutstandingNoticesByIdNo (line 728-736) is NOT in the SQL. TS notices are included, and there is no separate paid/outstanding test beyond the PS exclusion. Current offender, FP/PRA exclusion (they are PS) and pagination are as stated; the DIP/FOR/MID/RIP/RP2 exception is not built.",
+    "id": "SearchForm.tsx:28 melakukan POST staff-furnish/search-by-id; StaffFurnishController.java:330 meneruskan limit/skip ke StaffFurnishService.searchOutstandingNoticesByIdNo (line 743), yang memakai native query di OcmsValidOffenceNoticeRepository.java:171-215 (PageRequest dari limit/skip di OcmsValidOffenceNoticeServiceImpl.java:1047-1060). SQL-nya join ocms_offence_notice_owner_driver dengan id_no = :idNo AND offender_indicator = 'Y' AND (suspension_type != 'PS' OR suspension_type IS NULL). Jadi SEMUA notice PS tersingkir, termasuk yang reason-nya DIP, FOR, MID, RIP atau RP2: daftar pengecualian di Javadoc StaffFurnishService.searchOutstandingNoticesByIdNo (line 728-736) TIDAK ada di SQL. Notice TS ikut tampil, dan tidak ada tes paid/outstanding terpisah selain pengecualian PS. Current offender, pengecualian FP/PRA (keduanya PS) dan paging sesuai; pengecualian DIP/FOR/MID/RIP/RP2 belum dibangun."
+   }
+  },
+  {
+   "step": {
+    "en": "The officer selects notices in the list (or none for all), enters offender particulars and mailing address, and confirms in a dialog.",
+    "id": "Officer memilih notice di list (atau tidak memilih untuk semua), mengisi offender particulars dan mailing address, lalu konfirmasi di dialog."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/BatchUpdateODH/form/EditODHForm.tsx:70-144",
+   "detail": {
+    "en": "BatchUpdateODHList.tsx has row and select-all checkboxes (line 86-87). EditODHForm onAPI uses the selected notice numbers; when none are selected it re-searches the ID with $limit MAX_LIMIT and uses all notices (line 78-96), and the confirm dialog says 'Do You wish to update the particulars of the selected Notices' or 'for all Notices' (line 150-154). The form fields are name, contact code and number, email (EditODHForm.tsx:220-275) and the mailing address block with postal code, block, street, floor, unit, building name (MailingAddressForm.tsx). The UI sends the notices in chunks of 20 (BATCH_SIZE, line 99-123). The street name is required by the server (StaffFurnishController.java:504-506); postal code and block are optional. Review: ID is only used for matching and a different ID fails with \"ID number mismatch\" (StaffFurnishService.java:555-559); with no notice selected every notice of the ID is updated, so the step is only partly as written.",
+    "id": "BatchUpdateODHList.tsx punya checkbox per baris dan select-all (line 86-87). EditODHForm onAPI memakai notice number yang dipilih; kalau tidak ada yang dipilih ia mencari ulang ID dengan $limit MAX_LIMIT dan memakai semua notice (line 78-96), dan dialog konfirmasi berbunyi 'Do You wish to update the particulars of the selected Notices' atau 'for all Notices' (line 150-154). Field form: name, contact code dan nomor, email (EditODHForm.tsx:220-275) dan blok mailing address berisi postal code, block, street, floor, unit, building name (MailingAddressForm.tsx). UI mengirim notice per chunk 20 (BATCH_SIZE, line 99-123). Street name wajib di server (StaffFurnishController.java:504-506); postal code dan block opsional. Review: ID hanya dipakai untuk mencocokkan dan ID yang berbeda gagal dengan \"ID number mismatch\" (StaffFurnishService.java:555-559); tanpa notice yang dipilih semua notice milik ID itu di-update, jadi step ini hanya sebagian sesuai teksnya."
+   }
+  },
+  {
+   "step": {
+    "en": "The same offender particulars and mailing address are written to every selected notice, the ID stays as it is, and the processing stage is not changed.",
+    "id": "Offender particulars dan mailing address yang sama ditulis ke setiap notice terpilih, ID tetap, dan processing stage tidak berubah."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:508-611",
+   "detail": {
+    "en": "batchUpdateAddress (line 681) loops the notice numbers and calls staffUpdateOffenderAndAddress for each. That method saves name, phone code, phone number and email to the offender row (line 581-593, then furnishSyncHelper.syncOnodToPii) and creates or updates the furnished_mail address (line 600-601, createOrUpdateFurnishedMailAddress at line 945). It does not touch the processing stage: it returns notice.getLastProcessingStage() (line 611). BUT the ID is not written: idNo and idType are copied from the existing row (line 582-583) and a different ID in the request makes the notice fail with 'ID number mismatch' (line 556-557), so 'update ID' in the proposal is not what the code does. Name/phone/email left null in the request keep their old values (line 581-586). The whole loop is one @Transactional method but each notice catches its own exception (line 614-618), so one failed notice does not roll back the others; what happens to the shared transaction if a database error occurs mid-loop cannot be verified from the repo.",
+    "id": "batchUpdateAddress (line 681) mengulang notice number dan memanggil staffUpdateOffenderAndAddress untuk tiap notice. Method itu menyimpan name, phone code, phone number dan email ke baris offender (line 581-593, lalu furnishSyncHelper.syncOnodToPii) dan membuat atau meng-update address furnished_mail (line 600-601, createOrUpdateFurnishedMailAddress di line 945). Processing stage tidak disentuh: method mengembalikan notice.getLastProcessingStage() (line 611). TAPI ID tidak ditulis: idNo dan idType disalin dari baris lama (line 582-583) dan ID yang berbeda di request membuat notice gagal dengan 'ID number mismatch' (line 556-557), jadi 'update ID' di proposal bukan yang dilakukan code. Name/phone/email yang null di request mempertahankan nilai lama (line 581-586). Seluruh loop ada di satu method @Transactional tapi tiap notice menangkap exception-nya sendiri (line 614-618), jadi satu notice gagal tidak me-rollback yang lain; apa yang terjadi pada transaction bersama kalau ada error database di tengah loop tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "The officer can tick 'Use this Mailing Address as the Letter Address for the Next Letter' (setAsLetterAddress) so the mailing address becomes the letter address.",
+    "id": "Officer bisa mencentang 'Use this Mailing Address as the Letter Address for the Next Letter' (setAsLetterAddress) supaya mailing address jadi letter address."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:945-1010",
+   "detail": {
+    "en": "MailingAddressForm.tsx has the checkbox setAsLetterAddress; MapAPIBatchUpdateAddress (FurnishMap.ts:90-91) sends it as a boolean. The service sets address.setLetterAddress('Y') on the furnished_mail row only when the flag is true (line 994-996) and then calls resetOtherLetterAddressFlags for the other address rows of that notice (line 1005-1007); when not ticked the existing letter_address flag is kept (line 976-977). The grid button 'Set as Letter Address' in BatchUpdateODHList.tsx:207-216 is a different thing: it only copies the registered address of a row into the form (copyAddress, line 59-68).",
+    "id": "MailingAddressForm.tsx punya checkbox setAsLetterAddress; MapAPIBatchUpdateAddress (FurnishMap.ts:90-91) mengirimnya sebagai boolean. Service mengisi address.setLetterAddress('Y') pada baris furnished_mail hanya kalau flag true (line 994-996) lalu memanggil resetOtherLetterAddressFlags untuk baris address lain milik notice itu (line 1005-1007); kalau tidak dicentang flag letter_address lama dipertahankan (line 976-977). Tombol grid 'Set as Letter Address' di BatchUpdateODHList.tsx:207-216 itu hal lain: ia hanya menyalin registered address satu baris ke form (copyAddress, line 59-68)."
+   }
+  },
+  {
+   "step": {
+    "en": "The result lists success and failure for each notice.",
+    "id": "Hasil menampilkan sukses dan gagal untuk setiap notice."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:276-320",
+   "detail": {
+    "en": "The API does return one item per notice (BatchResultItem with noticeNo, success, message) and HTTP 207 on partial success (StaffFurnishController.java:290-317, FurnishResponse.buildBatchResponse line 602). The staff screen does not show that list: EditODHForm.tsx:100-133 adds up successCount per chunk of 20 and shows one alert '<n> of <total> notices updated successfully.' or, when an HTTP error occurred, one backend message. There is no per-notice success/failure view in ocmsadminui. Whether the 207 status is passed as success or error by the POST wrapper of the UI cannot be verified from this file.",
+    "id": "API memang mengembalikan satu item per notice (BatchResultItem berisi noticeNo, success, message) dan HTTP 207 untuk sukses sebagian (StaffFurnishController.java:290-317, FurnishResponse.buildBatchResponse line 602). Layar staff tidak menampilkan daftar itu: EditODHForm.tsx:100-133 menjumlah successCount per chunk 20 dan menampilkan satu alert '<n> of <total> notices updated successfully.' atau, kalau ada HTTP error, satu pesan backend. Tidak ada tampilan sukses/gagal per notice di ocmsadminui. Apakah status 207 dianggap sukses atau error oleh wrapper POST di UI tidak bisa diverifikasi dari file ini."
+   }
+  }
+ ],
+ "note": {
+  "en": "The screen, the search, the bulk write to every notice without changing the stage, and the letter-address option are built and connected UI to API to DB. Gaps: the search excludes every PS notice (the DIP/FOR/MID/RIP/RP2 exception in the acceptance list and in the Javadoc is not in the SQL); the ID is validated but not changed; and the UI shows only a total count, not success/failure per notice. No URA flow deck or workbook sheet covers this screen, and the repo cannot prove which staff roles see it. Existing orphans #150 and #210 already list the screen, and URA may place it under the Batch Furnish epic (OCMS41.50/41.51); the menu label says mailing address but the form also overwrites name, phone and email.",
+  "id": "Layar, search, tulis massal ke semua notice tanpa mengubah stage, dan opsi letter address sudah dibangun dan tersambung UI ke API ke DB. Gap: search menyingkirkan semua notice PS (pengecualian DIP/FOR/MID/RIP/RP2 di acceptance list dan di Javadoc tidak ada di SQL); ID divalidasi tapi tidak diubah; dan UI hanya menampilkan jumlah total, bukan sukses/gagal per notice. Tidak ada flow deck atau sheet workbook URA yang membahas layar ini, dan repo tidak bisa membuktikan role staff mana yang melihatnya. Orphan #150 dan #210 sudah mencatat layar ini, dan URA bisa menaruhnya di epic Batch Furnish (OCMS41.50/41.51); label menu bilang mailing address tapi form juga menimpa name, phone dan email."
+ },
+ "corrections": [
+  "Acceptance 2: the search excludes ALL notices with suspension_type = 'PS'; the exception for reasons DIP, FOR, MID, RIP, RP2 is not implemented in the SQL (OcmsValidOffenceNoticeRepository.java:171-215), only described in a Javadoc (StaffFurnishService.java:728-736). TS notices are included.",
+  "Acceptance 3 and 4: the ID is not editable or written. The server copies idNo and idType from the existing row and rejects a different ID with 'ID number mismatch' (StaffFurnishService.java:556-557, 582-583). Only name, phone code, phone number, email and the mailing address are written.",
+  "Acceptance 3: add that selecting no notice updates all notices of the ID (EditODHForm.tsx:78-96, 150-154), and that street name is required (StaffFurnishController.java:504-506).",
+  "Acceptance 6: 'Result lists success and failure per notice' is true for the API payload only; the staff screen shows a single total message (EditODHForm.tsx:100-133).",
+  "User story: the 'offender particulars' wording should not include ID."
+ ]
+}

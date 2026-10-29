@@ -1,0 +1,29 @@
+{
+  "story": "OCMS1.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController,CreateNoticeServiceImpl} and helpers/NoticeProcessingHelper (webhook /v1/repccsWebhook-create-notice, JwtFilter bypass). ocmsadminprivateapi framework/workflows/repccs/notice_creation/core (twin endpoint /repccsWebhook + subscription key), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (ROV query), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no REPCCS receiving code",
+  "note": "Status 'User Story Removed': the verdict stays Removed, not claimed. Similar code exists: the REPCCS webhook receives the transaction and creates the notice synchronously (ocmsadminapi and ocmsadminprivateapi), then the LTA Upload cron processes notices at stage ROV. Fits are written as Sebagian because Appendix A of Annex 1A (the Pre-Notice flow) is not in the repo and the word 'Pre-Notice' does not appear in code, so conformity with the flow cannot be proven. No admin fee is applied when the transaction is received (amount_payable = composition amount, NoticeRecordHelper.java:727). Which of the two endpoints REPCCS uses in production and whether REPCCS sends truly in real time: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed). The REPCCS webhook code exists and could be reused if the story is reinstated, but Appendix A of Annex 1A must be supplied to prove the Pre-Notice flow.",
+  "steps": [
+    {
+      "step": "OCMS receives the unpaid parking charge transaction from REPCCS through a webhook",
+      "detail": "There is a POST /v1/repccsWebhook-create-notice endpoint that calls processRepccsCreateNotice (CreateNoticeController.java:46-50); JwtFilter.java:181 exempts it from staff login. A twin endpoint POST /repccsWebhook exists in ocmsadminprivateapi (RepccsCreateNoticeController.java:39) and validates the APIM subscription key (CreateNoticeServiceImpl.java:110-113); the flag ocms.repccs.key.validation.enabled is true in application-prod.properties:126 but false in application-uat.properties:119. The ocmsadminapi version has no key check in code. Which endpoint REPCCS uses in production and whether REPCCS really calls it: cannot verify from repo (APIM/REPCCS configuration)."
+    },
+    {
+      "step": "The transaction is processed in real time when received, without waiting for a batch",
+      "detail": "processRepccsCreateNotice calls processNoticeWithDtoMapping and then createNotice in the same request (CreateNoticeServiceImpl.java:250), so the notice is created synchronously when the webhook arrives, with no batch queue. The timing of what REPCCS sends cannot be verified from repo."
+    },
+    {
+      "step": "The transaction is validated, checked for duplicates, then stored as a notice",
+      "detail": "The request is first saved to audit (saveAudit, :195), mandatory fields are validated (validateMandatoryFields, :197), an existing notice number is rejected with IM_USED (:236-246), then createNotice stores the record (:250). A validation failure returns 400 'Invalid input format or failed validation'. composition amount is copied to amount_payable (NoticeRecordHelper.java:727), so no admin fee is applied when the notice is created. This step is not an explicit sentence in the story but is part of 'receiving the transaction'."
+    },
+    {
+      "step": "The notice enters the automated Pre-Notice flow (stage NPA, next stage ROV)",
+      "detail": "For offence type O with vehicle registration type V/S/D, last_processing_stage is set to NPA and next_processing_stage to ROV (NoticeProcessingHelper.java:924-927). The word 'Pre-Notice' does not appear in the six repos and Appendix A of Annex 1A is not in the repo, so conformity with the Appendix A flow cannot be verified from repo. Other offence type / vehicle type combinations were not traced in this story."
+    },
+    {
+      "step": "OCMS follows up the unpaid charge through the automated Pre-Notice flow",
+      "detail": "The LTA Upload cron selects notices with next_processing_stage='ROV', date <= today, offence type O/E, not PS and not foreign vehicle (OcmsValidOffenceNoticeRepository.java:70-74). It runs twice a day (cron.ltaupload.schedule=0 0 3,19 * * ? with enabled=true, cron-schedules-prod.properties:134-135), so the follow-up is batch, not real time. After the file is sent the stage moves to RD1 (TS) or ENA (others) in LtaUploadHelper.java:200-216. Tickets: OCMS-DF-2026-118 (LTA enquiry must exclude foreign vehicle), OCMS-DF-2026-002 (enquiry once included PS notices), OCMS-DF-2026-160 (Pending Closure: 894 notices left the ROV loop without ownership) and OCMS-SR-2026-182 (1,367 notices stuck at ENA/RD1 without offender) show this flow had defects after go-live. The Appendix A detail is not in the repo."
+    }
+  ]
+}

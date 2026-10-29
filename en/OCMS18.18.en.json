@@ -1,0 +1,21 @@
+{
+  "story": "OCMS18.18",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/suspendednotice (SuspendedNoticeControllerPlus, SuspendedNoticeServiceImplPlus, dto/SuspendedNoticePlusDto) for POST /plus-suspended-notice, plus helpers/SuspensionProcessingHelper.validateSuspension and PermanentSuspensionHelper in notice_creation/core. A copy exists in ocmsadminprivateapi framework/workflows/plus/notice_management/suspension.",
+  "note": "OCMS does not send the old PS details together with the check answer; the PS-over-PS check answer is only {noticeNo, eligible:true, message} (SuspensionProcessingHelper.java:1198-1205). The details (reasonOfSuspension, dateOfSuspension, suspensionSource, dateOfRevival, officer, remarks) can only be fetched by PLUS through a separate call POST /plus-suspended-notice, which supports the filters noticeNo, suspensionType, dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:47-61). There is no 'overwrite' confirmation parameter; PLUS simply calls plus-apply-suspension again. The story demo remark says the API did not pull data and suspects a dropped DB connection after the PLUS deployment of 20 September; this cannot be judged from the repo. The read uses isolation READ_UNCOMMITTED (SuspendedNoticeServiceImplPlus.java:33). No maintenance ticket matches this step.",
+  "recommendation": "Claim partially: the existing PS details can be fetched through a separate endpoint, but OCMS does not send them as part of the check answer and there is no confirmation step. The demo remark flags an unresolved connection/API problem; do not claim in full.",
+  "steps": [
+    {
+      "step": "OCMS includes the existing permanent suspension details in its answer to PLUS after finding the old PS",
+      "detail": "The check answer for a notice that already has a PS is only eligible:true and the text 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205). There is no old PS code or suspension date in the response. Same fact as OCMS18.17 step 4."
+    },
+    {
+      "step": "The existing permanent suspension details (code and suspension date) are available to PLUS",
+      "detail": "POST /plus-suspended-notice returns ocms_suspended_notice rows newest first (SuspendedNoticeServiceImplPlus.java:75) with reasonOfSuspension, dateOfSuspension, dateOfRevival, suspensionSource, officer and remarks (SuspendedNoticePlusDto.java:13-56); the allowed filters include noticeNo, suspensionType, dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:47-61), so PLUS can ask for the active PS. This is a pull by PLUS, not OCMS sending it at check time; PLUS has to call it by itself. The demo remark says the API did not pull data from the DB: cannot verify from repo."
+    },
+    {
+      "step": "The PLUS user knows the existing suspension and can confirm to overwrite it",
+      "detail": "OCMS has no overwrite-confirmation field or endpoint. Confirmation is only PLUS calling POST /plus-apply-suspension again with the new PS code; even the first execute call already overwrites without waiting for confirmation (PermanentSuspensionHelper.java:125-130). The confirmation dialog to the PLUS user lives in the PLUS UI: cannot verify from repo."
+    }
+  ]
+}

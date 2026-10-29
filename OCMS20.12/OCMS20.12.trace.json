@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi DataHiveUenFinService/DataHiveUenFinJob (adhoc FIN/UEN, queryAdhocNroTempData), MhaDownloadJobsScheduler + cron-schedules-prod.properties (uenfin.enabled=false), AutoRevivalHelper, ToppanUploadHelper.resetLetterAddressAfterToppan, ToppanUploadJobsScheduler; ocmsadminapi UnclaimedServiceImpl. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story: Requirement given - Gen flow. Story minta OCMS melanjutkan notice foreigner kalau alamat terdaftar dan kepemilikan kendaraan tidak berubah. Pelanjutan ada hanya sebagai Auto Revival berbasis tanggal TS-UNC (AutoRevivalHelper.java:113-134), tanpa keputusan 'tidak ada perubahan'. FIN yang masuk ocms_adhoc_nro_temp (idType F/B) diproses job DataHive UEN/FIN yang menyimpan alamat terbaru ke ocms_temp_unc_hst_addr (DataHiveUenFinService.java:325-328, DataHiveUenFinJob.java:197-204), tetapi tidak ada perbandingan alamat lama vs baru atau cek perubahan kepemilikan kendaraan di jalur UNC, dan job itu dimatikan di properties prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). Nilai asli di server tidak bisa diverifikasi dari repo. Pengiriman reminder berikutnya memakai alamat dengan letter_address='Y' (mha_reg dulu), tapi pembuatan file harian dikomentari sehingga hanya jalan lewat trigger manual.",
+  "recommendation": "Jangan klaim penuh. Pelanjutan notice lewat Auto Revival bisa diklaim sebagian; cek 'tidak ada perubahan alamat/kepemilikan kendaraan' untuk foreigner belum ada dan job DataHive FIN dimatikan di prod menurut repo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil alamat terdaftar terbaru foreigner (FIN) dari DataHive",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:325-328; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:374; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:197-204; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:102-105",
+      "fit": "Sebagian",
+      "detail": "Job DataHive UEN/FIN membaca ocms_adhoc_nro_temp dengan id_type F/B (DataHiveUenFinService.java:325-328), menggabungkannya dengan record utama (DataHiveUenFinJob.java:197-204) dan menyimpan alamat hasilnya ke ocms_temp_unc_hst_addr. Namun job ini hanya jalan bila cron.mhadownload.uenfin.enabled=true, sedangkan di prod nilainya false (cron-schedules-prod.properties:52; MhaDownloadJobsScheduler.java:102-105 melewati job 2). Nilai asli di server cannot verify from repo. OCMS-DF-2026-126 (Closed) sebelumnya mencatat FIN tersimpan sebagai tipe N dan terkirim ke MHA; OCMS-DF-2026-133 (Closed) mengeluarkan PS notice dari antrian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi bahwa alamat terdaftar dan kepemilikan kendaraan foreigner tidak berubah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2566-2576; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3135",
+      "fit": "Tidak ada code",
+      "detail": "Hasil enquiry foreigner hanya disalin ke ocms_temp_unc_hst_addr (satu baris per id_no, ditimpa bila sudah ada) tanpa membandingkan dengan alamat lama dan tanpa memberi hasil 'tidak berubah'. Tidak ada cek perubahan kepemilikan kendaraan di jalur UNC (query LTA tidak terhubung ke antrian adhoc). DataHiveUenFinService.java:2566-2576 hanya menangani kasus tanpa alamat dengan findAlternativeAddress."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS melanjutkan pemrosesan notice foreigner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:113-134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:644-650; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119",
+      "fit": "Sebagian",
+      "detail": "Auto Revival mengaktifkan kembali notice yang TS-UNC-nya sudah jatuh tempo (AutoRevivalHelper.java:113-134, update VON :644-650, dipanggil day-end ToppanUploadJobsScheduler.java:119). Ini berlaku sama untuk semua ID dan tidak bergantung pada hasil 'tidak ada perubahan' (langkah 2), sehingga pelanjutan terjadi juga kalau alamat sebenarnya berubah. Nilai schedule/enabled asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Follow-up terhadap foreigner berlanjut di alamat terdaftar yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:466-518; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sebagian",
+      "detail": "Untuk id type F/B alamat surat dipilih mha_reg > lta_reg > lta_mail (ToppanUploadHelper.java:495-518), jadi reminder berikutnya memang memakai alamat terdaftar yang ada. Namun pembuatan file Toppan harian dikomentari (ToppanUploadJobsScheduler.java:118) dan hanya jalan lewat POST /generate-letters; upload Toppan dimatikan di properties prod (application-prod.properties:86, OCMS-DF-2026-192). Nilai asli cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS7.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper, LtaBatchTsRovProcessor, LtaProcessingOrchestrator, LtaProcessingStageManager, LtaBatchCode0Processor}, upload/helpers/LtaUploadHelper, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Status in the sheet: 'Fully paid'. The story names DOS (Department of Statistics), but the code and OCMS-DF-2026-194 (which cites the OCMS 7 functional document) use LTA VRLS as the vehicle owner data source. Whether DOS equals LTA cannot be confirmed from the repo (cannot verify from repo); all steps are judged on the code behaviour against LTA VRLS. For responses returned with error code 1, 2, 4, TS-ROV is applied and the notice is re-sent through the upload cycle. What falls short: the resend interval is not driven by the revival days (and defect OCMS-DF-2026-160 exists), and the no-response/broken-file case is not suspended at all. Tickets used: OCMS-DF-2026-160, OCMS-SR-2026-182, OCMS-DF-2026-052 (Closed, cache bug in LTA download).",
+  "recommendation": "Claim error code detection, recording and applying TS-ROV. The resend interval and the no-response case are not fully claimed until URA verifies OCMS-DF-2026-160.",
+  "steps": [
+    {
+      "step": "OCMS detects that the agency could not return particulars (Record Not Found, Invalid Offence Date, Reserved)",
+      "detail": "hasErrorCode treats error codes 1 to 4 as failures (DLH:446-462); those records are split from successful ones (DLH:260-268). Descriptions: 1 Reserved, 2 Record Not Found, 3 Deregistered Vehicle, 4 Invalid Offence Date (DLH:504-517)."
+    },
+    {
+      "step": "The agency error code and processing time are recorded on the notice",
+      "detail": "For error codes 1, 2, 4, Phase 0 calls updateOffenceNoticeLtaDatetimeErrorCode (TSR:79-81), which writes processing_date_time and error_code to owner_driver_addr of type lta_reg (ORCH:384-389, 572-577). The LTA report uses this record."
+    },
+    {
+      "step": "The notice is temporarily suspended under a specific code (TS-ROV)",
+      "detail": "Same as OCMS7.2: PS, paid and non-ROV last-stage notices are skipped (TSR:218-236); the rest get a TS/ROV suspended_notice (TSR:262-272) and VON suspension_type TS, epr_reason ROV, next stage ROV, due_date_of_revival (TSR:277-287). Another branch: if saving owner_driver fails on code 0 or 3, TS-ROV is applied too (C0:307-315). The revival day count from ocms_suspension_reason cannot verify from repo."
+    },
+    {
+      "step": "The vehicle number is sent to the agency again at pre-defined intervals",
+      "detail": "A TS-ROV notice has next stage ROV (TSR:277-287), so the upload query picks it up again in the 03:00/19:00 cycle (REPO:70-74). That query does not read due_date_of_revival, so the resend interval comes from the cron schedule and stage data, not from the revival day count; and the upload advances the stage again (UPHELP:175-179). The revival day value cannot verify from repo. OCMS-DF-2026-160 (Pending Closure, Prod deployed) records 24 TS-ROV notices with inconsistent resend cadence (twice daily, once daily, up to 24+ days with no resend); OCMS-SR-2026-182 re-patches 1,367 notices to stage ROV. Whether the fix is in this repo cannot be confirmed from the ticket alone."
+    },
+    {
+      "step": "If the agency cannot be reached or the result file is broken, the notice is still suspended and re-sent",
+      "detail": "For file integrity errors A/B/C, the download stops and the comment says 'Do NOT apply TS-ROV' (DLH:139-153). applyTsRovForFileIntegrityError exists but is called from nowhere (STG:463-470; grep finds the definition only). Because the upload has already advanced the stage to RD1/ENA (UPHELP:208-222), a notice that gets no response leaves the ROV loop without a suspension. This is consistent with OCMS-DF-2026-160 (894 notices at ENA/RD1 without ownership and without TS-ROV history). The 'no file at all' case is only logged as a successful job (LtaDownloadJob 'No LTA response files found')."
+    }
+  ]
+}

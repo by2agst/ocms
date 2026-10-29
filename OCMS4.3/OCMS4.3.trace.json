@@ -1,0 +1,46 @@
+{
+  "story": "OCMS4.3",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/create-notice), CreateNoticeServiceImpl.processSingleNotice}, helpers/NoticeValidationHelper, dto/OffenceNoticeDto (field decision tidak dipakai), crud/ocmsizdb/OcmsValidOffenceNotice (kolom decision di-comment). ocmsadminui utils/constant.ts (003=EEPS). thirdpartyapi hanya CES relay dan AXS NOPO. Tidak ada endpoint, status atau tabel untuk keputusan EEPS",
+  "note": "Status di sheet 'Built - Has gap'. Kode tidak punya penerimaan keputusan EEPS sama sekali: tidak ada endpoint, DTO atau status 'menunggu keputusan'. Yang bisa dipakai hanya create-notice generik dengan label 003 (EEPS), yang langsung membuat notice. Kalau antarmuka EEPS sebenarnya hanya 'kirim notice yang sudah dikonfirmasi', langkah menerima dan membuat tercakup sebagian; kontrak EEPS tidak ada di repo (cannot verify from repo). Pencocokan keputusan dengan notice yang ditahan tidak ada. Tidak ada tiket pemeliharaan relevan.",
+  "recommendation": "Klaim kecil saja (receive + create generik). Minta URA/tim EEPS menjelaskan kontrak: apakah EEPS mengirim keputusan terpisah atau langsung mengirim notice terkonfirmasi; bila terpisah, fitur ini belum dibangun.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima keputusan dari EEPS untuk mengonfirmasi pembuatan notice payment evasion",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:28-32; ocmsadminui/src/utils/constant.ts:98-104; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:84-103; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/CesCreateNoticeController.java:22-22; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/AxsNopoController.java:38-38; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/AxsNopoController.java:81-81",
+      "fit": "Sebagian",
+      "detail": "Tidak ada endpoint, DTO atau field khusus 'keputusan EEPS' di enam repo. Satu-satunya pintu masuk generik yang bisa menerima kiriman EEPS adalah POST /v1/create-notice (CreateNoticeController.java:28-32) dengan label subsystem 003, yang dikenal di UI sebagai EEPS (constant.ts:98-104) dan dibebaskan dari kewajiban noticeNo (NoticeValidationHelper.java:84-103). thirdpartyapi hanya punya relay CES (CesCreateNoticeController.java:22) dan AXS NOPO (AxsNopoController.java:38,81), tidak ada untuk EEPS. Jadi 'menerima keputusan' hanya terpenuhi kalau EEPS cukup mengirim notice yang sudah dikonfirmasi sebagai create-notice biasa; kontrak antarmuka EEPS cannot verify from repo. Soal autentikasi path ini lihat OCMS4.2 langkah 1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengaitkan keputusan EEPS dengan offence yang sedang menunggu keputusan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/dto/OffenceNoticeDto.java:49-52; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-172",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada record atau status 'menunggu EEPS' yang bisa dikaitkan: notice yang lolos validasi langsung di-INSERT ke VON (CreateNoticeServiceImpl.java:1195). Field decision di OffenceNoticeDto (OffenceNoticeDto.java:49-52) tidak dipakai dan kolomnya di entity VON di-comment (OcmsValidOffenceNotice.java:165-172). Tidak ada lookup berdasarkan id transaksi EEPS di repo mana pun."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah konfirmasi, OCMS melanjutkan membuat parking offence notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1192; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:28-32",
+      "fit": "Sebagian",
+      "detail": "Pipeline pembuatan (validasi, DBB, AN, vehicle type, notice number, INSERT VON dan eVON) ada dan jalan sinkron (lihat OCMS4.1 dan OCMS4.4), tapi dipicu langsung oleh panggilan create-notice (CreateNoticeServiceImpl.java:1192-1195), bukan oleh keputusan yang dikaitkan ke notice yang menunggu. Tidak ada cabang 'konfirmasi' lawan 'tolak'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat tipe parking offence notice yang benar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:140-143; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:967-971; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1128-1151",
+      "fit": "Sebagian",
+      "detail": "Pipeline pembuatan memang menentukan variasi notice (PS-ANS, PS-DBB/TS-OLD, PS-FOR, UPL, military) seperti di OCMS4.1, tapi offenceNoticeType yang disimpan diambil dari pengirim dan tidak dicocokkan dengan rule table (NoticeValidationHelper.java:140-143; CreateNoticeServiceImpl.java:967-971). Fakta yang sama dengan OCMS4.1 dan OCMS4.2, jadi fit-nya sama."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS37.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/notificationreport (NotificationReportJob, NotificationReportHelper), notification_sms_email/services/NotificationSmsEmailServiceImpl (report trigger), crud/beans/SystemConstant. ocmsadminapi: workflows/reports/system/notification/NotificationReportServiceImpl (UNION search of SMS+email). ocmsadminui: pages/Report (ReportListSMS, ReportListEmail, ReportSlot). No ad-hoc code in ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks OCMS to produce a summary report on ad-hoc messages already sent and the officer can download it. Sheet status: Built - Has gap. Since ad-hoc sending does not exist in main (see OCMS37.8), there are no ad-hoc records to report on. What exists is the daily eNotification report (NotificationReportJob, Excel with Summary/Success/Error sheets) hardcoded to service_type = 'Reminder' (SystemConstant.java:19; NotificationReportHelper.java:462) and stages ENA/RD1/RD2/RR3/DN1/DN2/DR3 (helper :277), so it covers per-notice cron messages, not ad-hoc ones. This report is sent as an email attachment to property-configured recipients (NotificationReportJob.java:222-232), not downloaded by an officer, and is triggered after the eNotification cron finishes (NotificationSmsEmailServiceImpl.java:49,67), which in prod has cron.notification.enabled=false (cron-schedules-prod.properties:236); email.enableSmtp=false and allowedSources does not contain ENOTIFICATION (application-prod.properties:80-81), the real server value cannot be verified from the repo. The staff portal has Report tabs 'Cron SMS Sent Reports' and 'Cron Email Sent Reports' as lists (ReportListSMS.tsx:53, ReportListEmail.tsx:54) without an Export button (ReportSlot.tsx:151 shows it only if onExport is given; neither list gives it). Ticket: OCMS-DF-2026-180 (Closed, remark 'Awaiting eNotification cron to activate') shows the eNotification cron is not yet active; it supports Sebagian and changes nothing else.",
+  "recommendation": "Claim partially only. An eNotification reporting mechanism exists but only for cron messages (service_type Reminder), not ad-hoc, and it is delivered by email, not downloaded by the officer",
+  "steps": [
+    {
+      "step": "Officer has already sent ad-hoc SMS or email through OCMS",
+      "detail": "The story precondition is not met in main: the compose-email, compose-sms and message-sent routes are commented out (App.tsx:257-269) and there is no ad-hoc send endpoint (see OCMS37.8). grep adhoc/ad-hoc, test send, message-sent, compose-sms/compose-email, enotification-send in src of ocmsadminapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: only commented-out routes/menus (App.tsx:257-269, LinkData.tsx:143-155), path constants (utils/Meta/AdhocNotification.ts), HstAdHocReportService (HST report, not messages) and the 'adhoc' in DataHiveUenFinJob (NRO address, not SMS/email)."
+    },
+    {
+      "step": "The system produces a summary report of the ad-hoc messages sent",
+      "detail": "A reporting mechanism exists but not for ad-hoc. NotificationReportJob builds the Excel ENOTIF_Report_<date>.xlsx (NotificationReportJob.java:183) after the eNotification cron finishes (NotificationSmsEmailServiceImpl.java:49,67). The query is hardcoded to service_type = SERVICE_TYPE_REMINDER ('Reminder', SystemConstant.java:19, NotificationReportHelper.java:462), so ad-hoc messages are not included. Its trigger, the eNotification cron, has cron.notification.enabled=false in prod (cron-schedules-prod.properties:236); the real server value cannot be verified from the repo. OCMS-DF-2026-180 notes 'Awaiting eNotification cron to activate'."
+    },
+    {
+      "step": "The summary shows counts sent and failed for SMS and email",
+      "detail": "The Summary sheet counts total, successful and failed SMS and email per stage ENA, RD1, RD2, RR3, DN1, DN2, DR3 (NotificationReportHelper.java:277-288, statistics :328-333). The stage list has no ad-hoc category, so ad-hoc counts never appear."
+    },
+    {
+      "step": "The report lists each message with recipient, status, error and send time",
+      "detail": "The Success/Error sheets contain notice_no, contact, name, id_no, processing_stage, message_type, error_message, send date/time (NotificationReportHelper.java:350-367). The staff notification-report/search endpoint unions the email and SMS tables (NotificationReportServiceImpl.java:71-85) with no ad-hoc filter. Details exist, but per notice (ref_no) and only for Reminder records in the Excel report."
+    },
+    {
+      "step": "The report covers only ad-hoc messages, separate from cron messages",
+      "detail": "There is no ad-hoc marker or filter. The Excel report query is locked to service_type 'Reminder' (SystemConstant.java:19, NotificationReportHelper.java:462). The search endpoint accepts serviceType (NotificationReportRequestDto.java) but no ad-hoc value is ever written because no ad-hoc sender exists."
+    },
+    {
+      "step": "Officer downloads the report to see the details",
+      "detail": "The report is sent as an email attachment to recipients from property email.report.recipients (NotificationReportJob.java:222-232), not downloaded by the officer. In prod email.enableSmtp=false and allowedSources does not contain ENOTIFICATION (application-prod.properties:80-81); the job sets no source (NotificationReportJob.java:215-221) so EmailService returns false (EmailService.java:65-70); the real server value cannot be verified from the repo. The Report tabs 'Cron SMS/Email Sent Reports' are lists only (ReportListSMS.tsx:53) with no Export button (ReportSlot.tsx:151 needs onExport, not given)."
+    }
+  ]
+}

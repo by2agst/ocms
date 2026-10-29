@@ -1,0 +1,55 @@
+{
+  "story": "OCMS38.7",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui: pages/NoticeUPL (EndorseList, useEndorsement: endorse UPL memanggil approvalinbox, workitem, workflow), App.tsx route /upl/endorsement, utils/data/LinkData.tsx (menu UPL di-comment). ocmsadminprivateapi: cron-schedules-prod.properties (cron.monthlyreport: Monthly Exception, Monthly Paid, HST Monthly Query), workflows/paymentReport/jobs/MonthlyPaidReportJob dan PaymentExceptionReportJob.executeMonthly (laporan pembayaran lewat email). ocmsadminapi: workflows/notice_management/filedownload/downloadfile/FileDownloadController (sourcePathMap tanpa sumber endorsement), ocmsadminui pages/Report (tidak ada tab endorsement). Tidak ada code laporan endorsement.",
+  "note": "Story minta laporan bulanan atas endorsement yang dilakukan officer lewat work item. Tidak ada code laporan endorsement. Cron bulanan memang ada (cron.monthlyreport, tgl 1 jam 08:30, enabled=true di cron-schedules-prod.properties:275-276) tapi isinya Monthly Exception Report, Monthly Paid Report, dan HST Monthly Query (:282-284): laporan pembayaran/HST yang dikirim lewat email ke daftar penerima tetap, bukan laporan endorsement dan bukan ke officer yang meng-endorse. Sisi endorse sendiri hanya ada di UI (UPL) dan memanggil approvalinbox/workitem yang tidak ada di backend; menu UPL di-comment. Status Requirement given - Gen flow: tidak ada flow deck. Nilai server asli email.enableSmtp=false di application-prod.properties:80 tidak mengubah ini (MONTHLY_PAID_REPORT ada di email.smtp.allowedSources); nilai di server cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya infrastruktur cron bulanan dan email report yang bisa dipakai ulang. Perlu data endorsement di backend, job laporan bulanan endorsement, dan tampilan/download di Report module.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer meng-endorse keputusan pada notice lewat work item di dashboard",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:140-175; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:36-53; ocmsadminui/src/App.tsx:83-87; ocmsadminui/src/utils/data/LinkData.tsx:397-398",
+      "fit": "Sebagian",
+      "detail": "Layar endorse UPL ada: route /upl/endorsement (App.tsx:83-87), daftar notice NPA bertipe U (EndorseList.tsx) dan onEndorseAPI yang memanggil workflow UPL_APPROVAL lalu PATCH approvalinbox (useEndorsement.tsx:140-175). Tapi menu UPL di-comment (LinkData.tsx:397), bukan work item di dashboard, dan endpoint approvalinbox, workitem, serta workflow UPL_APPROVAL tidak ditemukan di backend (grep UPL_APPROVAL dan approvalinbox di src backend: 0 hasil; tidak ada controller workitem). PATCH approvalinbox hanya jalan kalau isAPIFound (STAGING/LOCAL). Jadi hanya UI, end-to-end tidak terbukti dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan catatan endorsement (siapa, kapan, notice, keputusan) sebagai bahan laporan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:166-175; ocmsadminapi/src/main/resources/api-authorization.properties:18",
+      "fit": "Tidak ada code",
+      "detail": "Catatan endorsement hanya dibayangkan di UI: PATCH approvalinbox mengisi keputusan, user ID dan waktu approval (useEndorsement.tsx:166-175). Di backend tidak ada entity, repository, atau tabel untuk approvalinbox maupun endorsement (grep endorse, approvalinbox di ocmsadminapi dan ocmsadminprivateapi src: 0 hasil di Java dan properties). Tabel di DB saja (tanpa entity) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan bulanan atas endorsement secara otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-284; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:47-51; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:511-566",
+      "fit": "Tidak ada code",
+      "detail": "Cron bulanan ada (cron.monthlyreport.schedule=0 30 8 1 * ?, enabled=true, cron-schedules-prod.properties:275-276) tapi hanya menjalankan tiga job: Monthly Exception Report, Monthly Paid Report, HST Monthly Query (:282-284). Isinya laporan pembayaran/refund (PaymentExceptionReportJob.executeMonthly, :248; MonthlyPaidReportJob, :47-51) dan HST, bukan endorsement. Job HST menghasilkan MonthlyHSTWorkItemsReport (11 statistik HST seperti jumlah HST ID dan TS-HST, HstReportHelper.java:511-566, HstReportServiceImpl.java:323), bukan statistik endorsement. Tidak ada job, helper, atau query endorsement (grep endorse di src ocmsadminapi dan ocmsadminprivateapi: 0 hasil). Mekanisme cron bulanan generik ada, isi yang diminta story tidak. Tiket OCMS-SR-2026-148 (closed) hanya soal kolom dan penerima Monthly Paid Report."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan endorsement bisa dilihat officer di OCMS (dashboard/Report module)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:50-146; ocmsadminui/src/pages/Dashboard/Dashboard.tsx:17-31",
+      "fit": "Tidak ada code",
+      "detail": "Report module hanya punya tab Notices Created by Enforcement Systems, RIP, Notices Created in Backend, LTA, vHub, MHA, eNotification, DataHive Contact Info, Reminder Letter, CPS, PS, DataHive FIN, DataHive UEN (ReportList.tsx:50-146). Tidak ada tab endorsement, dan Dashboard kosong (Dashboard.tsx:17-31). Laporan Monthly Paid/Exception juga tidak muncul di module; keduanya dikirim lewat email."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa mengunduh laporan endorsement",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:89-99; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:212-227; ocmsadminprivateapi/src/main/resources/application-prod.properties:75",
+      "fit": "Tidak ada code",
+      "detail": "Download generik POST /v1/download/blob memakai sourcePathMap (TOPPAN, LTA, MHA, DATAHIVE, ENOTIF, UNCLAIMED, TEMPLATE, UEN, FIN, VHUB; FileDownloadController.java:89-99), tidak ada sumber endorsement. Satu-satunya cara Monthly Paid/Exception sampai ke user adalah attachment email ke daftar penerima tetap (MonthlyPaidReportJob.java:212-227, email.report.paymentreport.monthly.recipients di application-prod.properties:75), bukan ke officer yang meng-endorse. Laporan endorsement tidak ada, jadi tidak ada yang diunduh."
+    }
+  ]
+}

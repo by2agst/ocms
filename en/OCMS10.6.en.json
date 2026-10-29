@@ -1,0 +1,41 @@
+{
+  "story": "OCMS10.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, utilities/smsutility/SmsUtil, crud/ocmsizdb/OcmsSmsNotificationRecords, framework/schedulers/NotificationJobsScheduler, properties application-{dev,uat,prod} and cron-schedules-prod. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no AN SMS sending code (ocmsadminapi only creates the notice and AN flag)",
+  "note": "Sheet status: Demo paid (50% of 75%). No flow deck. The AN SMS is sent by the same eNotification job as the normal ENA SMS (NotificationSmsEmailJob): a notice with an_flag='Y' uses the AN_SMS template (NotificationSmsEmailHelper.java:279-281, 371) and goes out through the Postman2 batch (:1611). Three things keep the claim from being full. (1) The story asks for one SMS per unique individual owner, but the code deliberately sends one SMS per notice (NotificationSmsEmailJob.java:249, 279; NotificationSmsEmailHelper.java:2171-2173): an owner with 3 ANs gets 3 SMSes. (2) The batch result is all-or-nothing (NotificationSmsEmailHelper.java:1674; NotificationSmsEmailJob.java:374): one failed SMS makes the whole batch (up to 1000) count as not sent, so PS-ANS is applied to none of the ANs in that batch (NotificationSmsEmailJob.java:400-402). (3) Real sending is blocked by config in the repo: cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236), sms.enable=false and no sms.allowedSources in prod (application-prod.properties:87). The ENA selection query also drops notices of vehicle type I/D/V and notices already PS-ANS (NotificationSmsEmailHelper.java:1061-1062), although an OCMS-side AN can be type S/D/V/I (CreateNoticeServiceImpl.java:843-846). The AN_SMS template text lives in the database (ocms_template_store), not in the repo: cannot verify from repo. The Postman2 gateway and the SMS permission on the App Service: cannot verify from repo. Ticket: OCMS-DF-2026-180 (Closed, Prod deployment) changed the ENA payment due date formula; whether AN_SMS uses that placeholder: cannot verify.",
+  "recommendation": "Claim partially. The AN SMS send path exists (AN_SMS template, Postman2 batch, status recording), but ask URA to confirm the one-SMS-per-owner rule (code: per notice), fix the all-or-nothing batch evaluation, and make sure the cron/sms flags are switched on in the target environment",
+  "steps": [
+    {
+      "step": "The individual owner's mobile number has been obtained from DOS before the SMS is sent",
+      "detail": "The job calls batchPreloadContactInfo and refreshContactInfo (NotificationSmsEmailJob.java:185-187), but refreshContactInfo only queries DataHive when cron.enareminder.datahive=true; the value is false in every environment (cron-schedules-prod.properties:48), so the number already stored on the owner/driver is used (NotificationSmsEmailHelper.java:2461-2476). No integration named DOS exists in the repo; whether DataHive = DOS and whether the stored number came from there: cannot verify from repo. Obtaining the number itself is the scope of OCMS10.5."
+    },
+    {
+      "step": "The batch job picks the AN notices that are ready to be notified to the owner",
+      "detail": "queryRecordsForEna selects notices with last_processing_stage='ENA' and offender_indicator='Y' and selects an_flag (NotificationSmsEmailHelper.java:1021,1029-1031), called at NotificationSmsEmailJob.java:161. The query is generic for all ENA notices, not AN-specific. It drops vehicle_registration_type I/D/V (:1061) and notices already PS-ANS (:1062), although the OCMS-side AN check covers types S/D/V/I (CreateNoticeServiceImpl.java:843-846) and the EHT/Certis path creates the notice already PS-ANS. So ANs of type I/D/V and EHT/Certis ANs do not enter this SMS batch. The scheduler has cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236); it only runs through the manual trigger."
+    },
+    {
+      "step": "Individual owners (not companies) are identified and routed to the SMS channel",
+      "detail": "determineDeliveryChannel returns EMAIL only for idType 'B' and SMS for NRIC/FIN/Passport (NotificationSmsEmailHelper.java:443-451); the job skips idType 'B' records from the SMS batch (NotificationSmsEmailJob.java:271-277) and sendSms = idType is not 'B' (:353-354). Passport and exclusion-list IDs are removed first (:226-245) and moved to the letter track."
+    },
+    {
+      "step": "Each unique individual owner in a batch receives only one SMS",
+      "detail": "combineNotices deliberately does not merge ENA notices of individuals: each notice gets a unique key recipientKey+'_ENA_'+noticeNo (NotificationSmsEmailHelper.java:2169-2173) and the job adds ALL valid records to smsRecords with the comment 'each notice gets its own SMS (no deduplication by phone)' (NotificationSmsEmailJob.java:249,279-283). An owner with 3 ANs receives 3 SMSes, not 1. Same fit as OCMS1.6 (the sibling story for normal notices)."
+    },
+    {
+      "step": "The AN SMS text is built from the AN_SMS template",
+      "detail": "A notice with an_flag='Y' goes to generateAnMessages (NotificationSmsEmailHelper.java:279-281), which loads the 'AN_SMS' template from the database (:371) and the text is GSM-7 validated (:1570). If the template is missing it only logs an error and the SMS is skipped with no other alarm (:372-376). The AN_SMS template is not in the repo (no seed/SQL); its existence and content in ocms_template_store: cannot verify from repo."
+    },
+    {
+      "step": "The SMS is sent to each owner through the batch job",
+      "detail": "The job calls sendBatchSms when notification.sms.enabled=true (NotificationSmsEmailJob.java:287-292), which posts to Postman2 through smsUtil.sendBatchSmsSimple (NotificationSmsEmailHelper.java:1611). But in the repo: the scheduler is off (cron.notification.enabled=false, cron-schedules-prod.properties:236), prod has sms.enable=false with no sms.allowedSources (application-prod.properties:87) so SmsUtil blocks SMS with source ENOTIFICATION; UAT opens it only through sms.allowedSources=ENOTIFICATION (application-uat.properties:82). Actual per-environment values, the Postman2 gateway and the SMS permission on the App Service: cannot verify from repo."
+    },
+    {
+      "step": "The send result of each SMS is evaluated per recipient",
+      "detail": "sendBatchSms returns totalFailure == 0 (NotificationSmsEmailHelper.java:1674) and the job applies that batch value to ALL records: smsSent = sendSms && batchSmsStatus (NotificationSmsEmailJob.java:374). One failed SMS in a batch (up to 1000) makes every AN in the batch count as not sent, so PS-ANS is applied to none (:400-402) and the retry job reprocesses them. The per-message status is still read from Postman2 (mapBatchStatusToRecords), but the per-notice follow-up decision uses the batch flag."
+    },
+    {
+      "step": "The SMS send status is stored per notice",
+      "detail": "saveSendStatus stores one record per notice (split for combined notices) in ocms_sms_notification_records with status S or E (NotificationSmsEmailHelper.java:601-660, 690-700), called at NotificationSmsEmailJob.java:396. After a successful SMS the job also applies PS-ANS and moves next_processing_date forward (:400-408); the story does not ask for that and it is logged in orphans."
+    }
+  ]
+}

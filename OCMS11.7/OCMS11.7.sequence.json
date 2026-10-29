@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS11.7 Send 1st Letter Reminder to Vendor",
+    "locale": "en",
+    "output": "OCMS11.7.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "Toppan cron",
+      "sublabel": "00:15 daily"
+    },
+    {
+      "id": "von",
+      "type": "database",
+      "label": "VON DB",
+      "sublabel": "valid_offence_notice"
+    },
+    {
+      "id": "blob",
+      "type": "cloud",
+      "label": "Azure Blob",
+      "sublabel": "toppan/input"
+    },
+    {
+      "id": "cc",
+      "type": "external",
+      "label": "COMCRYPT",
+      "sublabel": "encrypt + callback"
+    },
+    {
+      "id": "sftp",
+      "type": "external",
+      "label": "Toppan SFTP",
+      "sublabel": "/input"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 244,
+      "label": "Select and build"
+    },
+    {
+      "from": 246,
+      "to": 340,
+      "label": "Send to vendor"
+    },
+    {
+      "from": 342,
+      "to": 404,
+      "label": "Stage update"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "cron",
+      "to": "von",
+      "y": 165,
+      "label": "Select next=RD1, due, not suspended",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m1",
+      "from": "von",
+      "to": "cron",
+      "y": 197,
+      "label": "RD1 notices + letter_address",
+      "variant": "return"
+    },
+    {
+      "id": "m2",
+      "from": "cron",
+      "to": "blob",
+      "y": 229,
+      "label": "Upload fixed-width data file",
+      "variant": "default"
+    },
+    {
+      "id": "m3",
+      "from": "cron",
+      "to": "cc",
+      "y": 261,
+      "label": "Request encryption token",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "cc",
+      "to": "sftp",
+      "y": 293,
+      "label": "Encrypted file to SFTP: BLOCKED by config",
+      "variant": "security"
+    },
+    {
+      "id": "m5",
+      "from": "cron",
+      "to": "cc",
+      "y": 325,
+      "label": "Poll delivery (gate bypassed if blocked)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m6",
+      "from": "cron",
+      "to": "von",
+      "y": 357,
+      "label": "last=RD1, next=RD2, admin fee 0",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "von",
+      "to": "cron",
+      "y": 389,
+      "label": "Notice advanced although not delivered",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches the story",
+      "items": [
+        "RD1 notices selected daily",
+        "Data file built and stored",
+        "Stage moves RD1 to RD2"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "SFTP to Toppan blocked by config",
+        "Stage advances without delivery",
+        "No PDF for RD1, data file only"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "Block value in Azure prod",
+        "Toppan and COMCRYPT services",
+        "Vault permission"
+      ]
+    }
+  ]
+}

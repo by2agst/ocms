@@ -1,0 +1,29 @@
+{
+  "story": "OCMS12.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob, jobs/ToppanUploadJob, helpers/ToppanUploadHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findToppanNoticesForStage, framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl (719-character Toppan file), framework/services/comcryptSftpBlob/helper/ComcryptUploadProcessor, properties cron-schedules-prod and application-prod (sftp.upload.disabledServers). Other repos: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. There is no flow deck. The Toppan Upload cron produces the RR3 letter every night for individuals and companies, builds a fixed-width data file, uploads it to blob, then encrypts through COMCRYPT and uploads to the Toppan SFTP. But application-prod.properties:86 blocks uploads to the Toppan SFTP (sftp.upload.disabledServers=toppan), the same in dev and uat; the code then bypasses the delivery gate so the stage still advances although the file was not delivered (ToppanUploadJob.java:417-430). OCMS-DF-2026-170 (Closed) added the block, OCMS-DF-2026-192 (Ready to UAT) discusses its impact and awaits business confirmation. It is a data file, not a PDF; the PDF is produced by the vendor. The letter content and Toppan's receipt of the SFTP file cannot be verified from repo.",
+  "recommendation": "Claim partially. Building the RR3 data file and the encryption flow exist, but sending to the Toppan SFTP is blocked by config in every environment and the stage still advances without delivery. Confirm with URA when sftp.upload.disabledServers=toppan is lifted and show one RR3 file that actually reaches the SFTP",
+  "steps": [
+    {
+      "step": "Notices due at stage RR3 are selected for the 3rd reminder letter",
+      "detail": "The Toppan Upload cron (00:15 daily, enabled=true in PROD: cron-schedules-prod.properties:61-62) processes every ToppanStage in order RD1, RD2, RR3, DN1, DN2, DR3, ANL (TG:152-175). For RR3, getValidOffenceNoticesOptimized (TJ:248) calls findToppanNoticesForStage: next_processing_stage = RR3, next_processing_date <= today, suspension_type NULL, offender_indicator Y, an_flag not Y (REPO:590-614). Unpaid Foreign vehicles, MID/DIP and notices without letter_address Y are filtered out (TH:1974-1995, TJ:266). The query does not restrict the ID type, so individual and company owners both enter. Note: the story mentions 'not a special vehicle/ID type (Appendix C Annex 1A)'; that appendix is not in the repo and the vehicle-type filtering above only mirrors part of it. Double check: the 00:15 schedule (process_dayend_jobs) exists and is enabled, but the call to toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs (line 119) is commented out, so letter generation only runs through the manual trigger POST /toppan/generate-letters. Rated Partial."
+    },
+    {
+      "step": "The letter uses the owner's updated particulars from the checks (name and address)",
+      "detail": "The name comes from onod.name (REPO:595) and the address from the owner_driver_addr row flagged letter_address Y (TH:2151-2160), then is written to the file (AFE:658-690). That is the data updated by the DataHive UEN job for companies (OCMS12.16) and by the MHA job for individuals (OCMS8.3, not re-traced here). But a new address becomes the letter address only when the notice has no address flagged Y yet (DU:1741-1760, 1770-1773), and the DataHive UEN job is off in PROD (cron-schedules-prod.properties:52). So 'latest' is not guaranteed by the code."
+    },
+    {
+      "step": "OCMS builds the 3rd reminder data file for the vendor (Toppan)",
+      "detail": "The file is named URA-DPT-RR3-D1-yyyyMMddHHmmss (TJ:279-281) and its content is built by createToppanRequestFileContent: one 719-character header, then one 719-character detail line per notice (letter date, notice no, name, address, vehicle no, place, rule), sorted by postal code, with the NRIC column deliberately blank (AFE:564-600, 648-690). The story says 'PDF/data files'; what is built is a data file, the PDF is produced by the vendor (cannot verify from repo). OCMS builds PDFs only for stage ANL (TJ:323-345)."
+    },
+    {
+      "step": "The file is sent to the vendor through SFTP (via blob and COMCRYPT encryption)",
+      "detail": "The file is uploaded to blob (TJ:314), then OCMS requests a COMCRYPT token for encryption (TJ:349-356); the callback encrypts and uploads to the Toppan SFTP. But in PROD application-prod.properties:86 sets sftp.upload.disabledServers=toppan, and ComcryptUploadProcessor throws SftpDisabledException for that server (CU:203-208). So by the repo configuration the RR3 file does not reach the Toppan SFTP in PROD (also not in dev and uat). The comment in the properties says the block was added for OCMS-DF-2026-170 (Closed) and OCMS-DF-2026-192 (Ready to UAT) describes its impact. The real PROD state cannot be verified from repo."
+    },
+    {
+      "step": "Notices are marked as sent: the stage moves on from RR3 after the file is delivered",
+      "detail": "The stage advances only after SFTP delivery is confirmed (OCMS-DEV-2026-199), through updateProcessingStage; last_processing_stage is set to this stage (TH:1296-1306) and the next stage comes from ocms_stage_map with a fallback RR3 -> CPC (TH:1810-1830). But when Toppan is blocked by config the gate is bypassed and the stage still advances (TJ:417-430, 444): the notice counts as sent although the file never reached the vendor. That is the behaviour discussed in OCMS-DF-2026-192 (status Ready to UAT, not final) and it awaits business confirmation. If the PROD config equals the repo, notices move to CPC without the letter reaching the vendor; whether another manual process exists cannot be verified from repo."
+    }
+  ]
+}

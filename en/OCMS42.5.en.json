@@ -1,0 +1,33 @@
+{
+  "story": "OCMS42.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: staff/cron/agency side, not used by the steps of this story (only the Intranet-to-eVON sync cron feeds the data, not traced)",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: 'Internet PII encryption - cannot fetch offender particulars'. Notice number, offence date/time, car park and amount payable columns exist, and the furnishable filter is enforced in the backend. Offence committed and due date are missing: no column, a DTO field that is not filled, and a UI field that is never populated. The PII DB fetch step is Sebagian because the demo remark says it failed and failures are swallowed into an empty list; the PII key per environment cannot verify from repo. OCMS-DF-2026-067/077 (Closed, Prod deployed) concern an unsynced eVON.",
+  "recommendation": "Claim partially only. Offence committed and due date are not built, and the PII fetch was reported as failing in the demo environment. Re-confirm in an environment with the correct PII key.",
+  "steps": [
+    {
+      "step": "The system fetches the notices of the logged-in ID from the PII DB and eVON",
+      "detail": "Offender records are read with DecryptByKey(id_no) (EocmsOffenceNoticeOwnerDriverRepository.java:50-59) after the symmetric key is opened in the service (EocmsOffenceNoticeOwnerDriverServiceImpl.java:121-128); outstanding notices are then fetched from eVON (FurnishApplicationListServiceImpl.java:84-85, 119-121; EocmsValidOffenceNoticeRepository.java:105-118). The code exists, but the story's demo_remark says 'Internet PII encryption - cannot fetch offender particulars', meaning this step failed in the demo environment. The failure is swallowed into an empty result (FurnishApplicationListServiceImpl.java:72-75), so the UI only shows 'No furnishable notice(s) found'. Availability of the PII key/certificate per environment cannot verify from repo."
+    },
+    {
+      "step": "The table shows the notice number, offence date and time, and car park",
+      "detail": "FurnishColumns contains 'Notice Number', 'Offence Date & Time' and 'Place of Offence' = pp_code - pp_name (Column.ts:6, 8-12, 14-21, 53-58), filled from eVON (noticeNo, noticeDateAndTime, ppCode, ppName; FurnishApplicationListServiceImpl.java:138-142). The table is grouped by Vehicle Number and sorted by newest date (Column.ts:99-108)."
+    },
+    {
+      "step": "The table shows the offence committed",
+      "detail": "FurnishColumns has no offence column (Column.ts:53-58). FurnishApplicationResponseDTO has no offence field (DTO:17-33) and the service does not fill one (FurnishApplicationListServiceImpl.java:136-144), although the eVON entity has computerRuleCode (EocmsValidOffenceNotice.java:81). The UI reads computerRuleCode/computerRuleCodeDescription (API.ts:94-111) but the value never comes from the backend. Searched for computerRule, offence, rule_code, 'Offence Description' in the Furnish UI and workflows/furnish."
+    },
+    {
+      "step": "The table shows the amount payable",
+      "detail": "The 'Amount Payable' column (Column.ts:28-35, part of FurnishColumns at lines 53-58) is filled from eVON amountPayable (FurnishApplicationListServiceImpl.java:143) and formatted as dollars; an empty or 0 value shows '-' (Column.ts:32)."
+    },
+    {
+      "step": "The table shows the due date",
+      "detail": "FurnishColumns has no due date column (Column.ts:53-58). The DTO has no due date field (FurnishApplicationResponseDTO.java:17-33) and the service does not fill one (FurnishApplicationListServiceImpl.java:136-144). The UI declares paymentDueDate and maps it to payment_due_date (API.ts:55, 103) but the backend never sends a value and no column displays it."
+    },
+    {
+      "step": "Only outstanding furnishable notices are shown in the table",
+      "detail": "The table only holds notices with status 'Eligible' (FurnishApplicationListController.java:123-128). Eligible means: the user is not a driver (FurnishApplicationListServiceImpl.java:97, 146-147), the notice has no Pending submission (104-112), is not paid/suspended/certain PS/UPL, and is in stage ROV/ENA/RD1/RD2 (FurnishValidationServiceImpl.java:186-216), and payment is allowed (FurnishApplicationListServiceImpl.java:128-131). The screen shows 'N furnishable notice(s) found' (FurnishableNotices.ts:83-118)."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. There is no 'cancel the schedule' button because nothing is scheduled; the cancel that exists is the Cancel button on the Submit confirmation dialog, which closes the dialog without calling any API and leaves the form filled. Gap: entries in the send list cannot be edited (only Preview/Remove), and the send list is not cleared when the decision is changed (grep compose_list), so an old email can still be sent; read from the code, not tested in the UI [Medium confidence]. No relevant maintenance ticket.",
+  "recommendation": "Claim with a caveat: Cancel on the confirmation dialog returns the OIC to the still-filled form. Ask URA whether editing send-list entries and clearing the send list when the decision changes are required.",
+  "steps": [
+    {
+      "step": "OIC presses Save and the confirmation dialog appears",
+      "detail": "The Save button calls onConfirmation('SUBMIT') (ActionNotice.tsx:411-418): it validates the form, checks EHT/REP, checks UEN-as-Driver, then opens a ModalConfirm titled 'Submit' with a message matching the decision, e.g. 'Do you wish to proceed with the rejection?' (ActionNotice.tsx:114-210)."
+    },
+    {
+      "step": "OIC cancels in the confirmation dialog",
+      "detail": "The Cancel button in ModalConfirm calls onClose (ModalConfirm.tsx:36-42); for the submit dialog onClose only runs setModalCom({show:false}) (ActionNotice.tsx:386). onSaveSubmit is only called from onComModalOk (ActionNotice.tsx:313-317), so Cancel triggers no particulars update and no email/SMS sending."
+    },
+    {
+      "step": "OCMS returns to the previous screen with the information already keyed in",
+      "detail": "Cancel causes no navigation or form reset: the Update Decision and Reply tabs stay on the same page and the form values (decissionStatus, approveAs, remarks, sendEmailSms, compose_list) are not touched (ActionNotice.tsx:386; Form.tsx:230-247). Data is lost only if the OIC presses Back (to the Furnished List, ActionNotice.tsx:324-337) or reloads the page."
+    },
+    {
+      "step": "The OIC can amend the SMS/email content and the decision",
+      "detail": "Decision Status, Approve As, Remarks and the Send Email/SMS checkbox stay editable while the status is Pending (DecisionForm.tsx:435-481). Entries already in the send list only have Preview and Remove actions (ComposeList.tsx:58-70), no Edit: the OIC must Remove and compose again (ReplyComposeForm.tsx:57-86). Gap: compose_list is never cleared when the decision changes (grep compose_list: it is only appended in ReplyComposeForm.tsx:85 and removed row by row in ComposeList.tsx:27); SelectTemplate only clears the draft being typed (SelectTemplate.tsx:182-198). An OIC who prepared an Approve email and then switches to Reject still carries the old entry, which will be sent (useNoticeSubmit.tsx:215-216). [Medium confidence] read from the code, not tested in the UI."
+    },
+    {
+      "step": "The OIC decides approve/reject again and saves again",
+      "detail": "Save calls onConfirmation('SUBMIT') again: form validation, EHT/REP check, UEN-as-Driver check, then a new confirmation dialog (ActionNotice.tsx:114-210). The button is only disabled while loading (ActionNotice.tsx:411-418), so the OIC can save again after changing the content."
+    }
+  ]
+}

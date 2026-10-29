@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/{list/FurnishSummaryList, form/SearchForm}, utils/validation/Furnish/ValidFurnishedList, utils/data/LinkData, App.tsx. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController, crud/BaseImplement ($regex, $in, $gte, $lte), resources/api-authorization.properties. ocmsadminprivateapi FurnishSyncHelper (data reaches Intranet through the cron). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%); demo: cron enabled, then Internet-Intranet sync. The staff Furnished Hirer/Driver screen has a search form with Notice No., Vehicle No., Furnished ID No., Submitter's ID No., a Submission Date range and Status; the parameters are sent as filters to furnishapplicationlist (regex for text, $in for status, $gte/$lte for dates) and the results show in the Datagrid. Note: the status defaults to P, so Approved/Rejected submissions only show after the status is changed; data only exists after the Internet to Intranet cron sync (every 10 minutes in prod, real server value cannot verify from repo). No maintenance ticket changes the verdict.",
+  "recommendation": "Can be claimed: every parameter named in the story (notice, vehicle, ID, submission date, status) exists in the search form and is wired to the API. Note the default status P and the dependency on the cron sync",
+  "steps": [
+    {
+      "step": "The officer opens the Furnished Hirer/Driver search page from the menu",
+      "detail": "The 'Furnished Hirer/Driver' menu (LinkData.tsx:318-327, 386) opens route /furnished-list (App.tsx:192-194) with the 'Search Furnished Hirer/Driver' accordion (SearchForm.tsx:43-49). The furnishapplicationlist endpoint is in the OCMS_FURNISHED_LIST mapping (api-authorization.properties:86-87); how roles map to that mapping cannot verify from repo."
+    },
+    {
+      "step": "Search by notice number, vehicle number and ID number (furnished ID or submitter ID)",
+      "detail": "The form has Notice No. (10 characters), Vehicle No. (14), Furnished ID No. and Submitter's ID No. (SearchForm.tsx:50-94) with format validation for NoticeNo/VehicleNo/IDNo (ValidFurnishedList.ts:19-27). params() sends noticeNo[$regex], vehicleNo[$regex], furnishIdNo[$regex], ownerIdNo[$regex] (SearchForm.tsx:208-213); the server handles $regex through BaseImplement.java:444 on furnishapplicationlist (OcmsFurnishApplicationController.java:52-72)."
+    },
+    {
+      "step": "Search by submission date range",
+      "detail": "The Submission Date From and To inputs with range validation (SearchForm.tsx:96-152) are sent as creDate[$gte] at start of day and creDate[$lte] at end of day (SearchForm.tsx:214-219); the server supports the $gte and $lte operators (BaseImplement.java:57-58)."
+    },
+    {
+      "step": "Search by request status (default Pending)",
+      "detail": "The Status TagInput uses the FURNISH_STATUS options (SearchForm.tsx:153-165) and is sent as status[$in] (line 213). The status defaults to P in the form and in the Datagrid filter (SearchForm.tsx:33-38; FurnishSummaryList.tsx:59-62), so Approved or Rejected submissions only show after the officer changes the status. The option list comes from the standard code in the DB: cannot verify from repo."
+    },
+    {
+      "step": "The notices found are displayed on screen for browsing",
+      "detail": "The Datagrid calls furnishapplicationlist (POST) with the filters from the form and shows paginated rows (FurnishSummaryList.tsx:71-79); the columns are in FurnishSummaryList.tsx:81-154 and the notice number is clickable to the detail. The server adds a resubmission flag to each row (OcmsFurnishApplicationController.java:59-62, 87-102). Only submissions already copied by the cron into Intranet are searchable (story 41.6)."
+    }
+  ]
+}

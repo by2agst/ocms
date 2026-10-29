@@ -1,0 +1,82 @@
+{
+  "story": "OCMS41.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Form/*, Confirmation, API}; ocmseserviceapi workflows/furnish/{FurnishSubmissionController, FurnishSubmissionServiceImpl, FurnishRequestValidator, FurnishValidationServiceImpl}, workflows/uploadfile/FileUploadController; ocmsadminprivateapi framework/{schedulers/SyncInternetIntranetJobsScheduler, workflows/furnish_processing/*}; ocmsadminapi workflows/furnish/manualreview/{controllers,services}, crud/ocmsizdb/OcmsFurnishApplication, api-authorization.properties; ocmsadminui pages/Furnish/{list/FurnishSummaryList, hooks/useFurnishAPI}. thirdpartyapi: tidak terlibat",
+  "note": "Status Demo paid (50% of 75%). Code membuktikan seluruh alur story: form dan upload dokumen di portal, validasi dan simpan di eService API (status P, is_sync N), cron Internet ke Intranet (tiap 10 menit di prod) menarik submission dan dokumen, enam cek auto-approval menentukan approve otomatis atau status P untuk manual review, lalu officer approve/reject lewat staff portal. Catatan: tidak ada entitas 'work item' terpisah; dashboard officer adalah daftar Furnished Hirer/Driver dengan filter status P, ditambah email harian ke officer (cron Furnish Daily Officer Notification; OCMS-DF-2026-004: template email sempat tidak ada di PRD, Closed). Bila proses auto-approval melempar exception, submission tetap P tanpa reason dan tidak dievaluasi ulang karena is_sync Internet sudah 'Y' (pembacaan code). Tiket dipakai: OCMS-DF-2026-073 (pasangan stage ROV/ROV salah dianggap tidak furnishable, Closed, Prod deployed), OCMS-DF-2026-110, -143, -175 (error submit generik; Closed, penyebab tidak tertulis di CSV, -175 ditutup tanpa perubahan code), OCMS-DF-2026-004. Singpass/Corppass, blob storage dokumen, dan nilai property server: cannot verify from repo.",
+  "recommendation": "Klaim. Seluruh langkah story terbukti di code. Catat bahwa 'dashboard' berupa daftar status P (bukan work item terpisah) dan bahwa kegagalan di tengah auto-approval meninggalkan submission P tanpa reason",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner mengisi particulars hirer/driver untuk notice terpilih di Online Customer Portal",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:79-84; ocmseserviceui/src/route/route.ts:38-40; ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:43; ocmseserviceui/src/pages/Furnish/Confirmation.ts:138; ocmseserviceui/src/pages/Furnish/API.ts:640",
+      "fit": "Sesuai",
+      "detail": "Route furnish-particulars (route.ts:38-40) memuat form hirer/driver (HDParticulars.ts:43). Saat konfirmasi, APIPostFurnish dipanggil (Confirmation.ts:138; API.ts:640) dan mengirim satu request untuk semua notice terpilih. Backend mengisi identitas owner dari session, bukan dari FE (FurnishSubmissionController.java:79-84)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner meng-upload dokumen bukti dan sistem memvalidasi dokumen wajib",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Documents.ts:269-271; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/uploadfile/FileUploadController.java:18; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/uploadfile/FileUploadController.java:35; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:317-327; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:374; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:387",
+      "fit": "Sesuai",
+      "detail": "UI meng-upload tiap file lewat APIUploadDoc (Documents.ts:269-271) ke POST /v1/upload/temp (FileUploadController.java:18,35). Pada submit, validateMandatoryDocuments mewajibkan dokumen untuk ID bertipe FIN atau Passport (Driving Licence + Employment Pass/Passport, dan Rental Agreement bila kendaraan disewa; FurnishRequestValidator.java:317-327), maksimal 10 dokumen (:374) dan total 20MB (:387). Penyimpanan blob Azure cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Portal memvalidasi submission (field, self-furnish, Q&A, kelayakan tiap notice, rental period)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:99; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:108; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:123; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:138; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:172",
+      "fit": "Sesuai",
+      "detail": "FurnishSubmissionController.submitFurnishApplication menjalankan validateAll (:99), validateSelfFurnish (:108), validateQAResponses (:123), validateAllNoticesForSubmission yang menolak seluruh batch bila satu notice tidak eligible (:138) dan validateRentalPeriod terhadap tanggal offence (:172). Tiket error submit generik OCMS-DF-2026-110/-143/-175 semuanya Closed; penyebab tidak tertulis di CSV (-175 ditutup tanpa perubahan code)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars dan dokumen disimpan sebagai aplikasi Pending dan owner menerima transaction number",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:68; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:121; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:127; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:210-211; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:190",
+      "fit": "Sesuai",
+      "detail": "submitFurnishApplication memindahkan dokumen ke folder furnish permanen (FurnishSubmissionServiceImpl.java:68), menyimpan EocmsFurnishApplication dengan status 'P' dan is_sync 'N' (:121,210-211) beserta record dokumen (:127), membuat txnNo per notice, lalu mengirim satu email acknowledgement (FurnishSubmissionController.java:190)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menarik particulars dan dokumen dari Internet DB ke Intranet DB secara berkala",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncInternetIntranetJobsScheduler.java:67; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:85; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:94; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:103-104; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:38; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:89; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:148",
+      "fit": "Sesuai",
+      "detail": "SyncInternetIntranetJobsScheduler menjalankan Furnish Processing (SyncInternetIntranetJobsScheduler.java:67) tiap 10 menit di prod, enabled=true (cron-schedules-prod.properties:305-306). executeBatchSync membaca eocms_furnish_application dengan is_sync='N' (FurnishProcessingService.java:85), upsert ke Intranet (:94; FurnishSyncHelper.java:38), menyalin record dokumen (:103; FurnishSyncHelper.java:89) lalu menandai is_sync='Y' di Internet (:104; FurnishSyncHelper.java:148). Nilai property di server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission yang lolos auto-approval matrix di-approve otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:165-170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:183-218; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:445-463; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:546; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:649-652; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:703; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:213-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:239",
+      "fit": "Sesuai",
+      "detail": "Tiap submission yang baru disync dinilai dengan runValidationChecks (FurnishProcessingService.java:165; FurnishApprovalHelper.java:183-218; rinci di OCMS41.5). Bila lolos, executeApproval (:445-463) menambah hirer/driver sebagai offender baru (:546), memindah stage ke RD1 (hirer) atau DN1 (driver) (:649-652), menyinkronkan eVON (:703) dan memberi status 'A' dengan remarks 'Auto Approved by SYSTEM'; status A ditulis balik ke Internet (FurnishProcessingService.java:213-216). OCMS-DF-2026-073: pasangan stage ROV/ROV dulu salah dianggap tidak furnishable dan masuk manual; sekarang ada di daftar pasangan (SystemConstant.java:239 di ocmsadminprivateapi, tiket Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission yang gagal cek diarahkan ke dashboard officer untuk manual approval/rejection",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:172-175; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:505-531; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:754-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:189-199; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:60; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:72; ocmsadminui/src/App.tsx:192-193; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:267",
+      "fit": "Sesuai",
+      "detail": "Bila ada cek gagal, executeManualReview (FurnishApprovalHelper.java:505-531) mencoba menerapkan TS-PDP (:754-763; bila gagal hanya warning), mengisi status 'P' dan reasonForReview, lalu status disimpan per grup reason (FurnishProcessingService.java:172-175,189-199). Dashboard officer adalah halaman /furnished-list (App.tsx:192-193) yang memanggil furnishapplicationlist dengan filter default status P (FurnishSummaryList.tsx:60,72); tidak ada entitas work item terpisah. Ada juga email harian ke officer lewat cron Furnish Daily Officer Notification (cron-schedules-prod.properties:255-256,267; OCMS-DF-2026-004, template email sempat tidak ada di PRD, Closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer meng-approve atau me-reject submission dari dashboard",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:105; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:210-211; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:297; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:363; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:376-379; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:453; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:466; ocmsadminapi/src/main/resources/api-authorization.properties:76-83",
+      "fit": "Sesuai",
+      "detail": "Staff UI memanggil manual-review/approve-hirer, approve-driver atau reject (useFurnishAPI.ts:105,210-211). approveSubmission mengubah status ke 'A' (ManualReviewService.java:363), menambah offender (:376) dan mengubah stage (:379); rejectSubmission mengubah status ke 'R' (:453,466). Akses endpoint dipetakan ke grup OCMS_OIC_FURNISH di api-authorization.properties:76-83; anotasi role di server tidak dicek di story ini (cannot verify from repo)."
+    }
+  ]
+}

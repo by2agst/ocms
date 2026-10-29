@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin (DataHiveUenFinService), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, application-prod.properties; ocmsadminui pages/Vault/Datahive/DirectorDetail.tsx. No code picks an owner/partner/director as the reminder recipient. ocmsadminapi (besides the unclaimed queue), ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "The story asks OCMS to redirect the reminder to the individual owner/director/partner (via PDF/data files to the vendor) after receiving the particulars from DOS. No code was found that makes a shareholder or board member the recipient: ocms_dh_acra_shareholder_info/board_info are only written by the DataHive job and read by the Vault tab of the staff portal (grep ShareholderInfo/BoardInfo outside crud). What exists is the generic Toppan letter mechanism, which takes the recipient from the already existing letter address and not from a DOS result. The day-end cron does not generate letters (executeJob is commented out) and Toppan SFTP is switched off in the prod properties. DOS = DataHive cannot be confirmed from repo. Maintenance ticket: OCMS-DF-2026-192 (still open, lowers the letter steps). Story status: Requirement given - Gen flow.",
+  "recommendation": "Do not claim in full. Only the generic Toppan letter generation is proven; picking an individual owner/director/partner as the new recipient does not exist",
+  "steps": [
+    {
+      "step": "OCMS already holds the owner/partner/director particulars from DOS",
+      "detail": "Same as OCMS20.6 step 4: shareholders are saved (DataHiveUenFinService.java:1442-1448), board is not because its write is switched off (OCMS-DEV-2026-231, :1469-1477), and adhoc unclaimed rows save neither. DOS = DataHive cannot be confirmed from repo."
+    },
+    {
+      "step": "OCMS picks the individual valid on the date of offence as the reminder recipient",
+      "detail": "No logic picks a shareholder or board member as the recipient. Users of ShareholderInfo/BoardInfo outside the crud package are only DataHiveUenFinService, DataHiveUENServiceImpl, DataHiveUENBatchService, the UENDataResult DTO, and the Vault models/tabs in ocmsadminui (DirectorDetail.tsx:31-47 only displays fields). There is no matching against the date of offence."
+    },
+    {
+      "step": "The reminder recipient data is redirected to that individual (ID and mailing address)",
+      "detail": "The DataHive path only updates the company name on ONOD (updateCompanyName, DataHiveUenFinService.java:1410) and stores the company address; no code creates or changes an owner/driver record with the shareholder/director ID and address, or marks that address as the letter address."
+    },
+    {
+      "step": "OCMS creates the PDF/data reminder file for the print vendor",
+      "detail": "The generic Toppan letter mechanism exists, but it is not tied to a redirect to the individual and does not run automatically. Letter generation by the day-end cron does not run: the call toppanLettersGeneratorService.executeJob() is commented out (ToppanUploadJobsScheduler.java:118), letters only come from the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34); ticket OCMS-DF-2026-192 (manual job failed in production, status Ready to UAT) is still open. Gap: letters are made for the recipient already recorded in the letter address, not a DOS result."
+    },
+    {
+      "step": "The file is sent to the vendor for printing and postage so the individual is informed of the fine",
+      "detail": "sftp.upload.disabledServers=toppan in application-prod.properties:86, so the SFTP upload to Toppan is switched off in prod; the delivery gate is bypassed and the stage still advances without delivery (OCMS-DF-2026-192); the real server value cannot be verified from the repo. The Toppan upload code exists, but real delivery in prod cannot be proven from the repo."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS19.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/form/RevivalForm, utils/option.tsx, utils/constant.ts; ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility, staff-revive-suspension) dan helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai",
+  "note": "Status pembayaran: Demo paid (50% of 75%). Story minta officer memilih jenis revival (temporary suspension, permanent suspension, atau reduction). Code punya satu operasi Apply Revival di Notice Search; tidak ada pilihan jenis. Jenis (TS atau PS) ditentukan otomatis dari suspensionType tiap notice lalu dikirim ke endpoint staff-revive-suspension. Reduction bukan jenis sendiri: ia diperlakukan sebagai TS dengan reason RED dan jumlah amount_payable dikembalikan dari ocms_reduced_offence_amount, tetapi kegagalan pengembalian ditelan diam-diam (revival tetap sukses). Tiket OCMS-DF-2026-028, -072, -078 menyentuh perilaku ini. Tiket OCMS-DF-2026-184 (Pending UAT) soal due_date_of_revival TS-UNC tidak mengubah verdict story ini. Hak akses staff per role dan nilai property server: cannot verify from repo.",
+  "recommendation": "Klaim bagian revival TS dan PS dari Notice Search. Catat bahwa tidak ada pemilih jenis revival eksplisit dan reduction hanya lewat TS-RED. Minta URA konfirmasi apakah deteksi jenis otomatis diterima.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman Notice Search (All atau Outstanding) di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:99-106",
+      "fit": "Sesuai",
+      "detail": "Route notices/search/:search_type merender NoticeSearch.Search (App.tsx:99-106). Revival tidak punya menu pembuka sendiri: halaman revival (App.tsx:166) hanya berisi notice yang sudah dipilih dari hasil search, jadi titik awal revival memang halaman ini. Pembatasan role di sisi server: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice di hasil lalu memilih operasi Apply Revival di dropdown Apply Operation",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/option.tsx:314-319; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:281-301; ocmsadminui/src/utils/constant.ts:275-279",
+      "fit": "Sesuai",
+      "detail": "BatchOperationOptions berisi Apply TS, Apply PS, Apply Revival, Batch Furnish (option.tsx:314-319). Dropdown hanya menampilkan operasi yang lolos hasFunction(OCMS_APPLY_REVIVAL) (NoticeSearchSlot.tsx:285-288, constant.ts:275-279); tombol Select nonaktif sampai ada notice terpilih dan operasi dipilih (NoticeSearchSlot.tsx:298-302). Mapping server OCMS_APPLY_REVIVAL ada di ocmsadminapi/src/main/resources/api-authorization.properties:65-67."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih jenis revival: temporary suspension, permanent suspension, atau reduction",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/option.tsx:314-319; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:106-107; ocmsadminui/src/utils/validation/Revival/Revival.ts:26",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pilihan jenis revival. Hanya ada satu opsi Apply Revival (option.tsx:317). Jenis ditentukan otomatis dari notice.suspensionType: RevivalForm memisahkan notice menjadi daftar TS dan PS (RevivalForm.tsx:106-107). Field revival_type sengaja di-comment di validasi (Revival.ts:26) dan label i18n revival_type (i18n/en/translation.json:766) tidak dipakai di UI. Reduction tidak muncul sebagai jenis; ia TS dengan reason RED. Satu batch boleh campur TS dan PS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Revival temporary suspension (TS) dieksekusi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:137-163; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:378-381; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:847-849",
+      "fit": "Sesuai",
+      "detail": "Untuk notice berjenis TS, RevivalForm memanggil POST staff-revive-suspension dengan suspensionType TS (RevivalForm.tsx:137-163). Controller meneruskan ke tsRevivalHelper.reviveTS (SuspensionProcessingController.java:847-849); staff memakai srNo null sehingga semua TS aktif ikut direvive (SuspensionProcessingController.java:658-661). Eligibility menolak TS-HST (SuspensionProcessingController.java:378-381)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Revival permanent suspension (PS) dieksekusi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:109-135; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:402-410; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:851-853",
+      "fit": "Sesuai",
+      "detail": "Untuk notice berjenis PS, RevivalForm memanggil POST staff-revive-suspension dengan suspensionType PS (RevivalForm.tsx:109-135) dan controller meneruskan ke psRevivalHelper.revivePS (SuspensionProcessingController.java:851-853). Ada batasan yang tidak ada di story: hanya 1 notice PS per sekali proses, jika lebih dari 1 semuanya ditolak dengan pesan You can only revive one Notice with PS at a time (SuspensionProcessingController.java:402-410). Batasan ini mempersempit tetapi tidak menghilangkan fungsi, fit tetap Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Revival reduction pada composition amount: jumlah kembali ke nilai sebelum reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:170-177; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:860-922",
+      "fit": "Sebagian",
+      "detail": "Reduction ditangani sebagai TS dengan reason RED: TemporaryRevivalHelper memanggil revertCompositionAmountIfReduced untuk suspension RED (TemporaryRevivalHelper.java:170-177) dan PS revival juga membersihkan TS-RED yang menumpang (PermanentRevivalHelper.java:187-193). Metode itu membaca amount_payable pra-reduction dari ocms_reduced_offence_amount lalu menulis ke VON dan eVON (RevivalBaseHelper.java:877-909). Celah: dilewati diam-diam bila notice sudah FP (RevivalBaseHelper.java:868-872) atau record reduction tidak ada (RevivalBaseHelper.java:880-884), dan exception ditelan dengan log saja sehingga revival tetap sukses tanpa amount kembali (RevivalBaseHelper.java:919-923). Tiket: OCMS-DF-2026-028 (closed; revert dari ocms_reduced_offence_amount, butuh migrasi data lama), OCMS-DF-2026-072 (closed; format nilai tersimpan), OCMS-DF-2026-078 (patch manual 4 notice TS-RED revived dengan amount salah). Apakah migrasi data lama sudah dijalankan: cannot verify from repo."
+    }
+  ]
+}

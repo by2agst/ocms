@@ -1,0 +1,55 @@
+{
+  "story": "OCMS28.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/agencies/mha/{upload/helpers/MhaNricDataHelper,upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, workflows/datahiveuenfin/services/DataHiveUenFinService (FIN adhoc, pass info), framework/schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties; ocmsadminapi unclaimed/UnclaimedServiceImpl (antrean ocms_adhoc_nro_temp). Tidak ada integrasi ICA/DOS yang bisa dipastikan.",
+  "note": "Story minta OCMS mengirim NRIC/FIN/passport asing ke ICA/DOS, menerima dan mengupdate registered address, pass type, dan validity. Code yang ada: NRIC (id_type N) dari ocms_adhoc_nro_temp dikirim ke MHA lewat MhaNricUploadJob (MhaNricDataHelper.java:442-450; MhaNricUploadJob.java:160) dan hasilnya disimpan ke ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3123-3141). FIN (id_type F) lewat job DataHive yang mati di prod (cron-schedules-prod.properties:52). Pass type dan expiry diambil DataHive untuk notice di stage reminder (DataHiveUenFinService.java:2463-2470), tetapi jalur adhoc hanya menyimpan alamat (DataHiveUenFinService.java:602-640) dan aksi pass expired hanya log PLACEHOLDER (DataHiveUenFinService.java:3042-3046). Passport asing tidak masuk query (id_type hanya N, F, B). ICA/DOS tidak ada sebagai integrasi; ICA/DOS = MHA/DataHive cannot be confirmed from the repo. Semua ini dipicu oleh Unclaimed Reminders, bukan court summons. Tiket OCMS-DF-2026-126 (FIN tercatat Type N di adhoc NRO temp, Closed, Prod deployed) dan OCMS-DF-2026-130 (mha_reg lama tidak dikosongkan, Closed, Prod deployed) menyentuh jalur ini; keduanya Closed sehingga tidak menurunkan verdict. Status story kosong; dianalisis normal.",
+  "recommendation": "Klaim parsial. Pengecekan alamat NRIC lewat MHA aktif tetapi dipicu reminder letter; FIN lewat DataHive mati di prod; passport asing, pass validity, dan update alamat notice dari court summons belum ada. ICA/DOS perlu dikonfirmasi URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali record yang dikembalikan adalah milik individu",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:267-268",
+      "fit": "Sebagian",
+      "detail": "id_no dan id_type diambil dari data RDP/DN, default N (UnclaimedServiceImpl.java:222-223, 267-268) dan diantre ke ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:753-762). Sumbernya reminder letter, bukan court summons. OCMS-DF-2026-126 (Closed) mencatat FIN pernah tersimpan sebagai Type N."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim NRIC ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:442-450",
+      "fit": "Sebagian",
+      "detail": "MhaNricUploadJob membaca id_type N dari ocms_adhoc_nro_temp (MhaNricDataHelper.java:442-450; MhaNricUploadJob.java:160) dan mengirim ke MHA. Upload cron enabled=true di prod (cron-schedules-prod.properties:105-106). ICA/DOS tidak ada di code; ICA/DOS = MHA cannot be confirmed from the repo. Channel SFTP ke MHA cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim FIN atau passport asing ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1130-1142",
+      "fit": "Sebagian",
+      "detail": "FIN (id_type F) dikirim ke DataHive oleh job DH UEN and FIN (DataHiveUenFinService.java:324-328, 1130-1142). Job mati di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; dilewati di MhaDownloadJobsScheduler.java:103-106); nilai server asli cannot verify from repo. Nomor passport asing tidak ada di query (hanya id_type N, F, B)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan mengupdate registered address terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3123-3141",
+      "fit": "Sebagian",
+      "detail": "Hasil MHA untuk query adhoc disimpan ke ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3123-3141; DataHiveUenFinService.java:602-640 untuk FIN). Alamat tidak menimpa alamat notice; staff membacanya di Unclaimed report (UnclaimedReportHelper.java:336-339). Update alamat notice di jalur normal (non-adhoc) tidak dipicu return. OCMS-DF-2026-130 (Closed) menyentuh pembersihan mha_reg lama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima pass type dan validity untuk orang asing",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2463-2470",
+      "fit": "Sebagian",
+      "detail": "Untuk notice di stage RD1-DR3 (bukan adhoc), pass type, expiry, dan principal disimpan (DataHiveUenFinService.java:2463-2470) dan expiry dicek (isPassExpired, DataHiveUenFinService.java:3021). Jalur adhoc hanya menyimpan alamat (DataHiveUenFinService.java:602-640). Aksi saat pass expired hanya log PLACEHOLDER (DataHiveUenFinService.java:3042-3046). Job mati di prod (cron-schedules-prod.properties:52)."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS33.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download (LtaDownloadJob, LtaResponseFileParser) dan sftp-common.properties (hanya VRLS); ocmsadminui pages/Report/lists/{ReportListLTA,ReportList}.tsx; ocmsadminapi workflows/reports/daily/DailyReportServiceImpl, notice_management/filedownload/FileDownloadController, api-authorization.properties (OCMS_REPORT_LTA). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code renewal notice",
+  "note": "Story minta OCMS menerima daily report dari LTA tentang vehicles/owners dengan outstanding URA WA (warrant of arrest) yang sudah dikirimi renewal notice, lalu officer men-download-nya. Status story kosong di stories.json (requirement tidak diberikan). Tidak ada code untuk report renewal notice: tidak ada interface file, parser, entity, atau flag. Yang ada hanya infrastruktur LTA VRLS (SFTP /vrls/output, cron LtaDownloadJob 05:00 dan 21:00, tab Report > LTA dengan download blob) yang melayani report cek kepemilikan kendaraan hasil generate OCMS sendiri, bukan report dari LTA tentang renewal notice. Itu dinilai Sebagian karena mekanisme generik, bukan fitur yang disebut story. Format/jadwal pengiriman dari LTA dan kemungkinan lewat DOS/DataHive: cannot verify from repo. Ticket OCMS-DF-2026-194 (Open) menyangkut report LTA VRLS, bukan renewal notice.",
+  "recommendation": "Jangan klaim sebagai selesai. Minta URA/LTA spesifikasi report renewal notice URA WA dan konfirmasi apakah dibangun di repo lain; saat ini hanya mekanisme SFTP/Report LTA untuk VRLS yang bisa dipakai ulang.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "LTA mengirim daily report berisi vehicles/owners dengan outstanding URA WA yang sudah dikirimi renewal notice",
+      "repo": "thirdpartyapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/sftp/sftp-common.properties:30-31",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya interface LTA di repo adalah VRLS (folder SFTP /vrls/input dan /vrls/output) untuk enquiry vehicle ownership (ROV). Tidak ada file, format, atau spesifikasi untuk report renewal notice URA WA; kata renewal tidak muncul di enam repo kecuali di UI i18n yang tidak terkait. Sisi LTA (pengiriman report) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima file daily report dari LTA secara otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/jobs/LtaDownloadJob.java:303-308; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:159; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sebagian",
+      "detail": "LtaDownloadJob mengambil file dari SFTP server lta (sftpUtil.listFiles(SFTP_SERVER, sftpDirectory) di baris 308, direktori sftp.folders.lta.download=/vrls/output) dan cron.ltadownload jalan 05:00 dan 21:00 (cron-schedules-prod.properties:148-149, enabled=true). Mekanisme terima file SFTP dari LTA memang ada, tetapi hanya untuk VRLS Enquiry Result (parser 691 karakter, LtaResponseFileParser.java:159), bukan report renewal notice. File berformat lain akan salah di-parse. Nilai property di server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memproses isi report dan mengenali vehicles/owners dengan URA WA yang sudah menerima renewal notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:16; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:243",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada parser, entity, kolom, atau flag untuk renewal notice atau penghubung ke warrant of arrest (WA) dari LTA. Satu-satunya field terkait adalah roadTaxExpiryDate dari VRLS result (LtaResponseFileParser.java:243), itu tanggal road tax, bukan status renewal notice, dan tidak dikaitkan dengan WA. Konfirmasi bahwa report ini tidak datang lewat DOS/DataHive: cannot confirm from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tagging officer membuka halaman Report dan melihat daftar report LTA per tanggal",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListLTA.tsx:46-56; ocmsadminui/src/pages/Report/lists/ReportList.tsx:73-77; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:34; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:253-254",
+      "fit": "Sebagian",
+      "detail": "Ada tab Report > LTA yang memanggil daily-report/search dengan source LTA untuk rentang tanggal, dan tab hanya tampil jika user punya function REPORT_LTA (ReportList.tsx:73). Tetapi server hanya mencari file berprefix LTA_Report_ di azure.blob.lta.output (DailyReportServiceImpl.java:34, 253-254), yaitu Excel VRLS ownership check hasil generate OCMS sendiri (LtaReportJob), bukan report renewal notice dari LTA. Tab LTA yang sama dipakai bersama, jadi halaman ada tapi isinya bukan yang disebut story. Ticket OCMS-DF-2026-194 (Open) mencatat perilaku report LTA VRLS manual masih berbeda dari ekspektasi URA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tagging officer men-download report yang diterima dari LTA",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListLTA.tsx:86-95; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:114; ocmsadminapi/src/main/resources/api-authorization.properties:129-130",
+      "fit": "Sebagian",
+      "detail": "Tombol Download memanggil POST download/blob dengan source LTA yang dipetakan ke azure.blob.lta.output (FileDownloadController.java:91, 114). Authorization OCMS_REPORT_LTA mengizinkan /v1/download/blob (api-authorization.properties:129-130). Mekanisme download berfungsi, tetapi hanya untuk file di folder report VRLS hasil generate OCMS; file report renewal notice dari LTA tidak pernah masuk ke folder itu."
+    }
+  ]
+}

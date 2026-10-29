@@ -1,0 +1,25 @@
+{
+  "story": "OCMS40.3",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari), ocmsadminprivateapi services/datahive/nricFinUenDataRetrieval/DataHiveUENServiceImpl + workflows/datahiveuenfin (sync UEN/FIN dimatikan di prod), controllers/DataHiveController (query SQL mentah tanpa UI), DataHiveTestController (endpoint test sementara), ocmsadminapi crud OcmsDhAcra* dan CronProxyController, ocmsadminui pages/Vault/Datahive/UENDetail.tsx + Notice/detail/OwnerDetails.tsx",
+  "note": "The story asks the officer to send an ID number (UEN) to DOS and receive company info. The story status is blank (no requirement/status given), so it is traced normally. The ad-hoc screen cannot be reached (route/menu commented out). What exists: the DataHive UEN/FIN batch that fetches ACRA company detail, shareholder and board per notice (DataHiveUENServiceImpl.java:59) and stores them in ocms_dh_acra_*; the 'UEN Details' tab in Notice detail only shows registration/deregistration date, entity status code and company type code (shareholder and board are commented out in UENDetail.tsx). That sync is switched off in prod (cron.mhadownload.uenfin.enabled=false), so on prod the UEN data is not filled from this repo. There is also a backend endpoint POST /v1/datahive/query (raw SQL) and a temporary test endpoint GET /api/datahive/test/uen/{uen}, both without UI and without a proxy from ocmsadminapi. DOS = DataHive/LTA cannot be confirmed from the repo; the real server property values and the DataHive views cannot be verified from the repo.",
+  "recommendation": "Claim only as Sebagian: ACRA company retrieval through DataHive exists but is per notice and switched off in prod, the display is limited, and the ad-hoc screen does not exist. Ask URA to confirm whether DOS = DataHive and whether the /v1/datahive/query endpoint may count towards this story.",
+  "steps": [
+    {
+      "step": "Officer opens the ad-hoc query page in the staff portal",
+      "detail": "Path /search-vault (title 'Agencies Information') and a menu item 'Ad-hoc Vault Query' are defined (SearchVault.ts:1-12, LinkData.tsx:255-259), but the route in App.tsx:331 and the menu.push in LinkData.tsx:405 are commented out, as is the Epic40 import (App.tsx:54); the pages/epic40 folder does not exist in ocmsadminui. The page cannot be opened from the staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) is only a report list with no controller or authorization mapping, not a query form; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "Officer fills in the company ID number (UEN), UI sends it to the API",
+      "detail": "The SearchVaultUEN/SearchVaultUIN form components only remain as commented-out imports (UPLOffender.tsx:11, ReportListDOS.tsx:25); the epic40 mapping and validation are commented out too (utils/mapping/index.ts:37, utils/validation/index.ts:43). ocmsadminapi has no endpoint that accepts a company UEN for a single query; the only enquiry-like call is the parameterless batch trigger POST /lta-enquiry/trigger (CronProxyController.java:33-34), and ocmsadminapi has no proxy to /v1/datahive/query in ocmsadminprivateapi."
+    },
+    {
+      "step": "OCMS sends the ID number to DOS",
+      "detail": "retrieveUENData(uen, noticeNumber, indicator) sends the UEN to DataHive but always needs a noticeNumber and is called from the sync job for existing notices (DataHiveUenFinService.java:717; DataHiveUENServiceImpl.java:59). That job is switched off in prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52; checked in MhaDownloadJobsScheduler.java:104); the real server value cannot be verified from the repo. On-demand endpoints without UI: POST /v1/datahive/query accepts raw SQL (DataHiveController.java:62-63) and GET /api/datahive/test/uen/{uen}?noticeNumber is a temporary test controller commented 'Remove this controller after testing' (DataHiveTestController.java:20-23,112-118). Neither is an officer flow. DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "OCMS receives the company info and shows it to the officer",
+      "detail": "Results are stored in ocms_dh_acra_company_detail, ocms_dh_acra_shareholder_info and ocms_dh_acra_board_info (DataHiveUENServiceImpl.java:43-45) and a 'UEN Details' tab appears in Notice detail for ID type B (OwnerDetails.tsx:517-519). Only the registration/deregistration date, entity status code and company type code are shown (UENDetail.tsx:110-121); the shareholder and board fields are commented out. The view is per notice, not the result of an officer query; while the sync is switched off in prod this data may be empty (cannot verify from repo)."
+    }
+  ]
+}

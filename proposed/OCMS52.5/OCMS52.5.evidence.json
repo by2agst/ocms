@@ -1,0 +1,210 @@
+{
+ "id": "OCMS52.5",
+ "checked_by": "ledger-L2",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+   "line": 693,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(axsReceiptNos, \"N\");",
+   "missing": "",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+     "line": 689,
+     "quote": ".filter(t -> TYPE_OF_RECEIPT_AXS.equals(t.getTypeOfReceipt()) && SENDER_AXS.equals(t.getSender()))"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+     "line": 433,
+     "quote": "markAsPendingUraPgSync(transactions);"
+    }
+   ]
+  },
+  {
+   "i": 1,
+   "claim": "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N, typeOfReceipt = '01' and sender = 'AXS', and posts all of them in ONE request (no batch size, no retry limit) to the URA PG endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+   "line": 24,
+   "quote": "@Query(\"SELECT w FROM WebTxnDetail w WHERE w.urapgSyncStatus = 'N' AND w.typeOfReceipt = '01' AND w.sender = 'AXS'\")",
+   "missing": "'No batch size / no retry limit' is an absence and cannot be quoted; it is shown only by the plain sendAxsTransactions call (the sendAxsTransactionsWithRetry method exists but CronUraPgRetry does not call it). Real prod server value cannot be verified from the repo.",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+     "line": 39,
+     "quote": "UraPgResponseDTO response = uraPgService.sendAxsTransactions(failedTxns);"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 146,
+     "quote": "ResponseEntity<UraPgResponseDTO> responseEntity = restTemplate.exchange("
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+     "line": 107,
+     "quote": "ura.paymentgateway.endpoint=/paymentgateway/Recon/insertOcmsAxsTxn/v1"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+     "line": 350,
+     "quote": "cron.urapgretry.schedule=0 0 * * * ?"
+    }
+   ]
+  },
+  {
+   "i": 2,
+   "claim": "Rows the gateway reports as sent are updated to urapg_sync_status = Y (per receipt_no); the others stay N and are sent again in the next run.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 52,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(successReceiptNos, \"Y\");",
+   "missing": "",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+     "line": 43,
+     "quote": ".filter(r -> SystemConstant.Notification.STATUS_SENT.equals(r.getStatus()))"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+     "line": 33,
+     "quote": "@Query(\"UPDATE WebTxnDetail w SET w.urapgSyncStatus = :status WHERE w.receiptNo IN :receiptNos\")"
+    }
+   ]
+  },
+  {
+   "i": 3,
+   "claim": "Rows that still fail are only written to the error log: notifyUraPgErrors has an empty body (the error e-mail is disabled since OCMS-DF-2026-147), and no code compares counts or amounts between OCMS and the gateway.",
+   "status": "partly",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 59,
+   "quote": "log.error(\"URA PG sync still failing receipt_no list: {}\", failedReceiptNos);",
+   "missing": "The error log line and the empty method (only comments inside) are proved. The negative 'no code compares counts or amounts' cannot be proved by a quote; a grep of urapg across ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi and ocmsadminui found no comparison code. The ticket link rests on a code comment (a comment is not proof of intent). Also note a POST /v1/ura-pg/send in UraPgController and a cron trigger POST in CombinedSchedulerTriggerController exist.",
+   "fix_en": "Rows that still fail are written to the error log (receipt_no list). notifyUraPgErrors is still called but its body is empty (the e-mail call is commented out, OCMS-DF-2026-147), so no notification is sent. The job does not compare counts or amounts between OCMS and the gateway (no such code found in the repo).",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 457,
+     "quote": "public void notifyUraPgErrors(UraPgResponseDTO response, List<WebTxnDetail> transactions) {"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 277,
+     "quote": "// sendErrorNotificationEmail(response, transactions);"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+   "line": 693,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(axsReceiptNos, \"N\");",
+   "note": "Called after each sync path (lines 433, 453, 524, 658 verified by grep). Sync job runs every 10 min, enabled in prod config (flag below)."
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+   "line": 24,
+   "quote": "@Query(\"SELECT w FROM WebTxnDetail w WHERE w.urapgSyncStatus = 'N' AND w.typeOfReceipt = '01' AND w.sender = 'AXS'\")",
+   "note": "Hourly cron enabled in prod config; real server value, APIM key and gateway behaviour cannot be verified from the repo. If the Key Vault read fails only a warning is logged (UraPgServiceImpl.java:106) and the POST goes without the key. Keep Sesuai: the step names reading and sending, both executed."
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 52,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(successReceiptNos, \"Y\");",
+   "note": "Only items with status S are set to Y; E items and null response leave rows at N (RET lines 62-69). buildErrorResponse sets status E (IMPL line 421)."
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Beda dari flow",
+   "fit_ok": true,
+   "proposed_fit": "Beda dari flow",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+   "line": 277,
+   "quote": "// sendErrorNotificationEmail(response, transactions);",
+   "note": "Method notifyUraPgErrors has only comments in its body; quote is the commented call. The empty body itself is shown by lines 457-461. Beda dari flow is right: code does the opposite of the step (no notification)."
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Tidak ada code",
+   "fit_ok": true,
+   "proposed_fit": "Tidak ada code",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 55,
+   "quote": "log.info(\"URA PG Sync Result: {} success, {} still pending\",",
+   "note": "Job only counts success/still pending in a log line. No reconciliation code found; Tidak ada code is the correct fit (absence cannot be quoted)."
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 351,
+   "quote": "cron.urapgretry.enabled=true",
+   "meaning": "Hourly URA PG AXS sync enabled in prod properties (real server value not verifiable)"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 350,
+   "quote": "cron.urapgretry.schedule=0 0 * * * ?",
+   "meaning": "Runs at the top of every hour"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 306,
+   "quote": "cron.syncinternetintranet.enabled=true",
+   "meaning": "Internet-to-Intranet sync (sets N) enabled in prod"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 305,
+   "quote": "cron.syncinternetintranet.schedule=0 */10 * * * ?",
+   "meaning": "Sync runs every 10 minutes"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 106,
+   "quote": "ura.paymentgateway.baseUrl=https://api.uraaz.gov.sg",
+   "meaning": "Gateway base URL in prod"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS46.4",
+   "status": "User Story Removed",
+   "second_claim_risk": "no",
+   "reason": "46.4 is OCMS sending offender ID/mobile to Payment Gateway for PayNow refund (refund direction). 52.5 sends AXS payment records to URA PG recon. Different payload, endpoint and purpose."
+  },
+  {
+   "story": "OCMS43.2",
+   "status": "Demo paid (5 pts)",
+   "second_claim_risk": "maybe",
+   "reason": "43.2 is payment status coming IN from the Payment Gateway and marking notices paid. 52.5 is the reverse direction (OCMS pushing AXS rows out to URA PG). Same business area (AXS/PG payments) and URA may read \"report AXS payment to PG\" as part of the payment feed; mitigate by stating that 52.5 only covers the outbound hourly send and does not mark notices paid."
+  },
+  {
+   "story": "OCMS46.5",
+   "status": "User Story Removed",
+   "second_claim_risk": "no",
+   "reason": "46.5 is PayNow refund status received from the Payment Gateway for Cumulus; unrelated to AXS recon send."
+  }
+ ],
+ "works_check": "works='partly' is right: hourly send and N->Y flag are enabled in prod properties, but error notification is switched off and no reconciliation exists. Prod server value cannot be verified from the repo. Tickets OCMS-DF-2026-035, -047, -147 are Closed bug fixes on this feed, so URA may see it as maintenance of an existing interface.",
+ "verdict": "FIX WORDING"
+}

@@ -1,0 +1,41 @@
+{
+  "story": "OCMS16.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl.handleReductionRequest, checkValidationStatus, helpers/ReductionValidator.validateReductionAmounts + validateDates}; crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus (SQL status ALREADY_REDUCED/PAID/ELIGIBLE/NOT_ELIGIBLE); crud/beans/SystemConstant (ComputerRuleCode, ProcessingStage). ReductionValidator.validateAll/validateEligibility/validateNotPermanentlySuspended and ReductionRuleService are not called from the live path. Other repos: no reduction validation code",
+  "note": "Sheet status is 'Requirement given - Gen flow'; there is no OCMS flow deck, so Sesuai means the code does what the story text says (validate the requested amounts, then decide allowed or not). Amount validation is complete: amountReduced must be below the current amount_payable (fallback composition_amount), the new amountPayable must equal current minus amountReduced, and it must be above zero, plus an expiry date check. The eligibility decision (paid, rule code, last processing stage) is made by one SQL query in OcmsValidOffenceNoticeRepository. Two things to watch. First, a notice that is already TS-RED returns 'ALREADY_REDUCED' and is treated as success before the amounts are validated, so a second request with a different amount is neither validated nor applied (ReductionServiceImpl.java:74-78,176-183). Second, the PS check (except DIP/FOR/MID/RIP/RP2) in ReductionValidator.validateNotPermanentlySuspended, plus validateAll and ReductionRuleService, are never called; the only stage/rule-code rules in force are the ones in the SQL. The reduction stage range in the SQL (up to CWT) also differs from PLUS_REDUCTION_COURT_ALLOWED_STAGES (up to COS) used by the TS-RED apply-suspension path (SystemConstant.java:130-135); which one is intended cannot be verified from the repo. Tickets: OCMS-DF-2026-072 (closed, Prod deployed) changed the stored values, not the validation rules; OCMS-DF-2026-025 (closed) touches the stage range in the suspension path, not this path.",
+  "recommendation": "Claim most of it. Amount and eligibility validation exist and run; discount the already-TS-RED case (amounts not validated) and clarify which stage rule is intended.",
+  "steps": [
+    {
+      "step": "OCMS takes the notice's current amount payable as the baseline (falling back to composition amount when empty)",
+      "detail": "validateReductionAmounts uses amountPayable from the validation query result; when null it uses compositionAmount (ReductionValidator.java:167-175; the query selects both columns at OcmsValidOffenceNoticeRepository.java:70-71)."
+    },
+    {
+      "step": "The reduced amount must be smaller than the current amount payable; equal or larger is rejected",
+      "detail": "If amountReduced >= currentAmountPayable, a ValidationError INVALID_REDUCTION_AMOUNT is returned (ReductionValidator.java:179-186)."
+    },
+    {
+      "step": "The new amount payable from PLUS must equal the current amount payable minus the reduction",
+      "detail": "expectedPayable = current - amountReduced is compared with the request amountPayable; a difference returns INCONSISTENT_AMOUNTS (ReductionValidator.java:188-195)."
+    },
+    {
+      "step": "The new amount payable must be above zero, and the reduction expiry date must not be before the reduction date",
+      "detail": "newAmountPayable <= 0 returns NEGATIVE_AMOUNT (ReductionValidator.java:198-202). validateDates rejects an expiry that isBefore dateOfReduction; equal dates pass (ReductionValidator.java:267-271). Both run in sequence at ReductionServiceImpl.java:80-96. The date check is not in the story text; included because it is part of the allow/reject decision."
+    },
+    {
+      "step": "A notice that has already been paid cannot be reduced",
+      "detail": "The query returns status PAID when crs_reason_of_suspension = 'FP' or epr_reason_of_suspension = 'PRA' (OcmsValidOffenceNoticeRepository.java:53-54); the service returns BusinessError NOTICE_PAID (ReductionServiceImpl.java:184-189). Only these two markers are checked; other paid markers cannot be verified from the repo."
+    },
+    {
+      "step": "A notice can only be reduced when its rule code and last processing stage are among the allowed ones",
+      "detail": "SQL CASE: rule code 30305/31302/30302/21300 with stages NPA..CWT, or any other rule code only at RR3/DR3 and the court stages; anything else is NOT_ELIGIBLE (OcmsValidOffenceNoticeRepository.java:55-69), then BusinessError NOT_ELIGIBLE (ReductionServiceImpl.java:190-195). The actual rule is not in the story; Sesuai here means an eligibility decision based on stage and rule code exists. The PS check in ReductionValidator.validateNotPermanentlySuspended (ReductionValidator.java:73-94) is not called from the live path. The stage range differs from the TS-RED apply-suspension path (SystemConstant.java:130-135); which is intended cannot be verified from the repo."
+    },
+    {
+      "step": "The requested amounts are validated for every request, including on a notice that was already reduced",
+      "detail": "Status ALREADY_REDUCED (suspension_type = 'TS' and epr_reason = 'RED', OcmsValidOffenceNoticeRepository.java:51-52) is checked first and treated as idempotent success (ReductionServiceImpl.java:74-78,176-183), before the amount validation at ReductionServiceImpl.java:80-96. So a second request with a different amount on a TS-RED notice is neither validated nor applied, yet PLUS receives success. The court variant skips idempotency (ReductionServiceImpl.java:246)."
+    },
+    {
+      "step": "OCMS decides: if every validation passes the reduction proceeds, if any fails it stops before any data is changed",
+      "detail": "Every check returns early (ReductionServiceImpl.java:73-96); loading the entity and applyReduction only run after all checks pass (ReductionServiceImpl.java:98-113)."
+    }
+  ]
+}

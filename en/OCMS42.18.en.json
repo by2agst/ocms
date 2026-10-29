@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDParticulars,Documents,Particulars}.ts, pages/Furnish/NoticesTable/FurnishableNotices.ts, utils/option.ts. ocmseserviceapi workflows/furnish/FurnishRequestValidator (validateIdNumber, validateMandatoryDocuments). ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (checkFinPassportIdType), datahiveuenfin/jobs/DataHiveUenFinJob, services/datahive/nricFinUenDataRetrieval (batch, not called from Furnish). No live work pass check code in any of the six repos.",
+  "note": "The story is not in any flow deck; sheet status is 'Built - Ready for User Acceptance' with demo_remark 'No vault'. Only the FIN holder particulars input is built (ID type FIN with format+checksum validation, mandatory DL and EP documents). The core of the story is not in code: the live DOS check, the expired work pass message, and the continue-or-pay choice at that point. There is no code for the live DOS check of the FIN work pass: the words 'work pass' and 'expired' (other than session timeout) do not appear in ocmseserviceui/ocmseserviceapi, ocmseserviceapi has no DOS/MOM/DataHive client, and the 'DOS' integration is not implemented in any backend (DOS = DataHive/LTA cannot be confirmed from the repo). The only related work pass code is the DataHive FIN batch job in ocmsadminprivateapi (DataHiveUenFinJob, DataHiveFINServiceImpl, FINDataResult.workPassStatus), which the Furnish flow does not call. Instead the portal requires an uploaded Employment Pass/Work Permit (EP) document for a FIN and the approval cron puts every FIN into manual review. The 'Built' sheet status is not supported by code for the core steps. Behaviour that may exist outside the repo (DOS API, vault): cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the FIN particulars input exists; the live work pass check against DOS, the expiry message and the continue/pay choice do not. Ask URA/the team where the DOS integration is built.",
+  "steps": [
+    {
+      "step": "The owner/hirer fills in the foreign driver's particulars with ID type FIN (valid format, supporting documents)",
+      "detail": "The ID type options include FIN (option.ts:14-30). The server validates the FIN format F/G/M + 7 digits + checksum via SingaporeIdValidator (FurnishRequestValidator.java:126-146) and requires a Driving Licence (DL) and Employment Pass/Work Permit (EP) for FIN (FurnishRequestValidator.java:308-345; UI: option.ts:92-100). It applies to individuals and companies (CorpPass uses DocumentCPOptions). Note: ticket OCMS-DF-2026-098 (M-prefix FIN ending in J rejected in the Staff Portal, Closed) concerns the staff portal only, not the eservice."
+    },
+    {
+      "step": "The page checks the work pass status of the FIN holder live through an API with DOS",
+      "detail": "No DOS/MOM/DataHive API call is made from ocmseserviceui or ocmseserviceapi when the FIN is entered or submitted: the validator only checks the FIN format and the presence of an EP document (FurnishRequestValidator.java:308-345). The only work pass reader is the DataHive FIN batch job in ocmsadminprivateapi (DataHiveUenFinJob, fields FINDataResult.workPassStatus/ipaExpiryDate in FINDataResult.java:98-104), which runs on a schedule, is not called from the Furnish flow and gives no response to the page. The 'DOS' integration is not implemented in the backend; DOS = DataHive/LTA cannot be confirmed from the repo. A grep for 'workpass|work pass|expired|expiry' in ocmseserviceui and ocmseserviceapi only finds the EP document label and the session timeout."
+    },
+    {
+      "step": "The page shows a message when the FIN holder's work pass has expired",
+      "detail": "There is no component, modal or message string for an expired work pass in ocmseserviceui (HDParticulars.ts, Documents.ts, error.ts). The only FIN-related message is 'Please submit a valid Employment Pass/Work Permit/SPass/Long-Term Visit Pass to proceed.' (ValidationMessages.java:101), shown when no EP document is uploaded, not because of an expiry status. Without a check result this message cannot be shown."
+    },
+    {
+      "step": "The page shows the decision choice: continue the submission or make a payment",
+      "detail": "There is no continue-or-pay choice at the point after the FIN is entered. Only two generic buttons exist that are unrelated to FIN status: 'Make payment' on the notice selection step, which opens the Payment page in a new tab (FurnishableNotices.ts:203-208), and 'Proceed to review' on the particulars step (Particulars.ts:113-150). Per the consistency rule, a generic mechanism that is not what the story names is Sebagian at best; the fit is the same as the pay-choice step in OCMS42.20."
+    }
+  ]
+}

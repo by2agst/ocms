@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi UnclaimedController/UnclaimedServiceImpl (ocms_adhoc_nro_temp queue); ocmsadminprivateapi agencies/mha/upload (MhaNricUploadJob, MhaNricDataHelper), agencies/mha/download (MhaNricDownloadJob, MhaNricDownloadHelper), workflows/datahiveuenfin, workflows/unclaimedreport, schedulers, cron-schedules-prod.properties, crud/OcmsTempUncHstAddr. ocmseserviceapi, ocmseserviceui, thirdpartyapi, ocmsadminui: no related code",
+  "note": "The story asks OCMS to send the NRIC/FIN/foreign passport number to ICA/DOS and receive the latest registered address, pass type and validity, so it can see whether the address where the reminder was sent has changed. What exists: submitting unclaimed puts the ID of the current offender into ocms_adhoc_nro_temp; NRIC (id_type N) goes out in an MHA file, FIN/UEN (F/B) through the DataHive job; the address results are stored in ocms_temp_unc_hst_addr. ICA and DOS cannot be confirmed from repo (the NRIC route is MHA). Pass type/validity is not stored for adhoc rows, there is no route for a foreign passport (SystemConstant.IdType only has N and F), and there is no old-vs-new address comparison. The 15-column report with the enquiry addresses has no caller; the daily report that does run is the 11-column TS-UNC list without addresses. The entity OcmsTempUncHstAddr has no query_reason column while the report SQL filters on query_reason='UNC'; whether that column exists in the DB cannot be verified from repo. Maintenance tickets: OCMS-DF-2026-133 (PS must not enter the MHA queue, Closed) and OCMS-DF-2026-126 (FIN typed N rejected by MHA on the HST path, Closed); the DF-133 remark says the MHA cron was not yet switched on in Production at that time. Story status: Requirement given - Gen flow (demo_remark 'No vault').",
+  "recommendation": "Claim partially. The enquiry queue and address storage exist, but pass type/validity, foreign passport and address change detection do not",
+  "steps": [
+    {
+      "step": "OCMS puts the individual's ID (NRIC/FIN) of the TS-UNC notice into the enquiry queue",
+      "detail": "After submitting unclaimed, the offender ID is put into ocms_adhoc_nro_temp only if it is still the current offender (offender_indicator=Y) and the notice is not PS (UnclaimedServiceImpl.java:691, 722-726, 762; OCMS-DF-2026-133). id_type comes from RDP/DN, default N when blank (:751). Only N (NRIC) and F/B (FIN/UEN) have an enquiry route (SystemConstant.java:146-149, MhaNricDataHelper.java:447, DataHiveUenFinService.java:325-328); a foreign passport has neither a type nor a route, so it is never enquired. A queue failure is only logged and does not cancel the submit (UnclaimedController.java:166-171)."
+    },
+    {
+      "step": "OCMS sends the NRIC to ICA/DOS and the FIN to DOS",
+      "detail": "The NRIC is sent in an MHA file (MhaNricUploadJob.java:160, MhaNricDataHelper.java:442-450, id_type N filter); ICA cannot be confirmed from repo, the route is MHA. cron.mhaupload.enabled=true in cron-schedules-prod.properties:106, but the OCMS-DF-2026-133 remark says the MHA cron was not yet switched on in Production at that time; the real server status cannot be verified from repo. FIN goes through the DataHive job: cron.mhadownload.uenfin.enabled=false in cron-schedules-prod.properties:52 (MhaDownloadJobsScheduler.java:103-107 skips this job); the real server value cannot be verified from the repo; the job stops early when the main notice query is empty (DataHiveUenFinJob.java:189-192). DOS = DataHive cannot be confirmed from repo."
+    },
+    {
+      "step": "OCMS receives the latest registered address",
+      "detail": "MHA results for adhoc IDs are stored by storeUncHstResults in ocms_temp_unc_hst_addr with type_of_address mha_reg and effective_date from lastChangeAddressDate (MhaNricDownloadJob.java:686-693, MhaNricDownloadHelper.java:3135, 3223); DataHive FIN/UEN results go through upsertToUncHstAddr (DataHiveUenFinService.java:602-637, 655-700). One row per id_no, and the address on ONOD is not changed. The regular path also re-enquires TS-UNC notices at stages RD1-DR3 (MhaNricDataHelper.java:182-217) and updates the ONOD address. Weak point: the entity OcmsTempUncHstAddr has no query_reason column (OcmsTempUncHstAddr.java:36-114) while the report filters on query_reason='UNC' (UnclaimedReportHelper.java:295, 337); whether the DB has that column/default cannot be verified from repo."
+    },
+    {
+      "step": "OCMS receives the pass type and validity for foreigners",
+      "detail": "For adhoc rows only the address is taken from the DataHive FIN result (work permit first, then pass), without pass type or expiry (DataHiveUenFinService.java:602-637). Pass data is only stored on the regular notice path (storeFinDataResult, :1497), not for adhoc IDs from unclaimed. There is no valid/invalid pass check in the unclaimed flow."
+    },
+    {
+      "step": "OCMS identifies whether the registered address changed from where the reminder was sent",
+      "detail": "There is no comparison of the new address with the reminder address. The 15-column report (UnclaimedReportHelper.java:317-340) only shows the raw address and checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110) has no caller in ocmsadminapi or ocmsadminprivateapi. The daily cron calls executeJob, which makes the 11-column TS-UNC list without addresses (DailyReportJobsScheduler.java:100, UnclaimedReportConfig.java:49-61). The officer gets no address-changed signal."
+    }
+  ]
+}

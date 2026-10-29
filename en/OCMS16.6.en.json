@@ -1,0 +1,25 @@
+{
+  "story": "OCMS16.6",
+  "flow_ref": "User story (not in the flow deck of OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator,helpers/ReductionPersistenceService,dto/ReductionRequest} (POST /v1/plus-apply-reduction, called by PLUS), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus. ocmsadminui pages/Notice/detail/SuspensionDetail.tsx (Reduced Amount field not bound to data) and utils/models/Fnotice.d.ts:536 (TStageReductionType type is unused). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no reduction code",
+  "note": "Story status: Requirement given - Gen flow (2 points). In the repo, reduction in OCMS is receive-only: PLUS (an external system not in the six repos) calls POST /v1/plus-apply-reduction with amountReduced and amountPayable already computed (ReductionRequest.java:37,43). There is no stage-count input, no stage-based calculation, and no OCMS screen that shows the reduced amount (the field in SuspensionDetail.tsx uses source UNKNOWN). Only receiving the confirmed result and the amount arithmetic check partly match. Whether PLUS computes per stage and shows it: cannot verify from repo. Ticket OCMS-DF-2026-072 (Closed, Prod deployed) changed what is stored in the reduction table, not the steps of this story.",
+  "recommendation": "Do not claim as complete. Only receiving the confirmed result from PLUS exists; stage input, stage-based calculation and the reduced amount display are not in OCMS. Ask URA/the team to confirm whether this is built in PLUS (outside the six repos).",
+  "steps": [
+    {
+      "step": "Officer indicates the number of stages for the reduction",
+      "detail": "No stage-count input exists in the UI or the API. The only trace is the type declaration TStageReductionType (\"custom-dollar\" | \"custom-precentage\") at ocmsadminui/src/utils/models/Fnotice.d.ts:536, which no component uses (grep in ocmsadminui/src finds only this one hit). ReductionRequest only has noticeNo, amountReduced, amountPayable, dates, reason, officer, source, remarks (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82), no stage count. If the stages are indicated in PLUS: cannot verify from repo."
+    },
+    {
+      "step": "OCMS computes the reduced composition amount from the number of stages",
+      "detail": "OCMS does not compute the reduced amount itself. amountReduced and amountPayable arrive ready-made from PLUS (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37, :43). OCMS only validates: amountReduced must be lower than the current amount payable (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:179) and amountPayable must equal current - amountReduced (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195); a mismatch is rejected (INCONSISTENT_AMOUNTS). There is no per-stage or percentage formula. The stage/rule code eligibility (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:56-67) only decides allowed or not, not the amount."
+    },
+    {
+      "step": "OCMS displays the reduced composition amount to the officer",
+      "detail": "There is no screen that shows the reduced amount for verification. The only 'Reduced Amount' label is in ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx: the block at lines 173-181 is commented out and the field at lines 244-247 uses source \"UNKNOWN\" (not bound to any data), so it never shows a value. There is no preview screen before confirmation in ocmsadminui; a screen in PLUS cannot be verified from the repo."
+    },
+    {
+      "step": "Officer verifies and confirms the reduction of the composition amount",
+      "detail": "Confirmation does not happen in the OCMS staff portal. OCMS only receives the confirmed result through POST /plus-apply-reduction from PLUS (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29-59) and then runs applyReduction (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:113). The verify/confirm screen in PLUS is not in the six repos: cannot verify from repo. The endpoint is excluded from JwtFilter and the authorization interceptor (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83); protection depends on APIM, cannot verify from repo."
+    }
+  ]
+}

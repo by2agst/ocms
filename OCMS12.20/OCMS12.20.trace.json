@@ -1,0 +1,64 @@
+{
+  "story": "OCMS12.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, combineNotices, generateMessages, determineTemplateName, sendEmail)}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, properties cron-schedules-prod dan application-prod (cron.notification.enabled, email.enableSmtp, email.smtp.allowedSources). Repo lain: tidak ada code terkait",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: 'May need to check if email permission needs to be granted' (cannot verify from repo). Tidak ada flow deck. Cron eNotification yang sama mengirim email reminder ke company untuk stage RR3: notice dipilih lewat jendela due date, digabung per UEN, template RR3_EMAIL_COMPANY[_COMBINED] dipilih dari stage. Yang tidak terbukti: kalimat yang merujuk 3rd letter (ada di template DB) dan pengiriman nyata, karena di PROD cron.notification.enabled=false, email.enableSmtp=false dan ENOTIFICATION tidak ada di email.smtp.allowedSources. Pengambilan email dari DOS dicakup OCMS12.18. Fit langkah penggabungan sama dengan OCMS9.7.",
+  "recommendation": "Klaim sebagian. Alur kumpul, gabung per UEN, template per stage, dan kirim email sudah ada, tapi dimatikan di PROD dan kalimat yang merujuk 3rd letter hanya ada di template DB. Tunjukkan isi template RR3_EMAIL_COMPANY dan satu email RR3 terkirim di UAT",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengumpulkan notice company yang sudah di stage RR3 dan outstanding untuk batch hari itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:170-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1109-1114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1135-1160",
+      "fit": "Sesuai",
+      "detail": "Job eNotification memanggil queryRecordsForReminder() (NJ:162) dan menandai tiap baris dengan stage dari last_processing_stage (NJ:170-180). Query memilih notice dengan last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, tidak di exclusion list, belum punya record notifikasi pada stage yang sama, dan jatuh tempo (last_processing_date + parameter POS + PDD) berada dalam jendela ENOTEDAYS dari hari ini (NH:1109-1114, 1135-1160). Jadi notice RR3 ikut terpilih saat due date-nya sudah dekat, sesuai kata story 'fines that will be due soon'. Nilai parameter ENOTEDAYS/POS/PDD ada di DB, cannot verify from repo. Kendaraan tipe I, D, V dikecualikan (NH:1151)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali UEN company yang unik di antara notice dalam batch",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2181; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2245",
+      "fit": "Sebagian",
+      "detail": "combineNotices(records) (NJ:191) mengelompokkan lewat getRecipientKey: untuk company kuncinya 'B_' + UEN (NH:2230-2245) (NH:2230-2245). Tapi compositeKey = recipientKey + '_' + stage + '_' + paymentDueDate (NH:2178), jadi UEN company yang sama dengan due date atau stage berbeda menjadi grup terpisah dan tetap bisa menerima lebih dari satu pesan di hari yang sama. Story minta satu penerima unik per batch, sama seperti catatan OCMS9.7."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya company (ID type B) yang punya email yang dipakai untuk email; ID di exclusion list dilewati",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353-354; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:448-457; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2272-2281; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1544",
+      "fit": "Sesuai",
+      "detail": "idType B menentukan channel EMAIL (NH:448-457; NJ:353-354). validateContactInfo menolak company tanpa email (NH:2272-2281). ID di exclusion list dilewati sebelum kirim (NJ:226) dan company tidak masuk batch SMS (NH:1544). Sesuai dengan 'unique company vehicle owners'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email memuat daftar notice outstanding yang digabung per company",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2171-2200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-433; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:284-301; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-475",
+      "fit": "Sesuai",
+      "detail": "Notice non-ENA satu UEN digabung (combinedNotices disambung '.', amountPayable dijumlahkan, NH:2182-2200). prepareTemplateData mengirim noticeCount dan combinedNotices ke template (NH:410-433); generateMessages memilih <STAGE>_EMAIL_COMPANY dengan akhiran _COMBINED bila lebih dari satu notice (NH:284-301, 459-475). Stage DN1, DN2, DR3 tidak dapat email karena template company tidak ada (NH:311-317), tapi RR3 tidak termasuk. Isi template cannot verify from repo. Fit sama dengan OCMS9.7."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email merujuk ke 3rd letter reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-475; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:284-301; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-390",
+      "fit": "Sebagian",
+      "detail": "Code hanya memilih nama template dari stage: RR3_EMAIL_COMPANY atau RR3_EMAIL_COMPANY_COMBINED (NH:459-475). Bila template tidak ada, email dilewati dengan log (NJ:383-384). Tidak ada code yang menyisipkan referensi ke surat ketiga; itu bergantung pada isi template di ocms_template_store, tidak ada di repo (cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim email reminder ke company",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-388; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:64-72; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Job memanggil notificationHelper.sendEmail (NJ:388) yang memanggil EmailService dengan source ENOTIFICATION (NH:574-576). Tapi di PROD: cron.notification.enabled=false (cron-schedules-prod.properties:236), email.enableSmtp=false (application-prod.properties:80) dan email.smtp.allowedSources tidak memuat ENOTIFICATION (application-prod.properties:81), sehingga EmailService mengembalikan false (EMS:64-72). Di UAT ENOTIFICATION ada di allowlist (application-uat.properties:79). Tiket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'. Pengiriman email nyata cannot verify from repo."
+    }
+  ]
+}

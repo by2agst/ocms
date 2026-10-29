@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils}, crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicleServiceImpl, framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator}. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils}. No relevant code in ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks OCMS to identify notices issued to classified vehicles using pre-defined criteria including offence date within the vehicle record's start-end date. The code identifies at notice creation: SpecialVehUtils.checkVehregistration matches the vehicle number against active rows (status 'A') in ocms_vip_vehicle and returns type 'V', used by the REPCCS notice creation path (ocmsadminprivateapi) and staff create notice (ocmsadminapi). The criteria are only vehicle number + active status; there is no offence-date check because the table has no start/end date (see OCMS14.17). The check runs once at notice creation: existing notices are not re-checked when the CAS list changes, and if the query fails the vehicle is treated as non-VIP. Diplomat and MID are checked first so those plates never become 'V'. Type 'V' is then read by the LTA download for the RD1 path. The word FOMS is not in the repo (the source is named CAS in code).",
+  "recommendation": "Partial claim: matching the vehicle number to the active list and marking type V exist and are used downstream. The offence-date-within-start-end criterion and re-identification of already issued notices do not exist.",
+  "steps": [
+    {
+      "step": "When a notice is created, its vehicle number is matched against the active classified vehicle list",
+      "detail": "CreateNoticeServiceImpl calls specialVehUtils.checkVehregistration (privateapi:707, adminapi:1032). In SpecialVehUtils, isVip(vehNo) (line 88) calls vipVehicleService.isVipVehicle (line 142), which looks up vehicle_no (trim + uppercase) and is true only when status = 'A' (OcmsVipVehicleServiceImpl.java:74-86). Order: source F, blank/N.A, Diplomat, MID, then VIP, then Singapore (SpecialVehUtils.java:59-95), so Diplomat/MID plates never become 'V'. Edge case: if the query errors, the catch returns false (lines 144-148) so the vehicle is processed as non-VIP with no marker. Exact match, no other criteria."
+    },
+    {
+      "step": "The offence date must fall within the start date and end date of the vehicle record",
+      "detail": "checkVehregistration only takes vehNo and sourceProvidedType (SpecialVehUtils.java:57), with no offence date. Table/entity ocms_vip_vehicle has no start/end date (OcmsVipVehicle.java:28-36) and the CAS response does not carry one (CasVipVehicleResponse.java:29-42). So a vehicle in the active list is treated as classified for every offence date."
+    },
+    {
+      "step": "The identification result is marked on the notice (vehicle_registration_type = V) and used in later processing",
+      "detail": "The resulting type is stored in the DTO and then on the notice via dto.setVehicleRegistrationType (CreateNoticeServiceImpl.java:714). Later processing reads that type: the LTA download uses vehicle_registration_type = 'V' from the VON to choose the VIP path (LtaDownloadHelper.java:484-490), which writes owner data then sets stage RD1 (LtaProcessingOrchestrator.java:119-127; the comment at line 114 confirms type V is already set at notice creation). The same marker is used by OCMS14.19."
+    },
+    {
+      "step": "Notices issued before a vehicle joined the list are identified when a new list is received",
+      "detail": "The list refresh only touches table ocms_vip_vehicle (CasVipVehicleService.java:135-161); no job scans outstanding notices and changes their type after the list changes. Grep for setVehicleRegistrationType / vehicle_registration_type in ocmsadminprivateapi finds only notice creation and sync, and other processes (e.g. AutoRevivalHelper.java:1111) only read an existing type 'V'. Notices of a vehicle newly added to the list keep their old type."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: NotificationSmsEmailJob + NotificationSmsEmailHelper (RD1 reminder candidates, combineNotices, SMS template, sendBatchSms), SmsUtil (APIM Postman2 batch SMS + sms.enable/sms.allowedSources gate), application-{dev,uat,prod}.properties, cron-schedules-*.properties. Other repos: no relevant code",
+  "note": "Status in stories.json: Demo paid (50% of 75%). The SMS flow for individuals after the 1st letter exists: RD1 stage candidates, notices of the same owner are merged per stage and due date, the template is picked by name RD1_SMS_INDIVIDUAL (or _COMBINED), then sent in batches through APIM Postman2 (SmsUtil). Blockers in the repo configuration: (1) cron.notification.enabled=false in every environment (manual trigger only); (2) sms.enable=false in dev/uat/prod and sms.allowedSources=ENOTIFICATION only in dev/uat, absent in prod, so in prod SmsUtil refuses to send; (3) the DataHive number refresh is off (cron.enareminder.datahive=false). The SMS template text (whether it references the 1st letter, the NOPO list) lives in ocms_template_store (DB): cannot verify from repo. Ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. Per-environment values in Azure, the APIM/Postman2 service, DOS and the SMS permission for the App Service: cannot verify from repo.",
+  "recommendation": "Partial claim: the RD1 SMS flow exists, but SMS and the eNotification cron are off in the prod properties and the template text cannot be verified from the repo",
+  "steps": [
+    {
+      "step": "OCMS obtains the individual vehicle owner's latest mobile number from the data source (DOS)",
+      "detail": "Individuals are looked up in DataHive Singpass (refreshIndividualContactInfo, NotificationSmsEmailHelper.java:2710-2760) and the new number is saved, called from NotificationSmsEmailJob.java:185-188. But refreshContactInfo only runs when cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:2461-2485) and the property is false in dev/uat/prod (cron-schedules-prod.properties:48), so the number stored in ocms_offence_notice_owner_driver is used. Whether DataHive = 'DOS' in the story: cannot verify from repo."
+    },
+    {
+      "step": "OCMS identifies unique individual vehicle owners and merges their outstanding NOPOs into one SMS",
+      "detail": "combineNotices merges notices by recipient key (I_<id_no> for individuals) + stage + due date, sums amount_payable and fills combinedNotices (NotificationSmsEmailHelper.java:2151-2227; getRecipientKey 2230-2250; called at NotificationSmsEmailJob.java:191). Companies are kept out of the SMS batch (NotificationSmsEmailJob.java:268-285). Partial because the key includes the due date, so one owner with notices on different due dates receives more than one SMS, and the job comment says 'no deduplication by phone', so two owners sharing a number each get an SMS."
+    },
+    {
+      "step": "Owners who opted out, hold a passport or have no valid mobile do not get an SMS",
+      "detail": "Exclusion-list and passport records are removed before the SMS batch is built (NotificationSmsEmailJob.java:226-241); records without phoneNo or with a contactError are skipped through validateContactInfo (NotificationSmsEmailJob.java:254-266; NotificationSmsEmailHelper.java:2259-2290)."
+    },
+    {
+      "step": "The SMS lists the outstanding NOPO(s) and refers to the 1st letter reminder",
+      "detail": "For reminders, nextProcessingStage is set to the last stage (RD1) (NotificationSmsEmailJob.java:174-180 on the reminder path) so determineTemplateName yields RD1_SMS_INDIVIDUAL or RD1_SMS_INDIVIDUAL_COMBINED (NotificationSmsEmailHelper.java:443-476). The template data carries noticeNo, combinedNotices, noticeCount, amountPayable and paymentDueDate (410-437), with the due date computed from last_processing_date + POS + PDD like the letter (1076-1100). The template text lives in ocms_template_store (DB), so whether it mentions the 1st letter reminder and lists the NOPOs: cannot verify from repo; if the template is missing the SMS is skipped (274-345)."
+    },
+    {
+      "step": "The SMS is sent to the vehicle owner in the batch job",
+      "detail": "sendBatchSms validates the body (GSM-7), builds batches of up to 1000 and calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NotificationSmsEmailHelper.java:1527-1625), called from NotificationSmsEmailJob.java:289-292. SmsUtil refuses to send when sms.enable=false unless the source is in sms.allowedSources (SmsUtil.java:38-44, 401-410). sms.enable=false in prod/uat/dev; sms.allowedSources=ENOTIFICATION only in uat (application-uat.properties:80-82) and dev (application-dev.properties:83-85), absent in prod (application-prod.properties:87). On top of that cron.notification.enabled=false (cron-schedules-prod.properties:236). So under the prod configuration in the repo, no SMS is sent; actual delivery through APIM Postman2 and the SMS permission for the App Service: cannot verify from repo. Ticket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'."
+    }
+  ]
+}

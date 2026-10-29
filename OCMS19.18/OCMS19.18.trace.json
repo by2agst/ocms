@@ -1,0 +1,55 @@
+{
+  "story": "OCMS19.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto}, workflows/notice_management/retrieval/getnotice/{GetNoticeController (plus-offence-notice),mapper/NoticeResponseMapper}, workflows/notice_creation/core/SuspensionProcessingController (dry-run response). Repo lain: tidak ada code.",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak normal. Detail suspension yang ada tersedia untuk PLUS lewat POST /plus-suspended-notice (list baris ocms_suspended_notice dengan type, reason, source, tanggal, due date revival, officer, remarks, srNo) dan status notice lewat POST /plus-offence-notice (suspensionType, eprReasonOfSuspension, crsReasonOfSuspension, amountPayable). Cara kerjanya pull: PLUS yang memanggil; response dry-run revival hanya berisi eligible dan message, tanpa detail suspension (SuspensionProcessingController.java:942,966-971), jadi 'OCMS mengirim detail setelah validasi lolos' tidak otomatis. Detail reduction: reduction tampil hanya sebagai baris suspension TS-RED; record ocms_reduced_offence_amount (nilai amount_payable sebelum reduction) tidak diekspos oleh endpoint plus-* mana pun di ocmsadminapi (class ReducedOffenceAmount hanya dipakai di modul reduction dan revival). Endpoint /plus-suspended-notice juga mengembalikan baris yang sudah di-revive kecuali PLUS memasang filter dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:51). Proteksi plus-* sama seperti OCMS19.16 (JWT dilewati, APIM cannot verify from repo). Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Bisa diklaim sebagian: detail suspension dan status notice tersedia lewat endpoint plus-* yang dipanggil PLUS. Jangan klaim 'detail reduction' penuh karena record reduction tidak diekspos, dan pengiriman otomatis setelah validasi tidak ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS meminta detail suspension notice yang ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeControllerPlus.java:33-37",
+      "fit": "Sesuai",
+      "detail": "POST /plus-suspended-notice menerima filter noticeNo, suspensionType, dateOfSuspension, dueDateOfRevival, suspensionSource, dateOfRevival[$null] (whitelist di SuspendedNoticeServiceImplPlus.java:46-61), diurutkan terbaru dulu (:75)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim isi detail suspension ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/dto/SuspendedNoticePlusDto.java:13-56",
+      "fit": "Sesuai",
+      "detail": "Response berisi noticeNo, srNo, dateOfSuspension, suspensionType, reasonOfSuspension, suspensionSource, dueDateOfRevival, dateOfRevival, officer, remarks. srNo ikut dikirim sehingga PLUS bisa menunjuk suspension saat konfirmasi. Baris yang sudah di-revive ikut kembali kecuali PLUS memakai filter dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:51)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim detail reduction yang ada ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/dto/SuspendedNoticePlusDto.java:13-56",
+      "fit": "Sebagian",
+      "detail": "Reduction hanya terlihat sebagai baris suspension dengan reason TS-RED. Record ocms_reduced_offence_amount (amount_payable sebelum reduction, dipakai revival di RevivalBaseHelper.java:877-886) tidak diekspos oleh endpoint plus-* mana pun di ocmsadminapi; amountPayable terkini ada di plus-offence-notice (NoticeResponseMapper.java:83)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim status notice saat ini ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeController.java:34",
+      "fit": "Sesuai",
+      "detail": "POST /plus-offence-notice mengembalikan suspensionType, eprReasonOfSuspension, crsReasonOfSuspension, amountPayable lewat NoticeResponseMapper (:70,79,83,87)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim detail setelah validasi revival lolos",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:942",
+      "fit": "Sebagian",
+      "detail": "Response dry-run yang lolos hanya {noticeNo, eligible:true, message:'Validation passed - eligible for revival'} (:966-971). Detail diambil PLUS lewat panggilan lain; urutan di sisi PLUS cannot verify from repo."
+    }
+  ]
+}

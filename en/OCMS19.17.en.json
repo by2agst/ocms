@@ -1,0 +1,21 @@
+{
+  "story": "OCMS19.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (createValidationErrorResponse, createErrorResponse, plus-revive-suspension), helpers/RevivalBaseHelper (createErrorResponse), helpers/TemporaryRevivalHelper. Other repos: no code (PLUS is external).",
+  "note": "Story status is 'No requirement' (requirement not given); traced normally. When validation refuses a revival, OCMS sends the error message to PLUS in the response of the same endpoint: checking mode answers a per-notice list {noticeNo, eligible:false, message} (HTTP 200), an invalid request answers HTTP 400 {appCode, message}. Gaps: (1) the checking-mode response drops appCode (the appCode parameter of createValidationErrorResponse is unused, :954-958), so PLUS only gets the message text; (2) in execute mode an inactive srNo throws a RuntimeException (TemporaryRevivalHelper.java:145-147) that is turned into the generic 'System error. Please inform Administrator' (:192-195), and an empty mandatory field only gets 'Invalid request. Please double-check the request body.' without naming the field. How PLUS shows the message to its user is outside the repo: cannot verify from repo. No relevant maintenance ticket.",
+  "recommendation": "Can be claimed: an error message is sent to PLUS when the revival is refused. Record that the messages for an inactive srNo and an empty mandatory field are generic and checking mode does not send appCode.",
+  "steps": [
+    {
+      "step": "OCMS concludes that the revival cannot be allowed",
+      "detail": "A refusal happens when the code is not CSR/OTH, the notice does not exist, or the suspension type does not match; each refusal produces one error entry for that notice and other notices in the batch are still processed."
+    },
+    {
+      "step": "OCMS sends the error message to PLUS in checking mode",
+      "detail": "HTTP 200 response contains a list {noticeNo, eligible:false, message} (:782). The appCode parameter is not put in the response (:954-958), so PLUS only receives the message text."
+    },
+    {
+      "step": "OCMS sends an error message for an invalid request or in execute mode",
+      "detail": "An empty mandatory field gets HTTP 400 OCMS-4000 'Invalid request. Please double-check the request body.' without naming the field. In execute, a refusal carries {success:false, appCode, message} (RevivalBaseHelper.java:792-800), but an inactive srNo becomes 'System error. Please inform Administrator' (TemporaryRevivalHelper.java:145-147, :192-195)."
+    }
+  ]
+}

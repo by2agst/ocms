@@ -1,0 +1,46 @@
+{
+  "story": "OCMS2.2",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi cronservice: framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsOffenceRuleServiceImpl, utilities/repccs/RepcssOffenceRuleDatFileGenerator, crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository (findActiveRepOffenceRules), framework/services/comcrypt/helper/ComcryptCallbackHelper (encrypt + SFTP), src/main/resources cron-schedules-*.properties, sftp/sftp-common.properties. Repo lain: tidak ada code pengiriman offence rule ke REPCCS",
+  "note": "Tidak ada flow deck OCMS; langkah dari teks story. Remark demo menyebut SFTP dan 'code split': job, pembuatan file, dan upload SFTP semuanya ada di ocmsadminprivateapi (tier cron/backend), bukan di API staff; izin SFTP untuk App Service tidak bisa dibuktikan dari repo. Job mengirim snapshot penuh rule yang berlaku tiap hari (bukan delta), dengan satu rule 'U' (10400) yang di-hardcode dan pengecualian lewat parameter EXCL_RULE_O/REP. Satu nominal tidak valid membatalkan seluruh file (RepccsOffenceRuleServiceImpl.java:129-145). Seperti OCMS2.1, di prod cron.repupload.enabled=false (cron-schedules-prod.properties:194) sehingga jadwal otomatis tidak aktif menurut repo. Spec REPCCS, SFTP partner, dan nilai parameter: cannot verify from repo. Folder ocmsadminprivateapi/cronservice di root repo adalah salinan lama yang tidak ikut build; yang dipakai adalah src/main/java. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim dengan syarat: code pembuatan dan pengiriman file ada dan sesuai story. Konfirmasi dulu bahwa cron.repupload.enabled aktif di prod dan SFTP ke REPCCS diizinkan; tanpa itu langkah harian belum terbukti jalan di prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job REPCCS Generate File berjalan otomatis setiap hari lewat scheduler",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/RepUploadJobsScheduler.java:38; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/RepUploadJobsScheduler.java:45-48; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:193-194; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:195-196; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/RepccGenerateFilesController.java:33; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/RepccGenerateFilesController.java:53; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob.java:147",
+      "fit": "Sebagian",
+      "detail": "@Scheduled membaca cron.repupload.schedule (prod: 0 1 0 * * ? = 00:01 setiap hari) dengan ShedLock (RepUploadJobsScheduler.java:38). Tetapi cron-schedules-prod.properties:194 mengisi cron.repupload.enabled=false, sehingga RepUploadJobsScheduler.java:45-48 langsung return di prod; hanya uat (cron-schedules-uat.properties:196) dan dev yang true. Ada trigger manual POST /crontest/repccs/execute-scheduled-job (RepccGenerateFilesController.java:33,53). Apakah prod di-override lewat environment variable / App Setting: cannot verify from repo. Offence rule adalah service ke-2 dalam job ini (RepccsGenerateFileJob.java:147). Fakta yang sama dengan OCMS2.1 langkah 1, fit sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih daftar offence rule code yang berlaku hari ini",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:58; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:60-61; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:63-66; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:67-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:84",
+      "fit": "Sesuai",
+      "detail": "findActiveRepOffenceRules() mengambil rule dengan effective_start_date <= hari ini <= effective_end_date (OffenceRuleCodeRepository.java:60-61), yaitu satu rule offence_type 'U' yang di-hardcode (computer_rule_code 10400, kategori C, composition_amount 0) (OffenceRuleCodeRepository.java:63-66) ditambah semua rule offence_type 'O' kategori C/H/M kecuali kode di parameter EXCL_RULE_O/REP (OffenceRuleCodeRepository.java:67-81); kategori H dipetakan ke 'HV' (OffenceRuleCodeRepository.java:56-58). Yang dikirim adalah snapshot penuh rule yang berlaku tiap hari, bukan hanya perubahan; ini dibaca sebagai 'updated list'. Isi EXCL_RULE_O di ocms_parameter: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file offence rule (.DAT berformat tetap) dan menolak seluruh file bila ada nominal tidak valid",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:74-145; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssOffenceRuleDatFileGenerator.java:85; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssOffenceRuleDatFileGenerator.java:185-196; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssOffenceRuleDatFileGenerator.java:218-221; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssOffenceRuleDatFileGenerator.java:229-233",
+      "fit": "Sesuai",
+      "detail": "Tiap baris dikonversi dan nominal dicek: total digit > 6 atau desimal > 2 dianggap error (RepccsOffenceRuleServiceImpl.java:94-120); kalau ada satu saja error, seluruh job offence rule gagal tanpa file (:129-145). Kalau lolos, generateDatFileContent (RepcssOffenceRuleDatFileGenerator.java:85) menulis header, detail (nominal %07.2f, :185-196) dan trailer (:218-221); nama file REPCCS-OCMS-IN-OFFCD-<timestamp> tanpa ekstensi (:229-233). Kesesuaian format dengan spec REPCCS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file offence rule ke REPCCS (blob, enkripsi PGP lewat COMCRYPT, upload SFTP)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:166; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:175-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsOffenceRuleServiceImpl.java:180-192; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:255-258; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptWorkflowConfigResolver.java:134; ocmsadminprivateapi/src/main/resources/sftp/sftp-common.properties:32",
+      "fit": "Sesuai",
+      "detail": "Upload salinan ke blob (RepccsOffenceRuleServiceImpl.java:166), SFTP langsung dilewati (:175-176), lalu requestToken COMCRYPT (:180-192); enkripsi PGP dan upload SFTP ke /REP_IN dilakukan di callback (ComcryptCallbackHelper.java:255-258, ComcryptWorkflowConfigResolver.java:134, sftp-common.properties:32). Tidak ada flag 'sudah dikirim' pada rule; karena snapshot penuh dikirim tiap hari, kegagalan satu hari terkoreksi oleh run berikutnya. Status SUCCESS di job hanya berarti token terkirim, bukan SFTP selesai. Akses SFTP dari App Service, akun REPCCS, dan penerimaan di REPCCS: cannot verify from repo."
+    }
+  ]
+}

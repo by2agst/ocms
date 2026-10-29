@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.23",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (queryRecordsForReminder, batchPreloadContactInfo, refreshContactInfo, refreshIndividualContactInfo, refreshCompanyContactInfo, validateContactInfo), schedulers/NotificationJobsScheduler, cron-schedules-prod.properties. ocmsadminapi/CronProxyService only triggers the job. Other repos: no code specific to this story.",
+  "note": "The story asks that after the 3rd letter is sent, OCMS checks the latest mobile number/email (Epic OCMS9) so an e-reminder can be sent. In code this check sits in the same eNotification job as the sending: notices with last_processing_stage RR3 are selected, then refreshContactInfo fetches the individual's mobile from DataHive Singpass and the company's CorpPass admin email. Three things lower the claim: (1) the eNotification job is off in prod (cron.notification.enabled=false, cron-schedules-prod.properties:236), ticket OCMS-DF-2026-180 also says 'awaiting eNotification cron to activate'; (2) the DataHive refresh only runs when cron.enareminder.datahive=true, which is false in prod (cron-schedules-prod.properties:48), so the old number/email in the database is used; (3) the words 'DOS' and 'Vault' are not in the repo, the source is DataHive. DataHive response contents: cannot verify from repo.",
+  "recommendation": "Claim partially. The contact check logic exists, but the eNotification job and the DataHive refresh are both off in prod. Ask URA to confirm the prod configuration before claiming in full.",
+  "steps": [
+    {
+      "step": "Notices whose 3rd letter (RR3) has been processed are selected for the e-reminder",
+      "detail": "queryRecordsForReminder selects notices with last_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3) whose due date (last_processing_date + POS + PDD) falls inside the ENOTEDAYS window and that have no SMS/email record for that stage yet (NotificationSmsEmailHelper.java:1076-1160, stage at :1114); the job calls it at NotificationSmsEmailJob.java:162. But cron.notification.enabled=false at cron-schedules-prod.properties:236 (NotificationJobsScheduler.java:30 reads this flag), so in the repo configuration the e-reminder does not run. Value on the prod server: cannot verify from repo."
+    },
+    {
+      "step": "The individual's latest mobile number is fetched from the data source (Epic OCMS9) and saved on the notice",
+      "detail": "refreshIndividualContactInfo queries the DataHive view V_DH_SNDGO_SINGPASSCONTACT_MASTER per UIN, validates number length >= 8, then updateOcmsContactInfo overwrites offender_tel_no in ocms_offence_notice_owner_driver (NotificationSmsEmailHelper.java:1434-1470, :2710-2766, :2800-2822). All of this only runs when cron.enareminder.datahive=true (:92-93, :2461-2484); in prod it is false (cron-schedules-prod.properties:48), so refreshContactInfo only normalises the old number from the database. DataHive view contents: cannot verify from repo."
+    },
+    {
+      "step": "The company's latest email (active CorpPass admin) is fetched and saved on the notice",
+      "detail": "refreshCompanyContactInfo queries the CorpPass view per UEN, only accepts accounts with ACCOUNT_TYPE A01 and ACCOUNT_STATUS ACTIVE, then updateOcmsCompanyContactInfo overwrites email_addr in ocms_offence_notice_owner_driver (NotificationSmsEmailHelper.java:2496-2594, :2676-2700). Same as step 2, it only runs when cron.enareminder.datahive=true; in prod it is false (cron-schedules-prod.properties:48). CorpPass view contents: cannot verify from repo."
+    },
+    {
+      "step": "The electronic reminder is sent only when a valid contact exists; otherwise the notice is skipped",
+      "detail": "validateContactInfo rejects records with contactError, an individual without phoneNo, or a company without email (NotificationSmsEmailHelper.java:2259-2290); the job skips those records for non-ENA stages (NotificationSmsEmailJob.java:254-267), so the paper letter still goes out without an e-reminder. The logic matches the story, but it is in the job that is off in prod (cron-schedules-prod.properties:236), so the fit equals step 1."
+    }
+  ]
+}

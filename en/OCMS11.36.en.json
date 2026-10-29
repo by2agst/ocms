@@ -1,0 +1,33 @@
+{
+  "story": "OCMS11.36",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (e-reminder, exclusion list); crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (selecting RD1-DR3 notices for MHA and Toppan); workflows/datahiveuenfin/services/DataHiveUenFinService + schedulers/MhaDownloadJobsScheduler (DataHive F/B); agencies/mha/download/helpers/MhaNricDownloadHelper (saving mha_reg address); furnish_processing/helpers/FurnishApprovalHelper (hirer stored as offender); agencies/toppan/upload/{models/ToppanStage,helpers/ToppanUploadHelper,jobs/ToppanUploadJob} (RR3 letter); cron-schedules-prod.properties and application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story",
+  "note": "The story asks that, after an e-reminder referring to the 2nd reminder has been sent to the hirer (or the hirer has opted out), OCMS runs the Epic 8 particulars checks and updates so the 3rd reminder (RR3) can be sent. In the code this is a set of separate batch crons, not one chain, and all of them work on the recorded offender (offender_indicator = 'Y'); a furnished hirer is included automatically (FurnishApprovalHelper.java:551-555), without any hirer-specific logic. Three things lower the claim: (1) the eNotification job is switched off in cron-schedules-prod.properties:236 (UAT too); (2) the DataHive UEN/FIN job is switched off in prod (cron-schedules-prod.properties:52, UAT true); (3) the SFTP upload to Toppan is blocked in application-prod.properties:86, so the RR3 letter is produced but not delivered while the stage still advances (ToppanUploadJob.java:420-430, OCMS-DF-2026-192, status Ready to UAT). Fits are kept equal to sibling story OCMS11.16 (individual owner). Tickets OCMS-DF-2026-130 and OCMS-DF-2026-133 (MHA, Closed, Prod deployed) changed the mha_reg address update behaviour; the code now contains that fix. Per-environment values, MHA/DataHive response content and Vault: cannot verify from repo. Sheet status: Demo paid (50% of 75%); demo_remark mentions Vault Code Split.",
+  "recommendation": "Claim partially. The MHA check for NRIC hirers and the address save exist and are active in prod, but e-reminders and the DataHive UEN/FIN sync are off in prod, and the RR3 letter is not delivered to Toppan while SFTP is blocked. Ask URA to confirm the prod configuration before a full claim.",
+  "steps": [
+    {
+      "step": "The individual hirer receives an e-reminder (SMS/email) that refers to the 2nd reminder (RD2)",
+      "detail": "queryRecordsForReminder selects notices with last_processing_stage RD1/RD2/RR3/DN1/DN2/DR3 for offender_indicator = 'Y' (NotificationSmsEmailHelper.java:1112-1114), so a hirer who became the offender after furnish is picked up; template SMS_RD2 is used for RD2 (:484) and the job calls it at NotificationSmsEmailJob.java:162. However cron.notification.enabled=false in cron-schedules-prod.properties:236 (UAT too), so in the repo configuration e-reminders do not run. The code does not distinguish hirer from owner; the 'refers to 2nd reminder' wording in the template was not checked. Value on the prod server: cannot verify from repo."
+    },
+    {
+      "step": "A hirer who opted out of electronic reminders is excluded (exclusion list)",
+      "detail": "The reminder SQL filters out id_no values in ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1133), and the job skips excluded IDs (NotificationSmsEmailJob.java:226-232); the notice is left unchanged so the paper letter still goes out. The logic matches the story, but it sits in the same job that is switched off in prod (cron-schedules-prod.properties:236), so the fit equals step 1. No hirer/owner distinction."
+    },
+    {
+      "step": "A notice whose hirer holds an NRIC and is due for the 3rd reminder is selected for the latest-particulars check (MHA)",
+      "detail": "findNoticesForMhaNricUpload selects notices with next_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3), next_processing_date <= tomorrow, suspension_type NULL, onod.id_type = 'N' (NRIC), offender_indicator = 'Y', not yet in ocms_nro_temp and not HST (OcmsValidOffenceNoticeRepository.java:563-581). A furnished hirer is stored as an offender_indicator = 'Y' row (FurnishApprovalHelper.java:551-555), so the hirer is picked up. The MHA upload cron is active (cron.mhaupload.enabled=true, cron-schedules-prod.properties:105-106). Same fit as OCMS11.16 step 3. MHA file content: cannot verify from repo."
+    },
+    {
+      "step": "A hirer with a FIN, or a company (UEN), is checked through DataHive before the 3rd reminder",
+      "detail": "getNoticesForDataHiveProcessing selects notices at stage RD1/RD2/RR3/DN1/DN2/DR3 with id_type F or B and offender_indicator 'Y' (DataHiveUenFinService.java:221-248), so FIN hirers and company hirers are included. However the second job 'DH UEN and FIN' is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107), and the value is false in cron-schedules-prod.properties:52 (true in UAT). DataHive results: cannot verify from repo."
+    },
+    {
+      "step": "The latest address from the check result is saved as the hirer's mailing address",
+      "detail": "MhaNricDownloadHelper saves the new address from the MHA result file as an mha_reg row in ocms_offence_notice_owner_driver_addr: it inserts a new row (:1345-1349) or bulk-UPDATEs the existing row (:1352-1356, bulkUpdateMhaRegAddresses at :2365). Two MHA defects are already fixed on main: OCMS-DF-2026-130 (old address fields not cleared, Closed, Prod deployed) and OCMS-DF-2026-133 (PS notices queued for MHA, Closed). Same fit as OCMS11.16 step 5. MHA response content: cannot verify from repo."
+    },
+    {
+      "step": "The 3rd reminder (RR3) is produced for the hirer and sent to Toppan as a file",
+      "detail": "ToppanStage sets RD2 -> RR3 (14 days) and findToppanNoticesForStage selects notices with next_processing_stage = RR3, suspension NULL, offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:584-611), so the letter goes to the recorded offender including a hirer; the letter generation cron is active (cron-schedules-prod.properties:61-62). However sftp.upload.disabledServers=toppan in application-prod.properties:86, so the file never reaches Toppan; ToppanUploadJob.java:420-430 bypasses the delivery gate so the stage still advances although the letter was not delivered (OCMS-DF-2026-192, status Ready to UAT, not closed). Real delivery to Toppan: cannot verify from repo."
+    }
+  ]
+}

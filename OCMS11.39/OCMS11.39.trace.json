@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.39",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/datahiveuenfin/services/DataHiveUenFinService dan services/datahive/nricFinUenDataRetrieval (penerimaan data board); workflows/furnish_processing/helpers/FurnishApprovalHelper (satu-satunya tempat stage di-reset ke RD1, dari furnish hirer); agencies/toppan/upload/{helpers/ToppanUploadHelper,jobs/ToppanUploadJob} dan crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (letter RD1 generik); application-prod.properties. Repo lain: tidak ada code revert NOPO untuk Director/Partner",
+  "note": "Story minta setelah particulars Director/Partner individu diterima, OCMS mengembalikan NOPO (revert) ke reminder ke-1 (RD1) dengan Director/Partner sebagai hirer. Tidak ada code yang melakukannya dari data DataHive: tidak ada perubahan offender atau stage setelah sync UEN (lihat OCMS11.38). Mekanisme serupa yang ada hanya FurnishApprovalHelper.changeProcessingStage yang me-reset stage ke RD1 dan menyimpan hirer baru saat furnish hirer disetujui; itu alur furnish dari eService/staff, bukan Director/Partner dari ACRA, jadi tidak dihitung. Generate letter RD1 ke Toppan ada tetapi generik, dan upload SFTP ke Toppan diblok di application-prod.properties:86 (OCMS-DF-2026-192, Ready to UAT). Fit disamakan dengan sibling OCMS11.19. Status sheet: Demo paid (50% of 75%); demo_remark menyebut Vault Code Split. Tidak ada tiket relevan selain OCMS-DF-2026-192.",
+  "recommendation": "Jangan klaim sebagai selesai. Tidak ada code yang me-revert NOPO ke RD1 untuk Director/Partner dari data ACRA; hanya letter RD1 generik yang ada. Minta URA konfirmasi di mana fitur ini dibangun atau tandai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars Director/Partner individu diterima dari sumber data (ID, jabatan, tanggal appointment dan withdrawn)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:483-502; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UENDataResult.java:88-101; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Respons board di-parse ke BoardInfo berisi personIdNo, positionHeldCode, positionAppointmentDate, positionWithdrawnDate dan referencePeriod (DataHiveUENBatchService.java:483-502, UENDataResult.java:88-101). Tidak ada nama atau alamat orang, dan tidak ada pemilihan Director/Partner berdasarkan masa appointment. Job-nya mati di prod (cron-schedules-prod.properties:52). Fit sama dengan OCMS11.38 langkah 2 dan OCMS11.40 langkah 1 (sibling)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NOPO dikembalikan ke reminder ke-1 (RD1) dengan Director/Partner sebagai hirer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1479-1485; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:644-651",
+      "fit": "Tidak ada code",
+      "detail": "Setelah sync UEN tidak ada perubahan next_processing_stage atau offender (DataHiveUenFinService.java:1479-1485; hanya noticeNo ditulis ke ocms_nro_temp). Satu-satunya reset ke RD1 ada di FurnishApprovalHelper.java:644-651, dan itu dipicu persetujuan furnish hirer (OFFENDER_ROLE_HIRER = 'H'), bukan data Director/Partner dari ACRA. Alur itu mekanisme serupa tetapi tidak tersambung ke DataHive. Sama dengan OCMS11.19 langkah 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Director/Partner dicatat sebagai hirer beserta alamat surat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1440-1447; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1470-1477; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:622-637",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penulisan Director/Partner sebagai offender/hirer di ocms_offence_notice_owner_driver atau alamat suratnya dari alur UEN: board tidak ditulis ke DB (DataHiveUenFinService.java:1470-1477) dan yang tersimpan hanya shareholder (:1440-1447). Penyisipan ONOD_ADDR untuk orang baru hanya ada di alur furnish (FurnishApprovalHelper.java:622-637, dipicu persetujuan furnish dari eService/staff, bukan data ACRA). Sama dengan OCMS11.19 langkah 3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder ke-1 (RD1) dibuat dan dikirim ke Director/Partner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:584-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:420-430; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Generate letter RD1 yang generik ada: findToppanNoticesForStage memilih notice next_processing_stage = 'RD1' untuk offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:584-611; ToppanUploadHelper.java:1887), sehingga letter ditujukan ke offender yang tercatat; karena Director/Partner tidak pernah dicatat sebagai offender (langkah sebelumnya), ia tidak akan menerima letter. Selain itu sftp.upload.disabledServers=toppan di application-prod.properties:86 dan gate pengiriman dilewati (ToppanUploadJob.java:420-430, OCMS-DF-2026-192, status Ready to UAT), jadi letter tidak sampai ke Toppan di konfigurasi repo."
+    }
+  ]
+}

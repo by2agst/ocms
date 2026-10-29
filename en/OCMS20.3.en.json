@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin/{jobs/DataHiveUenFinJob,services/DataHiveUenFinService}, services/datahive/nricFinUenDataRetrieval/service/{DataHiveUENServiceImpl,DataHiveUENBatchService}, workflows/unclaimedreport/{helpers/UnclaimedReportHelper,services/UnclaimedReportServiceImpl}, crud ocmsizdb/OcmsTempUncHstAddr, schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no address comparison code",
+  "note": "Status in stories.json is 'Requirement given - Gen flow', demo_remark 'No vault' (meaning unclear from the repo). The story names DOS; DOS = DataHive/ACRA cannot be confirmed from the repo, the word DOS only appears in a UI screen 'DOS Reports'. What exists in the code is a call to DataHive views V_DH_ACRA_FIRMINFO_R/D with the UEN. The registered address received for the adhoc queue is only upserted into ocms_temp_unc_hst_addr (type_of_address fixed to 'mha_reg') without being compared with the address the reminder was sent to, so 'identify whether the address changed' does not exist in code. The generator for the UNC result report (checkAndGenerateBatchDataReport) exists but has no caller in ocmsadminprivateapi/src (grep over the whole src), and its query filters query_reason='UNC' while entity OcmsTempUncHstAddr has no query_reason column and the adhoc upsert does not fill it; whether the DB has a default cannot verify from repo. The UEN & FIN job is switched off in prod (cron.mhadownload.uenfin.enabled=false). No maintenance ticket is specific to this adhoc UEN path; OCMS-DF-2026-137 (UEN format validation) only concerns input format.",
+  "recommendation": "Do not claim in full. The DataHive call with a UEN and address storage exist but the job is off in the prod properties; comparison of old vs new address and a result report for staff do not exist. Confirm with URA whether DOS = DataHive",
+  "steps": [
+    {
+      "step": "OCMS sends the UEN of the TS-UNC company to the registry data source (DOS) to ask for the latest registered address",
+      "detail": "The batch UEN service sends the UEN to DataHive views V_DH_ACRA_FIRMINFO_R and _D (DataHiveUENBatchService.java:48-49, query at lines 404-406) and batchProcessUenRecords is called from DataHiveUenFinJob.java:251. DOS = DataHive/ACRA cannot be confirmed from the repo. The job is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107), and that is the value in cron-schedules-prod.properties:52; the real server value cannot verify from repo. The early return at DataHiveUenFinJob.java:189-191 means the adhoc queue is not read when there are no regular records."
+    },
+    {
+      "step": "OCMS receives the latest registered address (block, floor, unit, street, building, postal code) from the registry and stores it",
+      "detail": "For adhoc records (no noticeNo) storeAdhocUenAddressToUncHstAddr takes the address from CompanyInfo (DataHiveUenFinService.java:565-585) and upsertToUncHstAddr stores it in ocms_temp_unc_hst_addr with type_of_address 'mha_reg' (lines 655, 693). The address is stored, but as a single row per id_no (overwritten each run, no history) and the source label 'mha_reg' is wrong for ACRA data. It only runs when the UEN & FIN job is enabled (see step 1)."
+    },
+    {
+      "step": "OCMS compares the latest registered address with the address where the returned reminder was sent and flags a change",
+      "detail": "There is no comparison of old vs new address anywhere in the six repos (grep addressChanged/compare/differ on the Unclaimed and DataHive UEN paths, three synonyms). upsertToUncHstAddr overwrites the existing row (DataHiveUenFinService.java:655-684), and the regular notice path updateCompanyAddress/updateCompanyAddressWithNullSupport (lines 1633, 1723) overwrites the mha_reg address in ONOD without comparing. Staff have to compare by themselves."
+    },
+    {
+      "step": "The latest registered address result is given to the Notice Processing Officer in a report for follow-up",
+      "detail": "UnclaimedReportServiceImpl.checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110) builds an Excel from ocms_temp_unc_hst_addr but has no caller in ocmsadminprivateapi/src: the scheduler and controller only call executeJob/generateReport, which build the TS-UNC notice list report (UnclaimedReportServiceImpl.java:69), not the address report. The report query filters query_reason = 'UNC' (UnclaimedReportHelper.java:337) while entity OcmsTempUncHstAddr has no such column (OcmsTempUncHstAddr.java, columns start at line 36) and the adhoc upsert does not fill it; any DB default cannot verify from repo. The code exists but is unreachable, so this step is not claimed."
+    }
+  ]
+}

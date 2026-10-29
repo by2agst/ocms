@@ -1,0 +1,46 @@
+{
+  "story": "OCMS19.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi helpers/RevivalBaseHelper (updateSuspendedNoticeRevival, updateDatabaseAfterRevivalAll, clearVONSuspension, revertCompositionAmountIfReduced), helpers/{TemporaryRevivalHelper,PermanentRevivalHelper}, crud/ocmsizdb/suspendednotice/SuspendedNoticeRepository (updateRevivalFieldsNative), crud/ocmsizdb/OcmsReduction. Repo lain: tidak ada code. Maintenance: OCMS-DF-2026-028, -029, -072, -078.",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak normal. Revival memakai UPDATE native pada baris ocms_suspended_notice (date_of_revival, revival_reason, revival_remarks, officer_authorising_revival); tidak ada perintah delete di RevivalBaseHelper, TemporaryRevivalHelper, maupun PermanentRevivalHelper, jadi riwayat suspension dan reduction tetap ada dan masih bisa dibaca lewat /plus-suspended-notice. VON dan eVON dibersihkan atau diisi dari suspension aktif yang tersisa. Untuk reduction (TS-RED), amount_payable dikembalikan dari record ocms_reduced_offence_amount terbaru dan record itu sendiri tidak diubah. Celah: pengembalian amount dilewati bila crs_reason=FP, tidak ada record, atau amount_payable kosong, dan error saat revert hanya di-log sementara revival tetap sukses (RevivalBaseHelper.java:919-923). Nilai asli sebelum reduction baru terisi setelah OCMS-DF-2026-072 (closed, Prod deployed); revert yang salah sumber diperbaiki di OCMS-DF-2026-028 (closed), dan OCMS-DF-2026-078 menambal 4 notice TS-RED yang tersisa dengan amount salah, jadi data lama sebelum fix bisa tidak punya nilai asli. Payment field untuk court stage diperbaiki di OCMS-DF-2026-029 (closed). Next Processing Date sengaja tidak diubah saat revival (:758-759); apakah cron memproses ulang notice itu cannot verify from repo.",
+  "recommendation": "Bisa diklaim untuk revival tanpa menghapus riwayat. Klaim 'reduction dibatalkan' dan 'notice kembali diproses' hanya sebagian: revert amount punya kondisi lewat dan error ditelan, dan pemrosesan ulang bergantung cron yang tidak bisa diverifikasi dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menandai suspension sebagai di-revive tanpa menghapus baris lama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:278-299",
+      "fit": "Sesuai",
+      "detail": "updateRevivalFieldsNative menjalankan UPDATE ... SET date_of_revival, revival_reason, revival_remarks, officer_authorising_revival WHERE notice_no, date_of_suspension, sr_no (SuspendedNoticeRepository.java:161-172). Tidak ada delete di tiga helper revival; baris tetap bisa dibaca lewat plus-suspended-notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui VON dan eVON setelah revival",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:742-756",
+      "fit": "Sesuai",
+      "detail": "Bila masih ada suspension aktif, VON/eVON diisi dari yang tersisa; bila tidak, suspension_type, epr_*, crs_* dan due_date_of_revival dikosongkan (clearVONSuspension :320-355)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membatalkan reduction (TS-RED) tanpa menghapus record reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:860-917",
+      "fit": "Sebagian",
+      "detail": "amount_payable VON dan eVON dikembalikan dari record ocms_reduced_offence_amount terbaru; record reduction tidak diubah. Dilewati bila crs_reason=FP (:868-872), record atau amount kosong (:880-891), dan exception hanya di-log sementara revival tetap sukses (:919-923). Bergantung pada fix OCMS-DF-2026-072/-028/-078; data sebelum fix cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kembali bisa diproses oleh OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:758-759",
+      "fit": "Sebagian",
+      "detail": "Next Processing Date sengaja tidak diubah saat revival; kode berasumsi cron mengambil notice dengan NPD lampau. Untuk PS, payment_acceptance_allowed diset Y dan eservice_message_code diset (:333-349); TS tidak mengubah field itu. Eksekusi cron pemrosesan ulang cannot verify from repo; field payment court stage diperbaiki di OCMS-DF-2026-029."
+    }
+  ]
+}

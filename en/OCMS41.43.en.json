@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.43",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/{form/Form, form/HirerForm, form/DriverForm, form/OwnerForm, hook/useODH, context/NoticeContext}, utils/mapping/Notice/NoticeOld; ocmsadminapi workflows/furnish/{stafffurnish/controllers/StaffFurnishController, helpers/FurnishabilityChecker}, api-authorization.properties. The ManualFurnishController GET .../furnishable endpoint exists but the UI does not use it",
+  "note": "Actual flow in the Staff Portal: on the Owner/Hirer/Driver Details tab of the notice page, the Furnish Hirer/Driver button runs the furnishable check (furnish-redirect-check) and then unlocks the fields (Name, ID type/number, address, contact) for input. Key notice information is shown in the Offence Info tab of the same page. For UPDATE mode (editing an existing offender) there is no API call; only a PS check on data already loaded in the browser, so the stage is not checked. The ManualFurnishController GET /furnish/officer/manual/notice/{noticeNo}/furnishable endpoint (stage check only, no PS check) exists in the backend but no UI calls it and it is not in api-authorization.properties. Role-to-functionId mapping cannot be verified from the repo.",
+  "recommendation": "Claim most of it. The furnishable check and form fields exist; the stage check does not run for UPDATE mode.",
+  "steps": [
+    {
+      "step": "OCMS checks the notice is at a furnishable stage before the form opens",
+      "detail": "CREATE/REDIRECT mode: useODH calls furnish-redirect-check and opens the form only if furnishable (useODH.tsx:100-141); the backend checks stage NPA..CPC (FurnishabilityChecker.java:51-61, 118-126) besides PS and Advisory. UPDATE mode only does a local PS check (useODH.tsx:88-99), with no stage check. The endpoint is under functionId OCMS_OIC_FURNISH (api-authorization.properties:79); the role mapping cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS displays the key information of the notice",
+      "detail": "The Offence Info tab in Form.tsx renders NoticeODetails / NoticeBasicForm / vehicle and creation details (Form.tsx:116-164) on the same page as the offender tab."
+    },
+    {
+      "step": "OCMS shows the Name and ID number fields for input",
+      "detail": "The Owner/Hirer/Driver Details tab (Form.tsx:166-183) contains OwnerForm, HirerForm and DriverForm; HirerForm has hirer_name, hirer_identity_type, hirer_identity_no (HirerForm.tsx:288-330), DriverForm has driver_name, driver_identity_type, driver_identity_no (DriverForm.tsx:54-60)."
+    },
+    {
+      "step": "OCMS shows the address and contact fields for input",
+      "detail": "HirerAddressFields holds the Registered Address and Mailing Address (HirerForm.tsx:160-216) and there are mobile/alt contact fields (HirerForm.tsx:351-379); DriverForm and OwnerForm have a similar structure."
+    },
+    {
+      "step": "The fields become editable only after the furnishable check passes",
+      "detail": "After the check passes, useODH calls setEditMode(true) and setActiveMode (useODH.tsx:143-159); the ID type/number inputs are disabled/readonly when !edit or activeMode is not CREATE (HirerForm.tsx:322, 333)."
+    }
+  ]
+}

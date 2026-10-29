@@ -1,0 +1,41 @@
+{
+  "story": "OCMS6.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm, form/NoticeSearchAllForm, hook/useSearchParams, hook/useSearch, list/NoticeSearchAllList, list/NoticeSearchOutstandingList, component/NoticeSearchSlot}, context/OptionsContext, utils/config/env, components/datagrid/column. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{OcmsValidOffenceNoticeController, OcmsValidOffenceNoticeServiceImpl}, resources/api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Notice search in the staff portal is complete for notice number, vehicle number, date range, notice type, processing stage, payment status, suspension, rule code, place of offence and offender data, with drop-downs from reference tables. Main gap: Summon No. and Warrant No. search has no server side. The UI calls /summon and /warrantofarrest, which do not exist in ocmsadminapi/ocmsadminprivateapi; summon is even active only on STAGING/LOCAL (env.ts:11). From reading the code (not executed), on PRO a search with only a summon no adds no filter at all, so that criterion is silently ignored. Court Mention/Trial Date search also calls /courtmention and /courttrial, which do not exist (useSearch.ts:99-131). Result download is capped at 1000 rows. Ticket used: OCMS-SR-2026-048 (Closed, Prod deployed) for the Outstanding definition. Not verifiable from the repo: whether another service provides the summon/warrant endpoints, and per-user assignment of function OCMS_NOTICE_SEARCH.",
+  "recommendation": "Claim search by notice no., vehicle, date, type, stage, payment status and the drop-downs. Do not claim summons/warrant search (no data source). Ask URA/team where summons and warrant data are stored, or mark as a gap",
+  "steps": [
+    {
+      "step": "Staff opens the Search Notices page in All Notices or Outstanding Notices mode",
+      "detail": "NoticeSearchForm.tsx:126-141 provides the All Notices / Outstanding Notices dropdown that switches route; 187-206 renders the matching search form. On the API side, /v1/validoffencenoticelist and related lookups are opened through function OCMS_NOTICE_SEARCH (api-authorization.properties:21-24). Assignment of the function to users: cannot verify from repo."
+    },
+    {
+      "step": "Query by notice number and vehicle number",
+      "detail": "The Notice No. (10 characters, uppercase) and Vehicle No. fields are in NoticeSearchAllForm.tsx:63-119. useSearchParams.tsx:322 sends noticeNo[$in], line 325 sends vehicleNo. OcmsValidOffenceNoticeServiceImpl.java:613-660 turns the operators ($in, $gte, $lte, $null, $ne) into JPQL over OcmsValidOffenceNotice LEFT JOINed to the current offender."
+    },
+    {
+      "step": "Query by date range (Offence Date From / To)",
+      "detail": "The Offence Date From/To fields are in NoticeSearchAllForm.tsx:472-530 (Suspension, Court Mention and Court Trial ranges also exist). useSearchParams.tsx:524-527 sends noticeDateAndTime[$gte] and [$lte]; the server applies them in OcmsValidOffenceNoticeServiceImpl.java:643-650. The range is capped at 6 months by UI validation (see OCMS6.3)."
+    },
+    {
+      "step": "Query by summons number and warrant number",
+      "detail": "The Summon No. and Warrant No. fields exist in the form (NoticeSearchAllForm.tsx:439, 459), but the search has no server side. The lookup calls GET /summon (useSearch.ts:56-66) and GET /warrantofarrest (68-78); no controller, entity or repository for either exists in ocmsadminapi or ocmsadminprivateapi (they appear only as paths in api-authorization.properties:23). StaffFurnishService.java:1531 and 1567 say summonNo is 'not yet available in database'. From reading the code (not executed): summon is only called when isAPIFound = STAGING or LOCAL (env.ts:11, useSearchParams.tsx:208), so on DEV/UAT/PRO the summon no is ignored and no filter is added; warrant is always called and, with an empty response, getNotices returns ['null'] (useSearch.ts:16-22), so the result is empty. The Summon No. column in the table is also hard-coded empty (column/index.tsx:133-137). Another service may provide these endpoints: cannot verify from repo."
+    },
+    {
+      "step": "Query by notice type and other indicators (processing stage, payment status, suspension, rule code, place, offender)",
+      "detail": "The form has Notice Type (NoticeSearchAllForm.tsx:177), Processing Stage (298), Payment Status (309), Suspension Type/Reason, Computer Rule Code, Place of Offence, ID No./Type, Offender Name and Current Offender. useSearchParams.tsx:284-352 maps Payment Status to crsReasonOfSuspension (null = unpaid, FP = fully paid, FP+PRA = partial), and 507-538 maps the other filters (vehicleRegistrationType, lastProcessingStage, idNo, idType, ownerDriverIndicator, name). Outstanding mode uses a default filter that excludes hard PS and non-FP notices per OCMS-SR-2026-048 (Closed, Prod deployed): NoticeSearchOutstandingList.tsx:105-125."
+    },
+    {
+      "step": "Drop-downs hold values pulled from the relevant tables",
+      "detail": "When the form opens, setOptions loads OFFENCE_TYPE, ID_TYPE, VEHICLE_TYPE, PROCESSING_STAGE, TS/PS reason, RULE_CODE, PP_CODE and more (NoticeSearchForm.tsx:86-111). OptionsContext.tsx fetches them with POST standardcodelist (356), offencerulecodelist (489), carpark (526) and suspensionreasonlist, so the values come from reference tables. One small exception: Payment Status is a static local list (OptionsContext.tsx:149), not from a table."
+    },
+    {
+      "step": "Query results can be browsed and viewed in a table",
+      "detail": "The Apply button calls onApply (NoticeSearchForm.tsx:52-70): validate, checkSearch, getParams, then setAdvanceFilter. The Datagrid in NoticeSearchAllList.tsx:113-173 POSTs validoffencenoticelist with that filter; OcmsValidOffenceNoticeController.java:55-80 returns a page of data with current offender info. Column details and ordering are covered in OCMS6.4."
+    },
+    {
+      "step": "Staff downloads the search results",
+      "detail": "The Download All and Download Selected buttons (NoticeSearchSlot.tsx:262-280) export the results to XLSX through SheetGenerate (218-224). If the row count exceeds NOTICE_SEARCH_LIMIT = 1000 (constant.ts:96, check at NoticeSearchSlot.tsx:177-196), the download is refused with a 'backend service overload' message. Download/print as its own feature is the scope of OCMS6.6; here it is only noted that the 1000 cap makes large result sets impossible to download."
+    }
+  ]
+}

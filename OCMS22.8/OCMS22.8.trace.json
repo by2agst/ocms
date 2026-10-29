@@ -1,0 +1,55 @@
+{
+  "story": "OCMS22.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/agencies/mha/upload/{jobs/MhaNricUploadJob,helpers/MhaNricDataHelper} (upload ID ke MHA, seleksi per stage RD1-DR3), mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper} (update alamat mha_reg, DataHive), resources/cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code batch court",
+  "note": "Story minta OCMS mengirim ID notice di court application batch ke agency terkait dan memperbarui alamat terdaftar terbaru (sesuai Epic OCMS8). Mekanisme OCMS8 ada: cron MhaNricUploadJob membuat file NRO ke MHA dan MhaNricDownloadJob membaca hasil lalu mengganti alamat mha_reg (MhaNricDownloadHelper.java:2288-2334). Tetapi populasi yang dikirim dipilih dari next_processing_stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:186-193), bukan notice di court application batch; batch court tidak ada (lihat OCMS22.7), jadi ID notice batch tidak pernah dipilih khusus. Karena itu step mekanisme umum paling tinggi Sebagian. Di prod, cron mhaupload/mhadownload enabled=true tetapi cron.mhadownload.datahive=false dan uenfin.enabled=false (cron-schedules-prod.properties:50,52), jadi enrichment DataHive mati; nilai server asli cannot verify from repo. MHA, SFTP dan DataHive cannot verify from repo. Tiket OCMS-DF-2026-130 dan OCMS-DF-2026-134 (alamat lama tidak dibersihkan / alamat notice salah ter-overwrite di MHA cron) sudah Closed dan fix-nya terlihat di code; remark kedua tiket menyebut MHA cron belum dinyalakan di Production.",
+  "recommendation": "Klaim sebagian saja. Pengiriman ID ke MHA dan update alamat lewat mekanisme OCMS8 ada, tetapi tidak dibatasi ke notice di court application batch (batch belum ada) dan DataHive mati di prod. Konfirmasi dengan URA apakah OCMS8 dianggap cukup untuk story ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Court application batch sudah punya nomor dan stage notice sudah di-update (kondisi awal dari story sebelumnya)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/sequence/SequenceService.java:11-14; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:21-31",
+      "fit": "Tidak ada code",
+      "detail": "Kondisi awal ini tidak terpenuhi di code karena batch court tidak ada (lihat OCMS22.7): tidak ada seri nomor batch (SequenceService.java:11-14) dan tidak ada kolom batch (OcmsCourtCase.java:21-31)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih ID notice yang ada di court application batch untuk dikirim ke agency",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:186-193",
+      "fit": "Tidak ada code",
+      "detail": "Seleksi upload MHA memakai next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) dengan next_processing_date <= besok, suspension_type kosong, id_type N dan offender_indicator Y (MhaNricDataHelper.java:34, 186-193). Tidak ada filter batch court atau stage court (CPC/CFC), jadi ID notice di court batch tidak dipilih berdasarkan batch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim ID ke MHA lewat file upload",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:39-45; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sebagian",
+      "detail": "MhaNricUploadJob (extends TrackedCronJobTemplate, folder dari sftp.folders.mha.upload, :39-45) berjalan terjadwal 0 0 9,14,21 MON-SAT dan enabled=true di prod (cron-schedules-prod.properties:105-106). Ini mekanisme OCMS8 untuk notice di stage letter biasa, bukan khusus batch court, jadi paling tinggi Sebagian. Nilai property di server asli dan penerimaan oleh MHA/SFTP: cannot verify from repo. Remark tiket OCMS-DF-2026-134 menyebut MHA cron belum dinyalakan di Production saat itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima hasil MHA dan memperbarui alamat terdaftar terbaru notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2288-2334; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sebagian",
+      "detail": "MhaNricDownloadHelper menyimpan alamat dari respons MHA sebagai type_of_address mha_reg dengan full replace, field kosong/NA menghapus nilai lama (MhaNricDownloadHelper.java:2288-2334, fix OCMS-DF-2026-130). Alamat dibatasi ke notice yang sedang diproses (OCMS-DF-2026-134, comment di :760-764). Cron mhadownload enabled=true di prod (cron-schedules-prod.properties:119-120). Berlaku untuk notice yang dikirim lewat upload di atas, bukan batch court, jadi Sebagian. Isi respons MHA: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS juga menanyakan agency lain (DataHive) untuk data NRIC/UEN/FIN terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:138; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:706; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Enrichment DataHive ada di MhaNricDownloadJob dan hanya jalan bila cron.mhadownload.datahive=true (MhaNricDownloadJob.java:138, 706). Di prod nilainya false (cron-schedules-prod.properties:50) dan job UEN/FIN uenfin.enabled=false (:52), dengan comment di properties 'Keep disabled until URA completes UAT verification' dan 'Keep disabled in PROD until DataHive view names are verified'. Jadi eksekusi step ini mati di config prod; nilai server asli cannot verify from repo. Selain itu tidak terikat batch court."
+    }
+  ]
+}

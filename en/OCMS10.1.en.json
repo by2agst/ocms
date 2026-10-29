@@ -1,0 +1,29 @@
+{
+  "story": "OCMS10.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsansvehServiceImpl, utilities/repccs/RepccsAnsDatFileGenerator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findRepccsVehiclesForAnsVeh), framework/services/comcrypt (PGP + SFTP upload), framework/controllers/RepccGenerateFilesController, cron-schedules-*.properties, sftp/*.properties. ocmsadminui pages/Cron/list/CronList.tsx (manual trigger). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for the ANSVEH file",
+  "note": "Story status 'Requirement given - Gen flow'. Existing code: the REPCCS Generate File job (ocmsadminprivateapi) builds the ANSVEH file with a list of vehicles from a query on ocms_valid_offence_notice, writes the fixed-width H/D/T format, copies it to blob, asks COMCRYPT for PGP encryption, and the COMCRYPT callback uploads the encrypted file to the REPCCS SFTP. Main gap: the combined 'Combined REP Upload' scheduler is switched off in the PROD properties (cron.repupload.enabled=false), so the daily automatic send does not run in PROD unless triggered manually or overridden per environment (cannot verify from repo). The vehicle selection rule in the query is not the same as the AN check at create notice (the window uses cre_date and a year count from ocms_parameter, not 24 months of notice date; exemption rules are not applied). Receipt of the file on the REPCCS side and the contents of ocms_parameter/ocms_standard_code (ANS_PS_REASON) cannot verify from repo. No relevant maintenance ticket. The folder ocmsadminprivateapi/cronservice/ is a stale copy and is not used as evidence.",
+  "recommendation": "Claim partially. The query, file format, encryption and SFTP upload exist, but the daily job is off in the PROD properties and the vehicle selection rule differs from the AN check. Ask URA/the team to confirm the PROD flag and the window (ocms_parameter ANS PERIOD) before a full claim.",
+  "steps": [
+    {
+      "step": "OCMS runs a daily job that builds the ANSVEH file for REPCCS",
+      "detail": "RepUploadJobsScheduler.runRepUploadJobs is scheduled daily at 00:01 (RepUploadJobsScheduler.java:38-51) and calls RepccsGenerateFileJob; the ANS Vehicle service is the first service in that job (RepccsGenerateFileJob.java:118-138). However cron-schedules-prod.properties:194 has cron.repupload.enabled=false, so in PROD the scheduler returns immediately (RepUploadJobsScheduler.java:45-48); dev and uat are true (cron-schedules-uat.properties:196). The job can only run through the manual trigger (CronList.tsx:61 -> RepccGenerateFilesController.java:53-61). Whether the flag is overridden per environment cannot verify from repo."
+    },
+    {
+      "step": "OCMS selects the vehicles that are not qualified for ANS",
+      "detail": "The query findRepccsVehiclesForAnsVeh selects DISTINCT vehicle_no from ocms_valid_offence_notice that is not foreign (vehicle_registration_type <> 'F', line 436), with cre_date within the last N years where N comes from ocms_parameter code ANS / parameter_id PERIOD (437-446), and whose notice is not suspended, or TS, or PS with an epr_reason_of_suspension that is not an active ANS_PS_REASON code (447-466). So vehicles that have an 'active' notice are sent as not qualified. Gap: the AN check at create notice uses notice_date_and_time and a hard-coded 24 months (AdvisoryNoticeHelper.java:192 in ocmsadminprivateapi workflows/repccs/notice_creation) plus exemption rules, while this query uses cre_date, a year count from a parameter, and does not read exemption rules; so the list that is sent can differ from the AN decision in OCMS. The ocms_parameter value and the ocms_standard_code contents cannot verify from repo (DB data). When the list is empty the job finishes successfully without a file (RepccsansvehServiceImpl.java:56-62)."
+    },
+    {
+      "step": "OCMS builds the ANSVEH file (header, detail, trailer) named REPCCS-OCMS-IN-ANSVEH-timestamp",
+      "detail": "RepccsansvehServiceImpl turns the vehicle_no list into data, validates that the plate is not empty (68-78), then builds the file content and file name (81-91). RepccsAnsDatFileGenerator writes fixed-length 50-character records: header H, detail D + plate, trailer T + record count (constants at RepccsAnsDatFileGenerator.java:31-37) and the name REPCCS-OCMS-IN-ANSVEH-yyyyMMddHHmmss (123-128). Conformance with the REPCCS interface specification (a document outside the repo) cannot verify from repo."
+    },
+    {
+      "step": "The file is copied to blob and PGP-encrypted through COMCRYPT",
+      "detail": "The original file is uploaded to blob (RepccsansvehServiceImpl.java:96-103); the unencrypted SFTP upload is skipped on purpose (105-106); then comcryptTokenHelper.requestToken with operation ENCRYPTION and appcode OCMSREPCCS001 (110-122; sftp-prod.properties:42). The COMCRYPT resolver maps the REPCCS appcode to the PGP workflow (ComcryptWorkflowConfigResolver.java:133-135). The COMCRYPT response and keys cannot verify from repo."
+    },
+    {
+      "step": "The encrypted file is delivered to REPCCS through SFTP",
+      "detail": "After COMCRYPT replies, ComcryptCallbackHelper uploads the encrypted file to the SFTP folder from the resolver, i.e. sftp.folders.repccs.upload=/REP_IN (sftp-common.properties:32) on the repccs server (sftp-prod.properties:92-95); sftp.enabled=true in PROD (application-prod.properties:82) but false in dev and uat (application-uat.properties:72), so in UAT the file is not really sent. The code sends the file, but receipt by REPCCS and its use of the list to decide whether to issue an AN are outside the repo (cannot verify from repo)."
+    }
+  ]
+}

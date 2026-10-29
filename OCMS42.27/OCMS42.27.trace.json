@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.27",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Form/Particulars.ts (tombol 'Proceed to review' + ValidateALL), Confirmation.ts (checkbox declaration, Submit disabled)}, utils/validation/Furnish/*, utils/validation/error.ts; ocmseserviceapi workflows/furnish/{FurnishRequestValidator, FurnishSubmissionController}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan.",
+  "note": "Status Fully paid; 1 point. Mandatory field dicek di langkah particulars (tombol 'Proceed to review' tidak lanjut ke halaman review kalau ada error) dan dicek ulang di backend. Checkbox dijaga dengan Submit yang disabled, bukan dengan pesan error. Beberapa catatan: (1) pesan 'Please acknowledge the declaration if you wish to proceed.' ada di error.ts:265 dan :518 tetapi tidak pernah dipakai karena validation di Confirmation kosong ({}), jadi user tidak melihat penjelasan kenapa Submit mati; (2) panggilan ValidateALL di Submit (Confirmation.ts:120-125) memakai validation kosong sehingga tidak memvalidasi apa pun; (3) backend tidak menerima atau mengecek declaration, jadi tanpa UI, request tanpa checkbox akan tetap diterima; (4) bila backend menolak (HTTP 400), UI menampilkan layar error generik 'Error occurred during submission' (Confirmation.ts:193-198), bukan pesan field. Bypass lewat stepper atau cache restore: cannot verify from repo. Tiket OCMS-DF-2026-137 (UEN vs NRIC) mengubah rule validasi ID di UI dan API, Closed, tidak mengubah verdict.",
+  "recommendation": "Layak diklaim. Sebut bahwa cek checkbox hanya di UI dan tidak ada pesan error yang tampil.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mandatory field particulars (owner/company dan hirer/driver) divalidasi saat user menekan Proceed to review",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:114-119; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:16-24; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:167",
+      "fit": "Sesuai",
+      "detail": "Tombol 'Proceed to review' menjalankan ValidateALL dengan schema ValidOwner/ValidCompany + ValidHirerDriver (Particulars.ts:53,86,89,114-119); schema mewajibkan field seperti hdName dan hdRelation (ValidHirerDriver.ts:16-24, :167). Error ditampilkan per field lewat onSubmitValidate (Particulars.ts:119). Berlaku untuk individual dan company karena schema dipilih menurut isCP."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila ada field wajib kosong atau tidak valid, user tidak bisa lanjut ke halaman review",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:115-128; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:154-157",
+      "fit": "Sesuai",
+      "detail": "`if (validationError || !othersValid) return;` (Particulars.ts:128) berhenti sebelum stepper.show(3) (Particulars.ts:149). Dokumen wajib dicek lewat docs.validateDoc (Particulars.ts:146-150). Tombol juga disabled bila jawaban Q1 tidak valid (Particulars.ts:154-157)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila checkbox deklarasi belum dipilih, user tidak bisa men-submit",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Confirmation.ts:116-119; ocmseserviceui/src/pages/Furnish/Confirmation.ts:234-238; ocmseserviceui/src/utils/validation/error.ts:265; ocmseserviceui/src/pages/Furnish/Confirmation.ts:58",
+      "fit": "Sesuai",
+      "detail": "submitBtn.disabled = true di awal (Confirmation.ts:118) dan hanya menjadi false bila nilai 1 dan 2 sama-sama dipilih (Confirmation.ts:234-238), jadi submission memang tidak bisa dilanjutkan. Celah: tidak ada pesan error. Pesan 'Please acknowledge the declaration...' (error.ts:265) tidak pernah dipicu karena validation Confirmation kosong (Confirmation.ts:58), dan ValidateALL di Submit (Confirmation.ts:120-125) tidak punya schema. Penjagaan hanya di UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Backend menolak submission yang mandatory field-nya kosong",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:33-66; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:98-103; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/dto/FurnishSubmissionRequestDTO.java:49-60",
+      "fit": "Sesuai",
+      "detail": "@Valid pada request (FurnishSubmissionController.java:70; @NotBlank di FurnishSubmissionRequestDTO.java:49-60) dan validator.validateAll (FurnishRequestValidator.java:33-66; controller :98-103) mengembalikan HTTP 400 bila field wajib, ID, email, telepon, dokumen kosong atau salah. Namun tidak ada pengecekan declaration di backend (tidak ada field-nya), dan UI menampilkan layar error generik bukan pesan field (Confirmation.ts:193-198)."
+    }
+  ]
+}

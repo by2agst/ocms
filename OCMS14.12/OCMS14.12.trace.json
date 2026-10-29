@@ -1,0 +1,46 @@
+{
+  "story": "OCMS14.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Report/{index.tsx,lists/ReportListRIP.tsx,component/ReportSlot.tsx} (layar RIP Hirer/Driver Furnished Report), ocmsadminapi workflows/reports/system/rip/{RipReportController,RipReportServiceImpl} (PS-RP2 + deceased hirer/driver), api-authorization.properties. Tidak ada panggilan LTA/DOS dan tidak ada kriteria jumlah outstanding notice di report ini. ocmsadminprivateapi: LtaUploadHelper (enquiry LTA terjadwal, bukan dari report ini)",
+  "note": "Story minta tombol 'Generate Report' yang mengidentifikasi nomor kendaraan dari notice individu ber-life status tertentu berdasarkan kriteria pre-defined (misal ID punya sekian notice outstanding), lalu mengambil data kepemilikan kendaraan terbaru dari DOS. Yang ada hanya layar 'RIP Hirer/Driver Furnished Report' (reports/rip/furnished-driver-hirer): daftar notice PS-RP2 dalam rentang tanggal suspension, difilter ke hirer/driver offender yang deceased dan punya furnished address. Report itu laporan lain (alamat furnished), tidak punya kriteria jumlah outstanding, dan tidak memanggil LTA/DOS. demo_remark 'No RIP report'. DOS = DataHive/LTA cannot be confirmed from the repo. Tiket: OCMS-DF-2026-149 (closed, export report dipindah ke backend)",
+  "recommendation": "Jangan klaim penuh. Hanya layar report RIP lain yang bisa dipakai ulang; kriteria pre-defined dan pengambilan ownership dari DOS belum ada",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menekan tombol Generate Report di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:85-88; ocmsadminui/src/pages/Report/component/ReportSlot.tsx:149-151; ocmsadminui/src/pages/Report/lists/ReportListRIP.tsx:74",
+      "fit": "Sebagian",
+      "detail": "The RIP report screen exists (index.tsx:85-88) with Search and Export buttons (ReportSlot.tsx:149-151) that call reports/rip/furnished-driver-hirer (ReportListRIP.tsx:74). There is no button labelled Generate Report and this screen belongs to the 'RIP Hirer/Driver Furnished' report, not the deceased-vehicle + ownership report in the story (a generic page, not the one the story names). Authorization via OCMS_REPORT_RIP in api-authorization.properties:123-124."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi nomor kendaraan dari notice individu deceased",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:37-41; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:256-262; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:299-312; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:486-487",
+      "fit": "Sebagian",
+      "detail": "RipReportServiceImpl fetches PS-RP2 notices in the suspension date range (RipReportServiceImpl.java:256-262), then keeps only rows whose offender is a hirer/driver (not owner) with life_status 'D' (:299-312). vehicleNo is part of the output (:486-487). PS-RIP notices (DoD after the offence) and deceased owners are left out because of the REASON_RP2 and H/D filters (:37-41). Rows without a furnished address are dropped."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilihan memakai kriteria pre-defined, misal ID punya sekian notice outstanding",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:233-251; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:256-262",
+      "fit": "Tidak ada code",
+      "detail": "The only filter is the suspension date range (default 2000-01-01 to today, RipReportServiceImpl.java:233-251, :256-262). There is no count of outstanding notices per ID or a configurable threshold; grep for 'outstanding', threshold and notice count in workflows/reports and ltareport finds no such criteria."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil data kepemilikan kendaraan terbaru dari DOS untuk kendaraan yang diidentifikasi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:51-54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:88; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:211-213; ocmsadminui/src/pages/Report/lists/ReportListDOS.tsx:82-94; ocmsadminui/src/utils/models/Fapi.d.ts:218",
+      "fit": "Tidak ada code",
+      "detail": "RipReportServiceImpl only uses four database repositories (RipReportServiceImpl.java:51-54); there is no LTA/DOS call, HTTP client or enquiry file. The existing ownership enquiry is the LTA Upload cron that selects stage-ROV notices of type O/E on a schedule (LtaUploadHelper.java:88, :211-213); it is not triggered by, and does not receive a vehicle list from, the RIP report. A 'DOS Reports' screen exists (ReportListDOS.tsx:82-94, Query Type 'Vehicle Ownership') and calls the dosvaultrecords resource (Fapi.d.ts:218), but there is no dosvaultrecords controller in ocmsadminapi, ocmsadminprivateapi or thirdpartyapi, no OCMS_REPORT_DOS mapping in api-authorization.properties, and that screen does not take the RIP report result as input. DOS = DataHive/LTA cannot be confirmed from the repo."
+    }
+  ]
+}

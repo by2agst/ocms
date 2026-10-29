@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/repccs/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeRecordHelper}, framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator,LtaSnowflakeProcessor}, framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (ENA/reminder queries). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no notice-source check for follow-up",
+  "note": "Story status 'Fully paid'. Appendix C of Annex 1A is not in the repo, so the list of special vehicle/ID types cannot verify from repo. What exists: Diplomat (D) and VIP (V) vehicles go straight to RD1 after the owner update, Military (I) is handled at notice creation, and the eNotification queries exclude I/D/V. The notice source is kept in subsystem_label and only read at notice creation (range 030-999 is treated as EHT/Certis to decide the AN flag). No code in the LTA download or eNotification stage reads that source to choose a follow-up path: every notice, frontend or backend, goes through the same path. A dedicated branch for backend NOPOs (manual, PLUS/TDS/EPS) was not found. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence.",
+  "recommendation": "Do not claim in full. Only the special vehicle exclusion and storing the notice source can be claimed; separating the follow-up path for frontend vs backend does not exist. Ask URA to confirm whether one path for all sources is the intended design.",
+  "steps": [
+    {
+      "step": "OCMS makes sure the owner's ID/vehicle is not a special vehicle/ID type (Diplomat, VIP, Military and similar) before automated follow-up",
+      "detail": "Diplomat and VIP are detected in LtaDownloadHelper (lines 423-430) and sent straight to RD1; Military (I) is handled at notice creation (CreateNoticeServiceImpl.java:813); the ENA and reminder eNotification queries exclude vehicle_registration_type I, D, V (NotificationSmsEmailHelper.java:1061 and 1151). Appendix C of Annex 1A is not in the repo, so the completeness of the list cannot verify from repo; other special ID types (for example passport) are handled separately in other jobs."
+    },
+    {
+      "step": "OCMS identifies whether the NOPO came from a frontend enforcement system (EHT, REPCCS) or was created in the backend (manual, PLUS/TDS/EPS)",
+      "detail": "The notice source is stored in the subsystem_label column (NoticeRecordHelper.java:756) and CreateNoticeServiceImpl treats codes 030-999 as EHT/Certis (lines 728-735) to read an_flag from the payload. This check is used only at notice creation (AN decision), not to choose the NOPO follow-up. A grep of subsystemLabel in ocmsadminprivateapi finds no read in the LTA download or eNotification. Manual and PLUS/TDS/EPS notice creation sits in ocmsadminapi/other paths and is not rated as a source check."
+    },
+    {
+      "step": "A NOPO from a frontend enforcement system continues in the automated flow: owner is checked, then stage goes to ENA (contact found) or RD1 (no contact)",
+      "detail": "processStandardVehicle checks the exclusion list and passport, then calls processSnowflakeFunction, which moves the stage to ENA if a mobile/email is found or RD1 if not (LtaSnowflakeProcessor.java:143-150). This flow runs for all notices regardless of source, so frontend NOPOs are processed but not distinguished. The eNotification cron that continues from ENA is enabled=false in dev/UAT/prod (cron-schedules-prod.properties:236)."
+    },
+    {
+      "step": "A NOPO created in the backend (manual, or from PLUS/TDS/EPS) gets a different follow-up according to the automated processing workflow",
+      "detail": "No dedicated branch for backend NOPOs was found: the LTA upload query (OcmsValidOffenceNoticeRepository.java:70-74) and the eNotification query (NotificationSmsEmailHelper.java:992-1076) do not filter on subsystem_label, and code in ocmsadminprivateapi does not read the notice source after creation. The synonyms subsystemLabel, subsystem_label, REPCCS, EHT, PLUS were tried in two tiers with no hit for this routing."
+    }
+  ]
+}

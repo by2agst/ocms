@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper,helpers/MhaNricRecordValidator}, agencies/mha/upload/helpers/MhaNricDataHelper dan crud/ocmsizdb/OcmsValidOffenceNotice (query enquiry), utilities/suspension_helpers/PermanentSuspensionHelper, schedulers/MhaDownloadJobsScheduler, workflows/datahiveuenfin/services/DataHiveUenFinService, resources/cron-schedules-prod.properties. Sumber nyata adalah file MHA dan DataHive FIN; ICA/DOS tidak ada di code.",
+  "note": "Story minta OCMS mengenali notice individu dengan life status tertentu dari interface ICA/DOS harian lalu langsung temporary suspend. Code memproses life status dan date of death dari file hasil MHA (tiga kali sehari Senin-Sabtu) dan, untuk FIN, dari DataHive (job dimatikan di prod); suspension langsung diterapkan di job yang sama, tetapi berupa permanent suspension PS-RIP/PS-RP2, bukan temporary dengan periode, dan hanya untuk notice yang ikut di file enquiry. ICA/DOS tidak ada di code; DOS = DataHive/LTA cannot be confirmed from the repo. Demo remark meminta Vault Code Split dan izin koneksi Vault untuk api App Service server; itu per-environment dan cannot verify from repo (tidak ada Vault di jalur ini). Ticket dipakai: OCMS-DF-2026-135 dan OCMS-DF-2026-177 (keduanya Closed, Prod deployed; memengaruhi scope notice dan cek offender). Status story: Requirement given - Gen flow.",
+  "recommendation": "Klaim sebagian dengan hati-hati: pemrosesan life status dari file MHA dan suspension otomatis ada, tetapi jenisnya permanent (bukan temporary), sumbernya MHA bukan ICA/DOS, dan jalur DataHive FIN dimatikan di prod. Minta URA konfirmasi apakah PS-RIP/PS-RP2 diterima sebagai pengganti temporary suspension.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima data life status setiap hari dari interface ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-102; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:62; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50",
+      "fit": "Sebagian",
+      "detail": "Data life status masuk lewat file hasil MHA NRIC (field lifeStatus dan dateOfDeath), diproses job MHA Download tiga kali sehari Senin sampai Sabtu (cron.mhadownload.schedule=0 30 11,16,23 ? * MON-SAT, enabled=true, cron-schedules-prod.properties:119-120; job 1 dijalankan di MhaDownloadJobsScheduler.java:101-102; folder sftp.folders.mha.download di MhaNricDownloadJob.java:62). Jadi bukan ICA/DOS dan tidak berjalan hari Minggu. 'ICA' tidak muncul di code; DOS = DataHive/LTA cannot be confirmed from the repo. Sumber DataHive NRIC dimatikan di prod (cron.mhadownload.datahive=false, :50). File dan interface asli dengan MHA: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Life status dan date of death divalidasi lalu disimpan pada record offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:118-122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:134-139; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:216-230; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:902-907; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:855-858",
+      "fit": "Sesuai",
+      "detail": "Validator menerima lifeStatus hanya A atau D dan dateOfDeath format YYYYMMDD (MhaNricRecordValidator.java:118-122, :134-139); kombinasi tidak konsisten (A dengan date of death, atau D tanpa date of death) ditandai TS-NRO (MhaNricRecordValidator.java:216-230, MhaNricDownloadJob.java:902-907). Hasil yang valid menulis lifeStatus dan dateOfDeath ke owner_driver milik offender saja, record yang bukan offender dilewati (MhaNricDownloadHelper.java:841-858; OCMS-DF-2026-177, Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali notice milik individu dengan life status tertentu (meninggal)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:565-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:874-885; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:962-966",
+      "fit": "Sebagian",
+      "detail": "Pengenalan terjadi hanya atas notice yang ikut dikirim di file enquiry MHA: query upload mengambil notice dengan next_processing_stage RD1...DR3 jatuh tempo sampai besok, tanpa suspension, id_type = N, offender_indicator = Y, bukan di ocms_nro_temp dan bukan ID HST (OcmsValidOffenceNoticeRepository.java:565-581). Saat hasil kembali, notice dikenali hanya bila lifeStatus = D dan ada dateOfDeath (MhaNricDownloadHelper.java:874), dan scope-nya hanya notice di file itu (uraReferenceNo, :885; OCMS-DF-2026-135, Closed, Prod deployed). Jadi bukan penyisiran harian atas semua notice individu dengan life status itu; notice yang sudah di-suspend atau belum waktunya stage tidak ikut ditanyakan. Notice dibagi menurut tanggal meninggal terhadap tanggal offence (:962-966)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS langsung menerapkan suspension pada notice itu tanpa langkah manual",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1557-1610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1015-1037",
+      "fit": "Sebagian",
+      "detail": "Dalam proses file hasil yang sama, setelah loop record, PS-RIP dan PS-RP2 diterapkan sekaligus lewat applyPsSuspensionGetApplied (MhaNricDownloadHelper.java:1557-1610; remarks 'Auto-applied PS-RIP due to DateOfDeath from MHA' di :1575), jadi tanpa langkah manual. Catatan: notice yang sudah punya suspension atau pembayaran masuk jalur per-notice dengan validasi (:1015-1037) dan bisa ditolak; kegagalan batch hanya di-log (log.warn, :1577-1579) tanpa retry di dalam job; apakah notice itu dicoba lagi pada siklus berikutnya bergantung pada query enquiry (OcmsValidOffenceNoticeRepository.java:565-581). Kasus date of death di masa depan tidak di-PS tetapi diberi TS-NRO (:890-922)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension yang diterapkan bersifat temporary dengan suspension code dan periode tertentu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:962-966; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1021; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1084; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:890-922",
+      "fit": "Beda dari flow",
+      "detail": "Code menerapkan permanent suspension: PS-RIP bila tanggal meninggal sama atau setelah tanggal offence dan PS-RP2 bila sebelumnya (MhaNricDownloadHelper.java:962-966, :1021, :1084), lewat PermanentSuspensionHelper tanpa periode. Satu-satunya temporary suspension pada jalur ini adalah TS-NRO bila date of death ada di masa depan (:890-922), yaitu kasus data tidak valid, bukan penangguhan hasil life status. Story meminta temporary suspension dengan kode dan periode; sibling OCMS14.11 meminta hal yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Life status untuk pemegang FIN juga dibaca dari DataHive dan notice langsung disuspend",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1558-1572; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3283-3320; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:43; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "DataHiveUenFinService membaca death status FIN lalu menyimpan date_of_death dan life_status = D dan menerapkan PS-RIP atau PS-RP2 (plus work item untuk PS-RP2 bila Hirer/Driver) (DataHiveUenFinService.java:1558-1572, :3283-3320). Eksekusi job ini dimatikan di prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52) dan MhaDownloadJobsScheduler melewati job 2 bila flag false (MhaDownloadJobsScheduler.java:43, :103-107). Nilai di server asli: cannot verify from repo. Jenis suspension tetap permanent (sama dengan langkah sebelumnya)."
+    }
+  ]
+}

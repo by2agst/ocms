@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: staff/cron/agency side, not used by the steps of this story (only the Intranet-to-eVON sync cron feeds the data, not traced)",
+  "note": "Status 'Fully paid'. The flow from login to notice selection exists in ocmseserviceui and ocmseserviceapi: Singpass/Corppass landing, NRIC/UEN session + JWT, notice list per ID, checkbox and Proceed button. The login redirect step is Sebagian because the Singpass/Corppass handshake runs in an external SPCP service (cannot verify from repo). The SPCP bypass mode is only on in application-dev.properties:46. The notice list depends on eVON data synced from the Intranet; OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed, Prod deployed) record that the list was empty at one point because of the sync. Real property values and the SPCP service per environment cannot verify from repo.",
+  "recommendation": "Claimable for the Sesuai steps. The login redirect step is recorded as Sebagian until the Singpass/Corppass handshake is confirmed in the real environment.",
+  "steps": [
+    {
+      "step": "Customer opens the furnish page and sees Singpass (individual) and Corppass (business) login options",
+      "detail": "The furnish-particulars route loads page-furnish (route.ts:38-40). While isLanding=true (default, Furnish.ts:63) the page renders furnish-landing (Furnish.ts:513-514) with an 'Individual users' (Singpass) button and a 'Business users' (Corppass) button (Landing.ts:138, 146). Matches the story: individual or business users."
+    },
+    {
+      "step": "Customer picks Singpass or Corppass and is redirected to log in",
+      "detail": "A click calls onFurnishSingpass/onFurnishCorppass (Landing.ts:88, 101). onPass uses the FURNISH-specific app id (getSPCPAppID picks SPCP_FURNISH_APP_ID, Auth.ts:32-33), creates a txnID, then submits a POST form to spcpWeb/ura{SP|CP}services.do (Auth.ts:121-128, 133-153). The UI side exists, but the Singpass/Corppass login itself runs in an external SPCP service: cannot verify from repo."
+    },
+    {
+      "step": "After a successful login, the system creates a session holding the NRIC/UEN and a JWT token",
+      "detail": "getAuthResponse/v1 calls the SPCP service (SpcpController.java:145). On responseCode SP200 the NRIC is read (164), plus the entityId/UEN for Corppass (172). createSession stores both in the PII temp session (199) and generateToken issues the JWT (203). JwtFilter loads userId/entityId from the session into the request (JwtFilter.java:113-114). The SPCP bypass mode is only on through spcp.bypass.enabled=true in application-dev.properties:46, default false (SpcpController.java:41-42). The real Singpass response content cannot be checked from the repo; per-environment property values cannot verify from repo."
+    },
+    {
+      "step": "The system shows the outstanding notices under the logged-in ID",
+      "detail": "When the notice page opens, Notices.firstUpdated calls APIGetFurnishNotices (Notices.ts:78-88), which POSTs to v1/furnishapplicationlist (API.ts:564-592). The controller uses the ID from the JWT session, not from the payload: UEN for Corppass, NRIC for Singpass (FurnishApplicationListController.java:80-83; the payload only allows status/$limit/$skip, lines 31-33). The service loads offender records (offender_indicator='Y') from the owner_driver table with the decrypted id_no (FurnishApplicationListServiceImpl.java:84-85; EocmsOffenceNoticeOwnerDriverRepository.java:50-59), then matches them to eVON for notices that are still outstanding (119-131). Note: tickets OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed, Prod deployed) record that the list was empty at one point because eVON was not synced from the Intranet; eVON data depends on the sync cron, the real state cannot verify from repo."
+    },
+    {
+      "step": "Customer selects one or more notices and moves on to fill in the particulars",
+      "detail": "The furnishable table uses checkboxes (FurnishableNotices.ts:142). The 'Proceed to furnish' button stays disabled until a row is selected (150-155). On click the stepper moves to step 2 'Furnish Particulars' and the selected notices are stored in formData (191-201; onSelected in Furnish.ts:432-441). Several notices can be selected at once, but only one hirer/driver per submission (text in FurnishableNotices.ts:102-104)."
+    }
+  ]
+}

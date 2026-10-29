@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/NoticeSearchAllList,component/NoticeSearchSlot,component/NoticeSearchUploadSlot,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/{page/Revival,list/RevivalList}, utils/option.tsx, utils/constant.ts, App.tsx. ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility), api-authorization.properties (OCMS_APPLY_REVIVAL), config/WebConfig. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant to this story",
+  "note": "Sheet status: Fully paid (1 point), no flow deck. The story has the officer select notices from search/upload results for revival. The staff portal code covers all of it: checkboxes in the notice list, the Apply Revival option plus a Select button, an eligibility check against the server, then the selected notices land on the Revival page where each can be removed. Two things to watch: (1) the 'only 1 notice at a time' limit applies only to PS on the server (SuspensionProcessingController.java:400-410), TS notices can be many; (2) if the eligibility request errors, the carried list is empty and the Revival page renders blank with no message (useBatchOperation.ts:262-265, Revival.tsx:113). No maintenance ticket changes these steps. Which roles hold the OCMS_APPLY_REVIVAL function: cannot verify from repo.",
+  "recommendation": "Can be claimed in full. Technical note for the team: show an error message when the eligibility check fails (currently a blank page).",
+  "steps": [
+    {
+      "step": "Searched or uploaded notices are listed with checkboxes so the officer can select them",
+      "detail": "The search result Datagrid uses checkbox={{select: {all: true, row: true}}} (NoticeSearchAllList.tsx:122-128). Selected rows are read from checkbox.selected and drive isSelected (NoticeSearchSlot.tsx:66-69). The uploaded notice list page uses the same mechanism (NoticeSearchUploadSlot.tsx:47-50)."
+    },
+    {
+      "step": "Officer picks the Apply Revival operation and presses Select",
+      "detail": "The Apply Operation dropdown contains 'Apply Revival' (option.tsx:317) and the option only shows when the user has the OCMS_APPLY_REVIVAL function (hasFunction, NoticeSearchSlot.tsx:285-288; constant.ts:269,278). The Select button stays disabled until rows are selected and an option is picked (NoticeSearchSlot.tsx:298-302); onSubmit passes the selected rows on (NoticeSearchSlot.tsx:232-238). On the server, OCMS_APPLY_REVIVAL maps to /v1/staff-revive-suspension, /v1/suspendednoticelist and others (api-authorization.properties:65-67) and is enforced by OcmsAuthorizationInterceptor registered at WebConfig.java:79, so it is not UI-only. Which roles or users hold that function lives in user data, cannot verify from repo."
+    },
+    {
+      "step": "Selected notices are checked for eligibility and carried to the Revival page",
+      "detail": "handleRV calls validateRV, which POSTs staff-revive-eligibility (useBatchOperation.ts:238-241). The server rejects TS-HST notices, notices without an active TS/PS, unknown notices, and more than one PS notice at a time (SuspensionProcessingController.java:378-410); non-HST TS notices may be many at once. If any fails, an alert with the reasons shows and no notice is carried on (ApplyOperationAction.tsx:187-197). If all pass, the notices are stored in the REVIVAL batch and the UI moves to /notices/revival (ApplyOperationAction.tsx:199-205; useBatchOperation.ts:113-118; App.tsx:166). The 'only 1 notice at a time' text (ApplyOperationAction.tsx:48-53) is not found used to block anything; the server only limits PS. Edge case: if the eligibility request errors, the catch empties success and failed (useBatchOperation.ts:262-265), handleRV still navigates with an empty list and the Revival page renders blank with no message (Revival.tsx:113)."
+    },
+    {
+      "step": "Officer can drop a notice from the selected list before continuing",
+      "detail": "The Revival page re-fetches the selected notices in groups of 30 through validoffencenoticelist (Revival.tsx:30-65,77-89). Each row has a Delete button (RevivalList.tsx:102-107) that removes the notice from state and from the REVIVAL batch (Revival.tsx:91-103). If the list becomes empty, the form is not rendered (Revival.tsx:113)."
+    }
+  ]
+}

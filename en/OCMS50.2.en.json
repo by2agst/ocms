@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts, utils/validation/Payment/ValidPayment.ts, utils/validation/Format/ValidNOPO.ts, utils/validation/error.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, auth/filter/JwtFilter. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "Search without login exists for two of the four routes the story names: Vehicle Number and Notice Number (tabs 2 and 3 on the Check and Pay page, the /v1/parkingfines endpoint is open in JwtFilter). Search by foreign passport ID without Singpass does not exist: the ID Number tab only holds the Singpass/Corppass buttons and the backend rejects an idNo from the client (ID comes only from the JWT session). Payment Reference Number does not exist either: validation only accepts the 9-digit + check-letter notice format, and the notice_reference_no error text in error.ts:336 is not used anywhere. The Turnstile captcha is only checked in the UI; the backend does not use @RequireTurnstile. Tickets OCMS-DF-2026-007 and OCMS-DF-2026-011 (vehicle number search message logic, both Closed, Prod deployed) were used as hints; the current message behaviour was read from the code.",
+  "recommendation": "Claim only the Vehicle Number and Notice Number search without login. Do not claim the foreign passport ID search or Payment Reference Number search; neither exists in the code. Ask URA whether those two options are still required.",
+  "steps": [
+    {
+      "step": "The Check and Pay page offers search without Singpass login through the Vehicle Number and Notice Number tabs",
+      "detail": "Tab 2 (Vehicle Number) and tab 3 (Notice Number) are available without a token; the UI only asks for the Turnstile captcha. JwtFilter.java:133 opens /v1/parkingfines without a JWT. APIM protection in front of the API: cannot verify from repo."
+    },
+    {
+      "step": "The offender searches fines by Vehicle Number",
+      "detail": "The UI validates the vehicle number (required, max 14 characters, must contain letters and digits) then POSTs {vehicleNo}. findAllByVehicleNoIn returns notices with crs_reason_of_suspension IS NULL, an_flag not Y, and PS only for reasons RIP/MID/RP2/DIP/FOR; court-stage notices (CPC onwards) get message E2 and are not payable (applyVehicleNoConditionLogic). Tickets OCMS-DF-2026-007 (E1 vs E2) and OCMS-DF-2026-011 (court message although no notices) are Closed, Prod deployed; the correctness of prod data cannot verify from repo."
+    },
+    {
+      "step": "The offender searches fines by ID (foreign passport) without Singpass login",
+      "detail": "The ID Number tab only holds the Singpass and Corppass buttons, no ID or passport input. In the backend, searchType 'id' requires a Bearer JWT (401 without a token) and an idNo/idType payload is rejected by ALLOWED_KEYS_ID_SEARCH, so there is no ID route without Singpass. The 'Passport' option in option.ts is only used in the Furnish form. Searched with passport, foreign, idNo in ocmseserviceui and ocmseserviceapi."
+    },
+    {
+      "step": "The offender searches fines by Notice Number",
+      "detail": "The UI validates the notice format (9 digits + check letter, ValidNotice) then POSTs {noticeNo:[...]}. checkNoticesList loads notices through findAllByNoticeNoIn and returns payment status and eService message per notice. Error message details are judged in OCMS50.4."
+    },
+    {
+      "step": "The offender searches fines by Payment Reference Number",
+      "detail": "The Notice Number tab input only accepts the 10-character notice format (ValidNotice: 9 digits + check letter). There is no tab, label or validation for Payment Reference Number. The notice_reference_no error text ('Please enter Notice Number or Payment Reference Number') exists in error.ts:336 but is not referenced from any file. Searched with payment ref, paymentRef, reference number in the UI and API."
+    },
+    {
+      "step": "Results of a search without login are shown as a list of outstanding fines that can be viewed",
+      "detail": "For the Vehicle/Notice tabs, onSearch fills outstandingData then InitPayment() shows the table (Notice Number, Vehicle Number, Date of Offence, Status, Amount) or InitNonPayment() when empty. Results show without a token."
+    }
+  ]
+}

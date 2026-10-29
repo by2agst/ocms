@@ -1,0 +1,64 @@
+{
+  "story": "OCMS12.39",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, combineNotices, getRecipientKey, generateMessages, prepareTemplateData, determineTemplateName, sendBatchSms, saveSendStatus)}, utilities/smsutility/SmsUtil (sendBatchSms), framework/schedulers/NotificationJobsScheduler, resources application-prod.properties (sms.enable) dan cron-schedules-prod.properties (cron.notification.enabled). Repo lain: tidak ada code SMS reminder",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: Vault & SMS Code Split, mungkin perlu cek izin SMS untuk App Service (cannot verify from repo). Tidak ada flow deck, jadi Sesuai berarti code mengikuti teks story. Cron eNotification yang sama dengan OCMS12.19 (RR3 owner) mengirim SMS reminder untuk stage RD1 sampai DR3 termasuk DN1: notice dipilih lewat jendela due date, individu digabung per ID, template dipilih dari stage (DN1_SMS_INDIVIDUAL, tambah _COMBINED bila lebih dari satu notice). Yang tidak terbukti: kalimat yang merujuk surat pertama (teks ada di ocms_template_store di DB, tidak ada di repo) dan pengiriman nyata, karena di PROD cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87) dan sms.allowedSources tidak diset. Pengambilan nomor dari DOS dicakup OCMS12.38, tidak diulang di sini. 'DOS' dibaca sebagai DataHive; DOS = DataHive/LTA cannot be confirmed from the repo. Tiket: OCMS-DF-2026-180 (Closed, menunggu cron eNotification aktif).",
+  "recommendation": "Klaim sebagian. Pemilihan, penggabungan dan template SMS DN1 ada di code; isi template (rujukan ke surat pertama) ada di DB dan pengiriman SMS dimatikan di konfigurasi PROD. Verifikasi dengan URA setelah cron eNotification dan sms.enable diaktifkan serta template DN1 dicek di ocms_template_store.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengumpulkan notice driver individu di stage DN1 yang outstanding untuk batch hari itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:170-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1109-1151; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:52",
+      "fit": "Sesuai",
+      "detail": "Job eNotification memanggil queryRecordsForReminder() (NotificationSmsEmailJob.java:162) dan menandai tiap baris dengan stage dari last_processing_stage (NotificationSmsEmailJob.java:170-180). Query memilih notice dengan last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, ID tidak di exclusion list, belum punya notification record pada stage yang sama, dan jatuh tempo (last_processing_date + parameter POS + PDD) berada dalam jendela ENOTEDAYS dari hari ini (NotificationSmsEmailHelper.java:1109-1151). Jadi notice driver di DN1 ikut terpilih; query tidak membedakan owner/hirer/driver. Query tidak membaca status bayar langsung: 'outstanding' dibatasi lewat suspension_type NULL (atau TS-HST), dan notice yang sudah dibayar ditandai PS dengan crs_reason FP (ReductionValidator.java:52), sehingga tidak ikut."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali driver individu yang unik di antara notice dalam batch",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2178; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2250",
+      "fit": "Sebagian",
+      "detail": "combineNotices(records) (NotificationSmsEmailJob.java:191) mengelompokkan lewat getRecipientKey: untuk individu kuncinya 'I_' + nomor ID (NotificationSmsEmailHelper.java:2230-2250). Tetapi compositeKey = recipientKey + '_' + stage + '_' + paymentDueDate (NotificationSmsEmailHelper.java:2178), jadi driver yang sama dengan due date atau stage berbeda menjadi grup terpisah dan tetap bisa menerima lebih dari satu SMS di hari yang sama. Story minta satu penerima unik per batch; fit sama dengan OCMS9.7 dan OCMS12.19."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya driver individu yang menerima SMS; ID di exclusion list dan paspor dilewati",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:237; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:274-276; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:448-457; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1544",
+      "fit": "Sesuai",
+      "detail": "Sebelum SMS disiapkan, ID di ocms_enotification_exclusion_list dilewati (NotificationSmsEmailJob.java:226) dan ID type P/PASSPORT dilewati (NotificationSmsEmailJob.java:237). Record company (id type B) tidak masuk batch SMS (NotificationSmsEmailJob.java:274-276) dan sendBatchSms juga menolak company (NotificationSmsEmailHelper.java:1544). Channel SMS dipilih untuk selain id type B (NotificationSmsEmailHelper.java:448-457). Sesuai dengan 'individual drivers'. Catatan: daftar exclusion gagal-terbuka bila query gagal (NotificationSmsEmailHelper.java:1207-1214)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS memuat daftar notice outstanding yang digabung per penerima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2171-2200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:408-433; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:298-301; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-475",
+      "fit": "Sesuai",
+      "detail": "Notice non-ENA dengan kunci yang sama digabung: combinedNotices disambung dengan '.', amountPayable dijumlahkan (NotificationSmsEmailHelper.java:2171-2200). prepareTemplateData mengirim noticeCount, combinedNotices, amountPayable, paymentDueDate, vehicleNo ke template (NotificationSmsEmailHelper.java:408-433). generateMessages memilih template <STAGE>_SMS_INDIVIDUAL dan menambah _COMBINED bila lebih dari satu notice, jadi DN1_SMS_INDIVIDUAL[_COMBINED] (NotificationSmsEmailHelper.java:298-301, 459-475). Isi template ada di ocms_template_store, bukan di repo (cannot verify from repo). Fit sama dengan OCMS12.19."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS merujuk ke surat reminder pertama (1st letter)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-475; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:298-301",
+      "fit": "Sebagian",
+      "detail": "Code hanya memilih nama template dari stage: untuk notice DN1 jadinya DN1_SMS_INDIVIDUAL atau DN1_SMS_INDIVIDUAL_COMBINED (NotificationSmsEmailHelper.java:459-475). Tidak ada code yang menyisipkan referensi surat (nomor atau tanggal surat pertama); apakah teksnya menyebut surat pertama hanya bergantung pada isi template di DB. Template tidak ada di repo, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim SMS reminder lewat batch SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289-291; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1611-1612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:401-408; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:87",
+      "fit": "Sebagian",
+      "detail": "Job memanggil sendBatchSms (NotificationSmsEmailJob.java:289-291) yang memanggil smsUtil.sendBatchSmsSimple dengan source ENOTIFICATION (NotificationSmsEmailHelper.java:1611-1612). Tetapi di PROD: cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87) dan sms.allowedSources tidak diset di application-prod.properties, sehingga SmsUtil mengembalikan status 'disabled' dan SMS tidak dikirim (SmsUtil.java:401-408). Di dev dan uat sms.enable juga false tetapi sms.allowedSources=ENOTIFICATION (application-dev.properties:85, application-uat.properties:82), jadi di sana SMS boleh jalan. Nilai di server PROD dan pengiriman via APIM cannot verify from repo. Tiket OCMS-DF-2026-180 (Closed) menulis 'Awaiting eNotification cron to activate'."
+    }
+  ]
+}

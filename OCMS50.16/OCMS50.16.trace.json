@@ -1,0 +1,46 @@
+{
+  "story": "OCMS50.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts; ocmseserviceapi workflows/urapg/{controller/UraPaymentController,service/UraPaymentService}, crud/ocmsezdb/eocmswebtxndetail. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "Alur redirect ke gateway ada dan berjalan lewat URA Payment Gateway (PG): portal membuat transaksi, meminta payment URL ke PG, lalu browser offender di-POST ke URL itu. Halaman kartu/bank itu sendiri milik PG/bank, jadi pengisian detail kartu tidak bisa dibuktikan dari repo (cannot verify from repo). Celah: kegagalan simpan transaction row hanya di-log (UraPaymentService.java:286-288) dan URL tetap dikembalikan; UI tidak mengecek responseCode, jadi bila paymentUrl kosong tombol Pay Now diam saja (PaymentProcess.ts:79). Tiket yang dipakai: OCMS-SR-2026-159 (remarks dikosongkan untuk pembayaran gateway, sudah di code) dan OCMS-SR-2026-158 (Transaction Reference Number disembunyikan di Payment Summary). Status story 'Demo paid (50% of 75%)'; requirement sendiri ada di story text.",
+  "recommendation": "Klaim untuk langkah portal (pilih mode, buat transaksi, ambil URL, redirect). Halaman input kartu/bank dikerjakan PG/bank di luar repo; minta bukti demo atau log PG untuk bagian itu",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih eNETS atau Visa/Mastercard di halaman pembayaran lalu menekan Proceed to Payment",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:605-640; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:733-752; ocmseserviceui/src/pages/Payment/API.ts:173-177",
+      "fit": "Sesuai",
+      "detail": "Tiga radio mode ada: eNETS, VISA/Mastercard (MASTER_VISA) dan PayNow (PaymentSearchResult.ts:614-640). Tombol Proceed to Payment aktif bila mode dan notice terpilih, lalu memanggil APIPostGenerateTransaction (baris 733-752). API.ts:173-177 memetakan ENETS ke JX, MASTER_VISA ke ENETC, PAYNOW ke PYNOW."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem membuat transaksi: nomor transaksi unik, cek notice, simpan record awal",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentController.java:32-35; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:56-82; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:155; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:202-206; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:260-284; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:286-288",
+      "fit": "Sebagian",
+      "detail": "Transaction ID dibuat dari sequence seq_ocms_txn_ref_number plus checksum (UraPaymentService.java:62-75; bila sequence gagal dipakai UUID, baris 76-80). Notice dicek dengan filter crs_reason_of_suspension IS NULL (baris 155) dan notice yang tidak ketemu menolak seluruh request (202-206). Baris eocms_web_txn_detail disimpan dengan status I (271, 284), remarks null sesuai OCMS-SR-2026-159 (276-278). Celah: bila penyimpanan gagal, exception hanya di-log (286-288) dan payment URL tetap dikembalikan (290), sehingga pembayaran bisa jalan tanpa record dan callback nanti gagal 'Transaction not found' (EPaymentCallbackService.java:298-299)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem meminta alamat halaman pembayaran bank ke URA Payment Gateway",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:216-229; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:242-246; ocmseserviceapi/src/main/resources/application-prod.properties:27",
+      "fit": "Sesuai",
+      "detail": "Transaksi dikirim POST ke ura.payment.gateway.store.url (application-prod.properties:27) dengan header APIM (UraPaymentService.java:216-229). Bila responseCode PG200 dan ada paymentUrl, ditambahkan ?tid=<txnId> (242-246). Isi respons PG dan halaman bank yang dituju: cannot verify from repo. Nilai properties di server asli juga tidak bisa dipastikan dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman Payment Summary tampil lalu Pay Now mengarahkan browser offender ke website bank",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:752-781; ocmseserviceui/src/pages/Payment/PaymentProcess.ts:70-95; ocmseserviceui/src/pages/Payment/PaymentProcess.ts:97-108",
+      "fit": "Sesuai",
+      "detail": "Setelah transaksi dibuat UI menyimpan paymentUrl lalu membuka step 3 (PaymentSearchResult.ts:761-780). Summary menampilkan 'Payment by <mode>' (PaymentProcess.ts:97-108); Transaction Reference Number sengaja tidak tampil di step ini (OCMS-SR-2026-158). Tombol Pay Now membuat form POST tersembunyi ke paymentUrl lalu submit() (PaymentProcess.ts:86-91), jadi browser pindah ke halaman PG/bank. Edge case: UI tidak mengecek responseCode; bila paymentUrl kosong tombol return tanpa pesan (baris 79). Pengisian detail kartu di website bank: cannot verify from repo."
+    }
+  ]
+}

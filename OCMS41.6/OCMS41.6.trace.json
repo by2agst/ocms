@@ -1,0 +1,100 @@
+{
+  "story": "OCMS41.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/{schedulers/SyncInternetIntranetJobsScheduler, workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishSyncHelper, helpers/FurnishApprovalHelper}}, crud/{ocmsizdb/OcmsFurnishApplication, ocmspiiezdb/EocmsFurnishApplication}, crud/beans/SystemConstant, resources/cron-schedules-prod.properties; hilir: framework/schedulers/ToppanUploadJobsScheduler. ocmseserviceapi workflows/furnish/FurnishSubmissionServiceImpl (hanya membuat submission awal status P, is_sync N). ocmsadminapi, ocmsadminui, ocmseserviceui, thirdpartyapi: tidak terlibat di update otomatis",
+  "note": "Status Demo paid (50% of 75%); demo: cron aktif lalu sync Internet-Intranet. Code membuktikan alur utama: cron Furnish Processing (prod tiap 10 menit, enabled=true) menyalin submission dari Internet ke Intranet, menjalankan 6 pengecekan, dan untuk yang lolos mengganti current offender dengan hirer/driver baru (ONOD Intranet, alamat furnished_mail, stage RD1/DN1, NPD) lalu menyinkronkan stage dan amount ke eVON. Yang tidak penuh: ONOD di Internet hanya berisi ID, nama, dan role (tanpa email, telepon, alamat), dan kelanjutan reminder 'sesuai Appendix B' hanya berupa penetapan stage; isi Appendix B tidak ada di repo dan pembuatan surat reminder bergantung job lain (cron generate letter Toppan dikomentari, hanya trigger manual). Edge: Phase 2 hanya memproses record hasil sync pada run yang sama; record yang exception sudah is_sync Y sehingga tidak diproses ulang otomatis dan tetap status P (muncul di daftar manual). Tiket dipakai: OCMS-DF-2026-073 (pasangan stage ROV/ROV furnishable, sudah ada di kode), OCMS-DF-2026-170 (admin fee direset saat stage pindah ke RD1/DN1, sudah ada di kode). Nilai property di server nyata cannot verify from repo.",
+  "recommendation": "Boleh diklaim untuk alur auto-update (8 dari 10 langkah Sesuai). Catat dua gap: ONOD Internet tidak lengkap (tanpa email, telepon, alamat) dan kelanjutan reminder Appendix B belum bisa dibuktikan dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron Furnish Processing berjalan otomatis tiap 10 menit (cron aktif)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncInternetIntranetJobsScheduler.java:47-60; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncInternetIntranetJobsScheduler.java:66-69; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:312",
+      "fit": "Sesuai",
+      "detail": "Scheduler memakai @Scheduled(cron=${cron.syncinternetintranet.schedule}) dengan ShedLock dan berhenti kalau enabled=false (SyncInternetIntranetJobsScheduler.java:47-57); executeSyncInternetIntranetJobs menjalankan furnishProcessingJob sebagai job pertama (baris 67). cron-schedules-prod.properties:305-306 mengisi schedule '0 */10 * * * ?' dan enabled=true, job.1 = Furnish Processing (baris 312). Nilai di server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission hirer/driver dari Online Customer Portal (Internet DB) disalin ke Intranet DB beserta dokumen bukti",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:82-108; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:38-86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:89-145; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:179-246; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:210-211",
+      "fit": "Sesuai",
+      "detail": "Phase 1 membaca eocms_furnish_application dengan is_sync='N' (FurnishProcessingService.java:85), menyalin data hirer/driver, alamat, kontak, owner, status ke ocms_furnish_application (FurnishSyncHelper.java:179-246) dan dokumen is_sync='N' ke ocms_furnish_application_doc (89-145), lalu menandai is_sync='Y' (FurnishProcessingService.java:104). Submission awal dibuat eService dengan status P dan is_sync N (ocmseserviceapi FurnishSubmissionServiceImpl.java:210-211)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya submission yang lolos semua pengecekan auto-approval diteruskan ke update otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:158-177; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:183-225; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:237-244",
+      "fit": "Sesuai",
+      "detail": "Per record, runValidationChecks menjalankan 6 pengecekan berurutan: PS aktif, HST ID, FIN/Passport, stage furnishable, offender existing, prior submission (FurnishApprovalHelper.java:199-220). Hanya kalau semua lolos executeApproval dipanggil (FurnishProcessingService.java:167-170); kalau tidak executeManualReview (171-175). Pasangan stage furnishable di SystemConstant.java:237-244 (termasuk ROV|ROV, hasil OCMS-DF-2026-073). Isi tiap pengecekan dinilai di story 41.5. Karena CHECK 2 menolak ID HST (helper:283-291), cabang TS-HST di executeApproval (464-485) kemungkinan tidak tercapai di jalur ini (kesimpulan dari membaca code, tidak dijalankan). Edge: Phase 2 hanya memproses record hasil sync pada run yang sama (FurnishProcessingService.java:54-59); record yang exception (143-147) sudah is_sync='Y', tidak diproses ulang otomatis dan tetap status P tanpa reason."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Current offender lama dinonaktifkan (offender_indicator Y menjadi N) di Intranet dan Internet",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:546; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:713-748",
+      "fit": "Sesuai",
+      "detail": "switchOffenderIndicator mengubah offender_indicator Y menjadi N pada ONOD notice di Intranet (baris 720-724) dan pada baris ONOD yang sama di Internet bila ada (729-738); kalau ONOD Internet tidak ditemukan hanya log warning (742-745)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record hirer/driver baru dibuat di Intranet dengan ID, nama, email, telepon, dan ditandai current offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:549-563",
+      "fit": "Sesuai",
+      "detail": "ONOD baru berisi noticeNo, owner_driver_indicator (H/D) dari submission, id_type, id_no, name, email_addr, tel code/no, offender_indicator='Y' dan user audit ocmsiz_app_conn (FurnishApprovalHelper.java:549-563), disimpan lewat offenderService.save."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat surat yang difurnish disimpan sebagai alamat surat aktif dan alamat surat offender lama dilepas",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:593-641",
+      "fit": "Sesuai",
+      "detail": "processFurnishedAddress menyisipkan ONOD_ADDR bertipe 'furnished_mail' (blk, lantai, jalan, unit, gedung, postal code) dengan letter_address='Y' (baris 624-637) dan mengosongkan letter_address='Y' milik offender sebelumnya (607-621). Hanya di Intranet. OCMS-DF-2026-024 (alamat offender lama tidak dihapus saat overwrite) menyebut tiga jalur lain (staff furnish, bulk furnish, OIC manual approval), bukan cron ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Stage notice dipindah ke RD1 (hirer) atau DN1 (driver) dan tanggal proses berikutnya dihitung",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:644-686",
+      "fit": "Sesuai",
+      "detail": "changeProcessingStage: H menjadi RD1, D menjadi DN1 (baris 648-653); stage lama disimpan ke prev_processing_stage/date (660-661); last dan next processing stage = stage baru (664-666); NPD = yang lebih besar antara notice date + 7 hari dan besok 00:00 (678-684); administration_fee dinolkan dan amount_payable direset ke composition amount (672-675, OCMS-DF-2026-170); disimpan lewat noticeService.save (686). Nilai RD1/DN1 hard-coded; kecocokan dengan Appendix B Annex 1A cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hirer/driver baru juga dicatat di Internet DB (ONOD) supaya konsisten di sisi portal",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:556-558; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:569-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:593-641",
+      "fit": "Sebagian",
+      "detail": "ONOD Internet dibuat dengan noticeNo, role, id_type, id_no, name dan offender_indicator='Y' (FurnishApprovalHelper.java:569-580), tetapi email dan telepon yang diisi di Intranet (556-558) tidak disalin, dan alamat furnished_mail tidak dibuat di Internet karena processFurnishedAddress hanya memakai onodAddrService Intranet (593-641). Apakah portal butuh field itu: cannot verify from repo. Sync terjadwal Intranet ke Internet (cron.syncintranetinternet enabled=true tiap 10 menit, cron-schedules-prod.properties:291-292) mungkin melengkapi, tidak ditelusuri di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Stage dan amount notice disinkron ke eVON agar notice tersedia di eService untuk pembayaran",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:691-709",
+      "fit": "Sesuai",
+      "detail": "Setelah save Intranet, eVON diambil per notice no lalu last dan next processing stage diisi stage baru dan amount_payable = composition amount, user ocmsiz_app_conn (FurnishApprovalHelper.java:692-703). Kalau eVON tidak ada hanya log warning dan dilewati (707-708). eVON ditulis langsung oleh cron ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menindaklanjuti dengan reminder notice sesuai workflow Appendix B Annex 1A",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:644-686; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40",
+      "fit": "Sebagian",
+      "detail": "Di code story ini hanya stage dan NPD yang ditetapkan (langkah 7); pembuatan surat reminder dilakukan job lain. ToppanUploadJobsScheduler memanggil generate letters hanya dalam komentar (ToppanUploadJobsScheduler.java:118), jadi generate-letter harian hanya lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34-40). Isi Appendix B tidak ada di repo: cannot verify from repo."
+    }
+  ]
+}

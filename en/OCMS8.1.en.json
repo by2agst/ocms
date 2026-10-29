@@ -1,0 +1,29 @@
+{
+  "story": "OCMS8.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: lta/download/helpers/{LtaIdTypeUtil,LtaDatabaseOperations} (ID type mapping), agencies/mha/upload/{MhaNricDataHelper,MhaNricUploadJob} (NRIC -> MHA path), datahiveuenfin/{DataHiveUenFinService,DataHiveUenFinJob} + schedulers/MhaDownloadJobsScheduler (FIN/UEN -> DataHive path), agencies/mha/download/helpers/MhaNricDownloadHelper (NRIC life status), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no ID type routing for reminder follow-up",
+  "note": "Sheet status is 'Fully paid'. There is no flow deck and Appendix B of Annex 1A is not in the repo, so 'Sesuai' means the code follows the story text. The ID type is stored per owner/driver record (N = NRIC, F = FIN, P = passport, B = company/UEN) and selects the follow-up path: N goes to MHA (NRO enquiry file, enabled in PROD), F and B go to DataHive (job 'DH UEN and FIN', cron.mhadownload.uenfin.enabled=false in cron-schedules-prod.properties:52, so it does not run in PROD at this commit). Passport (P) has no lookup path at all. Life status 'D' from MHA (NRIC) and FINDEATH (FIN) triggers PS-RIP/PS-RP2. One thing to watch: an empty or unknown LTA ID type is treated as NRIC (LtaIdTypeUtil.java:44,56), so odd data ends up on the MHA path. Maintenance tickets: OCMS-DF-2026-183 (Pending Closure) reports that MHA results in PROD were not written to the DB; OCMS-DF-2026-125/126/133/177 (Closed) fixed the filters on who enters the MHA file and the offender check. Appendix B cannot be matched: cannot verify from repo.",
+  "recommendation": "Claim partially. ID type mapping and NRIC routing to MHA exist and are enabled. The FIN/UEN path to DataHive is built but switched off in PROD. Passport has no follow-up path. Ask URA to confirm the content of Appendix B and the DataHive activation status in PROD.",
+  "steps": [
+    {
+      "step": "OCMS determines and stores the offender ID type: company, local NRIC, FIN, foreign passport",
+      "detail": "When LTA data arrives, ownerIdType is mapped through mapLtaOwnerIdTypeToOcms to four values: N (NRIC), F (FIN), P (passport), B (company/UEN, Corppass codes 4-9, A-C) and written to the owner/driver idType column (LtaDatabaseOperations.java:140-143). There is no override based on the ID number pattern. One thing to watch: an empty or unknown value defaults to N (LtaIdTypeUtil.java:44,56). Other creation paths (furnish, staff) write idType themselves and are not checked in this step."
+    },
+    {
+      "step": "Local NRIC holders (ID type N) are routed to MHA follow-up",
+      "detail": "Notices at stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:198) are filtered to owner/driver rows with offenderIndicator Y and idType N (lines 345-346) and go into the MHA NRO enquiry file. The upload job is enabled in PROD: cron.mhaupload.enabled=true, schedule 09:00/14:00/21:00 Mon-Sat (cron-schedules-prod.properties:105-106). Tickets OCMS-DF-2026-125, -126, -133 (Closed) fixed who may enter the file (TS-HST, FIN stored as type N, PS)."
+    },
+    {
+      "step": "FIN and company/UEN (ID types F and B) are routed to DataHive follow-up",
+      "detail": "The query GET_NOTICES_FOR_DATAHIVE_SQL selects id_type IN ('F','B'), offender Y, reminder stage, suspension_type NULL, not HST (DataHiveUenFinService.java:221-246) and is called by the job at DataHiveUenFinJob.java:185. But MhaDownloadJobsScheduler only runs this job when cron.mhadownload.uenfin.enabled=true (lines 103-107), and cron-schedules-prod.properties:52 sets it to false (comment: waiting for DataHive view names to be verified). UAT is true. So the routing is in the code but does not run in PROD at this commit. DataHive connectivity: cannot verify from repo."
+    },
+    {
+      "step": "Foreign passport holders (ID type P) are routed to ICA/DOS follow-up",
+      "detail": "There are only two selection queries: idType N for MHA (MhaNricDataHelper.java:346) and idType F/B for DataHive (DataHiveUenFinService.java:239). There is no query, job or view for idType P. The only P-specific logic: eNotification is skipped (NotificationSmsEmailJob.java:237) and furnish auto-approval is held as pending (FurnishApprovalHelper.java:306). Whether passports are handled manually: cannot verify from repo."
+    },
+    {
+      "step": "Special ID types based on the life status from ICA/DOS (deceased) trigger the matching action",
+      "detail": "NRIC: when lifeStatus is 'D' and a date of death exists (MhaNricDownloadHelper.java:874), a DoD after today gives TS-NRO (lines 889-890); otherwise each notice gets PS-RIP if DoD >= offence date (lines 1020-1021) or PS-RP2 if earlier (lines 1083-1084). FIN: processDeathStatusFlow from the FINDEATH view applies the same PS-RIP/PS-RP2 (DataHiveUenFinService.java:3285, 3313, 3317). Partial because: the FIN path belongs to the DataHive job that is off in PROD; OCMS-DF-2026-183 (Pending Closure) reports that MHA results in PROD were not written to the tables (ONOD, VON, suspended_notice); OCMS-DF-2026-177 (Closed) added the offender check. The content of Appendix B referenced by the story: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.57",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/{manual/helpers/ManualFurnishValidationService.checkExistingParticulars, dto/ExistingParticularsResponse, plusintegration/controllers/PlusIntegrationController, stafffurnish/services/StaffFurnishService.StaffFurnishRequest}, workflows/notice_management/ownerdriver/ownerdriver/{OwnerDriverControllerPlus,OwnerDriverServiceImplPlus} (plus-offence-notice-owner-driver). Tidak ada client outbound ke PLUS di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi",
+  "note": "Status story: Requirement given - Gen flow. Demo remark sheet: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (klaim sheet). Semua endpoint PLUS di repo bersifat inbound (PLUS memanggil OCMS). Tidak ada kode OCMS yang mengirim alert ke PLUS dan tidak ada konfigurasi URL/credential PLUS. Isi particulars lama tersedia lewat dua jalur: DTO ExistingParticularsResponse (hanya staff manual furnish) dan API baca /plus-offence-notice-owner-driver yang ditarik PLUS sendiri. Prompt konfirmasi ke user PLUS ada di UI PLUS: cannot verify from repo. Endpoint /plus-furnish tidak punya flag konfirmasi overwrite (beda dengan overwriteExisting di jalur manual).",
+  "recommendation": "Jangan klaim sebagai selesai. Data particulars lama bisa diambil PLUS lewat API baca, tapi OCMS tidak mengirim alert dan tidak ada mekanisme konfirmasi overwrite di jalur PLUS. Konfirmasi ke URA apakah 'alert' cukup dipenuhi oleh PLUS menarik data sendiri.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyiapkan particulars hirer/driver yang sudah ada (ID, nama, alamat, telepon, email) untuk alert",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:74-125; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dto/ExistingParticularsResponse.java:18-47; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:27-31; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus.java:38-100",
+      "fit": "Sebagian",
+      "detail": "Isi yang dibutuhkan ada: checkExistingParticulars menyusun ExistingParticularDetail berisi ownerDriverIndicator, idType, idNo, nama, indicator offender, alamat registered_mail (blk, floor, street, unit, bldg, postal) dan tel/email (ManualFurnishValidationService.java:87-118; ExistingParticularsResponse.java:28-46), tetapi hanya dipakai jalur staff manual furnish. Untuk PLUS, data owner_driver beserta address bisa ditarik lewat POST /plus-offence-notice-owner-driver (OwnerDriverControllerPlus.java:27-31, OwnerDriverServiceImplPlus.java:38-100); sifatnya pull oleh PLUS, bukan payload alert dari OCMS. Catatan: sampai di sini hanya registered_mail yang dipetakan di DTO existing particulars, address furnished_mail tidak ikut."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim alert message berisi particulars lama ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/resources/application-prod.properties:60-61",
+      "fit": "Tidak ada code",
+      "detail": "Seluruh integrasi PLUS di ocmsadminapi adalah endpoint inbound /plus-* (PlusIntegrationController.java:65, 136, 185; OwnerDriverControllerPlus.java:27, 39). Tidak ditemukan RestTemplate/WebClient, URL atau credential PLUS untuk mengirim pesan keluar: properties PLUS hanya ocms.plus.key.validation=plus-apim-subscription-key dan ocms.plus.key.validation.enabled=false (application-prod.properties:60-61), dan tidak ada match 'plus' di properties ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi. Response plus-furnish-redirect-check tidak membawa particulars (PlusIntegrationController.java:80-84). Apakah PLUS menerima alert lewat jalur lain: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User PLUS diminta mengonfirmasi bahwa particulars yang ada akan ditimpa sebelum update dilanjutkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1165-1228",
+      "fit": "Tidak ada code",
+      "detail": "Prompt ke user PLUS ada di UI PLUS dan tidak ada di repo: cannot verify from repo. Sisi OCMS tidak menyediakan mekanisme konfirmasi: request /plus-furnish (StaffFurnishRequest, StaffFurnishService.java:1165-1228) tidak punya field konfirmasi/overwrite, dan plusFurnish langsung memanggil staffFurnish setelah validasi field wajib (PlusIntegrationController.java:142-148). Bandingkan jalur manual yang menolak dengan RECORD_EXISTS bila overwriteExisting=false (ManualFurnishServiceImpl.java:85-91). Jadi OCMS tidak bisa membedakan request yang sudah dikonfirmasi dari yang belum."
+    }
+  ]
+}

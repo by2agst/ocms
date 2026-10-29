@@ -1,0 +1,29 @@
+{
+  "story": "OCMS12.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/notification_sms_email (reminder and exclusion for id_type B), workflows/datahiveuenfin (DataHiveUenFinJob, DataHiveUenFinHelper, DataHiveUenFinService), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService (V_DH_ACRA_* queries), schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminui pages/Vault/Datahive (Directors Details tab with empty data). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story",
+  "note": "2-point story: for a company owner, OCMS sends the UEN and then identifies the owner/partner/director by date of offence and appointment period. In the repo the UEN is sent through DataHiveUenFinJob (queries on ACRA views in DataHive/Snowflake); the name 'DOS' does not appear in code, so whether DOS = DataHive: cannot verify from repo. The UEN job is switched off in prod (cron.mhadownload.uenfin.enabled=false). Board/director data is fetched but not stored (OCMS-DEV-2026-231) and no code filters by date of offence or appointment period. The sheet status 'Demo paid' is not evidence; the demo remark (Vault) was not verified.",
+  "recommendation": "Claim partially. Ask URA to confirm 'DOS' = DataHive/ACRA, and when the UEN job is switched on in prod. The owner/partner/director identification step does not exist yet.",
+  "steps": [
+    {
+      "step": "OCMS sends the electronic reminder (2nd letter) to the company owner or checks its opt-out",
+      "detail": "The same reminder query as for individual owners also picks id_type 'B' (company) notices: the helper distinguishes COMPANY vs INDIVIDUAL recipients by idType 'B' (NH:446-448, 465) and excludes id_no in ocms_enotification_exclusion_list (NH:1131-1135). As in OCMS12.11, cron.notification.enabled=false in cron-schedules-prod.properties:236, so it does not run in prod. Real delivery: cannot verify from repo."
+    },
+    {
+      "step": "OCMS selects company-owner (UEN) notices that need a registry lookup",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL selects notices with next_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3'), next_processing_date <= today, vehicle type not 'I', suspension_type IS NULL, onod.id_type IN ('F','B'), not in ocms_nro_temp or ocms_hst, offender_indicator='Y'. id_type 'B' = UEN, so company notices that reach a reminder stage are picked."
+    },
+    {
+      "step": "OCMS sends the company UEN to DOS",
+      "detail": "batchProcessAllRecords() groups B records and calls batchProcessUenRecords() (HLP:323), which sends the UEN list to DataHive (Snowflake) via queries on V_DH_ACRA_FIRMINFO_R/D, shareholder and V_DH_ACRA_BOARD_INFO_FULL (BATCH:441). The name 'DOS' is not in code; DataHive/ACRA stands in, and the equivalence: cannot verify from repo. The job only runs when cron.mhadownload.uenfin.enabled=true (SCHED:103-107), but it is false in prod (PROD:52, comment: DataHive view names not yet verified); true in UAT. Actual DataHive response: cannot verify from repo."
+    },
+    {
+      "step": "OCMS receives the company's owner/partner/director data with appointment dates",
+      "detail": "The batch result carries shareholderData and boardData (position_appointment_date, position_withdrawn_date, person id, position code) (BATCH:196-210). Shareholders are saved via updateShareholderInfo (SVC:1442-1448), without appointment dates. Board data is only logged and NOT written to the DB because the DataHive mapping is wrong (OCMS-DEV-2026-231) (SVC:1468-1478). So directors/partners are received in memory but not stored for the next steps."
+    },
+    {
+      "step": "OCMS identifies the owner/partner/director based on date of offence and appointment period",
+      "detail": "The board query is only WHERE ENTITY_UEN IN (...) (BATCH:436-442): no date filter. No code compares notice_date_and_time/the offence date with position_appointment_date and position_withdrawn_date, and no code picks one person. grep for director/partner/appointment in ocmsadminprivateapi, ocmsadminapi, thirdpartyapi only hits retrieval and entities. The 'Directors Details' tab in the staff portal receives data={{}} (DatahiveHirerDetail.tsx:57-59), so it shows no result. Note: the FIN path passes next_processing_date as offenceDate (SVC:751), not the offence date; not judged in this story."
+    }
+  ]
+}

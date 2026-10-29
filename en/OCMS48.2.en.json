@@ -1,0 +1,41 @@
+{
+  "story": "OCMS48.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController (POST /v1/plus-payment-activation), dto/PlusPaymentActivationNotice, service/CasIntegrationServiceImpl.updatePaymentActivation}, auth/filter/JwtFilter, config/WebConfig; crud OcmsCourtCase. ocmsadminprivateapi workflows/plus/payment_activation_court/{PaymentActivationCourtController,PaymentActivationCourtServiceImpl} (POST /v1/plus-payment-activation-court, noticeNumber + flag only). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for these steps.",
+  "note": "Sheet status is 'No requirement' (requirement not given), so the story is traced from its text. This is the part of epic 48 that is really built: PLUS calls POST /v1/plus-payment-activation (max 10 notices) with noticeNumber, amountPayable, courtPaymentDueDate, remarks, createdBy, paymentAcceptanceAllowed (Y/N). OCMS validates the notice exists (OCMS-4001) and is unpaid (OCMS-4003), then saves amount + flag to VON, due date + remarks to ocms_court_case, and flag + amount to eVON (which the portal reads). Gaps: (1) adminapi does not check court stage; the court-stage check only exists in the twin endpoint in ocmsadminprivateapi (plus-payment-activation-court, noticeNumber + flag only, PaymentActivationCourtServiceImpl.java:44). (2) 'already paid' is judged by a non-empty crs_reason_of_suspension (CasIntegrationServiceImpl.java:790), while casUpdateCourtNotices uses payment_status FP (:336), two different definitions. (3) amountPayable is only @NotNull, its value is not validated. (4) /v1/plus-* skips JwtFilter and the authorization interceptor (JwtFilter.java:179; WebConfig.java:83); protection depends on APIM which is not visible in the repo, cannot verify from repo. (5) VON and eVON use different datasources; cross-DB atomicity is not proven. Tickets: OCMS-SR-2026-021 (court notice payable on e-service due to a data patch, ePay did not read the flag; not a change to this code), OCMS-SR-2026-043 (closed, no code change).",
+  "recommendation": "Claim most of it: the PLUS request intake, basic validation and storage to VON/ocms_court_case/eVON exist. Note the missing court-stage check in adminapi, the inconsistent definition of 'already paid', and endpoint protection that depends on APIM. Confirm with URA/the team that the PLUS path (not a staff screen) is what the story means.",
+  "steps": [
+    {
+      "step": "PLUS sends an enable/disable payment request to OCMS",
+      "detail": "POST /v1/plus-payment-activation (CasIntegrationController.java:220-222) accepts the request from PLUS. Paths /v1/plus-* skip JwtFilter (JwtFilter.java:179) and the authorization interceptor (WebConfig.java:83), so protection can only come from APIM, which is not visible in the repo, cannot verify from repo. A twin endpoint exists in ocmsadminprivateapi (PaymentActivationCourtController.java:24, /plus-payment-activation-court); the repo does not show which one PLUS calls in production, cannot verify from repo."
+    },
+    {
+      "step": "The request carries notice number, composition amount, payment due date and the Y/N flag",
+      "detail": "DTO PlusPaymentActivationNotice holds noticeNumber (:26-27), amountPayable (@NotNull, :30-31), courtPaymentDueDate (:34-35), remarks (:37-38), createdBy (:41-42), and paymentAcceptanceAllowed which must be Y/N via @Pattern (:46-47). Limit of 10 notices per request (CasIntegrationController.java:229). Note: the amountPayable value is not validated beyond being non-null."
+    },
+    {
+      "step": "OCMS validates that the requested notice exists",
+      "detail": "The notice is looked up in VON via the findAllById map; if missing, the per-notice result is OCMS-4001 'Invalid Notice Number' (CasIntegrationServiceImpl.java:777-784) and other notices still get processed."
+    },
+    {
+      "step": "OCMS validates the notice is applicable (court notice and unpaid)",
+      "detail": "The unpaid check exists: a non-empty crs_reason_of_suspension counts as paid, result OCMS-4003 (CasIntegrationServiceImpl.java:789-796). There is no check that the notice is in a court stage at this endpoint. The court-stage check (COURT_STAGES, SystemConstant.java:103) only exists in the twin ocmsadminprivateapi endpoint (PaymentActivationCourtServiceImpl.java:44), which does not accept amount/due date. 'Already paid' here is defined differently from casUpdateCourtNotices, which uses payment_status FP (CasIntegrationServiceImpl.java:336). Sebagian because half of the applicability criteria are not checked on the main endpoint."
+    },
+    {
+      "step": "OCMS saves the composition amount and payment acceptance flag to VON",
+      "detail": "amount_payable and payment_acceptance_allowed are set from the request and saved via noticeRepository.saveAll (CasIntegrationServiceImpl.java:800-803, :741); upd_user_id is set to createdBy."
+    },
+    {
+      "step": "OCMS saves the payment due date and remarks to the court case record",
+      "detail": "If an ocms_court_case row exists, courtPaymentDueDate (only when sent) and reason (from remarks) are updated; if not and a due date is sent, a new row is created (CasIntegrationServiceImpl.java:805-826, saveAll :742). With no due date and no existing row, no row is created and no due date is stored."
+    },
+    {
+      "step": "OCMS also updates eVON so the public portal reads the same flag and amount",
+      "detail": "If an eVON row exists, amount_payable and payment_acceptance_allowed are also set and saved (CasIntegrationServiceImpl.java:828-837, :743). The portal filters payable notices on flag 'Y' from eVON data (ParkingFinesController.java:258). VON and eVON are on different datasources; atomicity of the cross-DB save is not proven from the repo, cannot verify from repo."
+    },
+    {
+      "step": "OCMS returns a result per notice to PLUS",
+      "detail": "The response holds updatedCount, failedCount and a result per notice with appCode (success, OCMS-4001, OCMS-4003, OCMS-4007 per-notice system error) (CasIntegrationServiceImpl.java:748-752; CasIntegrationController.java:243-245). Requests over 10 notices are rejected with OCMS-4013 (:229-241)."
+    }
+  ]
+}

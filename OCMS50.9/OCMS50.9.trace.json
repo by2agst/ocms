@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (tab Paid via JWT), workflows/receipt/{ReceiptController,ReceiptServiceImplement,TemplateService,ZipUtility} (printslip), auth/filter/JwtFilter, crud/ocmsezdb/{eocmsvalidoffencenotice,eocmswebtxndetail}. ocmseserviceui pages/Payment/{PaymentSearchResult,API}.ts, Table/Column.ts. Salinan PDF reminder hardcopy: tidak ada code di keenam repo. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada akses portal ke reminder",
+  "note": "Story minta offender yang login Singpass (individu/bisnis) bisa mengakses salinan PDF reminder hardcopy dan receipt notice yang dibayar dalam X bulan terakhir. Bagian receipt ada: tab Paid memuat notice FP dalam 6 bulan (SQL hardcoded, EocmsValidOffenceNoticeRepository.java:84) dan tombol 'Download Receipt(s)' memanggil POST v1/printslip yang membuat PDF dari template receipt.html lalu mengirimnya sebagai ZIP. Bagian reminder tidak ada: tidak ada halaman, endpoint, atau pemanggilan di eservice untuk reminder; laporan reminder di ocmsadminui/ocmsadminapi adalah laporan staff, dan PDF-D2 Toppan hanya diproses di cron ocmsadminprivateapi. Receipt hanya bisa dibuat bila ada transaksi eocms_web_txn_detail dengan status 'S'; notice yang dibayar di luar kanal web akan gagal (Download Failed). Endpoint printslip publik di JwtFilter tanpa pengecekan kepemilikan, jadi siapa pun yang tahu nomor notice bisa mengunduh receipt-nya. Status sheet 'Built - Has gap' konsisten dengan temuan: receipt ada, reminder tidak.",
+  "recommendation": "Klaim hanya bagian receipt (sebagian). Salinan PDF reminder hardcopy belum ada di code; jangan diklaim. Catat risiko printslip tanpa pengecekan kepemilikan dan receipt gagal untuk pembayaran non-web",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender sudah login lewat Singpass (individu) atau Corppass (bisnis) dan session membawa NRIC atau UEN",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:82-95; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:199-203; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-312",
+      "fit": "Sesuai",
+      "detail": "Sama dengan OCMS50.8 langkah 1: createSession(sessionId, nric, entityId) lalu JWT (SpcpController.java:199, 203), dan pencarian ID memakai session itu untuk memilih tipe N,F atau B (ParkingFinesController.java:308-311). Handshake Singpass/Corppass cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender membuka daftar notice yang sudah dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:324-341; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:372-431; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1048-1066; ocmseserviceui/src/pages/Payment/Table/Column.ts:208-217",
+      "fit": "Sesuai",
+      "detail": "Filter 'paid' di handleIdNoSearchFromJwt mengembalikan notice dengan payment_status 'FP' (ParkingFinesController.java:338-341). UI punya tab/kotak 'Paid' (PaymentCountBox) yang memanggil APIPostSearchFinesSPCP({filter: 'paid'}) dan PaidTable menampilkan Notice Number, Vehicle Number, Place of Offence, Offence, Amount (Column.ts:208-217) dengan checkbox untuk memilih notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar hanya memuat notice yang dibayar dalam X bulan terakhir",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:81-102; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:146-173",
+      "fit": "Sebagian",
+      "detail": "Batas 6 bulan ditulis langsung di SQL: crs_date_of_suspension IS NULL OR >= DATEADD(MONTH, -6, GETDATE()) (EocmsValidOffenceNoticeRepository.java:84), dan catatan UI menyebut '6 months' (PaymentSearchResult.ts:165-168). Nilai X tidak bisa diubah lewat properties dan yang diukur adalah tanggal suspension CRS, bukan tanggal pembayaran. Apakah X = 6 sesuai kebutuhan URA tidak diketahui dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender melihat atau mengunduh salinan PDF receipt notice yang dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:798-883; ocmseserviceui/src/pages/Payment/API.ts:204-232; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/controller/ReceiptController.java:38-60; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/service/ReceiptServiceImplement.java:185-219; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmswebtxndetail/EocmsWebTxnDetailRepository.java:17-18; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:136",
+      "fit": "Sebagian",
+      "detail": "Tombol 'Download Receipt(s)' mengirim noticeNo terpilih ke POST v1/printslip; ReceiptServiceImplement mencari transaksi terakhir dengan status 'S' per notice (EocmsWebTxnDetailRepository.java:17-18), mengisi template receipt.html dari DB, membuat PDF, dan mengirim ZIP (:185-219); tidak ada tampilan PDF di portal, hanya unduhan .zip (PaymentSearchResult.ts:827-828). Notice tanpa transaksi 'S' (misalnya dibayar di luar kanal web) di-skip, dan jika semua gagal UI menampilkan 'Download Failed' (ReceiptServiceImplement.java:199-215). Endpoint printslip publik di JwtFilter (:136) dan tidak mengecek bahwa notice milik user yang login, jadi siapa pun dengan nomor notice bisa mengunduh receiptnya. Isi template receipt.html di DB cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mengakses salinan PDF reminder hardcopy yang pernah dikirim",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:15-42; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/controller/ReceiptController.java:38",
+      "fit": "Tidak ada code",
+      "detail": "routes hanya payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). Controller eservice hanya parkingfines, printslip, furnish, spcp, epayment callback, upload, webtxndetail, turnstile, urapg, plus; grep 'reminder' di ocmseserviceapi dan ocmseserviceui hanya menemukan satu komponen Address.ts yang tidak terkait. Reminder di sisi staff hanya laporan (ocmsadminui ReportListReminder.tsx, OCMS_REPORT_REMINDER tanpa /v1/download/blob), dan PDF-D2 Toppan hanya diproses di ocmsadminprivateapi (ToppanReportHelper.java:50,96). Tidak ada endpoint yang memberi PDF reminder ke offender."
+    }
+  ]
+}

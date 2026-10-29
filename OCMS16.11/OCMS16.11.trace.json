@@ -1,0 +1,46 @@
+{
+  "story": "OCMS16.11",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController (POST /v1/plus-apply-reduction), dto/ReductionRequest, ReductionServiceImpl.handleReductionRequest, helpers/ReductionAuditService}; crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus; auth/filter/JwtFilter. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code penerima reduction dari PLUS",
+  "note": "Penerimaan request reduction dari PLUS ada dan lengkap di ocmsadminapi: POST /v1/plus-apply-reduction (juga varian court /v1/plus-apply-reduction-court) menerima notice number, amountReduced, amountPayable, tanggal reduction dan expiry, reason, officer, lalu langsung memanggil validasi. Status story di sheet 'Fully paid'. Yang tidak bisa dibuktikan dari repo: siapa yang boleh memanggil endpoint ini. JwtFilter melewati JWT untuk semua path 'plus-' dan api-authorization.properties tidak punya mapping untuk endpoint reduction, jadi proteksi (APIM/subscription key) cannot verify from repo. Request dari sisi PLUS (payload sebenarnya) juga cannot verify from repo. Tiket pemeliharaan yang menyentuh jalur ini: OCMS-DF-2026-072 (closed, Prod deployed) mengubah nilai yang disimpan, tidak mengubah penerimaan.",
+  "recommendation": "Boleh diklaim untuk penerimaan request. Catat bahwa akses ke endpoint bergantung pada APIM di luar repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS dapat mengirim request pengurangan composition amount ke OCMS lewat satu endpoint khusus PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29-32; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:36-57",
+      "fit": "Sesuai",
+      "detail": "POST /v1/plus-apply-reduction (ReductionController.java:29-32) menerima ReductionRequest. suspensionSource dipaksa 'PLUS': kosong diisi PLUS, nilai lain ditolak 400 (ReductionController.java:36-57). Akses: JwtFilter melewati JWT untuk path 'plus-' (JwtFilter.java:179) dan tidak ada mapping di api-authorization.properties, jadi siapa yang boleh memanggil cannot verify from repo (bergantung APIM)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request membawa notice number dan jumlah pengurangan yang diminta (amount reduced dan amount payable setelah pengurangan)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:29-43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:46-82",
+      "fit": "Sesuai",
+      "detail": "ReductionRequest mewajibkan noticeNo, amountReduced (@Positive), amountPayable, dateOfReduction, expiryDateOfReduction, reasonOfReduction, authorisedOfficer, suspensionSource; remarks opsional (ReductionRequest.java:29-82). Isi payload sebenarnya dari PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kelengkapan field wajib dan format request sebelum diproses lebih lanjut",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:30-32; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:192-210; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:29-77",
+      "fit": "Sesuai",
+      "detail": "@Valid pada body (ReductionController.java:32) menjalankan constraint @NotBlank/@NotNull/@Positive (ReductionRequest.java:29-77); kegagalan ditangkap handler MethodArgumentNotValidException dan dijawab 400 (ReductionController.java:192-210). Pembeda 'Missing data' vs 'Invalid format' tidak jalan, lihat OCMS16.13; pemeriksaannya sendiri ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request yang lolos diteruskan ke proses validasi: notice dicari berdasarkan notice number dan dibandingkan dengan jumlah yang diminta",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:43-67; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:56-57; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:47-75",
+      "fit": "Sesuai",
+      "detail": "ReductionController memanggil reductionService.handleReductionRequest (ReductionController.java:59); service mencatat audit awal lalu memanggil findNoticeValidationStatus(noticeNo) ke ocms_valid_offence_notice (ReductionServiceImpl.java:49,56-57; OcmsValidOffenceNoticeRepository.java:47-75). Audit hanya berupa log, tidak ada baris audit di DB (ReductionAuditService)."
+    }
+  ]
+}

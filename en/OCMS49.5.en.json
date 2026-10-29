@@ -1,0 +1,41 @@
+{
+  "story": "OCMS49.5",
+  "flow_ref": "User story OCMS49.5 (not in any OCMS flow deck; steps split from the story text)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult,PaymentProcess,API}.ts, route/route.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}. No Clearance Slip code in any of the six repos.",
+  "note": "The story asks that the Clearance Slip page prompts and directs the offender to pay unpaid warrants of arrest before getting a clearance slip. The Clearance Slip service itself is not in the repo (a grep for 'clearance' in all six repos is empty; the ocmseserviceui routes are only payment and furnish-particulars). What exists is the ordinary Payment flow: Singpass/Corppass login, JWT notice search, unpaid-notice list, Pay button. The warrant T&C screen (PaymentProcess.ts:159-199) exists but never appears, because the UI reads last_processing_stage which the API does not send (API.ts:49-74, ParkingFinesController.java:365-379), so hasWarrant is always false (PaymentSearchResult.ts:771-777). Evidence 43.75% is computed from 8 steps and is misleading: two core steps of the story (choosing the Clearance Slip service, the pay-first message before the clearance slip) are missing, and warrant detection does not work. To verify: (1) whether URA treats the Payment page as the intended target of this story; (2) the wording of messages E4/E1 in the user message table (database, not repo); (3) Singpass/Corppass and the payment gateway are outside the repo; (4) runtime behaviour was not executed, hasWarrant=false is concluded from reading code; (5) the sheet status 'Built - Has gap' matches these findings; test cases and UAT were not checked. There is no OCMS flow deck.",
+  "recommendation": "Do not claim in full: the Clearance Slip service and the pay-first message are absent, and warrant detection in the Payment flow does not work. Claim partially or fix: send lastProcessingStage from the API to the UI, and add a Clearance Slip page that holds the slip until warrants are paid.",
+  "steps": [
+    {
+      "step": "Offender signs in to the Online Customer Portal with Singpass or Corppass",
+      "detail": "The SPLoginBtn and CPLoginBtn buttons call onSingpass() / onCorppass() (PaymentSearch.ts:341,350) and the token is stored via setAuthToken. This is the login on the Payment page; the Clearance Slip service has no login page of its own. Singpass/Corppass verification on the provider side: cannot verify from repo (that is story 49.1). Lowered to Partial after double check: this is the Payment page login, not a Clearance Slip login (consistent with OCMS49.1)."
+    },
+    {
+      "step": "Offender chooses the Clearance Slip service in the portal",
+      "detail": "The only routes are payment, payment/processing, payment/success, payment/failure and furnish-particulars (route.ts:16-42). A grep for 'clearance' across all six repos finds no Clearance Slip page, endpoint or text in ocmseserviceui or ocmseserviceapi. The service the story asks about is not in the repo."
+    },
+    {
+      "step": "The system identifies the offender's ID from the login session",
+      "detail": "An searchType=id request must carry a Bearer JWT (ParkingFinesController.java:284-289); the token is validated (:291), the session is looked up in eocms_temp_pii_session (:299), and idNo is taken from entityId (UEN, idType B) or userId (NRIC/FIN, idType N,F) at :309-310. Without a token or session the API answers 401. jwt.auth.enabled=true (application.properties:77)."
+    },
+    {
+      "step": "The system fetches all notices under the offender's ID and splits unpaid from paid",
+      "detail": "findParkingFinesByIdNo looks up notice numbers by ID in the PII database (ParkingFinesServiceImplement.java:150) and loads the notices without a CRS filter. The controller computes totalOutstanding and totalPaid (ParkingFinesController.java:325-331), applies the 'outstanding' filter and marks paymentAcceptanceAllowed=Y as allPayableNotices (:346-358). Notices at court stages (including warrant stages) are returned; there is no warrant-specific query or marker."
+    },
+    {
+      "step": "The system determines the offender still has unpaid warrants of arrest",
+      "detail": "The warrant check lives in the UI: warrantStages COW/CWW/CWM/CTW/CWT are matched against item.notice.last_processing_stage (PaymentSearchResult.ts:771-776). But mapToMatrix (API.ts:49-74) never fills last_processing_stage, and mapToIdSearchDTO (ParkingFinesController.java:365-379) does not send lastProcessingStage. So the stage is always an empty string, hasWarrant is always false, and a warrant is never detected in this flow. Read from code; runtime behaviour was not executed."
+    },
+    {
+      "step": "The page prompts the offender that unpaid warrants of arrest must be paid",
+      "detail": "The warrant warning text exists: 'Terms and Conditions for Compounding of Offence(s) with Warrant(s) of Arrest' (PaymentProcess.ts:159-199) via InitPaymentWarrant (:210). But it appears only after the offender selects notices and presses Pay (PaymentSearchResult.ts:777), its content is about compounding terms (payment does not automatically cancel the warrant), not 'pay before you can get the clearance slip', and the branch is unreachable because hasWarrant is always false (step 5). For court-stage notices that cannot be paid online the API sends message E4 from the user message table (ParkingFinesServiceImplement.java:426); the E4 wording is in the database, cannot verify from repo."
+    },
+    {
+      "step": "The page directs the offender to select unpaid notices and continue to payment",
+      "detail": "For a logged-in offender, InitPaymentSPCPUnpaid shows the unpaid-notice table with checkboxes, the payment mode choice (eNETS, Visa/MasterCard, PayNow) and the Pay button (PaymentSearchResult.ts:1028-1045). PayButton calls APIPostGenerateTransaction (:752) and then opens the payment summary screen (:777-780). This is the right payment direction, but from the Payment page, not from a Clearance Slip page. The URA payment gateway side: cannot verify from repo. Lowered to Partial after double check: this is the generic notice list on the Payment page, not a warrant-specific prompt from a Clearance Slip service."
+    },
+    {
+      "step": "The page states that payment must be made before the offender can obtain a copy of the clearance slip",
+      "detail": "There is no text, check or gate that ties warrant payment to a clearance slip. The notes on the page only cover the 'Not Paid' status, the Paid tab and the 6-month history (PaymentSearchResult.ts:146-170). No code in ocmseserviceapi (there is no clearance controller) holds or releases a clearance slip based on warrant status, and none was found in the other repos."
+    }
+  ]
+}

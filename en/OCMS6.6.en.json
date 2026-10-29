@@ -1,0 +1,41 @@
+{
+  "story": "OCMS6.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot.tsx, component/NoticeSearchUploadSlot.tsx, list/NoticeSearchAllList.tsx, list/NoticeSearchOutstandingList.tsx, form/NoticeSearchAllForm.tsx}, utils/data/SheetData.ts, utils/function/FuncSheet.ts, utils/mapping/NoticeSearch/NoticeSearch.ts, utils/constant.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController (validoffencenoticelist + $field), api-authorization.properties. ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi, ocmseserviceui: not relevant",
+  "note": "Sheet status: Fully paid (3 points). The download feature exists and works: Notice Search (All and Outstanding) has Download All / Download Selected that re-run the same search and write an .xlsx file in the browser. Gaps: (1) there is no print, only download; (2) download is capped at 1000 notices; (3) five columns (Summons, NTAC, Court Date, Payment Date, Authorised By Officer) are mapped to UNKNOWN so they are always '-'; (4) the Payment Status column in the file prints 'Fully Paid' for any CRS reason, including PP (Partially Paid), so the settled report can be wrong. Tickets used: OCMS-SR-2026-048 (outstanding definition, Closed) and OCMS-DF-2026-187 (Payment Status sort in bulk search, Pending UAT; does not change file content). Cannot verify from repo: whether an official print request exists outside the story.",
+  "recommendation": "Claim partially: the Excel download of outstanding/settled search results exists. Print is missing, there is a 1000 cap, five columns are empty, and Payment Status in the file can be wrong for partially paid notices; fix them or agree with URA that Excel download replaces print",
+  "steps": [
+    {
+      "step": "Officer has run a notice search (All / Outstanding) in the Staff Portal and has a result list",
+      "detail": "The Notice Search page has two modes (ALL and OUTSTANDING). Both lists call the validoffencenoticelist resource through Datagrid (NoticeSearchAllList.tsx:115, NoticeSearchOutstandingList.tsx:137). On the server, validoffencenoticelist is allowed for function OCMS_NOTICE_SEARCH (api-authorization.properties:21-22). This is the story precondition and it exists. The Payment Status sort bug in bulk search (OCMS-DF-2026-187, Pending UAT) only concerns column sorting and does not change the result content."
+    },
+    {
+      "step": "Result page offers a download button for the searched results (all results or selected rows)",
+      "detail": "NoticeSearchSlot is mounted in the left slot of both lists (AllList:131, OutstandingList:154) and shows Download All (SL:262) and Download Selected (SL:271, enabled only when rows are ticked). The upload-search result page has the same buttons through NoticeSearchUploadSlot (NoticeSearchUploadSlot.tsx:112-132)."
+    },
+    {
+      "step": "Download uses the same search criteria so the file matches the search result",
+      "detail": "Download All calls POST validoffencenoticelist with the grid filter + advanceFilter and $limit = total result count (SL:94-103). Download Selected adds noticeNo[$in] from the ticked rows (SL:206). Fields are limited through $field = FieldExcelValidOffenceNotice (SL:98) and the backend filters those fields (OcmsValidOffenceNoticeController.java:66-76). So the file follows the search result, not other data."
+    },
+    {
+      "step": "The whole search result can be downloaded whatever its size",
+      "detail": "There is a hard limit NOTICE_SEARCH_LIMIT = 1000 (constant.ts:96). If the total is > 1000 for Download All, or selected rows are > 1000, the download is refused with a 'causing backend service overload' message (SL:184-195). The officer must narrow the search. The story states no limit; large results cannot be saved. Upload-search download does not go through this limit (it uses in-memory allData)."
+    },
+    {
+      "step": "The result is saved as a report file (Excel) with the relevant notice columns",
+      "detail": "SheetGenerate builds an .xlsx file through XLSX.writeFile (FuncSheet.ts:93-159) with headers HeaderAllNoticeDownload or HeaderOutsandingNoticeDownload (SheetData.ts:560-648). But several columns are mapped to key UNKNOWN so they are always '-': Summons No., NTAC No., Court Date, Payment Date, Authorised By Officer (SheetData.ts:562-563, 580, 596, 598, 608, 617, 638, 640; NoticeSearch.ts:69). The file is produced, but those five columns carry no data yet."
+    },
+    {
+      "step": "Outstanding-notice report: the Outstanding search filters outstanding notices and is downloaded with the Outstanding header",
+      "detail": "OUTSTANDING mode uses defaultFilters: TS / no suspension, PS only with EPR reason FOR/DIP/MID/RIP/RP2 and no CRS reason, or CRS reason PP, and offenderIndicator = Y (OutstandingList.tsx:105-124). On download, type OUTSTANDING selects HeaderOutsandingNoticeDownload (SL:220-223). This matches request PLUS-DF-2026-323 / OCMS-SR-2026-048 (Closed, Prod deployed); the ticket also lists PS-VIP as an excluded hard-PS, while the code list has no VIP (cannot verify from repo whether a VIP code is used)."
+    },
+    {
+      "step": "Settled (fully paid) notice report: the Payment Status column in the file shows the correct payment status",
+      "detail": "In the file, Payment Status = Boolean(crsReasonOfSuspension) ? 'Fully Paid' : 'Unpaid' (SheetData.ts:575-578, 634-637). So any CRS reason (including PP = Partially Paid) prints as 'Fully Paid', while the grid maps FP/PRA = FP, PP = Partially Paid, otherwise '-' (column/index.tsx:270-281). Settled search works through the Payment Status 'Fully Paid' filter in ALL mode (option.tsx:322-323, NoticeSearchAllForm.tsx:304-310): FP in crsReasonOfSuspension and EPR reason not PRA (useSearchParams.tsx:343-346), so the searched list itself is right. Result: a partially paid notice can show 'Fully Paid' in the report. The Payment Status sort in bulk search is also broken (OCMS-DF-2026-187, Pending UAT)."
+    },
+    {
+      "step": "The search results can also be printed",
+      "detail": "There is no print feature. NoticeSearch only has Download All / Download Selected buttons (SL:262-280); a grep for window.print, print, pdf in pages/NoticeSearch finds nothing. The old OUTSTANDING/PAID CSV option in ApplyOperationAction.tsx:391-402 is dead (the CSVLink is commented out) and is not in BatchOperationOptions. Officers must print from the Excel file themselves."
+    }
+  ]
+}

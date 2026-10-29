@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/form/{DecisionForm,ReplyComposeForm}, pages/Notice/hook/{ActionNotice,useNoticeSubmit}, pages/Furnish/hooks/useFurnishAPI. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController (approve-hirer, approve-driver, send-email, send-sms),services/ManualReviewService}, workflows/furnish/helpers/{FurnishabilityChecker,FurnishNotificationService,FurnishSyncHelper}. The alternative path workflows/furnish/approval/FurnishApprovalController is not called by the UI. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no scheduling of the officer reply",
+  "note": "Status in stories.json: Demo paid (50% of 75%); no separate requirement is given. Approval and particulars update work: one Submit button approves the furnish as Hirer or Driver, updates ONOD, address, stage, and syncs to the Internet DB. The big difference from the story: there is no sending at a scheduled date and time. Email/SMS goes out immediately, synchronously, right after approve. Approve and send are also two separate requests with no rollback. A second approval path exists (FurnishApprovalController /furnish/officer/approve) which mentions OCMS41.15-41.23 in comments, but the UI does not call it and no mapping for it was found in api-authorization.properties, so it is not used as evidence.",
+  "recommendation": "Claim in part: approval and particulars update. Do not claim scheduled sending; no date and time scheduling exists. Ask URA to confirm whether immediate sending is acceptable or whether scheduling must be built",
+  "steps": [
+    {
+      "step": "Officer approves the furnish with the Submit button (Decision = Approve, Approve As Hirer or Driver)",
+      "detail": "The OIC Review panel asks for Decision Status and, for Approve, Approve As Driver/Hirer (DecisionForm.tsx:435-470). Submit raises a confirmation dialog (ActionNotice.tsx:189-200) and then calls POST manual-review/approve-hirer or approve-driver (useFurnishAPI.ts:202-225). There is no separate \"approve the sending\" action: approving the particulars is the trigger that also sends the messages in compose_list. A UEN (ID type B/U) is blocked as Driver in the UI (ActionNotice.tsx:163-179) and in the backend (ManualReviewService.java:334-338)."
+    },
+    {
+      "step": "Sending of the SMS/email runs at the pre-scheduled date and time",
+      "detail": "There is no scheduling: grep \"schedul\" in ocmsadminui/src/pages/Furnish, ocmsadminui/src/pages/Notice and ocmsadminapi workflows/furnish finds no field, parameter or job for sending the officer reply. composeFurnish is called straight after a successful approveFurnish (useNoticeSubmit.tsx:198-216) and the backend calls emailService.sendEmail (FurnishNotificationService.java:61) or smsUtil.sendBatchSmsSimple (line 182) inside the request. The only furnish job in ocmsadminprivateapi that sends email (DailyOfficerNotificationJob) sends a daily summary to officers, not a reply to the hirer/driver."
+    },
+    {
+      "step": "The hirer/driver particulars for the notice are updated on approval",
+      "detail": "approveSubmission checks OIC furnishability (blocks on active PS, Advisory Notice flag or court stage: FurnishabilityChecker.java:208-246), sets the furnish status to A and syncs to PII (ManualReviewService.java:362-366), then addFurnishedOffender (lines 749-817): the previous offender is set to N, the old address rows of that role are deleted (OCMS-DF-2026-024 fix, Closed, lines 775-782), a new H/D ONOD is created with ID, name, email, phone, and the furnished_mail address is flagged letter_address=Y. changeProcessingStage (lines 880-928) sets stage RD1 (Hirer) or DN1 (Driver), recalculates amount_payable and syncs VON to the Internet DB. The UI calls approve-hirer/approve-driver (useFurnishAPI.ts:210-211), not /furnish/officer/approve (FurnishApprovalController.java:23-38) which has no UI caller."
+    },
+    {
+      "step": "Sending and the particulars update run as one approved action",
+      "detail": "Two separate requests: approve-hirer/approve-driver first (@Transactional only wraps the approve side, ManualReviewService.java:296, 313), and only on success the compose calls to send-email/send-sms (useNoticeSubmit.tsx:198-216). If the email/SMS fails the particulars are already saved and the UI only shows \"Email/SMS was not successfully sent\" (lines 218-221); there is no rollback. If the checkbox is ticked but compose_list is empty, the approval goes through with no message and no warning (lines 215-216)."
+    },
+    {
+      "step": "OCMS confirms the approval and sending to the officer",
+      "detail": "After approve and compose both succeed, the alert modal shows \"Furnished particulars has been saved as the Current Driver/Hirer and the email/SMS has been sent to the recipient.\" (useNoticeSubmit.tsx:223-225, shown in ActionNotice.tsx:254-272). If approve fails the message carries the reason and \"Email/SMS was not sent\" (lines 204-207); if only sending fails it says \"Email/SMS was not successfully sent to the recipient(s)\" (line 220). The text says \"sent\", not \"scheduled\"."
+    }
+  ]
+}

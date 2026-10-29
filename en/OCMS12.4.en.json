@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (combineNotices, generateMessages, prepareTemplateData, sendBatchSms, saveSendStatus), jobs/NotificationSmsEmailJob}, utilities/smsutility/SmsUtil.sendBatchSms, application-{dev,uat,prod}.properties (sms.enable, sms.allowedSources), cron-schedules-*.properties (cron.notification.enabled). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "The requirement is given in the story text (status_with_ura: Demo paid 50% of 75%). For individual owners (idType not B) the RD1 reminder is combined per owner + stage + due date and sent as a batch SMS through Postman2 (SmsUtil). Findings: (1) in application-prod.properties sms.enable=false and there is no sms.allowedSources, so SmsUtil.sendBatchSms refuses to send in prod; in uat and dev the source ENOTIFICATION is allowed; (2) cron.notification.enabled=false in all environments; (3) the SMS text (template RD1_SMS_INDIVIDUAL) is stored in the ocms_template_store table in the database, not in the repo, so whether it mentions the first letter cannot be proven; (4) the fresh mobile number from DataHive is switched off by a flag (see OCMS12.3). Postman2/SMS permission and Vault: cannot verify from repo.",
+  "recommendation": "Claim partially. Combining notices per owner and the batch SMS sending exist in code, but SMS is switched off in prod (sms.enable=false), the cron is inactive and the template content is not visible in the repo. Ask for evidence of template RD1_SMS_INDIVIDUAL and confirmation of the prod config.",
+  "steps": [
+    {
+      "step": "The individual owner's mobile number is obtained from DOS (DataHive)",
+      "detail": "refreshIndividualContactInfo fetches the Singpass contact from DataHive, but refreshContactInfo returns early while cron.enareminder.datahive=false (value in dev, uat, prod, line 48), so the old number in owner_driver is used. Same fit as OCMS12.3 step 2 and OCMS12.5 step 1 (same fact). DataHive/Vault connection: cannot verify from repo."
+    },
+    {
+      "step": "Unique individual owners are identified and their outstanding notices are merged into one reminder",
+      "detail": "Reminder records get nextProcessingStage = last stage (NJ:174-180), then combineNotices groups them by key 'I_<idNo>' + stage + paymentDueDate (NH:2178), appends combinedNotices and sums amountPayable (NH:2185-2196). The result is one SMS per individual owner per stage and due date. The ENA exception for individuals (not combined, NH:2171) does not apply to RD1."
+    },
+    {
+      "step": "The SMS lists the outstanding notices and refers to the first letter reminder",
+      "detail": "The template is chosen by the name <stage>_SMS_INDIVIDUAL[_COMBINED] (RD1_SMS_INDIVIDUAL, NH:459-476) and filled with noticeCount, combinedNotices, amountPayable, paymentDueDate (NH:424-430). The template text is in ocms_template_store (database), not in the repo, so whether the SMS mentions the first letter reminder cannot be proven. If the template is not found the SMS is skipped (NH:1564-1567)."
+    },
+    {
+      "step": "The SMS is sent in one batch job and the result is recorded",
+      "detail": "sendBatchSms splits into batches of at most 1000 and calls SmsUtil.sendBatchSmsSimple with source ENOTIFICATION; saveSendStatus records into ocms_sms_notification_records (NH:601-640). But SmsUtil.sendBatchSms blocks sending when sms.enable=false and the source is not in sms.allowedSources (SmsUtil:396-410): prod has sms.enable=false without allowedSources (application-prod.properties:87), so the status is 'disabled'; uat/dev allow ENOTIFICATION. The daily cron is also enabled=false (NS:42-60). Postman2 access permission from the App Service: cannot verify from repo."
+    }
+  ]
+}

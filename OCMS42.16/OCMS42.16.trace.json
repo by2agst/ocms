@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDQuests,Particulars}.ts, pages/Furnish/Furnish.ts (extractOffenceDate), utils/validation/Furnish/ValidHirerDriver.ts (ValidRentalPeriod), utils/map/MapFurnish.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}. Tier lain: tidak ada code untuk langkah ini (sinkronisasi ke Intranet lewat cron syncinternetintranet membawa rental_period_from/to, bukan validasi periode).",
+  "note": "Story tidak ada di flow deck; Sesuai berarti code melakukan apa yang tertulis di story. Status sheet 'Fully paid'. Semua langkah ada di code: field periode sewa muncul saat relasi 'Vehicle is leased', UI menolak periode yang tidak mencakup tanggal offence (start tidak boleh setelah offence paling awal, end tidak boleh sebelum offence paling akhir dari notice terpilih), lalu tombol 'Proceed to review' lanjut ke langkah review. Server mengulang validasi per notice dengan offence date dari DB, jadi bypass UI tetap ditolak. Tiket OCMS-DF-2026-110, -143 dan -175 (error generik saat submit Furnish, semua Closed, -175 tanpa perubahan code) tidak mengubah verdict. Nilai property dan perilaku di server asli tidak bisa diverifikasi dari repo.",
+  "recommendation": "Bisa diklaim. Semua langkah story punya code dengan validasi di UI dan server.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Field periode sewa (start dan end, tanggal + jam) muncul ketika pemilik/hirer memilih relasi 'Vehicle is leased'",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:99; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:117-121; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:418-434; ocmseserviceui/src/utils/option.ts:39",
+      "fit": "Sesuai",
+      "detail": "relasi 'H' diberi label 'Vehicle is leased' (option.ts:39). Saat relasi dipilih, isVehicleLeased = hdRelation === 'H' (HDQuests.ts:99), lalu InitRentalPeriod() membuat input Start Date, Start Time, End Date, End Time (HDQuests.ts:117-121, 418-434). Field wajib hanya jika relasi H (ValidHirerDriver.ts:73-75, 105-107, 111-113, 157-159)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman mengecek periode sewa mencakup tanggal offence semua notice terpilih (start tidak setelah offence paling awal, end tidak sebelum offence paling akhir)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:83-96; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:123-141; ocmseserviceui/src/pages/Furnish/Furnish.ts:383-410",
+      "fit": "Sesuai",
+      "detail": "extractOffenceDate mengambil offence paling awal (offence_date) dan paling akhir (offence_date_latest) dari notice terpilih (Furnish.ts:383-410). ValidRentalPeriod menolak jika startDateTime > offence paling awal (ValidHirerDriver.ts:83-96) dan jika endDateTime < offence paling akhir atau end <= start (ValidHirerDriver.ts:123-141). Karena start diuji ke yang paling awal dan end ke yang paling akhir, periode yang lolos mencakup semua offence terpilih. Pesan error: error.ts rentalStartDate.after_offence / rentalEndDate.before_offence."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika periode mencakup tanggal offence, halaman mengizinkan lanjut ke langkah review/submission",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:113-150",
+      "fit": "Sesuai",
+      "detail": "Tombol 'Proceed to review' menjalankan ValidateALL (termasuk ValidRentalPeriod); jika tidak ada error dan dokumen valid, onReview() dipanggil lalu stepper.show(3) (Particulars.ts:113-150). Tidak ada error periode sewa yang menghalangi saat periode sah. Tombol bisa tetap ditolak oleh validasi lain (misalnya self-furnish, dokumen) yang bukan bagian story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat submit, server memvalidasi ulang periode terhadap offence date tiap notice dan menyimpan periode sewa bersama particulars",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:170-178; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:237-282; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:196-197",
+      "fit": "Sesuai",
+      "detail": "POST /v1/furnishapplication memuat notice dari DB lalu validateRentalPeriod: relasi H wajib punya start dan end, end harus setelah start, start tidak boleh setelah offence tiap notice, end tidak boleh sebelum offence tiap notice (FurnishSubmissionController.java:170-178, FurnishRequestValidator.java:237-282). Jika lolos, rentalPeriodFrom/To disimpan ke eocms_furnish_application (FurnishSubmissionServiceImpl.java:196-197). UI mengirim periode sebagai tanggal+jam (MapFurnish.ts:80-81, 117-118). Tiket OCMS-DF-2026-110, -143, -175 melaporkan error generik saat submit Furnish; semuanya Closed dan -175 tanpa perubahan code, jadi tidak menurunkan fit. Perilaku di server asli: cannot verify from repo."
+    }
+  ]
+}

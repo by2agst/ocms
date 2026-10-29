@@ -1,0 +1,76 @@
+{
+ "id": "OCMS52.5",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N",
+    "id": "Saat sync Internet ke Intranet memproses transaksi AXS, transaksi itu diberi urapg_sync_status = N"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:687-695",
+   "detail": {
+    "en": "markAsPendingUraPgSync picks rows with typeOfReceipt AXS and sender AXS and calls bulkUpdateUrapgSyncStatus(..., \"N\") (lines 687-695). It is called after each of the sync paths (lines 433, 453, 524, 658). The sync job runs every 10 minutes and is enabled in prod config (cron-schedules-prod.properties:305-306). Real server value cannot be verified from the repo.",
+    "id": "markAsPendingUraPgSync memilih baris dengan typeOfReceipt AXS dan sender AXS lalu memanggil bulkUpdateUrapgSyncStatus(..., \"N\") (baris 687-695). Dipanggil setelah tiap jalur sync (baris 433, 453, 524, 658). Job sync jalan tiap 10 menit dan enabled di config prod (cron-schedules-prod.properties:305-306). Nilai di server asli tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N and sends them to the URA Payment Gateway endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1",
+    "id": "Setiap jam job membaca semua baris web_txn_detail dengan urapg_sync_status = N dan mengirimnya ke endpoint URA Payment Gateway /paymentgateway/Recon/insertOcmsAxsTxn/v1"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:22-39",
+   "detail": {
+    "en": "The query selects urapgSyncStatus = N, typeOfReceipt = 01 and sender = AXS (WebTxnDetailRepository.java:24-25). The schedule is 0 0 * * * ? with enabled=true in prod (cron-schedules-prod.properties:350-351). All pending rows go in one POST (CronUraPgRetry.java:39) to ura.paymentgateway.baseUrl + the endpoint (application-prod.properties:106-107; UraPgServiceImpl.java:133-151) with the APIM key read from Key Vault; if the key cannot be read only a warning is logged and the call goes without it (UraPgServiceImpl.java:105-107). Gateway behaviour and the APIM key cannot be verified from the repo. There is no staff screen or Cron button for this job.",
+    "id": "Query memilih urapgSyncStatus = N, typeOfReceipt = 01 dan sender = AXS (WebTxnDetailRepository.java:24-25). Schedule-nya 0 0 * * * ? dengan enabled=true di prod (cron-schedules-prod.properties:350-351). Semua baris pending dikirim dalam satu POST (CronUraPgRetry.java:39) ke ura.paymentgateway.baseUrl + endpoint (application-prod.properties:106-107; UraPgServiceImpl.java:133-151) dengan APIM key dari Key Vault; kalau key tidak terbaca hanya warning yang dicatat dan panggilan jalan tanpa key (UraPgServiceImpl.java:105-107). Perilaku gateway dan APIM key tidak bisa diverifikasi dari repo. Tidak ada layar staff atau tombol Cron untuk job ini."
+   }
+  },
+  {
+   "step": {
+    "en": "Rows the gateway reports as sent are set to urapg_sync_status = Y; the others stay N and are sent again in the next run",
+    "id": "Baris yang dilaporkan terkirim oleh gateway diubah ke urapg_sync_status = Y; sisanya tetap N dan dikirim lagi di run berikutnya"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:41-69",
+   "detail": {
+    "en": "Items with status S (Notification.STATUS_SENT) are set to Y (lines 41-53). Failed items, a null response or an exception leave the rows at N (lines 62-69). On timeout, connection error or HTTP error UraPgServiceImpl builds an error response with status E for every row (buildErrorResponse, lines 415-430), so nothing is marked Y. The update works per receipt_no, so all rows with the same receipt_no get the same status (WebTxnDetailRepository.java:30-35). There is no retry limit or back-off: a row the gateway keeps rejecting is sent every hour.",
+    "id": "Item dengan status S (Notification.STATUS_SENT) diubah ke Y (baris 41-53). Item gagal, response null, atau exception membuat baris tetap N (baris 62-69). Pada timeout, connection error atau HTTP error UraPgServiceImpl membuat error response berstatus E untuk setiap baris (buildErrorResponse, baris 415-430), jadi tidak ada yang ditandai Y. Update dilakukan per receipt_no, jadi semua baris dengan receipt_no yang sama mendapat status yang sama (WebTxnDetailRepository.java:30-35). Tidak ada batas retry atau back-off: baris yang terus ditolak gateway dikirim tiap jam."
+   }
+  },
+  {
+   "step": {
+    "en": "When some rows still fail, an error notification is raised through notifyUraPgErrors",
+    "id": "Kalau masih ada baris yang gagal, error notification dikirim lewat notifyUraPgErrors"
+   },
+   "fit": "Beda dari flow",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:457-461",
+   "detail": {
+    "en": "CronUraPgRetry calls notifyUraPgErrors when failed rows remain (line 60), but the method body is empty: the call to sendErrorNotificationEmail is commented out (OCMS-DF-2026-147, lines 458-460). Failures are only written to the error log (CronUraPgRetry.java:59). sendErrorNotificationEmail still exists (lines 469 onwards) but nothing calls it. A null response or an exception does not even call notifyUraPgErrors.",
+    "id": "CronUraPgRetry memanggil notifyUraPgErrors saat masih ada baris gagal (baris 60), tetapi isi method-nya kosong: pemanggilan sendErrorNotificationEmail di-comment (OCMS-DF-2026-147, baris 458-460). Kegagalan hanya ditulis ke error log (CronUraPgRetry.java:59). sendErrorNotificationEmail masih ada (baris 469 dan seterusnya) tapi tidak ada yang memanggilnya. Response null atau exception bahkan tidak memanggil notifyUraPgErrors."
+   }
+  },
+  {
+   "step": {
+    "en": "After the run, the gateway records match what OCMS has received from AXS",
+    "id": "Setelah run, catatan gateway sama dengan yang diterima OCMS dari AXS"
+   },
+   "fit": "Tidak ada code",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:51-61",
+   "detail": {
+    "en": "The job only flips the flag for items the gateway acknowledged. No code compares totals, counts or amounts between OCMS and the gateway, and no report shows rows still at N. Whether the gateway records really match cannot be verified from the repo.",
+    "id": "Job hanya membalik flag untuk item yang di-acknowledge gateway. Tidak ada code yang membandingkan total, jumlah, atau nominal antara OCMS dan gateway, dan tidak ada report yang menampilkan baris yang masih N. Apakah catatan gateway benar-benar sama tidak bisa diverifikasi dari repo."
+   }
+  }
+ ],
+ "note": {
+  "en": "The hourly send and the N to Y flag handling are complete in code and enabled in prod config. Not proven by the repo: gateway behaviour, the APIM key, and that rows were ever accepted (tickets OCMS-DF-2026-035, -047 and -147 are Closed, Prod deployed, and show the feed in use but as bug fixes). The error notification is switched off in code, there is no retry limit, there is no reconciliation check, and the job has no staff screen. OCMS43.2 covers the opposite direction (payments coming in from AXS); this trace covers only the send to the gateway.",
+  "id": "Pengiriman per jam dan penanganan flag N ke Y lengkap di code dan enabled di config prod. Tidak terbukti oleh repo: perilaku gateway, APIM key, dan apakah baris pernah diterima (tiket OCMS-DF-2026-035, -047 dan -147 berstatus Closed, Prod deployed, dan menunjukkan feed ini dipakai tetapi sebagai bug fix). Error notification dimatikan di code, tidak ada batas retry, tidak ada cek rekonsiliasi, dan job ini tidak punya layar staff. OCMS43.2 mencakup arah sebaliknya (pembayaran masuk dari AXS); trace ini hanya mencakup pengiriman ke gateway."
+ },
+ "corrections": [
+  "Acceptance 4 is wrong: notifyUraPgErrors does nothing (body empty since OCMS-DF-2026-147); failures are only logged. Remove it or describe it as an error log.",
+  "Acceptance 2 should say: all pending rows (type 01, sender AXS) are sent in ONE request, with no retry limit.",
+  "User story: \"so that the gateway records match\" is not checked by any code; reword to \"so that every AXS payment is reported to the gateway\".",
+  "Risk about the Cron page is correct (no button), and tickets DF-035/-047/-147 are bug fixes, so URA may treat this as maintenance."
+ ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS17.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plusApplySuspension, addAppCodeToResults), helpers/{SuspensionBaseHelper,SuspensionProcessingHelper,TemporarySuspensionHelper}, crud/beans/SystemConstant (teks pesan). Tiruan di ocmsadminprivateapi framework/workflows/plus/notice_creation/core. Repo lain tidak relevan.",
+  "note": "Saat validasi TS gagal, OCMS mengirim message error ke PLUS per notice (noticeNo, success=false atau eligible=false, message) dan appCode OCMS-4000; request yang cacat dijawab HTTP 400 OCMS-4000 dan error sistem HTTP 500 OCMS-4007. Dua hal perlu diketahui: seluruh batch dijawab HTTP 200 walau semua notice gagal, dan kode spesifik (OCMS-4002/4003/4004) yang dioper ke createErrorResponse dibuang sehingga PLUS hanya bisa membedakan alasan dari teks message. Cara PLUS menampilkan pesan ke user cannot verify from repo (PLUS ada di luar repo).",
+  "recommendation": "Klaim sebagai selesai. Catat bahwa kode error spesifik tidak ikut dikirim, hanya teks message dan appCode OCMS-4000.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk setiap notice yang ditolak, OCMS membuat message error yang menjelaskan alasannya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-535; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1211-1218; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:293-294; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:75; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:84; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:96",
+      "fit": "Sesuai",
+      "detail": "Eksekusi: createErrorResponse mengisi {noticeNo, srNo:null, success:false, message}. Dry-run: createValidationErrorResponse mengisi {noticeNo, eligible:false, message}. Contoh teks: 'Unable to TS as one or more Notices has been paid.', 'Unable to TS as Notice has been permanently suspended', 'Source not authorized to use this Suspension Code', 'Notice is under Court processing'. Parameter appCode spesifik (OCMS-4002/4003/4004) dioper tetapi tidak dimasukkan ke map di SuspensionBaseHelper.java:529-534, jadi tidak sampai ke PLUS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim hasil gagal ke PLUS sebagai response dengan appCode error",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1198",
+      "fit": "Sesuai",
+      "detail": "Hasil per notice dikumpulkan dalam list; addAppCodeToResults menambahkan appCode OCMS-2000 jika success/eligible true, selain itu OCMS-4000, lalu ResponseEntity.ok(results). Jadi HTTP status 200 walau semua notice gagal; PLUS harus membaca success/eligible dan appCode per notice. Mirror di ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:117). Format di sisi PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request yang cacat atau error sistem juga dijawab dengan message error ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:504-528; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:557-560",
+      "fit": "Sesuai",
+      "detail": "Field wajib kosong atau suspensionSource selain PLUS dijawab HTTP 400 {appCode:OCMS-4000, message:'Invalid request. Please double-check the request body.'}; exception tak terduga dijawab HTTP 500 {OCMS-4007, 'System error. Please inform Administrator'}."
+    }
+  ]
+}

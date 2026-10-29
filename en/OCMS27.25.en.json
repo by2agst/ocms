@@ -1,0 +1,21 @@
+{
+  "story": "OCMS27.25",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "The contact refresh and SMS sending mechanism exists in NotificationSmsEmailJob/Helper (DataHive refreshContactInfo, normalizeMobile, sendSms), but only for reminder/demand stages (RD1..DR3), is not connected to the warrant flow, and is switched off in prod (cron.notification.enabled=false, sms.enable=false, cron.enareminder.datahive=false). The 'not settled X days' check (OCMS27.24) does not exist.",
+  "note": "Status blank (requirement not given / status blank); traced normally. The reference 'Epic no. OCMS9' is read as the SMS/email notification epic; mapping that epic number to code cannot be verified from the repo (only an OCMS 10 comment for AN letters was found). Step 1 has the same fit as OCMS27.24 step 3 (same fact). No relevant maintenance ticket.",
+  "recommendation": "Limited claim (Sebagian) for the reusable contact and SMS mechanism; not connected to warrants and switched off in prod.",
+  "steps": [
+    {
+      "step": "OCMS has confirmed the executed warrant notice is not settled X days before the new court mention date",
+      "detail": "That check does not exist (same as OCMS27.24 step 3): no comparison of settled date against mention date; only the date-less rejection of a FULL_PAYMENT notice at CasIntegrationServiceImpl.java:336."
+    },
+    {
+      "step": "OCMS performs the checks for the updated mobile number as per Epic OCMS9",
+      "detail": "refreshContactInfo (NotificationSmsEmailHelper.java:2461) fetches the latest contact from DataHive when the flag is on, rejects a number shorter than 8 characters as Invalid mobile format (:2736-2742), and normalizes the number with mobileCode (normalizeMobile :2053); companies (idType B) get no SMS (:2470). But cron.enareminder.datahive=false in all environments (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48), so the DataHive branch is skipped and the existing contact is used (:2468-2477). The function is only called for reminder/demand stage records, not from a warrant flow. The mapping of 'Epic OCMS9' cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS sends the SMS notification to the defendant",
+      "detail": "sendSms (NotificationSmsEmailHelper.java:509-526) sends through SmsUtil with a template from ocms_template_store, but is triggered only by NotificationSmsEmailJob for stages RD1/RD2/RR3/DN1/DN2/DR3 (:1114), not for an executed warrant notice. In prod sms.enable=false (ocmsadminprivateapi/src/main/resources/application-prod.properties:87; SmsUtil.java:38-39) and cron.notification.enabled=false (cron-schedules-prod.properties:236); the real server value cannot be verified from the repo. A warrant SMS template in the DB cannot be verified from the repo."
+    }
+  ]
+}

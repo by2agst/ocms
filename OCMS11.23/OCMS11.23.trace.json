@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (queryRecordsForReminder, batchPreloadContactInfo, refreshContactInfo, refreshIndividualContactInfo, refreshCompanyContactInfo, validateContactInfo), schedulers/NotificationJobsScheduler, cron-schedules-prod.properties. ocmsadminapi/CronProxyService hanya memicu job. Repo lain: tidak ada code khusus story ini.",
+  "note": "Story minta setelah letter ke-3 dikirim, OCMS mengecek mobile number/email terbaru (Epic OCMS9) supaya e-reminder bisa dikirim. Di code, pengecekan ini ada di job eNotification yang sama dengan pengirimannya: notice dengan last_processing_stage RR3 dipilih, lalu refreshContactInfo mengambil mobile individu dari DataHive Singpass dan email admin CorpPass company. Tiga hal menurunkan klaim: (1) job eNotification dimatikan di prod (cron.notification.enabled=false, cron-schedules-prod.properties:236), tiket OCMS-DF-2026-180 juga menyebut 'menunggu eNotification cron aktif'; (2) refresh DataHive hanya jalan bila cron.enareminder.datahive=true, di prod false (cron-schedules-prod.properties:48), sehingga yang dipakai adalah nomor/email lama di database; (3) kata 'DOS' dan 'Vault' tidak ada di repo, sumbernya DataHive. Isi respons DataHive: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Logic pengecekan kontak ada, tetapi job eNotification mati dan refresh DataHive mati di prod. Minta konfirmasi URA soal konfigurasi prod sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang letter ke-3 (RR3) sudah diproses dipilih untuk e-reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:162; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih notice dengan last_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3) yang tanggal jatuh tempo (last_processing_date + POS + PDD) dalam jendela ENOTEDAYS dan belum punya catatan SMS/email untuk stage itu (NotificationSmsEmailHelper.java:1076-1160, stage di :1114); job memanggilnya di NotificationSmsEmailJob.java:162. Tetapi cron.notification.enabled=false di cron-schedules-prod.properties:236 (NotificationJobsScheduler.java:30 membaca flag ini), jadi di konfigurasi repo e-reminder tidak jalan. Nilai di server prod: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mobile number individu terbaru diambil dari sumber data (Epic OCMS9) dan disimpan ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1434-1470; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2484; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2766; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "refreshIndividualContactInfo query view DataHive V_DH_SNDGO_SINGPASSCONTACT_MASTER per UIN, memvalidasi panjang nomor >= 8, lalu updateOcmsContactInfo menimpa offender_tel_no di ocms_offence_notice_owner_driver (NotificationSmsEmailHelper.java:1434-1470, :2710-2766, :2800-2822). Semua ini hanya jalan bila cron.enareminder.datahive=true (:92-93, :2461-2484); di prod false (cron-schedules-prod.properties:48), jadi refreshContactInfo hanya menormalkan nomor lama dari database. Isi view DataHive: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email company terbaru (admin CorpPass aktif) diambil dan disimpan ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496-2594; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2676-2700; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "refreshCompanyContactInfo query view CorpPass per UEN, hanya menerima akun ACCOUNT_TYPE A01 dengan ACCOUNT_STATUS ACTIVE, lalu updateOcmsCompanyContactInfo menimpa email_addr di ocms_offence_notice_owner_driver (NotificationSmsEmailHelper.java:2496-2594, :2676-2700). Sama dengan langkah 2, hanya jalan bila cron.enareminder.datahive=true; di prod false (cron-schedules-prod.properties:48). Isi view CorpPass: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder elektronik hanya dikirim bila kontak valid ada; bila tidak, notice dilewati",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-267; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "validateContactInfo menolak record dengan contactError, individu tanpa phoneNo, atau company tanpa email (NotificationSmsEmailHelper.java:2259-2290); job melewati record itu untuk stage non-ENA (NotificationSmsEmailJob.java:254-267), jadi letter kertas tetap jalan tanpa e-reminder. Logic cocok dengan story, tetapi berada di job yang mati di prod (cron-schedules-prod.properties:236), jadi fit disamakan dengan langkah 1."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.39",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{helpers/FurnishApprovalHelper,services/FurnishProcessingService}, crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl. ocmsadminapi workflows/furnish/{domain/FurnishStatus,helpers/FurnishPersistenceService}, crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplication}. ocmsadminui pages/Notice/mode/update/UpdateForm.tsx, pages/Furnish/{list/FurnishSummaryList.tsx,form/DecisionForm.tsx}",
+  "note": "Status 'Demo paid (50% of 75%)'. Status 'Resubmission' ada di enum FurnishStatus dan di FurnishPersistenceService (jalur POST /furnish/submit), tetapi jalur hidup (eService -> cron Furnish Processing) selalu menyimpan 'P', kolom status hanya 1 karakter, dan tidak ada caller /furnish/submit di repo. Yang tampil ke officer adalah badge 'Resubmission' di halaman Notice update, dari flag Y/N yang dihitung saat dibaca. User ID officer tidak tampil (hanya akun sistem), sama dengan OCMS41.37.",
+  "recommendation": "Diklaim sebagian kecil: request resubmission masuk antrean Pending dan ada badge Resubmission di halaman Notice, tetapi status 'Resubmission' tidak disimpan di jalur hidup dan user ID officer tidak tampil",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request resubmission tetap masuk antrean menunggu persetujuan officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:432-435",
+      "fit": "Sesuai",
+      "detail": "Prior submission membuat CHECK 6 gagal dan request masuk executeManualReview dengan status P (FurnishApprovalHelper.java:432-435, 529-531; FurnishProcessingService.java:171-176). List staff default menyaring status P (FurnishSummaryList.tsx:60). Fakta yang sama dengan langkah 4 di OCMS41.38."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis mengubah status request menjadi 'Resubmission'",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishPersistenceService.java:120-121",
+      "fit": "Beda dari flow",
+      "detail": "Jalur hidup (cron) hanya menulis 'P' (FurnishApprovalHelper.java:529, OcmsFurnishApplicationServiceImpl.java:85). Nilai 'Resubmission' hanya di FurnishStatus.java:17 dan FurnishPersistenceService.java:120-121 (jalur POST /furnish/submit, FurnishSubmissionController.java:39) yang tidak punya caller di repo, dan kolom status berukuran 1 karakter (OcmsFurnishApplication.java:105) sehingga 12 karakter 'Resubmission' tidak muat. API portal juga hanya menerima status P/A/R (FurnishApplicationListController.java, validasi status)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer melihat penanda 'Resubmission' saat browsing di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/mode/update/UpdateForm.tsx:193",
+      "fit": "Sebagian",
+      "detail": "UpdateForm.tsx menampilkan badge 'Resubmission' kalau data.FURNISH_APPLICATION.resubmission === 'Y' (baris 193-197), data dari furnishapplicationlist (NoticeContext.tsx:1180, OcmsFurnishApplicationController.java:87-99). Badge hanya di halaman Notice update, bukan di kolom status list Furnish (FurnishSummaryList.tsx:60, 121 menampilkan status P)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Resubmission ditampilkan bersama user ID officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:414-419",
+      "fit": "Beda dari flow",
+      "detail": "Sama dengan OCMS41.37 langkah 4: yang tercatat akun teknis ocmsiz_app_conn (SystemConstant.java:9, FurnishSyncHelper.java:242-244), DecisionForm.tsx hanya menampilkan 'Created By'/'Updated By' (baris 414, 419). Badge Resubmission (UpdateForm.tsx:193-197) tidak membawa user ID."
+    }
+  ]
+}

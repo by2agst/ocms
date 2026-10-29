@@ -1,0 +1,33 @@
+{
+  "story": "OCMS2.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/context/OptionsContext (VEHICLE_CATEGORY via standardcodelist, PP_CODE via carpark), pages/Notice/mode/create/CreateFrom, pages/Notice/form/{VehicleForm,NoticeOForm,NoticeEForm,NoticeUForm}, pages/Notice/component/PPCodeInput, pages/Auth/SelectUserInput (stub). ocmsadminapi crud/ocmsizdb/standardcode/StandardCodeController, crud/cascomizdb/Icarpark/{IcarparkController,Icarpark}, crud/config/MultiDataSourceConfig (datasource repccs), workflows/notice_creation/core/helpers/ProcessREPCCSHelper (OperatorID per notice). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code sync from REPCCS",
+  "note": "Sheet status 'Built - Has gap'. The vehicle category and car park drop-downs exist in the Create Notice form, but none of the codes is 'obtained from REPCCS' through an interface: vehicle category uses OCMS standard codes (matching the demo remark that REPCCS has no such data and MGG stores it in OCMS), car parks are read directly from a shared database (datasource 'repccs'), and a list of MEV/EHT operator IDs does not exist at all (SelectUserInput stub, EHTFields commented out). This is the gap named in the sheet. Ownership of the car park database data and the standard code rows: cannot verify from repo. No relevant maintenance ticket.",
+  "recommendation": "Claim only the vehicle category and car park drop-downs in the Create Notice form. Fetching data from REPCCS and the MEV/EHT operator ID drop-down do not exist; do not claim in full.",
+  "steps": [
+    {
+      "step": "Vehicle category codes are obtained from REPCCS",
+      "detail": "The admin UI calls POST standardcodelist with referenceCode VEHICLE_CATEGORY and codeStatus A (OptionsContext.tsx:348,356,374-376; StandardCodeController.java:85), i.e. it reads OCMS's own standard codes. There is no interface, job, or call to REPCCS for vehicle category codes in the six repos (searched: VEHICLE_CATEGORY, vehicleCategory, sync, repccs in the standardcode workflow and crons; only webhook payload validation exists). The demo remark in the sheet says REPCCS has no such data and MGG stores it in OCMS, which matches the code. Standard code rows in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Car park codes and names are obtained from REPCCS",
+      "detail": "The admin UI calls POST carpark with filter version A and status Implemented (OptionsContext.tsx:514-531); the API reads the CARPARK table (Icarpark.java:23) from the datasource named 'repccs' (MultiDataSourceConfig.java:228-234, prod: SQLCONNSTR_intranetocmscascomizconndb, application-prod.properties:7). So the data is read directly from another database, not through an interface or pull from REPCCS. Whether that database holds REPCCS-owned data and how it is refreshed: cannot verify from repo."
+    },
+    {
+      "step": "MEV/EHT operator IDs are obtained from REPCCS",
+      "detail": "No endpoint, job, or table pulls or stores a list of MEV/EHT operator IDs from REPCCS (searched: operator, OperatorID, mev, eht, casuser, officer in all six repos). Only the per-notice OperatorID from the REPCCS webhook exists, saved to repOperatorId (ProcessREPCCSHelper.java:305-308, RepWebHookPayloadDto.java:32-33): one value per notice, not a list for a drop-down. In the UI, SelectUserInput is only a stub (return null, SelectUserInput.tsx:9-10)."
+    },
+    {
+      "step": "During manual notice creation, vehicle category is picked from a drop-down",
+      "detail": "The Create Notice page loads the VEHICLE_CATEGORY options when opened (CreateFrom.tsx:47) and VehicleForm shows a required DropdownInput with those options (VehicleForm.tsx:200-206); the O form uses VehicleForm (NoticeOForm.tsx:361). The label is code + description from the standard code (OptionsContext.tsx:362-366). A vehicle registration type drop-down (VEHICLE_REG_TYPE) also exists (VehicleForm.tsx:172-176). The available choices depend on DB data: cannot verify from repo."
+    },
+    {
+      "step": "During manual notice creation, car park code and name are picked from drop-downs",
+      "detail": "Create Notice loads the PP_CODE options (CreateFrom.tsx:50); PPCodeInput provides a car park code drop-down and a car park name drop-down from those options, plus an 'Other' choice for manual entry (PPCodeInput.tsx:40-57,170-176), used in the O and E forms (NoticeOForm.tsx:100, NoticeEForm.tsx:84) and U (NoticeUForm.tsx:94). Only car parks with version A and status Implemented are listed (OptionsContext.tsx:519-520)."
+    },
+    {
+      "step": "During manual notice creation, MEV/EHT operator ID is picked from a drop-down",
+      "detail": "The only operator-like drop-down component is SelectUserInput for 'Created By' / 'Updated By' in EHTFields (NoticeUForm.tsx:705,722), but that component is a stub that returns null (SelectUserInput.tsx:9-10) and EHTFields itself is commented out (NoticeUForm.tsx:911). The O/E forms have no operator ID field (NoticeOForm.tsx, NoticeEForm.tsx). So there is no MEV/EHT operator ID drop-down."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.35",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_notifications/{jobs/DailyOfficerNotificationJob,services/FurnishNotificationServiceImpl}, framework/schedulers/DailyReportJobsScheduler (job 6), framework/controllers/FurnishNotificationController, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (membuat status P). ocmsadminui src/pages/Furnish/list/FurnishSummaryList.tsx",
+  "note": "Story berstatus User Story Removed, tidak diklaim. Ada email harian ke OIC (job 6 di DailyReportJobsScheduler, cron.dailyreport.schedule = 0 0 8 * * ?, enabled=true di cron-schedules-prod.properties:255-256) yang berisi daftar semua furnish berstatus P. Tapi query-nya tidak punya batas umur: tidak ada filter 'lebih dari X hari' dan tidak ada parameter X. workingDaysPending dihitung (FurnishNotificationServiceImpl.java:228-237) tetapi tidak dipakai di query maupun di baris email (buildTableRows :186-201). Penerima adalah daftar email tetap di furnish.notification.officer.emails (application-prod.properties:118), bukan per OIC. email.enableSmtp=false di application-prod.properties:80, namun FURNISH_DAILY_NOTIFICATION ada di email.smtp.allowedSources (:81); apakah email benar terkirim di server nyata cannot verify from repo. Tiket OCMS-DF-2026-004: template FURNISH_EMAIL_OFFICER_DAILY pernah tidak ada di database PRD sehingga email gagal (Closed, script DB dikirim; kondisi PRD saat ini cannot verify from repo).",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission yang tidak lolos auto-approval masuk ke dashboard OIC sebagai pending",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:499-536; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:60",
+      "fit": "Sebagian",
+      "detail": "executeManualReview mengubah status submission jadi P dan mencoba TS-PDP (FurnishApprovalHelper.java:499-536). Staff portal menampilkan daftar status P (FurnishSummaryList.tsx:60). Sebagian karena aturan Removed (story ini hanya konteks untuk alert)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa submission yang masih pending lebih dari X hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:146-157; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:160-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:186-201; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:228-237",
+      "fit": "Tidak ada code",
+      "detail": "getPendingApplications mengambil semua furnish berstatus P tanpa filter umur (FurnishNotificationServiceImpl.java:146-157). calculateWorkingDays dan workingDaysPending dihitung (:160-180, :228-237) tapi tidak dipakai untuk menyaring atau ditampilkan (buildTableRows :186-201). Tidak ada property X hari di properties prod (grep furnish.* hanya menemukan furnish.notification.officer.emails)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menerima alert agar bisa segera menindaklanjuti review",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:101; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:40-44; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:74-100; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/resources/application-prod.properties:118",
+      "fit": "Sebagian",
+      "detail": "Job 6 di DailyReportJobsScheduler.java:101 memanggil sendDailyOfficerNotification setiap hari (cron.dailyreport.schedule = 0 0 8 * * ?, enabled=true, cron-schedules-prod.properties:255-256). Isinya daftar semua furnish pending (no notice, no kendaraan, tanggal offence, stage, status, tanggal submission, :186-201) dikirim ke daftar email tetap (application-prod.properties:118) lewat template FURNISH_EMAIL_OFFICER_DAILY (:74). Ini digest harian semua pending, bukan alert 'setelah X hari'. email.enableSmtp=false (application-prod.properties:80) tetapi source FURNISH_DAILY_NOTIFICATION ada di allowedSources (:81); pengiriman nyata cannot verify from repo. Terkait tiket OCMS-DF-2026-004 (template PRD pernah hilang)."
+    }
+  ]
+}

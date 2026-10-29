@@ -1,0 +1,37 @@
+{
+  "story": "OCMS42.4",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: sisi staff/cron/agency, tidak dipakai langkah story ini (hanya cron sync Intranet ke eVON yang memberi data, tidak ditelusuri)",
+  "note": "Status 'Fully paid'. Pesan \"No furnishable notice(s) found for '<nama>'\" tampil bila tidak ada notice furnishable. Varian 'bukan vehicle owner/hirer' tidak dibedakan (pesan yang sama). Edge case: semua exception di backend dan UI ditelan menjadi daftar kosong, jadi error DB/PII atau eVON yang belum ter-sync (OCMS-DF-2026-067, OCMS-DF-2026-077, Closed, Prod deployed) tampil sebagai 'tidak ada notice'.",
+  "recommendation": "Bisa diklaim untuk pesan 'tidak ada notice furnishable'. Varian 'bukan owner/hirer' dicatat Sebagian; tampilan error sebagai daftar kosong perlu diketahui URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mencari notice furnishable atas ID yang login dan hasilnya kosong",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:80-83; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:106-110; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:87-90; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:114-117; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:123-126; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:72-75; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/exception/ValidationMessages.java:30; ocmseserviceui/src/pages/Furnish/API.ts:589-591",
+      "fit": "Sesuai",
+      "detail": "ID diambil dari JWT session (FurnishApplicationListController.java:80-83). Bila tidak ada record offender (FurnishApplicationListServiceImpl.java:87-90), semua notice terkena filter Pending (114-117), atau tidak ada di eVON (123-126), service mengembalikan hasil kosong dan controller membalas 'There are no furnishable notices found.' (FurnishApplicationListController.java:106-110; ValidationMessages.java:30). Catatan: semua exception juga ditelan menjadi hasil kosong (FurnishApplicationListServiceImpl.java:72-75; UI API.ts:589-591), sehingga error DB atau dekripsi PII tampil sama seperti 'tidak ada notice' (lihat remark demo OCMS42.5). Tiket OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed, Prod deployed): eVON yang belum ter-sync membuat pesan kosong muncul padahal ada notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan bahwa tidak ada notice furnishable ditemukan",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:63-81; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:54-60; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:191-194",
+      "fit": "Sesuai",
+      "detail": "EmptyStatus: bila totalEligible = 0 tampil kotak \"No furnishable notice(s) found for '<nama>'\" (nama user, atau nama company untuk Corppass) (FurnishableNotices.ts:63-81). Tabel tidak punya checkbox bila tidak ada notice (54-60) dan tombol 'Proceed to furnish' tetap disabled (191-194). UI membentuk teks sendiri dari totalEligible; teks dari backend tidak dipakai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan bahwa pengguna bukan vehicle owner/hirer",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:84-90; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:63-81; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:120-137",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pesan terpisah 'bukan vehicle owner/hirer'. Pengguna tanpa record offender (FurnishApplicationListServiceImpl.java:84-90) dan pengguna yang notice-nya semua non-furnishable sama-sama melihat teks 'No furnishable notice(s) found' (FurnishableNotices.ts:63-81); yang kedua ditambah kotak merah non-furnishable (120-137). Story memakai 'atau', jadi satu pesan generik memenuhi sebagian, tetapi varian 'bukan vehicle owner/hirer' tidak dibedakan."
+    }
+  ]
+}

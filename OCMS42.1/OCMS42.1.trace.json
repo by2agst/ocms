@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.1",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: sisi staff/cron/agency, tidak dipakai langkah story ini (hanya cron sync Intranet ke eVON yang memberi data, tidak ditelusuri)",
+  "note": "Status 'Fully paid'. Alur login sampai pilih notice ada di ocmseserviceui dan ocmseserviceapi: landing Singpass/Corppass, session NRIC/UEN + JWT, daftar notice per ID, checkbox dan tombol Proceed. Langkah redirect login adalah Sebagian karena handshake Singpass/Corppass dijalankan service SPCP eksternal (cannot verify from repo). Mode bypass SPCP hanya hidup di application-dev.properties:46. Daftar notice bergantung data eVON hasil sync dari Intranet; OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed, Prod deployed) mencatat daftar sempat kosong karena sync. Nilai property dan service SPCP di environment sebenarnya cannot verify from repo.",
+  "recommendation": "Bisa diklaim untuk langkah yang Sesuai. Langkah redirect login dicatat Sebagian sampai handshake Singpass/Corppass dikonfirmasi di environment sebenarnya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer membuka halaman furnish dan melihat pilihan login Singpass (individual) dan Corppass (business)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:38-40; ocmseserviceui/src/pages/Furnish/Furnish.ts:63; ocmseserviceui/src/pages/Furnish/Furnish.ts:513-514; ocmseserviceui/src/pages/Furnish/Landing.ts:138; ocmseserviceui/src/pages/Furnish/Landing.ts:146",
+      "fit": "Sesuai",
+      "detail": "Route furnish-particulars memuat page-furnish (route.ts:38-40). Selama isLanding=true (default, Furnish.ts:63) yang dirender adalah furnish-landing (Furnish.ts:513-514) dengan tombol 'Individual users' (Singpass) dan 'Business users' (Corppass) (Landing.ts:138, 146). Sesuai dengan story: individual atau business user."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer memilih Singpass atau Corppass dan diarahkan ke login",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Landing.ts:88; ocmseserviceui/src/pages/Furnish/Landing.ts:101; ocmseserviceui/src/hooks/Auth.ts:32-33; ocmseserviceui/src/hooks/Auth.ts:121-128; ocmseserviceui/src/hooks/Auth.ts:133-153",
+      "fit": "Sebagian",
+      "detail": "Klik tombol memanggil onFurnishSingpass/onFurnishCorppass (Landing.ts:88, 101). onPass memakai app id khusus FURNISH (getSPCPAppID memilih SPCP_FURNISH_APP_ID, Auth.ts:32-33), membuat txnID, lalu mengirim form POST ke spcpWeb/ura{SP|CP}services.do (Auth.ts:121-128, 133-153). Sisi UI ada, tetapi proses login Singpass/Corppass sendiri berjalan di service SPCP eksternal: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah login berhasil, sistem membuat session berisi NRIC/UEN dan token JWT",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:145; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:164-172; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:199; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:203; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:113-114",
+      "fit": "Sesuai",
+      "detail": "getAuthResponse/v1 memanggil service SPCP (SpcpController.java:145). Bila responseCode SP200, NRIC diambil (164) dan entityId/UEN untuk Corppass (172). createSession menyimpan keduanya di PII temp session (199) dan generateToken menerbitkan JWT (203). JwtFilter memuat userId/entityId dari session ke request (JwtFilter.java:113-114). Mode bypass SPCP hanya aktif lewat spcp.bypass.enabled=true di application-dev.properties:46, default false (SpcpController.java:41-42). Isi respons Singpass asli tidak bisa dicek dari repo; nilai property per environment cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem menampilkan daftar notice outstanding atas ID yang login",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:78-88; ocmseserviceui/src/pages/Furnish/API.ts:564-592; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:56-60; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:80-83; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:84-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:50-59; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:119-131",
+      "fit": "Sesuai",
+      "detail": "Saat halaman notice dibuka, Notices.firstUpdated memanggil APIGetFurnishNotices (Notices.ts:78-88) yang POST ke v1/furnishapplicationlist (API.ts:564-592). Controller memakai ID dari JWT session, bukan dari payload: UEN untuk Corppass, NRIC untuk Singpass (FurnishApplicationListController.java:80-83; payload hanya status/$limit/$skip, baris 31-33). Service mengambil record offender (offender_indicator='Y') dari tabel owner_driver dengan id_no yang didekripsi (FurnishApplicationListServiceImpl.java:84-85; EocmsOffenceNoticeOwnerDriverRepository.java:50-59), lalu mencocokkan ke eVON untuk notice yang masih outstanding (119-131). Catatan: tiket OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed, Prod deployed) mencatat daftar sempat kosong karena eVON tidak ter-sync dari Intranet; data eVON bergantung cron sync, kondisi sebenarnya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer memilih satu atau lebih notice lalu lanjut ke pengisian particulars",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:142; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:150-155; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:191-201; ocmseserviceui/src/pages/Furnish/Furnish.ts:432-441",
+      "fit": "Sesuai",
+      "detail": "Tabel furnishable memakai checkbox (FurnishableNotices.ts:142). Tombol 'Proceed to furnish' disabled sampai ada baris terpilih (150-155). Saat diklik, stepper pindah ke langkah 2 'Furnish Particulars' dan notice terpilih disimpan ke formData (191-201; onSelected di Furnish.ts:432-441). Beberapa notice bisa dipilih sekaligus, tetapi hanya satu hirer/driver per submission (teks di FurnishableNotices.ts:102-104)."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS39.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/parameter (Parameter, ParameterController), crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService. ocmsadminprivateapi framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper, framework/schedulers/ToppanUploadJobsScheduler, agencies/lta/download/helpers/LtaProcessingStageManager, cron-schedules-prod.properties. ocmsadminui pages/System (ParameterList, ParameterForm), utils/validation/System/ValidParameter.ts, App.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Story minta officer bisa mengatur jumlah hari di tiap stage per notice type. Jumlah hari per stage disimpan di ocms_parameter (parameter_id STAGEDAYS, code = stage) dan bisa diedit officer lewat halaman System > Parameter, lalu dibaca oleh Toppan cron dan LTA cron saat notice masuk stage. Itu inti story dan memang ada. Empat hal kurang. (1) Tidak per notice type: kunci parameter hanya parameter_id + code, tidak ada kolom notice type. (2) Nilai tidak divalidasi sebagai angka di UI maupun API (hanya wajib diisi, ParameterController hanya whitelist field dan HTML-escape); nilai salah atau kosong membuat Toppan diam-diam memakai angka enum (14 hari), sedangkan LTA cron melewati update dan hanya menulis log error. (3) Tanggal next_processing_date disimpan di notice saat masuk stage, jadi perubahan STAGEDAYS hanya berlaku untuk notice yang masuk stage setelah perubahan, tidak menghitung ulang notice yang sudah menunggu. (4) Perubahan stage manual lewat CPS portal dan PLUS tidak memakai STAGEDAYS: kedua jalur memakai mode manual sehingga next_processing_date = waktu sekarang (ChangeOfProcessingService.java:1035, 1498, 1093-1118); cabang yang membaca STAGEDAYS (1129-1146) tidak pernah dipanggil. Jalur Toppan day-end: pemanggilan executeJob() di-comment sehingga hanya manual. Parameter letter lain (POS, PDD) dan ENOTEDAYS/ENA untuk reminder elektronik juga tersimpan di ocms_parameter tetapi di luar langkah story ini. Nilai parameter asli di server cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Konfigurasi jumlah hari per stage lewat halaman Parameter ada dan dipakai, tetapi tidak per notice type dan tanpa validasi angka. Minta URA/tim konfirmasi apakah satu nilai per stage (bukan per notice type) diterima",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah hari tiap stage disimpan sebagai parameter STAGEDAYS dan officer bisa mengubahnya lewat halaman Parameter",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:375-396; ocmsadminui/src/pages/System/form/ParameterForm.tsx:154-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:81-88; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:90-118; ocmsadminapi/src/main/resources/api-authorization.properties:166-167; ocmsadminui/src/utils/validation/System/ValidParameter.ts:44-46",
+      "fit": "Sesuai",
+      "detail": "Halaman System > Parameter (App.tsx:375-396) menampilkan semua baris ocms_parameter (POST /parameterlist, ParameterController.java:81-88) dan mengizinkan edit field description dan value lewat POST /parameterpatch/{id1}/{id2} (ParameterController.java:90-118; form ParameterForm.tsx:154-175). Baris STAGEDAYS (Parameter ID STAGEDAYS, Code = stage) dibaca Toppan cron dan LTA cron saat notice masuk stage (lihat dua langkah di bawah). Fungsi OCMS_SYSTEM_PARAMETER dipetakan di api-authorization.properties:166-167; role pemegangnya cannot verify from repo. Catatan: value hanya wajib diisi, tanpa cek angka atau rentang (ValidParameter.ts:44-46). Server hanya whitelist field dan HTML-escape (ParameterController.java:90-92, OCMS-SR-2026-039). Seed nilai awal tidak ditemukan di repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah hari bisa berbeda untuk tiap notice type",
+      "repo": "ocmsadminapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/Parameter.java:28-38; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:157-163; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:387-388",
+      "fit": "Tidak ada code",
+      "detail": "Kunci ocms_parameter hanya parameter_id + code (Parameter.java:28-38); tidak ada kolom notice type. Pembacaan STAGEDAYS selalu getParameterValue(\"STAGEDAYS\", stage) tanpa notice type, baik di Toppan (ToppanUploadHelper.java:157-163) maupun di LTA cron (LtaProcessingStageManager.java:387-388). Satu nilai berlaku untuk semua notice type."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron day-end Toppan menghitung tanggal proses berikutnya dari jumlah hari stage yang dikonfigurasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:157-170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1368-1370; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1825-1829; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-24; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sebagian",
+      "detail": "resolveStageContext membaca STAGEDAYS per stage (ToppanUploadHelper.java:1825-1829; getStageDurationDays di 157-170) lalu next_processing_date = tanggal proses + hari (ToppanUploadHelper.java:1368-1370). Kalau parameter tidak ada atau salah format, jatuh diam-diam ke angka di enum ToppanStage (14 hari untuk RD1..DN2, 0 untuk DR3; ToppanStage.java:19-24) dengan warning. Tetapi pemanggilan executeJob() di scheduler day-end di-comment (ToppanUploadJobsScheduler.java:118), jadi jalur ini hanya jalan lewat trigger manual; dengan aturan addendum, langkah ini paling banyak Sebagian. Nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron LTA yang memasukkan notice ke stage ENA memakai jumlah hari ENA yang dikonfigurasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:383-417; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:432-434; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sesuai",
+      "detail": "Saat memindahkan notice ROV ke ENA, LtaProcessingStageManager membaca ocms_parameter STAGEDAYS/ENA (LtaProcessingStageManager.java:383-410) dan mengisi next_processing_date = sekarang + hari (LtaProcessingStageManager.java:417). Kalau parameter tidak ada, kosong, atau bukan angka, update dibatalkan dengan log error, tanpa default (LtaProcessingStageManager.java:392-411); ini beda dengan Toppan yang jatuh ke angka hari di enum. Cron LTA download enabled=true di prod (cron-schedules-prod.properties:148-149; nilai server asli cannot verify from repo). Tiket OCMS-DF-2026-052 (stage ENA vs RD1 untuk notice diplomat, Closed) tidak mengubah pembacaan hari ini."
+    }
+  ]
+}

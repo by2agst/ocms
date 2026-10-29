@@ -1,0 +1,29 @@
+{
+  "story": "OCMS1.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/agencies/{mha/upload/helpers/MhaNricDataHelper, toppan/upload}; ocmsadminui pages/ENotifExclusion (App.tsx). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: User Story Removed (1 point), the verdict stays Removed. Similar code: the three conditions in the story (send failure, ID in the exclusion list, no contact) each have a path that moves the notice onto the RD1 letter track (last=ROV, next=RD1 tomorrow, patchNextStageToRd1NextDay) so Toppan picks it up as a letter. The address check 'as per Epic OCMS8' is not called from this path: addresses are checked by the standalone MHA/DataHive/LTA jobs based on the notice stage, and Toppan only sends notices that have a letter_address='Y' address. The DataHive enrichment step in ToppanLettersGeneratorJob is commented out (ToppanLettersGeneratorJob.java:126-148). All of this is also affected by the disabled eNotification scheduler (cron.notification.enabled=false) and the config-blocked Toppan upload (sftp.upload.disabledServers=toppan). The source used is src/main/java (the cronservice/ copy at the root of ocmsadminprivateapi differs and is not built; that copy lacks the exclusion gate before the SMS, OCMS-DEV-2026-260). Double check note: the story is Removed, so steps that have code are counted as Partial (not Matches) to stay consistent with OCMS1.1-1.5; nothing is claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "A send failure despite repeated attempts is detected",
+      "detail": "The retry job (send_ena_reminder_retry, scheduled 14:00) takes the SMS/email records with status 'E' whose date_sent is today and resends them (NotificationSmsEmailRetryJob.java:36-45), and notices that still fail are handled by processFailedNotificationResults (:247, :1218-1230). So there is one retry round per day, not a configurable number of attempts; the properties notification.sms.retry.max/email.retry.max are read by the helper (NotificationSmsEmailHelper.java:62-65) and only used by the retry check in the helper (:849, :864); the retry job loop does not use them. The retry scheduler is also off when cron.notification.enabled=false (NotificationJobsScheduler.java:72-75; cron-schedules-prod.properties:236)."
+    },
+    {
+      "step": "An ID in the exclusion list receives no electronic notification",
+      "detail": "The job loads all id_no from ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1207-1228) and, BEFORE the SMS batch is prepared, drops records whose ID is in it; ENA notices are moved to RD1 straight away through patchNextStageToRd1NextDay (NotificationSmsEmailJob.java:197-232). The reminder query also filters id_no NOT IN the exclusion list (NotificationSmsEmailHelper.java:1131-1134). Staff manage the list on the ENotifExclusion page (ocmsadminui/src/App.tsx:302). The gate before the SMS batch is the OCMS-DEV-2026-260 fix; the old copy at the repo root still sends the SMS first."
+    },
+    {
+      "step": "No mobile number or email address (e.g. a foreigner) means no SMS or email is sent",
+      "detail": "validateContactInfo rejects individuals without phoneNo and companies without email (NotificationSmsEmailHelper.java:2259-2290); for ENA notices the job moves them to RD1 (NotificationSmsEmailJob.java:254-264, and :356-367 for empty contacts in the send loop). Passport holders (id type P/PASSPORT) are never sent an eNotification and their ENA notice is moved to RD1 (:234-245)."
+    },
+    {
+      "step": "The notice is moved onto the post-dated letter track",
+      "detail": "patchNextStageToRd1NextDay sets lastProcessingStage=ROV, nextProcessingStage=RD1, nextProcessingDate=tomorrow (NotificationSmsEmailHelper.java:1237-1272); the retry job uses the same target for notices that keep failing (NotificationSmsEmailRetryJob.java:1262-1275). The Toppan query picks notices with next_processing_stage = stage and next_processing_date <= today (OcmsValidOffenceNoticeRepository.java:603-614), so the notice goes out as the next RD1 letter. The post-dated letter date is calculated in OCMS1.9."
+    },
+    {
+      "step": "OCMS checks the vehicle owner's latest registered address as per Epic OCMS8",
+      "detail": "The address check exists but runs on its own: the MHA NRIC upload query selects notices at next stage RD1/RD2/RR3/DN1/DN2/DR3 with id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581, called from MhaNricDataHelper.java:81), the DataHive/LTA jobs fill the address types and letter_address, and Toppan drops notices without a letter_address='Y' address (ToppanUploadHelper.java:2372-2376; ToppanUploadJob.java:266). The eNotification path does not call the address check; the DataHive enrichment step in ToppanLettersGeneratorJob is commented out (:126-148). Completeness of Epic OCMS8 is judged in the OCMS8 stories, not here."
+    }
+  ]
+}

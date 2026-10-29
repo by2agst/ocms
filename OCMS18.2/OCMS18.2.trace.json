@@ -1,0 +1,55 @@
+{
+  "story": "OCMS18.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{page/upload/{Upload,UploadResult,UploadErrorList},context/NoticeSearchUploadContext,component/NoticeSearchUploadSlot,list/NoticeValidList}, components/SheetUpload.tsx, context/SheetContext.tsx, utils/validation/{Format/ValidFile,NoticeSearch/ValidNoticeSearchUpload}, utils/data/SheetData.ts, App.tsx. ocmsadminapi POST /validoffencenoticelist. Tidak ada endpoint upload khusus di backend: file dibaca di browser. Repo lain tidak terlibat",
+  "note": "Status 'Fully paid'. Story minta upload daftar notice number dalam format CSV. Code menyediakan upload daftar notice, tetapi hanya format .xlsx: FileTypeFormat.Sheet hanya berisi xlsx dan csv/xls dikomentari (ValidFile.ts:154), teks UI juga 'Accepted file format is only .xlsx' (SheetUpload.tsx:206). Parser SheetContext punya cabang csv (SheetContext.tsx:187-193) tetapi file CSV tidak lolos FileInput. Template punya empat kolom (Notice No, Summon No, Vehicle No, ID No), jadi bukan hanya notice number. Konfigurasi ukuran file 2 MB (ValidFile.ts:167-170) berbeda dengan teks UI 10 MB (SheetUpload.tsx:206); mana yang berlaku cannot verify dari repo tanpa menjalankan UI. Tiket OCMS-DF-2026-085 menyangkut workflow Unclaimed Reminder, bukan layar ini, jadi tidak dipakai.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian/Beda dari flow)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Petugas membuka halaman upload dari layar pencarian sebagai alternatif pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:180-183; ocmsadminui/src/App.tsx:107-119; ocmsadminui/src/pages/NoticeSearch/page/upload/Upload.tsx:59-68",
+      "fit": "Sesuai",
+      "detail": "Toolbar form pencarian punya tombol 'XLSX File Upload' yang navigate ke PathNoticeSearch[type].UPLOAD (NoticeSearchForm.tsx:180-183). Route .../upload merender NoticeSearch.Upload dengan SheetUpload bertipe NOTICE_SEARCH_ALL atau NOTICE_SEARCH_OUTSTANDING (App.tsx:107-119; Upload.tsx:59-68)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar notice number di-upload dalam format file CSV",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Format/ValidFile.ts:154; ocmsadminui/src/components/SheetUpload.tsx:206; ocmsadminui/src/context/SheetContext.tsx:187-193",
+      "fit": "Beda dari flow",
+      "detail": "Format yang diterima hanya xlsx: Sheet: [FileExt.xlsx] dengan csv dan xls dikomentari (ValidFile.ts:154); hint UI 'Accepted file format is only .xlsx' (SheetUpload.tsx:206); template yang diunduh juga xlsx. Parser punya cabang csv (SheetContext.tsx:187-193) tetapi FileInput menerima format dari ValidFile sehingga CSV tidak bisa dipilih. Batas ukuran 2 MB di config (ValidFile.ts:167-170) vs teks 10 MB di UI; cannot verify dari repo mana yang berlaku."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dibaca menjadi baris data dengan kolom notice number",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/SheetData.ts:531-536; ocmsadminui/src/context/SheetContext.tsx:175-205; ocmsadminui/src/pages/NoticeSearch/page/upload/Upload.tsx:64-68",
+      "fit": "Sesuai",
+      "detail": "Template Search-Notices-Template punya kolom Notice No (noticeNo), Summon No, Vehicle No dan ID No (SheetData.ts:531-536). setFile membaca file di browser dengan SheetRead dan memetakan kolom ke key header (SheetContext.tsx:175-205); onProceed memanggil onSearch lalu pindah ke halaman hasil (Upload.tsx:64-68). Tidak ada endpoint upload di backend."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap baris dicari ke backend dan notice yang cocok dikumpulkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:78-159; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:55-62",
+      "fit": "Sesuai",
+      "detail": "onSearch memvalidasi tiap baris (yup), lalu memanggil POST validoffencenoticelist dengan noticeNo/vehicleNo/idNo, offenderIndicator=Y dan $limit MAX_LIMIT; baris dengan parameter sama di-cache dan tidak digandakan (NoticeSearchUploadContext.tsx:78-159). Hasil menjadi success (ada data) dan failed (ada error) (:168-178)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan notice hasil upload di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-76; ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:23-70",
+      "fit": "Sesuai",
+      "detail": "UploadResult merender NoticeValidList (Datagrid) berisi notice yang ditemukan, dengan checkbox pilih baris/semua, di atas kotak error 'Record Not Found' (UploadResult.tsx:64-76; NoticeValidList.tsx:23-70)."
+    }
+  ]
+}

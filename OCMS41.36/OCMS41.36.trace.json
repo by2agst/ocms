@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.36",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, utilities/suspension_helpers/TemporarySuspensionHelper, framework/schedulers/{SyncInternetIntranetJobsScheduler,ToppanUploadJobsScheduler}, framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper}, furnish_processing/helpers/TsPdpLoopingHelper. ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService,helpers/FurnishPersistenceService,submission,approval,rejection}. ocmsadminui pages/Furnish/hooks/useFurnishAPI.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada logic suspension",
+  "note": "Status 'Demo paid (50% of 75%)'; story tidak punya flow deck, jadi Sesuai berarti code melakukan apa yang tertulis di story. Cron Furnish Processing (tiap 10 menit) menjalankan 6 pengecekan auto-approval; submission yang gagal diberi TS dengan reason PDP dan status Pending. Yang belum penuh: jumlah hari X hanya dibaca dari tabel ocms_suspension_reason (nilai tidak terlihat di repo, default 30 hari), kegagalan TS pertama non-fatal dan job penambalnya (TS-PDP Looping) dikomentari di day-end scheduler, dan approve/reject lewat adminui tidak mencabut TS-PDP. Efek TS terhadap cron eskalasi stage tidak ditelusuri di story ini. Tiket OCMS-DF-2026-032 (re-apply TS-PDP, Closed, Prod deployed) dan OCMS-DF-2026-073 (routing ke manual review) dipakai sebagai petunjuk, tidak mengubah verdict.",
+  "recommendation": "Diklaim sebagian: TS-PDP otomatis dan status Pending ada, tetapi nilai X hari hanya dari data DB, penambal TS-PDP Looping mati, dan approve/reject di adminui tidak mencabut TS-PDP",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission yang tidak lolos auto-approval masuk ke antrean review officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:164-176",
+      "fit": "Sesuai",
+      "detail": "FurnishProcessingService.processSingleSubmission menjalankan runValidationChecks; kalau hasilnya tidak approved, memanggil approvalHelper.executeManualReview (FurnishProcessingService.java:164-175). Job ini jalan tiap 10 menit lewat SyncInternetIntranetJobsScheduler.java:67 dengan cron.syncinternetintranet.schedule=0 */10 * * * ? dan enabled=true di cron-schedules-prod.properties:305-306; nilai di server asli tidak bisa diverifikasi dari repo. OCMS-DF-2026-073 (Closed, Prod deployed) menunjukkan jalur manual review ini dipakai di prod."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis memasang suspension TS dengan kode khusus (PDP) pada notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:751-770",
+      "fit": "Sesuai",
+      "detail": "executeManualReview memanggil createTsPdpSuspension (FurnishApprovalHelper.java:516) yang memanggil tsHelper.processTS dengan reason SystemConstant.SuspensionReason.PDP (nilai 'PDP', SystemConstant.java:52), source OCMS, tanpa aksi officer (FurnishApprovalHelper.java:760-766). Notice yang dapat TS-PDP adalah notice milik submission yang sedang Pending."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension berlaku selama X hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:222-248",
+      "fit": "Sebagian",
+      "detail": "processTS dipanggil dengan daysToRevive = null (FurnishApprovalHelper.java:764), jadi calculateRevivalDate mengambil no_of_days_for_revival dari tabel ocms_suspension_reason untuk reason PDP dan memakai default 30 hari kalau tidak ada (TemporarySuspensionHelper.java:238-247). Nilai X di DB tidak bisa diverifikasi dari repo. Jalur lain di ocmsadminapi memakai 21 hari hardcoded (FurnishPersistenceService.java:291, dipanggil FurnishSubmissionServiceImpl.java:122 lewat POST /furnish/submit, FurnishSubmissionController.java:39); tidak ada caller endpoint itu di ocmsadminui, ocmseserviceui, ocmseserviceapi, maupun thirdpartyapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak naik stage selama keputusan belum ada (suspension tidak lepas diam-diam)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:918-923",
+      "fit": "Sebagian",
+      "detail": "Setelah TS-PDP jatuh tempo dan di-revive oleh Auto Revival, AutoRevivalJob.java:164-172 memanggil processPdpPostRevival yang memasang ulang TS-PDP kalau masih ada ocms_furnish_application berstatus 'P' (AutoRevivalHelper.java:918-923). Auto Revival adalah job 2 day-end (ToppanUploadJobsScheduler.java:119; schedule 0 15 0 * * ? dan enabled=true di cron-schedules-prod.properties:61-62). OCMS-DF-2026-032 (Closed, Prod deployed) memperbaiki bug re-apply ini. Celahnya: kegagalan TS-PDP pertama non-fatal, submission tetap jadi Pending tanpa suspension (FurnishApprovalHelper.java:516-526, 774-785), dan job TS-PDP Looping yang menambalnya dikomentari (ToppanUploadJobsScheduler.java:126), hanya bisa dipicu manual lewat POST /trigger-ts-pdp (AutoRevivalController.java:101). Efek TS terhadap cron eskalasi stage tidak ditelusuri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension berhenti ketika officer memutuskan (approve/reject)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:363-366",
+      "fit": "Sebagian",
+      "detail": "Tombol approve/reject di ocmsadminui memanggil manual-review/approve-hirer, approve-driver dan reject (useFurnishAPI.ts:105, 210-211). ManualReviewService hanya mengubah status dan sync ke PII (ManualReviewService.java:363-366 untuk approve, 466-471 untuk reject) dan tidak mencabut TS-PDP. Pencabutan TS-PDP saat approve hanya ada di POST /furnish/officer/approve (FurnishApprovalServiceImpl.java:96, 217-232) yang tidak dipanggil ocmsadminui; reject (FurnishRejectionServiceImpl.java:77-80) juga tidak mencabut. TS-PDP baru lepas saat due date lewat dan Auto Revival jalan."
+    }
+  ]
+}

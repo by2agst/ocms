@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.59",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (plus-furnish, plus-redirect response), workflows/furnish/dto/FurnishResponse.singleSuccess/singleFailure/singleError, workflows/furnish/stafffurnish/services/StaffFurnishService.FurnishResult. Tidak ada client outbound ke PLUS di semua repo",
+  "note": "Status story: Requirement given - Gen flow. Demo remark sheet: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (klaim sheet). Satu-satunya 'alert' sukses yang ada adalah isi response HTTP 200 untuk request PLUS yang sama: appCode OCMS-2000, message 'Success', noticeNo, nama, ID dan stage baru. Tidak ada pesan terpisah yang dikirim OCMS ke PLUS. Bahwa officer diberi tahu di layar PLUS: cannot verify from repo.",
+  "recommendation": "Klaim sebagian: PLUS mendapat konfirmasi sukses dalam response request-nya. Jangan klaim sebagai alert terpisah dari OCMS; tidak ada kode outbound. Konfirmasi ke URA apakah response sinkron sudah cukup.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS berhasil menerima dan meng-update particulars dari PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:148-157; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:288-294",
+      "fit": "Sesuai",
+      "detail": "plusFurnish memanggil staffFurnish (baris 148); bila result.isSuccess() (baris 150) berarti seluruh langkah selesai dalam satu @Transactional (StaffFurnishService.java:174-175): offender, address, stage dan VON terupdate, lalu FurnishResult.success dibentuk (baris 288-294). Exception di tengah jalan ditangkap dan menjadi FurnishResult.failure (baris 296-300) sehingga status sukses tidak dikirim saat gagal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim alert message sukses ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:150-157; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dto/FurnishResponse.java:465-472; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1092-1096",
+      "fit": "Sebagian",
+      "detail": "Respons sukses dikirim kembali ke pemanggil: HTTP 200 dengan FurnishResponse.singleSuccess (appCode OCMS-2000, message 'Success', success=true, noticeNo, offenderName, offenderIdNo, newProcessingStage) (PlusIntegrationController.java:151-157; FurnishResponse.java:465-472; FurnishResult.success message 'Success' di StaffFurnishService.java:1094). Ini jawaban sinkron atas request PLUS, bukan alert terpisah yang di-push OCMS; tidak ada kode outbound ke PLUS (lihat OCMS41.57). Karena itu Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kegagalan update tidak dilaporkan sebagai sukses ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:158-167; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dto/FurnishResponse.java:514-525",
+      "fit": "Sesuai",
+      "detail": "Bila staffFurnish gagal, controller membalas HTTP 422 dengan singleFailure (appCode OCMS-4000, success=false) (PlusIntegrationController.java:158-160; FurnishResponse.java:514-517); exception tak terduga membalas HTTP 500 dengan singleError (OCMS-5000) (baris 162-167; FurnishResponse.java:522-525); validasi gagal membalas 400 (baris 143-145). Jadi alert sukses hanya keluar saat update benar-benar selesai. Bagaimana PLUS menampilkan ke officer: cannot verify from repo."
+    }
+  ]
+}

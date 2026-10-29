@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.55",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (query reminder stage DR3, refresh kontak DataHive, exclusion list, SMS/email), framework/workflows/furnish_processing/helpers/FurnishApprovalHelper (driver jadi offender di DN1), agencies/toppan/upload/models/ToppanStage (DN1 -> DN2 -> DR3), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai untuk fitur ini",
+  "note": "Status di stories.json: Demo paid (50% of 75%), 1 point. Demo remark: Vault dan code split, koneksi Vault diberikan ke api App Service. Ini kembaran OCMS11.51 untuk 3rd letter driver (stage DR3): query reminder yang sama mencakup DR3, dan keempat langkah mendapat fit yang sama dengan OCMS11.51. Hambatan sama: cron.notification.enabled=false (cron-schedules-prod.properties:236), refresh DataHive mati (:48), email perusahaan di stage DN1/DN2/DR3 dilewati (NotificationSmsEmailHelper.java:311-317). DR3 adalah stage terakhir sebelum CPC (ToppanStage.java:24), jadi e-reminder ini adalah pengingat terakhir sebelum denda dinaikkan; parameter ENOTEDAYS/POS/PDD untuk DR3 di DB: cannot verify from repo. Vault, DOS dan permission: cannot verify from repo. Tiket dipakai: OCMS-DF-2026-180. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian, sama dengan OCMS11.51: logika e-reminder untuk stage DR3 ada, tetapi job eNotification dan refresh kontak mati di prod dan email driver perusahaan di stage DN/DR dilewati. Minta URA konfirmasi konfigurasi prod",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice driver yang sudah dikirimi 3rd letter (stage DR3) dipilih untuk pengecekan e-reminder menjelang jatuh tempo",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1080; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1105-1120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:22-24; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih notice dengan last_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3) (NotificationSmsEmailHelper.java:1114), offender_indicator = 'Y' sehingga yang diambil adalah offender saat ini, yaitu driver setelah furnish (:1112; FurnishApprovalHelper.java:555 dan :652 mengatur driver jadi offender di stage DN1), dan tanggal jatuh tempo (last_processing_date + POS + PDD) harus masuk jendela ENOTEDAYS (:1105-1120). Dipanggil NotificationSmsEmailJob.java:162. Jalur driver DN1 -> DN2 -> DR3 ada di ToppanStage.java:22-24. Sebagian karena (1) query yang sama dipakai untuk owner, hirer dan driver, tidak ada filter khusus driver; (2) cron.notification.enabled=false di cron-schedules-prod.properties:236 (juga UAT dan dev), jadi job tidak jalan menurut konfigurasi repo; (3) JOIN ke ocms_parameter ENOTEDAYS per stage bersifat inner, sehingga kalau baris parameter untuk DR3 tidak ada, notice tidak pernah terpilih; nilai parameter di DB: cannot verify from repo. Tiket OCMS-DF-2026-180 (eNotification, Closed) menyebut menunggu cron eNotification diaktifkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek mobile number/email terbaru driver (Epic OCMS9) sebelum e-reminder dibentuk",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2485; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:551-558",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo dan refreshContactInfo untuk semua record (NotificationSmsEmailJob.java:185-188). refreshContactInfo hanya menanyakan DataHive (Singpass untuk individu, CorpPass untuk perusahaan) kalau cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:92-93, :2461-2485); nilainya false di cron-schedules-prod.properties:48 (juga UAT dan dev), jadi yang dipakai adalah nomor yang tersimpan di ocms_offence_notice_owner_driver, yaitu nomor dari form furnish (FurnishApprovalHelper.java:551-558) atau hasil lookup sebelumnya. Cek 'sebelum e-reminder' memang ada di kode tetapi mati menurut properties. Apakah DataHive = DOS di story, isi view-nya, dan koneksi Vault: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver yang opt-out, ber-passport, atau tanpa mobile/email valid tidak dikirimi e-reminder, dan letter tetap lanjut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:225-245; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:252-266; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1133; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290",
+      "fit": "Sesuai",
+      "detail": "Query reminder membuang id_no yang ada di ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1133) dan job mengecek lagi exclusion list serta tipe ID passport sebelum SMS batch dibentuk (NotificationSmsEmailJob.java:225-245): untuk reminder stage record hanya dilewati, stage notice tidak diubah, jadi letter berikutnya tetap berjalan. Record tanpa phoneNo (individu) atau tanpa email (perusahaan), atau dengan contactError, dilewati lewat validateContactInfo (NotificationSmsEmailJob.java:252-266; NotificationSmsEmailHelper.java:2259-2290). Logika cocok dengan story; sebagai pengaman, job yang menjalankannya dimatikan di prod (langkah 1)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver individu mendapat SMS, driver perusahaan mendapat email sebagai e-reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:311-317; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:443-452; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:269-272; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353-354",
+      "fit": "Sebagian",
+      "detail": "determineDeliveryChannel memberi SMS untuk semua ID selain tipe B dan email untuk tipe B (NotificationSmsEmailHelper.java:443-452; NotificationSmsEmailJob.java:269-272 dan :353-354). Jalur SMS individu tidak dibedakan per stage, jadi DR3 ikut. Tetapi untuk stage DN1/DN2/DR3 pembuatan email dilewati dengan komentar company email templates not available (NotificationSmsEmailHelper.java:311-317), sehingga driver perusahaan tidak mendapat email di stage DR3 walaupun kontaknya valid. Template SMS DB (DR3_SMS_INDIVIDUAL) tidak ada di repo: cannot verify from repo."
+    }
+  ]
+}

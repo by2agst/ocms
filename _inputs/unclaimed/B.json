@@ -1,0 +1,623 @@
+{
+  "cluster": "B",
+  "candidates": [
+    {
+      "id": "auto-revival-expired-ts",
+      "title": "Automatic revival of expired temporary suspensions (Auto Revival day-end job)",
+      "kind": "new",
+      "related_story": null,
+      "related_note": null,
+      "user_story": "As an OCMS Officer who has temporary suspensions (TS) applied to notices, I want the OCMS to automatically revive each TS when its due date of revival is reached (reason SPO, Suspension Period Over), keep other active suspensions valid, and re-apply TS-HST, TS-CLV and TS-PDP where the notice still qualifies, so that the notices resume normal processing without officers having to revive them one by one.",
+      "acceptance": [
+        "A daily job picks all TS rows in ocms_suspended_notice with date_of_revival empty and due_date_of_revival before the start of tomorrow.",
+        "A notice is skipped (not revived) when it is paid, has no due TS, has an active PS that is not in the non-blocking list (DIP, MID, FOR, RIP, RP2), or its last processing stage is not in the allowed revival stages.",
+        "Due TS rows are marked revived with reason SPO and remark 'Auto-revived on due date'; if another suspension is still active, VON and eVON keep the suspension with the furthest revival date.",
+        "After revival the job re-applies TS-HST for HST IDs, TS-CLV for classified (V) vehicles, and TS-PDP when a Pending furnish application exists.",
+        "Officers can also fire the job by hand from the staff portal Cron page (Auto Revival)."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119",
+          "what": "Day-end combined scheduler calls autoRevivalService.executeJob() (not commented out, unlike Toppan letter generation on :118)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/cron-schedules-prod.properties:62-63,76",
+          "what": "cron.toppanupload.enabled=true (daily 00:15) and job 2 named 'Auto Revival'."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:14-26",
+          "what": "Job flow: find due TS, revive with reason SPO, then re-apply TS-HST / TS-CLV / TS-PDP, then TS-CLV looping for VIP notices."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:113-125",
+          "what": "queryNoticesForRevival: TS rows with date_of_revival null and due date before tomorrow."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:395-420",
+          "what": "Skip rules: no due TS, blocking PS (OCMS-DF-2026-023), last processing stage not allowed."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:165-175",
+          "what": "Revival call with reason 'SPO' and remark 'Auto-revived on due date'."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:555-668",
+          "what": "Batch write of suspension revivals, then VON and eVON updates."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:735,798,861",
+          "what": "Post-revival steps 3-5: TS-HST, TS-CLV, TS-PDP re-apply."
+        },
+        {
+          "repo": "ocmsadminapi",
+          "file_line": "src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:354",
+          "what": "Proxy endpoint /auto-revival/trigger used by the staff portal."
+        },
+        {
+          "repo": "ocmsadminui",
+          "file_line": "src/pages/Cron/list/CronList.tsx:60",
+          "what": "Cron page row 'Auto Revival' with endpoint cron/auto-revival/trigger."
+        }
+      ],
+      "works": "yes",
+      "works_basis": "Scheduler flag is true in prod and uat (cron-schedules-prod.properties:62, cron-schedules-uat.properties:62) and the call is active in the day-end run. It writes to VON, eVON and ocms_suspended_notice. Five maintenance tickets (OCMS-DF-2026-023, -032, -117, -139, OCMS-SR-2026-119) are about this job's behaviour in production, which shows it has been running. Real server property values cannot be verified from the repo.",
+      "ura_requested": "ticket: OCMS-DF-2026-117 (URA asked about re-applying TS-HST and TS-CLV after auto revival); also OCMS-DF-2026-023, OCMS-DF-2026-032, OCMS-DF-2026-139 (defects reported against the job)",
+      "points": 8,
+      "points_basis": "Estimate only, for MGG and URA to decide. Similar in size to OCMS14.19 (8, automatic update plus temporary suspension) and OCMS16.4 (8). It has several steps (select, validate, revive, sync to VON/eVON, re-apply three suspension types) but no screen of its own.",
+      "demo_steps": [
+        "In UAT, apply a TS with a short due date to a test notice (staff portal Apply Suspension) and set due_date_of_revival to today in ocms_suspended_notice.",
+        "Open the staff portal Cron page and click Auto Revival (or wait for the 00:15 day-end run).",
+        "Open the notice: the TS row shows a revival date and reason SPO, and the VON suspension fields are cleared (or show the remaining suspension).",
+        "Repeat with a notice that has a PS such as PS-APP to show it is skipped."
+      ],
+      "risks": [
+        "OCMS-SR-2026-119 (Closed) records that about 11K PS notices were wrongly auto-revived at one point; URA may see the job as a source of defects, not a delivered feature.",
+        "Steps that re-apply TS-HST and TS-CLV overlap with the text of OCMS14.28 (continue TS-CLV when the existing suspension expires) and OCMS20.19; the claim should be scoped to the base revival and TS-PDP re-apply to avoid a double claim.",
+        "The job runs inside the Toppan day-end combined scheduler; if that scheduler is switched off the revival also stops.",
+        "No story text asks for automatic revival at all, so URA can argue it was implied by the TS stories (OCMS17.x) and not extra scope.",
+        "Existing orphan #120 (meta.json) already notes one part of this job (keeping other active suspensions)."
+      ],
+      "confidence": "Medium"
+    },
+    {
+      "id": "urapg-axs-hourly-sync",
+      "title": "Hourly send of AXS payment transactions to the URA Payment Gateway (reconciliation feed)",
+      "kind": "new",
+      "related_story": null,
+      "related_note": null,
+      "user_story": "As a Fines Payment Processing Officer who needs AXS payments to be reconciled with the URA Payment Gateway, I want the OCMS to send every AXS transaction not yet reported to the URA Payment Gateway every hour and mark it as sent, retrying the ones that fail, so that the gateway records match what OCMS has received.",
+      "acceptance": [
+        "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N.",
+        "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N and posts them to the URA PG endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1.",
+        "Rows the gateway reports as sent are updated to urapg_sync_status = Y; the others stay N and are retried in the next run.",
+        "When some rows still fail, an error notification is raised through notifyUraPgErrors."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:22-72",
+          "what": "Reads pending AXS rows, calls uraPgService.sendAxsTransactions, sets status Y for sent ones, logs and notifies for failed ones."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/schedulers/UraPgRetryJobsScheduler.java:27-40",
+          "what": "@Scheduled job guarded by cron.urapgretry.enabled with ShedLock."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/cron-schedules-prod.properties:350-351",
+          "what": "cron.urapgretry.schedule=0 0 * * * ? and cron.urapgretry.enabled=true (also uat :353)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:432,693",
+          "what": "AXS rows are marked urapg_sync_status = N by markAsPendingUraPgSync during the transaction sync."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:113-146",
+          "what": "Filters AXS transactions, builds the URL and calls restTemplate.exchange."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/application-prod.properties:106-107",
+          "what": "ura.paymentgateway.baseUrl and endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:457",
+          "what": "notifyUraPgErrors: error notification for rows the gateway rejects."
+        }
+      ],
+      "works": "partly",
+      "works_basis": "Flag is true in prod and uat and the code path is complete. Three tickets (OCMS-DF-2026-035, -047, -147, all Closed and Prod deployed) are about this sync failing or hanging, which shows URA depends on it and that it ran in production. Whether the gateway accepts the payload cannot be verified from the repo (APIM key is read from Key Vault).",
+      "ura_requested": "ticket: OCMS-DF-2026-035 and OCMS-DF-2026-047 (URA reported the OCMS to PG sync failing for AXS NOPO transactions); OCMS-DF-2026-147 (hourly AXS to URA PG sync freezing the scheduler)",
+      "points": 5,
+      "points_basis": "Estimate only. Same size as OCMS43.2 (5, receive payment status and transaction details from the payment gateway); this is the opposite direction (OCMS to gateway) with retry and error notification.",
+      "demo_steps": [
+        "In UAT make an AXS payment on a test notice (or insert an AXS row in web_txn_detail through the normal sync) so that urapg_sync_status becomes N.",
+        "Wait for the top of the hour (or trigger CombinedSchedulerTriggerController item #18).",
+        "Check web_txn_detail: urapg_sync_status changes from N to Y and the application log shows 'URA PG Sync Result: n success'."
+      ],
+      "risks": [
+        "OCMS43.2 trace states this direction 'is not counted' for that story, so the work is unclaimed today, but URA may say it belongs to OCMS43.x (payment channels interface) and was already paid.",
+        "No story text mentions sending transactions to the gateway; the only URA evidence is the three bug tickets.",
+        "Success depends on the external gateway and APIM key; cannot verify from the repo.",
+        "The staff portal Cron page has no button for this job (CronList.tsx has no URA PG entry), so a demo needs the backend trigger or the hourly run."
+      ],
+      "confidence": "Medium"
+    },
+    {
+      "id": "foreign-vehicle-admin-fee",
+      "title": "Administration fee on unpaid foreign-vehicle notices after the FOD period (day-end Admin Fee job)",
+      "kind": "new",
+      "related_story": null,
+      "related_note": null,
+      "user_story": "As an OCMS Officer who handles notices issued to foreign vehicles, I want the OCMS to add the configured administration fee to unpaid foreign-vehicle notices (PS-FOR) once a configurable number of days has passed since the offence, so that the amount payable shown to the offender reflects the fee without manual edits.",
+      "acceptance": [
+        "The job reads FOD (days after offence) and AFO (fee amount) from the parameter table and stops with an error if either is missing.",
+        "Only notices with vehicle_registration_type F, current suspension PS-FOR on VON, nothing paid, no admin fee yet and notice date older than FOD days are selected; a notice with an active TS is deferred.",
+        "For each selected notice administration_fee is set to AFO and amount_payable = composition_amount + administration_fee, and the row is flagged for sync to eVON.",
+        "The new amounts are also written straight to eVON so eService/AXS show the new amount."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:122",
+          "what": "Day-end combined scheduler runs adminFeeService.executeJob() (active, not commented)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/cron-schedules-prod.properties:62-63,79",
+          "what": "cron.toppanupload.enabled=true and job 5 named 'Admin Fee'."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/services/AdminFeeServiceImpl.java:75-119",
+          "what": "processAdminFees: read FOD and AFO, query eligible notices, batch update."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:78-121",
+          "what": "FOD and AFO parameter lookups (parameter ids FOD/NPA and AFO/NPA)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:153-172",
+          "what": "Eligibility SQL (type F, PS-FOR, unpaid, no fee yet, date cutoff)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:253-265",
+          "what": "UPDATE sets administration_fee, amount_payable and is_sync = 'N'."
+        }
+      ],
+      "works": "yes",
+      "works_basis": "Job is active in the prod and uat day-end run. Ticket OCMS-DF-2026-122 (Closed, Prod deployed) is about this fee not being applied after 90 days, which shows the job is in use. FOD/AFO values in the parameter table and the vHub notification step (still a stub, orphan #187) cannot be verified from the repo.",
+      "ura_requested": "ticket: OCMS-DF-2026-122 (foreign vehicle offences still at the original composition amount more than 90 days after the offence date)",
+      "points": 3,
+      "points_basis": "Estimate only. Comparable to OCMS14.2 and OCMS39.5 (2 to 3): one batch job with two parameters and one UPDATE, no screen.",
+      "demo_steps": [
+        "In UAT set parameters FOD/NPA to a small number of days and AFO/NPA to an amount.",
+        "Use an unpaid foreign (F) test notice with PS-FOR whose notice date is older than FOD days.",
+        "Run the day-end combined job (or wait for 00:15) and open the notice: Administration Fee and Amount Payable have changed."
+      ],
+      "risks": [
+        "Closest story history is the removed foreign-vehicle set OCMS14.30 to 14.32 (status 'User Story Removed'); URA may call the fee a leftover of removed stories and refuse it. No active story text mentions a foreign-vehicle admin fee.",
+        "OCMS39.5 (configure admin fee amount, 'Built - Has gap') is the nearest active story; URA may say this belongs to it.",
+        "Seed note: orphan #84 (meta.json) already registered this under OCMS14.1; the parent should not count it twice."
+      ],
+      "confidence": "Low"
+    },
+    {
+      "id": "monthly-payment-exception-report",
+      "title": "Monthly Payment Exception Report (Excel by e-mail, 1st of each month)",
+      "kind": "extension",
+      "related_story": "OCMS45.4",
+      "related_note": "OCMS45.4 (Fully paid) asks only for DAILY summary reports on notices temporarily suspended and updated as paid. This adds a MONTHLY version for the previous month, with its own recipient list, which the OCMS45.4 text does not cover.",
+      "user_story": "As a Fines Payment Processing Officer, I want the OCMS to e-mail a monthly report of payment exceptions (PS-PRA, TS-PAM and refund records) for the previous month, so that I can reconcile exceptions for the whole month and not only day by day.",
+      "acceptance": [
+        "On the 1st of every month at 08:30 the job builds the exception records for the previous month.",
+        "An Excel workbook named Monthly_Payment_Exception_Report_<yyyyMM>.xlsx is attached to an e-mail sent to the exception report recipient list.",
+        "If there is no data or sending fails, a failure e-mail is raised.",
+        "A staff user can trigger the monthly run by hand from the Cron page (Monthly Exception Report Email)."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:74",
+          "what": "Job 1 of the monthly combined scheduler runs monthlyExceptionReportService.executeJob()."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/cron-schedules-prod.properties:275-276",
+          "what": "cron.monthlyreport.schedule = 0 30 8 1 * ? and enabled=true (uat :278)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/MonthlyExceptionReportServiceImpl.java:38-46",
+          "what": "Uses the previous month as the report period."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:248-340",
+          "what": "executeMonthly: fetchMonthlyExceptionRecords, Excel, e-mail with source PAYMENT_EXCEPTION_REPORT (:340)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/application-prod.properties:78,81",
+          "what": "email.report.paymentreport.exception.recipients and PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources, so it passes the SMTP-disabled block (email.enableSmtp=false at :80)."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/controllers/MonthlyExceptionReportController.java:26,39",
+          "what": "POST /payment/monthly-exception-report/execute manual trigger."
+        },
+        {
+          "repo": "ocmsadminui",
+          "file_line": "src/pages/Cron/list/CronList.tsx:56",
+          "what": "Cron page row 'Monthly Exception Report Email'."
+        }
+      ],
+      "works": "yes",
+      "works_basis": "Flag true in prod and uat, source is in the e-mail allowlist, recipients are set. Ticket OCMS-SR-2026-112 (Closed, Prod deployed) changed the Daily and Monthly Exception reports, so the monthly report was live. Actual delivery on the real server cannot be verified from the repo.",
+      "ura_requested": "ticket: OCMS-SR-2026-112 (new fields in the Exception report and refund flag in the Daily and Monthly Exception reports); OCMS-SR-2026-157 (add CRS, EPR, refund reason columns to Daily/Monthly Exception Report, merged into SR-112)",
+      "points": 2,
+      "points_basis": "Estimate only. OCMS45.4 (daily version) is 3; the monthly version reuses the same helper and Excel builder, so about two thirds of the effort: 2.",
+      "demo_steps": [
+        "In UAT open the staff portal Cron page and click 'Monthly Exception Report Email'.",
+        "Check the exception recipients' mailbox for 'OCMS Monthly Payment Exception Report - <month>' with the Excel attachment (UAT mailbox delivery not verified by us)."
+      ],
+      "risks": [
+        "Very small increment on top of a Fully paid daily story; URA may see the monthly report as the same report with a different period.",
+        "Orphan #233 (meta.json) already lists this report; do not count it twice."
+      ],
+      "confidence": "Medium"
+    },
+    {
+      "id": "ces-ans-vehicle-offence-rule-files",
+      "title": "Daily ANS Vehicle file and Offence Rule file to CES (Certis)",
+      "kind": "extension",
+      "related_story": "OCMS10.1",
+      "related_note": "OCMS10.1 (Requirement given, not billed) asks for the daily list of vehicles unqualified for ANS to REPCCS, and OCMS2.2 asks for the daily offence rule code list to REPCCS. Both texts name REPCCS only. This adds the same two files for the CES enforcement system; the old story texts do not mention CES. The Wanted Vehicle file made by the same job is already traced to OCMS33.1 and is not part of this candidate.",
+      "user_story": "As a Notice Processing Officer, I want the OCMS to generate the daily ANS vehicle list and the daily offence rule list for the CES enforcement system and send them through the encrypted SFTP channel, so that CES officers apply the same ANS and offence rules as the other frontend system.",
+      "acceptance": [
+        "A daily job (00:05) creates CES_ANS_<timestamp>.DAT with the vehicle numbers returned by the CES ANS query.",
+        "The same job creates CES_OFFENCE_RULE_<timestamp>.DAT from the active offence rules.",
+        "Each file is copied to blob, encrypted through COMCRYPT and uploaded by SFTP to CES.",
+        "A failure in one file is recorded and does not stop the next file."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:138,169,198",
+          "what": "Runs executeCesAnsVehicle, executeCesOffenceRule and executeCesWantedVehicle in sequence."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/cron-schedules-prod.properties:208-209",
+          "what": "cron.cesupload.schedule=0 5 0 * * ? and cron.cesupload.enabled=true."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesAnsVehicleServiceImpl.java:53",
+          "what": "Reads vehicles from findCertisVehiclesForCasinansveh()."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:377",
+          "what": "Repository query for the CES ANS vehicle list."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesAnsVehicleDatGenerator.java:101-103",
+          "what": "File name CES_ANS_<timestamp>.DAT."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesOffenceRuleDatGenerator.java:165-167",
+          "what": "File name CES_OFFENCE_RULE_<timestamp>.DAT."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesOffenceRuleServiceImpl.java:160-169",
+          "what": "Builds the file, uploads to blob and starts encryption."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/application-prod.properties:83",
+          "what": "sftp.upload.allowedSources includes COMCRYPT_ENCRYPTED_CES."
+        },
+        {
+          "repo": "ocmsadminui",
+          "file_line": "src/pages/Cron/list/CronList.tsx",
+          "what": "Cron page row 'Combined CES Upload' (manual trigger)."
+        }
+      ],
+      "works": "partly",
+      "works_basis": "Job flag is true in prod and uat and the generation and encryption steps are in code. Real delivery to the CES SFTP server and CES acceptance of the file cannot be verified from the repo. The OCMS33.1 trace shows the same mechanism for the Wanted Vehicle file.",
+      "ura_requested": "no (no flow deck exists in repo); no maintenance ticket found for the ANS or Offence Rule file for CES (OCMS-SR-2026-040 and -150 are only SMS alerts for the CES upload job status)",
+      "points": 5,
+      "points_basis": "Estimate only. OCMS2.2 and OCMS10.1 are 3 each for REPCCS files; the CES files reuse the same pattern, so about 5 together rather than 6.",
+      "demo_steps": [
+        "In UAT click 'Combined CES Upload' on the staff portal Cron page.",
+        "Check the blob folder / job history for CES_ANS_*.DAT and CES_OFFENCE_RULE_*.DAT and the COMCRYPT callback log (delivery to CES not verified by us)."
+      ],
+      "risks": [
+        "OCMS2.2 and OCMS10.1 are about REPCCS, which is switched off in prod (cron.repupload.enabled=false, cron-schedules-prod.properties:194); URA may say CES is only a replacement target of the same stories and refuse a separate claim.",
+        "No URA request found for the CES variant.",
+        "File layout and CES acceptance cannot be verified from the repo."
+      ],
+      "confidence": "Low"
+    },
+    {
+      "id": "plus-revert-reduction-court",
+      "title": "PLUS revert of a court-stage fine reduction (POST /v1/plus-revert-reduction-court)",
+      "kind": "extension",
+      "related_story": "OCMS16.14",
+      "related_note": "OCMS16.11 to 16.15 cover PLUS asking OCMS to reduce the amount (OCMS16.14 'reduce the amount accordingly' is Fully paid). None of them says that PLUS can later undo a court-stage reduction. This adds the undo call, which restores amount_payable to the original amount for notices in a court stage.",
+      "user_story": "As a PLUS user handling a court case, I want to ask the OCMS to put back the original amount payable on a notice in a court stage after a reduction, so that the notice is no longer shown at the reduced amount.",
+      "acceptance": [
+        "PLUS posts noticeNo and originalAmount (must be greater than zero) to /v1/plus-revert-reduction-court.",
+        "The request is rejected when the notice does not exist or its last processing stage is not a court stage.",
+        "On success amount_payable is set to originalAmount in both eVON and VON, with the system user and update time recorded."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/revert_reduction_court/RevertReductionCourtController.java:25-62",
+          "what": "POST endpoint with validation of noticeNo and originalAmount."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/revert_reduction_court/RevertReductionCourtServiceImpl.java:45-48",
+          "what": "Rejects notices outside COURT_STAGES."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/revert_reduction_court/RevertReductionCourtServiceImpl.java:55-76",
+          "what": "Updates eVON first, then VON amount_payable."
+        },
+        {
+          "repo": "ocmsadminapi",
+          "file_line": "src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:71",
+          "what": "Matching apply call /plus-apply-reduction-court (other cluster); the two form one pair."
+        }
+      ],
+      "works": "cannot verify from repo",
+      "works_basis": "The endpoint code is complete and has no feature flag. Whether PLUS calls it cannot be verified from the repo. The endpoint is under /plus-* which skips JwtFilter (JwtFilter.java header comment in ocmsadminapi; same pattern in the private API), so protection depends on APIM.",
+      "ura_requested": "no (no flow deck exists in repo); tickets OCMS-DF-2026-072 and OCMS-DF-2026-028 deal with reduction amount rules but do not name this endpoint",
+      "points": 2,
+      "points_basis": "Estimate only. Similar to OCMS16.13 (2, error message to PLUS) and OCMS16.15 (1): one API with a few validations and two updates.",
+      "demo_steps": [
+        "In UAT take a court-stage test notice reduced through plus-apply-reduction-court.",
+        "POST {noticeNo, originalAmount} to /v1/plus-revert-reduction-court with the APIM key.",
+        "Open the notice: Amount Payable equals originalAmount."
+      ],
+      "risks": [
+        "Endpoint skips JwtFilter (plus-*); anyone who can reach it can change amounts if APIM is not in front.",
+        "The pair endpoint plus-apply-reduction-court sits in ocmsadminapi and is probably found by another cluster; the parent should merge both into one claim (orphan #111 and #116 in meta.json already mention them).",
+        "originalAmount comes from the caller and is not checked against ocms_reduced_offence_amount."
+      ],
+      "confidence": "Low"
+    },
+    {
+      "id": "toppan-rr3-dr3-admin-fee",
+      "title": "Administration fee (ADM parameter) added to amount payable when RR3/DR3 letters are processed",
+      "kind": "extension",
+      "related_story": "OCMS13.15",
+      "related_note": "OCMS13.15 and OCMS11.42 only ask for the 3rd letter reminder sent to the vendor. They do not mention that the amount payable on the notice grows by an admin fee at RR3/DR3 and is reset to 0 at other stages. OCMS39.5 (configure admin fee, 'Built - Has gap') covers only the setting of the fee amount.",
+      "user_story": "As a Reminder Processing Officer, I want the OCMS to add the administration fee configured for the stage to the amount payable of notices that reach RR3 or DR3, and to keep the fee at zero for all other stages, so that the 3rd reminder letter and the payment channels quote the right amount.",
+      "acceptance": [
+        "At RR3 and DR3 the fee is read from parameter ADM for that stage.",
+        "amount_payable = composition_amount + administration_fee for RR3/DR3 notices; for other stages amount_payable = composition_amount.",
+        "The fee is written to VON administration_fee only for RR3/DR3; other stages write 0.",
+        "If the ADM value is missing or invalid the fee is left as it is (warning in the log)."
+      ],
+      "evidence": [
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1834-1845",
+          "what": "Reads parameter ADM for RR3/DR3 only."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2121-2126",
+          "what": "amountPayable = compositionAmount + administrationFee for RR3/DR3."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1522-1523",
+          "what": "VON administration_fee set from the stage context, otherwise left unchanged."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+          "what": "Toppan letter generation is commented out of the day-end run; it runs only by manual trigger."
+        },
+        {
+          "repo": "ocmsadminprivateapi",
+          "file_line": "src/main/resources/application-prod.properties:86",
+          "what": "sftp.upload.disabledServers=toppan (also uat :77): upload to Toppan is switched off."
+        },
+        {
+          "repo": "ocmsadminui",
+          "file_line": "src/pages/Cron/list/CronList.tsx:45",
+          "what": "Manual trigger 'Toppan Generate Letters' on the Cron page."
+        }
+      ],
+      "works": "partly",
+      "works_basis": "The fee calculation is in code and ticket OCMS-DF-2026-170 (Closed, Prod deployed) fixed the case where the fee was written on non-RR3/DR3 notices, so the logic has been run. But letter generation is not in the automatic day-end run (scheduler line 118 commented) and prod/uat have sftp.upload.disabledServers=toppan, so the feature is only exercised by manual trigger and the letters are not delivered to Toppan according to the repo. ADM values in the parameter table cannot be verified.",
+      "ura_requested": "ticket: OCMS-DF-2026-170 (admin fee of $15 wrongly updated in VON for notices not at RR3/DR3 stages) and OCMS-SR-2026-171 (data patch for the same)",
+      "points": 2,
+      "points_basis": "Estimate only. Same size as OCMS39.5 (2, admin fee configuration).",
+      "demo_steps": [
+        "In UAT make sure parameter ADM exists for RR3 and DR3.",
+        "Trigger 'Toppan Generate Letters' from the Cron page with a test notice at the stage before RR3.",
+        "Open the notice after the stage moves to RR3: Administration Fee is set and Amount Payable = Composition Amount + fee."
+      ],
+      "risks": [
+        "Admin fee is named in the brief as a typical leftover of removed stories (the OCMS1.x pre-notice admin fee); URA may treat this the same way even though it is a different, active mechanism.",
+        "Weak evidence of delivery: Toppan generation is manual only and the Toppan upload is disabled by configuration.",
+        "Orphan #81 and #50 (meta.json) already list the same code; do not count twice."
+      ],
+      "confidence": "Low"
+    }
+  ],
+  "not_claimable": [
+    {
+      "item": "Daily RIP Hirer/Driver Furnished Report e-mailed to OIC (job 3 of the daily report run)",
+      "source": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/RipHirerDriverReportJob.java:113-126; utilities/emailutility/EmailService.java:65-70; src/main/resources/application-prod.properties:80-81",
+      "reason": "switched off"
+    },
+    {
+      "item": "RIP Hirer/Driver Furnished Report screen and Excel export (ReportListRIP, reports/rip/furnished-driver-hirer and /export)",
+      "source": "ocmsadminui/src/pages/Report/lists/ReportListRIP.tsx:51,74; ocmsadminapi/.../reports/system/rip/RipReportController.java:22-29",
+      "reason": "other"
+    },
+    {
+      "item": "TS-CLV for VIP vehicles after RR3/DR3 letter (regex ^V, Toppan helper) and CAS VIP vehicle refresh job",
+      "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java:332-335,683-740; framework/workflows/casvipvehicle/jobs/CasVipVehicleRefreshJob.java; cron-schedules-prod.properties:336-337",
+      "reason": "other"
+    },
+    {
+      "item": "Toppan Track 3: Military/Diplomatic vehicles dropped from RR3/DR3 letters and given PS-MID/PS-DIP",
+      "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java:743-795,1974-2014",
+      "reason": "other"
+    },
+    {
+      "item": "Foreign vehicles without PS-FOR dropped from Toppan letters and PS-FOR re-applied",
+      "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java:800-845,1935-1972",
+      "reason": "leftover of removed story"
+    },
+    {
+      "item": "Toppan delivery gate (stage moves only after the encrypted file is confirmed on Toppan SFTP, with bypass when Toppan upload is disabled)",
+      "source": "ocmsadminprivateapi/.../toppan/upload/jobs/ToppanUploadJob.java:418-446; cron-schedules-prod.properties comment on OCMS-DEV-2026-199",
+      "reason": "other"
+    },
+    {
+      "item": "Driver Notice tracking rows (ocms_driver_notice) written after DN1/DN2/DR3 processing",
+      "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java:886-897,1063-1145",
+      "reason": "other"
+    },
+    {
+      "item": "Toppan download moving RR3/DR3 notices to CPC after the letter is sent",
+      "source": "ocmsadminprivateapi/.../toppan/download/jobs/ToppanDownloadJob.java:409-410",
+      "reason": "other"
+    },
+    {
+      "item": "Classified Vehicle report extra sheets (Summary, Amended Notices V to S)",
+      "source": "ocmsadminprivateapi/.../crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:733-754; daily_reports/helpers/ClassifiedVehicleReportHelper.java",
+      "reason": "other"
+    },
+    {
+      "item": "Auto-revival detail: revive due TS rows one by one and keep other suspensions (seed 13)",
+      "source": "ocmsadminprivateapi/.../autorevival/helpers/AutoRevivalHelper.java:440-463",
+      "reason": "other"
+    },
+    {
+      "item": "Refund records created by the transaction sync for double payment (DBP), over payment (OVP) and payment after PS-APP (APP)",
+      "source": "ocmsadminprivateapi/.../synctxndata/CronSyncTxnData.java:416-456,633-656,708-730",
+      "reason": "other"
+    },
+    {
+      "item": "Automatic TS-PAM when an AXS payment has a different vehicle number",
+      "source": "ocmsadminprivateapi/.../synctxndata/CronSyncTxnData.java:459-528",
+      "reason": "other"
+    },
+    {
+      "item": "TS-ACR rules in the DataHive UEN flow",
+      "source": "ocmsadminprivateapi/.../datahiveuenfin/services/DataHiveUenFinService.java:1356; src/main/resources/cron-schedules-prod.properties:52",
+      "reason": "switched off"
+    },
+    {
+      "item": "Unclaimed Batch Data / UNC address report (checkAndGenerateBatchDataReport)",
+      "source": "ocmsadminprivateapi/.../unclaimedreport/services/UnclaimedReportServiceImpl.java:110; UnclaimedReportService.java:32",
+      "reason": "dead"
+    },
+    {
+      "item": "ACRA shareholder/board storage and Vault Director/Shareholder tabs",
+      "source": "ocmsadminprivateapi/.../datahiveuenfin/services/DataHiveUenFinService.java:1442-1477; ocmsadminui/src/pages/Vault/Datahive/DirectorDetail.tsx:31-47",
+      "reason": "switched off"
+    },
+    {
+      "item": "Alternative address lookup for foreigners (lta_reg / furnished_mail) and placeholder work items",
+      "source": "ocmsadminprivateapi/.../datahiveuenfin/services/DataHiveUenFinService.java:3564-3600",
+      "reason": "switched off"
+    },
+    {
+      "item": "HST monthly query, monthly HST report job and daily HST report",
+      "source": "ocmsadminprivateapi/.../hstreport/services/HstReportServiceImpl.java:152-245; framework/controllers/HstReportController.java:67; schedulers/MonthlyReportJobsScheduler.java:76; schedulers/DailyReportJobsScheduler.java:99",
+      "reason": "other"
+    },
+    {
+      "item": "eNotification job (ENA and reminders, exclusion list, SMS batch, retry)",
+      "source": "ocmsadminprivateapi/.../notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; cron-schedules-prod.properties:236; application-prod.properties:87",
+      "reason": "switched off"
+    },
+    {
+      "item": "Payment Acceptance Cutoff job for court notices and the twin plus-payment-activation-court endpoint",
+      "source": "ocmsadminprivateapi/.../paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:51-79; schedulers/ToppanUploadJobsScheduler.java:123; paymentcutoff/controllers/PaymentAcceptanceCutoffController.java:22-48; plus/payment_activation_court/PaymentActivationCourtController.java:24-58",
+      "reason": "not reachable"
+    },
+    {
+      "item": "Manual vHub triggers and ACK/NTL upload endpoints",
+      "source": "ocmsadminprivateapi/.../framework/controllers/VhubTriggerController.java:23-53; ocmsadminapi/.../cronproxy/CronProxyController.java:171",
+      "reason": "other"
+    },
+    {
+      "item": "Standard-code sets loaded at start-up for PLUS suspension checks",
+      "source": "ocmsadminprivateapi/.../plus/notice_creation/core/helpers/SuspensionProcessingHelper.java:58-71",
+      "reason": "other"
+    },
+    {
+      "item": "Raw SQL endpoint POST /v1/datahive/query (+ /custom, /async)",
+      "source": "ocmsadminprivateapi/.../framework/controllers/DataHiveController.java:62,86,119,153",
+      "reason": "diagnostic"
+    },
+    {
+      "item": "Temporary DataHive test controller (GET /api/datahive/test/...)",
+      "source": "ocmsadminprivateapi/.../framework/controllers/DataHiveTestController.java:23-39",
+      "reason": "diagnostic"
+    },
+    {
+      "item": "Furnish Daily Officer Notification e-mail (all pending furnish submissions)",
+      "source": "ocmsadminprivateapi/.../furnish_notifications/services/FurnishNotificationServiceImpl.java:48; DailyOfficerNotificationJob.java:20; application-prod.properties:116-118",
+      "reason": "leftover of removed story"
+    },
+    {
+      "item": "TS-PDP applied when a submission goes to manual review",
+      "source": "ocmsadminprivateapi/.../furnish_processing/helpers/FurnishApprovalHelper.java:505-535,754",
+      "reason": "other"
+    },
+    {
+      "item": "TS-PDP Looping job and POST /trigger-ts-pdp",
+      "source": "ocmsadminprivateapi/.../furnish_processing/helpers/TsPdpLoopingHelper.java:37-121; schedulers/ToppanUploadJobsScheduler.java:126",
+      "reason": "not reachable"
+    },
+    {
+      "item": "Daily Payment Exception Report e-mail",
+      "source": "ocmsadminprivateapi/.../paymentReport/helpers/PaymentExceptionReportHelper.java:70-86; schedulers/DailyReportJobsScheduler.java:96",
+      "reason": "other"
+    },
+    {
+      "item": "Daily Paid Report e-mail (and Monthly Paid Report)",
+      "source": "ocmsadminprivateapi/.../paymentReport/jobs/DailyPaidReportJob.java:51; schedulers/DailyReportJobsScheduler.java:97",
+      "reason": "other"
+    },
+    {
+      "item": "CES Wanted Vehicle file made by the same CES job",
+      "source": "ocmsadminprivateapi/.../agencies/ces/jobs/CesGenerateFileJob.java:198",
+      "reason": "other"
+    }
+  ],
+  "notes": "1) Reasons marked 'other' in not_claimable are mostly 'already inside an existing story text or its trace': RIP screen and export (OCMS14.12, 14.14, 14.16 traces), VIP/CLV and Military/Diplomatic (OCMS14.2-14.5, 14.17, 14.19, 14.26), Classified Vehicle sheets (OCMS14.23, 14.29), HST query/reports (OCMS20.20, 20.21, 20.27, not yet paid), eNotification (Epic 9), refund records (OCMS46.1, status 'No requirement', not paid; that story is the right place to ask URA to bill it), TS-PAM (OCMS45.2 Fully paid), TS-PDP (OCMS41.36), Daily Paid (OCMS43.4 and 43.5/44.7), Daily Exception (OCMS45.4, 47.9). Billing these again as new stories would be a double claim. 2) Config facts the parent should know: prod and uat have sftp.upload.disabledServers=toppan (application-prod.properties:86, application-uat.properties:77), Toppan letter generation is commented out of the automatic day-end run (ToppanUploadJobsScheduler.java:118), email.enableSmtp=false in prod and uat so only sources in email.smtp.allowedSources are sent (the RIP job sets no source, so its e-mail is blocked per repo), cron.notification.enabled=false and sms.enable=false in prod, and the UEN/FIN DataHive job is off (cron-schedules-prod.properties:52). Real server values cannot be verified. 3) The staff portal Cron page (ocmsadminui/src/pages/Cron/list/CronList.tsx, about 30 manual triggers via ocmsadminapi CronProxyController) is a visible admin function that no story seems to cover; it is outside this cluster's seed, so the cluster that owns ocmsadminui should report it once. 4) Security exposure to mention to URA: /v1/plus-* endpoints (revert reduction court, payment activation court) skip JwtFilter; /v1/datahive/query accepts raw SQL; vhub and payment-acceptance-cutoff trigger endpoints on the private API are open to whoever can reach it (APIM protection not visible in repo). 5) Seed mapping: seeds 2 (RR3/DR3 admin fee), 4 (foreign admin fee), 12 (revert reduction court), 13 (Auto Revival), 26 (CES files), 38 (URA PG sync) and 41 (monthly exception report) became candidates; the other 39 leads are grouped into not_claimable. The stale copy ocmsadminprivateapi/cronservice was not used."
+}

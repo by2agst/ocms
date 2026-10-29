@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS9.4 Lookup Nomor Mobile dan SMS",
+    "locale": "en",
+    "output": "OCMS9.4.id.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "lta",
+      "type": "backend",
+      "label": "LTA download",
+      "sublabel": "LtaBatchCode0Processor"
+    },
+    {
+      "id": "dh",
+      "type": "external",
+      "label": "DataHive",
+      "sublabel": "Singpass contact view"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "DB OCMS",
+      "sublabel": "owner_driver + VON"
+    },
+    {
+      "id": "job",
+      "type": "backend",
+      "label": "Cron eNotification",
+      "sublabel": "NotificationSmsEmailJob"
+    },
+    {
+      "id": "sms",
+      "type": "external",
+      "label": "SMS gateway",
+      "sublabel": "SMS gateway"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 300,
+      "label": "Masuk ENA (LTA)"
+    },
+    {
+      "from": 322,
+      "to": 480,
+      "label": "Job SMS harian (11:00)"
+    },
+    {
+      "from": 482,
+      "to": 520,
+      "label": "Akhir"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "lta",
+      "to": "db",
+      "y": 165,
+      "label": "Cek exclusion dulu (opt-out: RD1)",
+      "variant": "default"
+    },
+    {
+      "id": "m1",
+      "from": "lta",
+      "to": "dh",
+      "y": 195,
+      "label": "SELECT CONTACT WHERE UIN = NRIC/FIN",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "dh",
+      "to": "lta",
+      "y": 225,
+      "label": "Nomor mobile atau kosong",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "lta",
+      "to": "db",
+      "y": 255,
+      "label": "Tulis tel_no, kode 65; stage ENA",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "lta",
+      "to": "db",
+      "y": 285,
+      "label": "Tanpa nomor: stage RD1 (surat)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m5",
+      "from": "job",
+      "to": "db",
+      "y": 345,
+      "label": "Record ENA, last date <= sekarang",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m6",
+      "from": "job",
+      "to": "dh",
+      "y": 375,
+      "label": "Refresh kontak: flag false di semua env (sebelum exclusion)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "job",
+      "to": "sms",
+      "y": 405,
+      "label": "Batch SMS, satu per notice",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "sms",
+      "to": "job",
+      "y": 435,
+      "label": "Status di-poll (tidak di repo)",
+      "variant": "return"
+    },
+    {
+      "id": "m9",
+      "from": "job",
+      "to": "db",
+      "y": 465,
+      "label": "Simpan status kirim",
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "lta",
+      "from": 160,
+      "to": 290,
+      "type": "backend"
+    },
+    {
+      "participant": "job",
+      "from": 340,
+      "to": 470,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 162,
+      "to": 470,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Sesuai flow",
+      "items": [
+        "NRIC/FIN dikirim ke sumber pemerintah",
+        "Nomor mobile tersimpan di offender",
+        "Tanpa nomor: jalur surat"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Code pakai DataHive, bukan DOS",
+        "Lookup cron sebelum exclusion",
+        "Notice run 21:00 tunggu 11:00"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Perlu verifikasi",
+      "items": [
+        "DOS = DataHive?",
+        "Nilai cron aktif per env",
+        "SMS gateway dan permission Vault"
+      ]
+    }
+  ]
+}

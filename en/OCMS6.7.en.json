@@ -1,0 +1,33 @@
+{
+  "story": "OCMS6.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/retrieval/getnotice/{GetNoticeController,GetNoticeServiceImpl,mapper/NoticeResponseMapper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.getAllWithOwnerInfo, auth/filter/JwtFilter, config/WebConfig, retrieval/validnotice/{EvalidNoticeController,EvalidNoticeServiceImpl}. ocmsadminprivateapi src/main/java/.../framework/workflows/plus/notice_management/retrieval/getnotice/{GetNoticeController,GetNoticeServiceImpl}. thirdpartyapi, ocmsadminui, ocmseserviceapi, ocmseserviceui: no FOMS code or notice reader for other systems",
+  "note": "Sheet status: Demo paid (50% of 75%), remark 'From PLUS or any other system that calls validoffencenotice'. The PLUS path exists: POST /v1/plus-offence-notice reads the valid offence notice live from the DB (joined to the current offender), supports filters, paging and suspension history, and maps 29 fields. Gaps: (1) the internet eVON endpoint (/plus-evalid-offence-notice) only returns dummy data; (2) there is no FOMS-specific or other-system code; (3) the logic exists in two copies (ocmsadminapi and ocmsadminprivateapi) and the intranet copy does not handle $or and List filters; (4) plus-* paths bypass JwtFilter and the authorization interceptor with no authentication in the code, so security depends on a gateway/APIM that is not in the repo (cannot verify from repo). The staff endpoints /v1/validoffencenoticelist and /validoffencenoticepatch need a staff JWT and are not for other systems. Tickets used: OCMS-SR-2026-107 (surcharge in the response), OCMS-SR-2026-048 (outstanding filter for PLUS, closed in the UI only).",
+  "recommendation": "Claim the PLUS path (plus-offence-notice). Do not claim internet eVON (still dummy) or FOMS support without confirmation; ask for evidence of the gateway/caller authentication",
+  "steps": [
+    {
+      "step": "Other systems (PLUS) can call an endpoint to read parking offence notice information without a staff login",
+      "detail": "POST /v1/plus-offence-notice exists in ocmsadminapi (GetNoticeController.java:34-40) and a copy in ocmsadminprivateapi (GetNoticeController.java:24-30). In ocmsadminapi, paths starting with plus- are excluded from JwtFilter (JwtFilter.java:179) and from OcmsAuthorizationInterceptor (WebConfig.java:83), so no staff session is needed. Caller authentication (APIM/subscription key/network) is not in the repo: cannot verify from repo; if the gateway does not restrict it, this endpoint is open to anyone."
+    },
+    {
+      "step": "Caller can filter notices (noticeNo, vehicleNo, operators, $or) and read page by page ($skip/$limit)",
+      "detail": "In ocmsadminapi, the body is converted to search parameters: $skip/$limit, $or, String/Number/Boolean/List/Map-operator values (GetNoticeServiceImpl.java:91-139), then getAllWithOwnerInfo runs with a default limit of 20 (VN:324-325) and paging through setFirstResult/setMaxResults (VN:584-585); there is no maximum $limit. The copy in ocmsadminprivateapi is narrower: it does not handle $or and List values (GetNoticeServiceImpl.java:72-110), so a filter such as an array noticeNo[$in] is silently ignored. The repo does not prove which copy PLUS uses (cannot verify from repo). There is no single 'outstanding' filter in the API (PLUS-DF-2026-323 / OCMS-SR-2026-048 was closed in the Staff Portal UI only)."
+    },
+    {
+      "step": "Response carries parking offence details (notice number, vehicle, place, rule, stage, suspension, amount, payment status)",
+      "detail": "NoticeResponseMapper maps 29 fields to the PLUS format: noticeNo, vehicleNo, ppCode/ppName, computerRuleCode, last/next processing stage and date, suspensionType, epr/crs reason and date, compositionAmount, amountPayable, surcharge (OCMS-SR-2026-107), paymentAcceptanceAllowed, anFlag, atomsFlag, paymentStatus (NoticeResponseMapper.java:66-100). Data is read live from the OCMS valid offence notice joined to the current offender (offenderIndicator = 'Y', OcmsValidOffenceNoticeServiceImpl.java:337-339), in a read-only transaction (GetNoticeServiceImpl.java:45-47)."
+    },
+    {
+      "step": "Caller can ask for the notice suspension history to be included (suspendedIndicator = Y)",
+      "detail": "When the body has suspendedIndicator = 'Y', the service loads all suspended notices per notice number in one query (findByNoticeNoIn) and adds them to each record as field suspended (GetNoticeServiceImpl.java:53-55, 63-68, 175-199; NoticeResponseMapper.java:95-99). Without that flag the field is not sent."
+    },
+    {
+      "step": "Other systems can read the internet-side valid offence notice (eVON)",
+      "detail": "POST /v1/plus-evalid-offence-notice exists but only returns dummy data: notice 'E2025001001', vehicle 'SBA1234A', hard-coded CPC/RD1 stages (EvalidNoticeServiceImpl.java:73-83, 124-125); the controller Javadoc says 'Currently returns dummy data only' (EvalidNoticeController.java:22-24). There is no query to the eVON table. So real eVON reading is not built. Note: the story only says 'parking offence information'; this step is counted because PLUS uses the same plus-* route."
+    },
+    {
+      "step": "Other CPD systems besides PLUS (for example FOMS) can fetch the same information",
+      "detail": "There is no FOMS-specific code or configuration: a grep for 'foms' in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmsadminui, ocmseserviceapi, ocmseserviceui finds nothing. The endpoint is only named plus-* and its content is generic, so another system could technically call it if it passes the gateway; there is no caller identity, per-system credential, or system distinction in the code. Whether FOMS really uses it: cannot verify from repo."
+    }
+  ]
+}

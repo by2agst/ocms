@@ -1,0 +1,37 @@
+{
+  "story": "OCMS19.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (createValidationErrorResponse, createErrorResponse, plus-revive-suspension), helpers/RevivalBaseHelper (createErrorResponse), helpers/TemporaryRevivalHelper. Repo lain: tidak ada code (PLUS eksternal).",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak normal. Saat validasi menolak revival, OCMS mengirim error message ke PLUS dalam response endpoint yang sama: mode checking menjawab list per notice {noticeNo, eligible:false, message} (HTTP 200), request tidak valid menjawab HTTP 400 {appCode, message}. Celah: (1) response mode checking membuang appCode (parameter appCode di createValidationErrorResponse tidak dipakai, :954-958), jadi PLUS hanya dapat teks pesan; (2) di mode execute, srNo yang tidak aktif melempar RuntimeException (TemporaryRevivalHelper.java:145-147) yang diubah menjadi pesan generik 'System error. Please inform Administrator' (:192-195), dan field wajib yang kosong hanya dijawab 'Invalid request. Please double-check the request body.' tanpa menyebut field. Bagaimana PLUS menampilkan pesan ke user-nya ada di luar repo: cannot verify from repo. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Bisa diklaim: error message dikirim ke PLUS saat revival ditolak. Catat bahwa pesan untuk srNo tidak aktif dan field wajib kosong bersifat generik dan mode checking tidak mengirim appCode.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpulkan revival tidak boleh dilakukan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:922-939",
+      "fit": "Sesuai",
+      "detail": "Penolakan terjadi saat kode bukan CSR/OTH, notice tidak ada, atau tipe suspension tidak cocok; tiap penolakan menghasilkan satu entry error untuk notice itu dan notice lain di batch tetap diproses."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim error message ke PLUS pada mode checking",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:954-960",
+      "fit": "Sesuai",
+      "detail": "Response HTTP 200 berisi list {noticeNo, eligible:false, message} (:782). Parameter appCode tidak dimasukkan ke response (:954-958), jadi PLUS hanya menerima teks pesan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim error message pada request tidak valid atau mode execute",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:711-735",
+      "fit": "Sebagian",
+      "detail": "Field wajib kosong dijawab HTTP 400 OCMS-4000 'Invalid request. Please double-check the request body.' tanpa menyebut field. Di execute, penolakan berisi {success:false, appCode, message} (RevivalBaseHelper.java:792-800), tapi srNo tidak aktif berubah jadi 'System error. Please inform Administrator' (TemporaryRevivalHelper.java:145-147, :192-195)."
+    }
+  ]
+}

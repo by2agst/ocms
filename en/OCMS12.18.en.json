@@ -1,0 +1,29 @@
+{
+  "story": "OCMS12.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, refreshContactInfo, refreshIndividualContactInfo, refreshCompanyContactInfo, updateOcmsContactInfo, validateContactInfo)}, framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor + framework/services/datahive/contact/DataHiveContactServiceImpl (lookup at notice creation), properties cron-schedules-prod (cron.enareminder.datahive=false). Other repos: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark mentions Vault and Code Split (cannot verify from repo). There is no flow deck. The check of the latest mobile/email from DataHive (Singpass/CorpPass) before the 3rd reminder exists in the eNotification cron, but it is locked by cron.enareminder.datahive=false in dev, uat and prod, so only the data already on the notice is used. The eNotification cron itself is also cron.notification.enabled=false (cron-schedules-prod.properties:236); ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. The only DataHive contact lookup active in PROD is during LTA download (notice creation). The contact-check step fit is the same as OCMS9.6. 'DOS' is read as DataHive.",
+  "recommendation": "Claim partially. The DataHive contact check code for the reminder exists, but the flags cron.enareminder.datahive and cron.notification.enabled are off in every environment. Enable both in UAT and show one RR3 notice whose number/email is refreshed from DataHive before the reminder",
+  "steps": [
+    {
+      "step": "After the 3rd letter is sent, the notice at stage RR3 becomes a candidate for the electronic reminder",
+      "detail": "The Toppan RR3 letter moves last_processing_stage to RR3 (updateProcessingStage, TH:1296-1306). The eNotification job then takes notices with last_processing_stage = RR3 whose due date falls in the ENOTEDAYS window (NH:1109-1114) and tags the stage (NJ:170-180). The flow 'letter first, then an electronic reminder that refers to the letter' follows the story order. Note: the RR3 stage can advance even when the file never reached Toppan (see OCMS12.17)."
+    },
+    {
+      "step": "OCMS checks the individual owner's latest mobile number from DOS (Singpass via DataHive)",
+      "detail": "The job calls batchPreloadContactInfo and refreshContactInfo for every record (NJ:185-187). refreshContactInfo queries DataHive only when cron.enareminder.datahive=true (NH:92-93, 2468); the value is false in dev, uat and prod (cron-schedules-prod.properties:48), so all that happens is reuse of the phoneNo already on the record (NH:2468-2477). The live path exists: getContactInfoFromSingpass fetches CONTACT and validates at least 8 characters (NH:2710-2735). The only DataHive contact lookup active in PROD is during LTA download (lookupContact, LTA:81), i.e. when the notice is created, not after the 3rd letter. Consistent with the OCMS9.6 fit. The view contents and the DataHive connection cannot be verified from repo."
+    },
+    {
+      "step": "OCMS checks the company's latest email from DOS (CorpPass via DataHive)",
+      "detail": "refreshCompanyContactInfo takes CP_ACCOUNT_EMAIL from the CorpPass view by UEN and accepts only accounts with ACCOUNT_TYPE A01 and status ACTIVE (NH:2496-2530, 2542-2560). But like the individual step, the call is locked by cron.enareminder.datahive=false (NH:2468-2477; cron-schedules-prod.properties:48), so the email used is the one already on the record. The CorpPass lookup at LTA download is active (DCS:149-152) but happens when the notice is created. Same fit as OCMS9.6."
+    },
+    {
+      "step": "The latest mobile number / email is saved to the owner data on the notice",
+      "detail": "When the DataHive path is active, updateOcmsContactInfo patches offenderTelNo and emailAddr in ocms_offence_notice_owner_driver per noticeNo + idNo (NH:2764, 2800-2820) and updateOcmsCompanyContactInfo patches the company emailAddr (NH:2594, 2676-2698). Because the datahive flag is false (steps 2-3), these updates do not run in PROD on the eNotification path. Same fit as the email save step in OCMS9.6."
+    },
+    {
+      "step": "The electronic reminder is prepared only when a valid contact exists (SMS for individuals, email for companies)",
+      "detail": "validateContactInfo rejects records with contactError, a company without email, or an individual without a phone number (NH:2259-2290). In the job, invalid non-ENA records are skipped (NJ:255-266) and companies stay out of the SMS batch (NJ:274-276). The channel follows idType: B -> EMAIL, otherwise SMS (NH:448-457). So the reminder is prepared only for contacts that exist, matching the goal 'so that an electronic reminder can be sent'."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/hstreport/{services/HstReportServiceImpl,helpers/HstReportHelper} (Excel report + statistics email to OIC); ocmsadminapi HstManagementServiceImpl (update-hst, revive-hst); ocmsadminui routes /hst/update and /hst/revival. No work item or OIC dashboard",
+  "note": "Story status is 'Requirement given - Gen flow'. The requested content (old address vs new address from the agency) exists, but as rows in the 'Monthly HST Data Report' Excel that is only uploaded to blob; what is emailed to the OIC is only the 11-number statistics report. There is no work item (record, status, assignee) and no OIC dashboard for HST items; the only work item in the staff UI is UPL Endorsement. The address comparison step shares the same fit as OCMS20.21 (Sebagian) because it depends on query_reason, which no code writes, and report_generated, which is never reset. Email recipients come from property email.report.hst.oic.recipients (two default addresses in code); the prod value cannot verify from repo. No maintenance ticket changed a verdict.",
+  "recommendation": "Claim partially for the old vs new address content; do not claim a work item or routing to an OIC dashboard. A decision is needed: accept the Excel report plus statistics email as a substitute, or build a work item/inbox.",
+  "steps": [
+    {
+      "step": "OCMS checks whether the received registered address differs from the address OCMS holds",
+      "detail": "The comparison only lives in a report. fetchHstDataWithAddressComparison joins ocms_hst with ocms_temp_unc_hst_addr (HstReportHelper.java:381-406); old and new addresses are built into text and compared with equals (:465-472) for the 'Address Changed' column; the getAddressesChanged statistic only compares street_name and postal_code (:650-657). It runs in the Daily Report job at 08:00 (cron.dailyreport.schedule=0 0 8 * * ?, enabled=true, cron-schedules-prod.properties:255-256; DailyReportJobsScheduler.java:99). Gap: the result is not stored as a per-ID flag and this job does not update ocms_hst; the text comparison can give a false 'Yes' when floor/unit is empty on one side (data cannot be checked from the repo). The report queries filter on query_reason='HST' (:405) and report_generated (:406), but no code fills query_reason: the OcmsTempUncHstAddr entity has neither query_reason nor report_generated (OcmsTempUncHstAddr.java:36-114) and the MHA upsert does not set them (MhaNricDownloadHelper.java:3212-3260); report_generated is only set to 'Y' by the report job. Whether a DB default/trigger fills them cannot verify from repo; if empty, the HST report is empty. After the first report, report_generated is set to 'Y' (HstReportHelper.java:612-619) and later upserts do not reset it, so next month's result for the same ID may not reach the report (unless a trigger exists, cannot verify)."
+    },
+    {
+      "step": "OCMS creates a work item with the existing address in OCMS and the new address from ICA/DOS",
+      "detail": "The content the story asks for is in the 'Monthly HST Data Report' Excel: per ID there is S/N, HST ID, Name, 'Old Address (HST)', 'New Address (MHA/DataHive)', 'Address Changed', 'Invalid Address', response date (HstReportHelper.java:441-480; query :381-408). The report is generated and uploaded to blob (HstReportServiceImpl.java:258-296) and is not emailed. Gap: this is a report, not a work item: there is no work item record, status, assignee or closure; every checked ID appears in the report, not only those whose address changed. For the reliability note on query_reason/report_generated, see the comparison step."
+    },
+    {
+      "step": "The work item is routed to the OIC's dashboard",
+      "detail": "What reaches the OIC is an email 'Monthly HST Work Items Report' with 11 aggregate numbers (Total HST IDs, Addresses Changed, etc.; HstReportHelper.java:511-560) and an Excel attachment, sent to the addresses in property email.report.hst.oic.recipients (two default emails in code, HstReportServiceImpl.java:44-45; sending :336-346, :384-396). There is no OIC dashboard or inbox for HST items. The staff UI has no HST work item concept; the only work item there is 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). The prod value of the recipients property is not in the repo's properties files, cannot verify from repo."
+    },
+    {
+      "step": "The OIC follows up on that ID (update or lift HST) in the staff portal",
+      "detail": "The follow-up tools exist: routes /hst/update and /hst/revival (App.tsx:196-200) call update-hst and revive-hst (HstManagementServiceImpl.java:354, :419); authorization comes from the OCMS_HST_UPDATE and OCMS_HST_REVIVAL mappings (api-authorization.properties:99-103). But the OIC has to look up the ID manually; there is no link from a work item/report to this screen, and the new address from ICA/DOS or the appeal must be retyped in the form."
+    }
+  ]
+}

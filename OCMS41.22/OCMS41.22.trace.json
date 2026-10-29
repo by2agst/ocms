@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'Demo paid (50% of 75%)'. Persetujuan lewat staff portal berjalan langsung, bukan setelah jadwal kirim: status 'A' tersimpan saat submit, sebelum email/SMS dikirim (useNoticeSubmit.tsx:198-216), dan tidak ada penjadwalan di code. User ID OIC tersimpan sebagai kolom audit upd_user_id (bukan kolom approved_by khusus) sehingga bisa tertimpa update berikutnya. Tampilan status + user hanya ada di halaman Furnish, tidak di view notice. Ada controller kedua POST /v1/furnish/officer/approve (FurnishApprovalController.java:24-38) yang tidak dipanggil ocmsadminui dan tidak ada di api-authorization.properties; tidak dihitung sebagai bukti. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim dengan catatan: status Approved dan user ID OIC tercatat dan tampil di halaman Furnish. Catat bahwa user ID adalah kolom audit umum dan tidak tampil di view notice biasa; konfirmasi ke URA apakah itu cukup.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC memilih Approve (sebagai Hirer atau Driver) dan mengonfirmasi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:438-465; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:163-178; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:194-197",
+      "fit": "Sesuai",
+      "detail": "DecisionForm menampilkan Decision Status (Approve/Reject) dan, untuk Approve, radio 'Approve As' Driver/Hirer yang wajib (DecisionForm.tsx:438-465). Dialog konfirmasi bertuliskan 'Do you wish to proceed to approve as Hirer/Driver?' (ActionNotice.tsx:194-197). UEN diblok untuk Approve As Driver di UI (ActionNotice.tsx:163-178) dan di server (ManualReviewService.java:336-340)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis mengubah status request menjadi Approved",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:202-225; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:171-209; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:348-366",
+      "fit": "Sesuai",
+      "detail": "approveFurnish memilih manual-review/approve-hirer atau approve-driver sesuai approveAs (useFurnishAPI.ts:202-225). approveSubmission memeriksa furnishability lalu submission.setStatus(STATUS_APPROVED) dengan nilai 'A' (ManualReviewService.java:80, 363) dan menyimpannya lewat furnishService.update serta sync ke PII (365-366). Status diubah saat submit, tidak menunggu jadwal kirim (tidak ada jadwal di code)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User ID OIC tercatat pada request",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseEntity.java:104-127; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:114; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:365; ocmsadminui/src/utils/mapping/Furnish/FurnishMap.ts:36-39",
+      "fit": "Sesuai",
+      "detail": "furnishService.update memicu @PreUpdate di BaseEntity yang mengisi updUserId dari username JWT (BaseEntity.java:104-109, 114-127); JwtFilter menaruh username itu di atribut request (JwtFilter.java:96, 114). Jadi kolom upd_user_id request = user OIC yang menyetujui. reviewedBy juga dikirim UI dan wajib diisi (FurnishMap.ts:38; ManualReviewController.java:183-187) tetapi hanya dipakai untuk log dan proses offender (ManualReviewService.java:325, 376), bukan kolom khusus di furnish application. remarks 'Approved by <user>' hanya terisi bila OIC tidak menulis remarks (ManualReviewService.java:364). Karena upd_user_id adalah kolom audit umum, update berikutnya pada record yang sama menimpanya; tanpa request/username nilainya jatuh ke DEFAULT_SYSTEM_USER_ID (BaseEntity.java:127)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Approved dan user ID tampil saat OIC membuka notice di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/Preview.tsx:91; ocmsadminui/src/pages/Notice/detail/DecissionDetails.tsx:153-160; ocmsadminui/src/pages/Notice/detail/DecissionDetails.tsx:328-331; ocmsadminui/src/pages/Notice/detail/GroupPreview.tsx:166-173; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:57-61",
+      "fit": "Sebagian",
+      "detail": "Tab Summary pada halaman Furnish (mode UPDATE) menampilkan Status (kode dipetakan ke label) dan 'Updated By' (DecissionDetails.tsx:153-160, 328-331; Preview.tsx:91), dibuka dari Furnished List (FurnishSummaryList.tsx:99-101). Halaman view notice biasa tidak menampilkan keputusan furnish: tab decision di GroupPreview.tsx:166-173 dikomentari. Furnished List menampilkan kolom status, tetapi filter default hanya Pending 'P' (FurnishSummaryList.tsx:57-61) dan tidak ada kolom user. Jadi 'saat browsing notice' hanya terpenuhi lewat Furnished List, bukan view notice umum, dan labelnya 'Updated By', bukan 'Approved by'."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS14.27",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/helpers/AutoRevivalHelper (processTsClvLooping, getCurrentSuspensionFromPreloaded, checkIfTsClvNeedsReapplicationFromPreloaded), utilities/suspension_helpers/TemporarySuspensionHelper (Step 7.1 multiple TS), framework/workflows/autorevival/jobs/AutoRevivalJob. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story status 'Requirement given - Gen flow'. Pengenalan 'ada TS lain' dilakukan di processTsClvLooping: semua suspension aktif notice di RR3/DR3 dimuat, yang paling baru (sr_no tertinggi) dibaca, dan CLV dipasang kalau yang aktif bukan CLV. Tetapi code memasang CLV langsung di atas TS lain (overlap), bukan menunggu TS lain berakhir seperti kata story: TemporarySuspensionHelper mengizinkan TS bertumpuk dan due_date_of_revival di VON memakai tanggal terjauh (TemporarySuspensionHelper.java:97-99,133-147). Pola serupa untuk TS-HST dipertanyakan user di OCMS-DF-2026-117 (closed, investigation, tanpa perubahan code), jadi ini bukan temuan baru tapi perilaku yang sudah diketahui. Ada satu kondisi yang perlu dicek: cabang 'CLV aktif tapi pernah di-revive dan masih ada TS lain' (checkIfTsClvNeedsReapplicationFromPreloaded) bisa terpenuhi lagi di tiap run karena CLV baru jadi record aktif terbaru; dari bacaan code, ini bisa memasang CLV baru setiap hari selama TS lain aktif. Belum dikonfirmasi di sistem berjalan. OCMS-DF-2026-184 (Pending UAT): jalur TS-UNC di ocmsadminapi menimpa due_date_of_revival tanpa membandingkan tanggal; jalur cron ini memakai logika max yang benar.",
+  "recommendation": "Klaim sebagian. Identifikasi TS lain ada, tetapi code memasang CLV bersamaan (overlap), bukan setelah TS lain berakhir. Jangan klaim 'setelah suspension berakhir'. Minta tim cek apakah CLV dipasang berulang tiap run selama TS lain aktif.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memuat notice classified vehicle di tahap RR3/DR3 beserta suspension aktif dan riwayatnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1048-1050; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1068-1100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111-1112",
+      "fit": "Sesuai",
+      "detail": "processTsClvLooping memuat VON di RR3/DR3 (AutoRevivalHelper.java:1048-1050), lalu dua query ke ocms_suspended_notice: suspension aktif (date_of_revival IS NULL) dan semua riwayat (:1068-1100). Hanya notice tipe V yang belum PS-FP diproses (:1111-1112). Cron jalan lewat day-end scheduler (cron.toppanupload.enabled=true di prod, cron-schedules-prod.properties:61-62); nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali notice yang punya temporary suspension aktif di bawah code selain CLV",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1114-1119; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1259-1272",
+      "fit": "Sesuai",
+      "detail": "getCurrentSuspensionFromPreloaded mengambil suspension aktif dengan sr_no tertinggi (AutoRevivalHelper.java:1259-1272). Kalau tidak ada atau reason-nya bukan CLV, needsClv=true (:1114-1119). Yang dibaca hanya record terbaru; suspension lain di bawahnya dicek lewat cabang riwayat di langkah berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali notice yang CLV-nya pernah berakhir sementara TS code lain masih aktif",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1119-1122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1277-1291",
+      "fit": "Sebagian",
+      "detail": "checkIfTsClvNeedsReapplicationFromPreloaded true bila ada CLV yang sudah di-revive DAN ada TS non-CLV aktif (AutoRevivalHelper.java:1277-1291). Cabang ini hanya dipakai kalau record aktif terbaru adalah CLV (:1119-1122). Dari bacaan code, CLV baru yang baru dipasang menjadi record aktif terbaru, jadi kondisi bisa true lagi di run berikutnya selama TS lain aktif dan CLV baru dipasang lagi tiap hari. Belum dikonfirmasi di sistem berjalan; perlu verifikasi data suspended_notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "CLV diterapkan SETELAH suspension yang ada berakhir",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:97-99; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:133-147; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:168-170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1126-1129",
+      "fit": "Beda dari flow",
+      "detail": "processTS sengaja mengizinkan TS baru di atas TS yang sudah ada (TemporarySuspensionHelper.java:97-99). Alasan di VON mengikuti TS terbaru dan due_date_of_revival mengikuti tanggal terjauh (:133-147); suspended_notice menyimpan tanggal CLV sendiri (:168-170). Jadi CLV dipasang saat ini juga, bersamaan dengan TS lain, bukan setelah TS lain berakhir. Hasil akhirnya notice tetap suspended, tapi urutannya berbeda dari kalimat story. Pola yang sama untuk TS-HST dipertanyakan user di OCMS-DF-2026-117 (closed, tanpa perubahan code). Jalur lain yang menulis due_date_of_revival tanpa logika max (TS-UNC, OCMS-DF-2026-184, Pending UAT) tidak dipakai cron ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tetap tersuspend terus-menerus lewat CLV tanpa celah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1126-1136; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:176-179",
+      "fit": "Sebagian",
+      "detail": "Kalau processTS sukses, count sukses naik; kalau gagal hanya dicatat log error dan failureCount naik (AutoRevivalHelper.java:1126-1136), lalu dicoba lagi di run berikutnya (AutoRevivalJob.java:176-179). Tidak ada alert per notice, dan PS aktif membuat processTS menolak lewat validateOverlap (TemporarySuspensionHelper.java:199-217). Kontinuitas bergantung pada job harian yang jalan; periode CLV dari DB cannot verify from repo."
+    }
+  ]
+}

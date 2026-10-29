@@ -1,0 +1,73 @@
+{
+  "story": "OCMS20.26",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/HST/revival/{form/HSTRevivalForm,form/SearchIDForm}, pages/HST/hooks/useHST. ocmsadminapi workflows/notice_management/suspension/{HstManagementController.reviveHst, HstManagementServiceImpl.reviveHst/reviveHstSuspension/updateMailingAddress}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice (findToppanNoticesForStage), framework/workflows/agencies/toppan/upload/{ToppanUploadJob, ToppanUploadHelper}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, resources/application-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story 'Requirement given - Gen flow'. 'Special indicator' di code adalah HST: satu baris di tabel ocms_hst plus TS-HST di tiap notice milik ID itu. Halaman staff Manual HST Revival (konfirmasi, kirim ID + nama + alamat baru) memanggil POST /v1/revive-hst yang me-revive TS-HST, mengosongkan suspension di VON/eVON, menghapus baris HST, dan menulis alamat baru sebagai furnished_mail dengan letter_address=Y, jadi bagian 'lift indicator' dan 'alamat baru' ada (HstManagementServiceImpl.java:419-470, 572-623). Bagian 'resend reminder' hanya implisit: revive tidak mengubah next_processing_stage/date dan tidak memicu surat. Notice ikut surat bila stage RD1-DR3 sudah jatuh tempo dan job Toppan dijalankan. Pembuatan surat hanya lewat trigger manual POST /generate-letters karena pemanggilan di scheduler dikomentari (ToppanUploadJobsScheduler.java:118), dan upload SFTP ke Toppan diblok oleh sftp.upload.disabledServers=toppan (application-prod.properties:86; OCMS-DF-2026-192 masih Ready to UAT). Nilai property di server asli cannot be verified from repo. Halaman revival berdiri sendiri (cari lewat ID) dan tidak terhubung ke work item keputusan (OCMS20.25).",
+  "recommendation": "Klaim sebagian: lift HST, revive TS-HST, dan alamat baru sudah ada dan berjalan lewat halaman Manual HST Revival. Jangan klaim 'resend reminder ke vendor' penuh: tidak ada pemicu resend eksplisit, pembuatan surat hanya manual, dan upload Toppan diblok di config. Minta URA konfirmasi apakah reminder harus langsung dikirim ulang setelah lift (saat ini bergantung next_processing_date)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC mencari ID di Manual HST Revival dan mengonfirmasi keputusan lift indicator",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:52-76; ocmsadminui/src/pages/HST/revival/form/SearchIDForm.tsx:53; ocmsadminui/src/pages/HST/revival/form/SearchIDForm.tsx:64",
+      "fit": "Sesuai",
+      "detail": "Halaman /hst/revival mencari ID lewat check-hst (SearchIDForm.tsx:53) dan menolak ID yang tidak ada di HST (:64). Tombol Revive HST memvalidasi form lalu membuka modal 'Confirm HST Revival' (HSTRevivalForm.tsx:52-76). Teks modal hanya menyebut hapus HST ID dan revive TS-HST, tidak menyebut resend reminder. Halaman ini berdiri sendiri dan tidak terhubung ke work item keputusan (cakupan OCMS20.25)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UI mengirim ID, nama, dan alamat baru ke API revive",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:81-94; ocmsadminui/src/pages/HST/hooks/useHST.tsx:138-141; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstReviveDto.java:11-21; ocmsadminapi/src/main/resources/api-authorization.properties:102-103",
+      "fit": "Sesuai",
+      "detail": "handleRevival menyusun idNo, name, alamat (blk, street, floor, unit, building, postal), date_of_address_change dan invalid tag lalu POST revive-hst (HSTRevivalForm.tsx:81-94, useHST.tsx:138-141). HstReviveDto tidak punya field tanggal perubahan alamat (HstReviveDto.java:11-21), jadi date_of_address_change yang dikirim UI tidak tersimpan. Endpoint dipetakan ke permission OCMS_HST_REVIVAL (api-authorization.properties:102-103); role mana yang memegang permission itu cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "API mencabut indicator: baris HST untuk ID itu dihapus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:168-188; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:69-89; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:460-466",
+      "fit": "Sesuai",
+      "detail": "reviveHst memanggil hstService.delete(idNo) (HstManagementServiceImpl.java:466). Indicator 'H' dihitung dari ada/tidaknya idNo di ocms_hst (checkHstIndicator :69-89), jadi hilang setelah delete. Controller menolak ID yang tidak ada di HST dengan 404 (HstManagementController.java:173-176). Catatan: exception per notice hanya di-log (:460-462) dan response tetap sukses (controller :180), jadi baris HST bisa terhapus walau satu notice gagal di-revive; apakah transaksi ikut rollback dalam kasus itu cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "TS-HST pada semua notice milik ID di-revive dan suspension dibersihkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:423-428; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:515-556; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:656-672",
+      "fit": "Sesuai",
+      "detail": "Notice dicari dari ONOD offender_indicator=Y per idNo (HstManagementServiceImpl.java:423-428). Per notice, suspended_notice terbaru di-revive hanya bila TS + reason HST + belum revived (:523-526): date_of_revival, revival_reason HAV, remarks (:527-531). Lalu field suspension di VON dikosongkan (:540-550) dan eVON disinkron (:553, :656-672). Notice yang suspension terbarunya bukan TS-HST (mis. PS) tidak disentuh."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat baru dijadikan alamat tujuan surat",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:572-617; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:630-649; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2197-2200",
+      "fit": "Sesuai",
+      "detail": "updateMailingAddress membuat atau mengubah baris furnished_mail dengan alamat dari form dan letter_address=Y (HstManagementServiceImpl.java:601-607), lalu mengosongkan letter_address=Y di baris alamat lain (:617, :630-649). Toppan memilih baris letter_address=Y sebagai alamat surat (ToppanUploadHelper.java:2197-2200), jadi surat berikutnya memakai alamat baru. Kegagalan update alamat hanya di-log (:619-622)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder dikirim ulang ke alamat baru setelah indicator dilepas",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:515-556; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40",
+      "fit": "Sebagian",
+      "detail": "Revive hanya mengosongkan suspension_type; next_processing_stage dan next_processing_date tidak diubah dan tidak ada pemicu resend (HstManagementServiceImpl.java:515-556). Notice ikut surat bila stage sudah jatuh tempo (next_processing_date <= hari ini) dan suspension_type NULL (OcmsValidOffenceNoticeRepository.java:608-611), jadi 'resend' hanyalah lanjut ke stage berikutnya, bukan kirim ulang reminder yang dulu kembali. Pembuatan surat hanya berjalan lewat POST /generate-letters manual (ToppanUnifiedController.java:34-40) karena executeJob dikomentari di scheduler day-end (ToppanUploadJobsScheduler.java:118)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File PDF/data dikirim ke vendor untuk cetak dan pos",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:286-289; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:314; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:322-333; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:418-429; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Job membuat data file URA-DPT-{stage}-... dan mengunggahnya ke blob (ToppanUploadJob.java:286-289, 314); PDF hanya dibuat untuk stage ANL (:322-333), reminder berupa data file. Pengiriman SFTP ke Toppan diblok oleh sftp.upload.disabledServers=toppan (application-prod.properties:86), dan gate delivery di-bypass sehingga stage tetap maju walau file tidak terkirim (ToppanUploadJob.java:418-429; OCMS-DF-2026-192, Ready to UAT). Nilai property di server asli cannot be verified from repo."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS24.11",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "Tidak ada flow deck OCMS; langkah diambil dari teks story. Status di sheet kosong dan demo_remark kosong; story ditelusuri normal (2 point).",
+  "code_summary": "Yang ada hanya jalur Toppan untuk surat parking (RD1, RD2, RR3, DN1, DN2, DR3, ANL) di ocmsadminprivateapi: enum ToppanStage tidak punya stage court, pemanggilan generator surat di scheduler di-comment, dan sftp.upload.disabledServers=toppan di prod. Di ocmsadminui hanya ada tipe data (Ibatchsummoncsmemo, Icsdbatch). Tidak ada code untuk file PDF gabungan memo + summons + charge sheet, seleksi notice settled, atau interface PDF court ke vendor. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait.",
+  "note": "Status di sheet kosong dan demo_remark kosong; story ditelusuri normal. Epic court sebelumnya juga tidak menemukan State Courts SFTP, court batch, atau court report di enam repo. Tidak ada tiket maintenance yang spesifik untuk court summons printing.",
+  "recommendation": "Tidak ada code untuk interface file PDF court ke vendor; jalur Toppan yang ada hanya untuk surat parking. Klaim hanya bila ada bukti di luar repo ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah settled dikeluarkan dan court memo digabung dengan court summons dan charge sheet menjadi satu file PDF (prasyarat)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Ibatchsummoncsmemo.d.ts:1-18",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang menyeleksi notice settled untuk batch court maupun menggabungkan memo, summons, dan charge sheet menjadi PDF. Yang ada hanya deklarasi tipe data di ocmsadminui (Ibatchsummoncsmemo.d.ts:1-18, Icsdbatch.d.ts:1-20) tanpa pemakai logika. Satu-satunya job yang membaca ocms_court_case adalah cutoff payment acceptance (PaymentAcceptanceCutoffServiceImpl.java:55, OcmsCourtCaseRepository.java:16-19), bukan pembuat PDF; pemanggilannya di scheduler juga di-comment (ToppanUploadJobsScheduler.java:123). Sama dengan temuan OCMS24.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-interface file PDF court ke vendor untuk printing dan postage",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-25",
+      "fit": "Tidak ada code",
+      "detail": "Jalur vendor yang ada adalah Toppan, tapi hanya untuk stage surat parking: ToppanStage hanya berisi RD1, RD2, RR3, DN1, DN2, DR3, ANL (ToppanStage.java:19-25); DR3/RR3 hanya menunjuk next stage CPC sebagai fallback (ToppanUploadHelper.java:1818-1819) tanpa membuat file court. Generator surat tidak dipanggil dari scheduler 00:15 (ToppanUploadJobsScheduler.java:118, di-comment; hanya lewat POST /generate-letters di ToppanUnifiedController.java:34), dan prod memakai sftp.upload.disabledServers=toppan (application-prod.properties:86; nilai server asli cannot verify from repo; lihat OCMS-DF-2026-192 untuk gate pengiriman Toppan). Tidak ada SFTP State Courts atau vendor court lain di enam repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Court summons dikirim ke defendant agar membayar atau hadir di court",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Tidak ada code",
+      "detail": "Pencetakan dan pengeposan fisik dilakukan vendor di luar OCMS, jadi hasilnya cannot verify from repo. Dari sisi OCMS tidak ada code pengirim court summons: generator surat yang ada hanya untuk surat parking dan pemanggilannya di scheduler di-comment (ToppanUploadJobsScheduler.java:118)."
+    }
+  ]
+}

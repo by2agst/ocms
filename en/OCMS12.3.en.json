@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (queryRecordsForReminder, batchPreloadContactInfo, refreshContactInfo, validateContactInfo), jobs/NotificationSmsEmailJob}, framework/schedulers/NotificationJobsScheduler, framework/controllers/NotificationSmsEmailController, cron-schedules-{dev,uat,prod}.properties (cron.notification.enabled, cron.enareminder.datahive). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "The requirement is given in the story text (status_with_ura: Demo paid 50% of 75%). After the RD1 letter, the eNotification job (send_ena_reminder) picks notices with last_processing_stage RD1 through DR3, refreshes mobile/email from DataHive, then validates the contact. Two findings: (1) the DataHive refresh is set by cron.enareminder.datahive=false in dev, uat and prod, so the old contact in ocms_offence_notice_owner_driver is used, not fresh data; (2) cron.notification.enabled=false in all three environments (prod: 'Disabled in PROD to prevent sending SMS/Email notifications'), the job runs only through POST /notification-sms-email/execute; ticket OCMS-DF-2026-180 also says it waits for the eNotification cron to be activated. Epic OCMS9 is not in the repo. Vault/DataHive access in the environment: cannot verify from repo.",
+  "recommendation": "Claim partially. The contact check logic exists, but the fresh contact refresh (DataHive) and the daily cron are switched off by config in all environments. Enable and verify cron.enareminder.datahive and cron.notification.enabled before a full claim.",
+  "steps": [
+    {
+      "step": "Notices that have passed the first reminder letter (stage RD1) are picked for the electronic reminder",
+      "detail": "queryRecordsForReminder selects von.last_processing_stage IN (RD1..DR3) (line 1114), due within ENOTEDAYS (1109), not suspended except TS-HST, id not in the exclusion list (1133) and not an I/D/V vehicle (1151). The precondition 'letter was sent' is only inferred from stage RD1; because the Toppan upload is blocked but the stage still advances (see OCMS12.2 step 5), stage RD1 does not prove the owner received a letter."
+    },
+    {
+      "step": "The latest mobile number / email is fetched from DOS (DataHive) for each owner",
+      "detail": "batchPreloadContactInfo and refreshContactInfo do fetch Singpass (individual) and Corppass (company) contacts from DataHive, but both return early unless cron.enareminder.datahive is 'true' (NH:2329, NH:2468), and the value is false in dev, uat and prod (line 48). With the repo config the old contact from owner_driver is used. Whether the DataHive/Vault connection works: cannot verify from repo."
+    },
+    {
+      "step": "Contact is validated: individuals need a mobile number, companies need an email; opted-out and passport owners are skipped",
+      "detail": "validateContactInfo: idType B -> email required; otherwise phoneNo required (NH:2259-2291). The job drops owners in ocms_enotification_exclusion_list and passport owners before SMS preparation (NJ:226-243) and skips records with invalid contact (NJ:253-267). For reminder stages (not ENA) a record without contact is only skipped, with no fallback."
+    },
+    {
+      "step": "This check runs automatically in the daily batch before the electronic reminder is sent",
+      "detail": "NotificationJobsScheduler runs processMainFlow daily at 11:00, but only when cron.notification.enabled=true (NS:42-60); the value is false in prod (cron-schedules-prod.properties:236), uat (238) and dev (239). The job can still be triggered manually through POST /notification-sms-email/execute (NC:38). OCMS-DF-2026-180 says it is waiting for the eNotification cron to be activated."
+    }
+  ]
+}

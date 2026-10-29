@@ -1,0 +1,46 @@
+{
+  "story": "OCMS39.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/adminfee/{jobs/AdminFeeJob,services/AdminFeeServiceImpl,helpers/AdminFeeHelper}, framework/schedulers/ToppanUploadJobsScheduler, cron-schedules-prod.properties. ocmsadminapi crud/ocmsizdb/parameter (ParameterController), crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService. ocmsadminui pages/System (ParameterList, ParameterForm), App.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Story minta jumlah admin fee di Pre-Notice stage bisa diatur officer (Appendix A Annex 1A, tidak ada di repo). Code yang ada: job Admin Fee harian membaca parameter AFO/NPA (jumlah fee) dan FOD/NPA (jumlah hari sejak tanggal offence) dari ocms_parameter, yang bisa diedit officer lewat halaman System > Parameter, lalu menetapkan administration_fee dan amount_payable. Gap: job hanya mengenai notice kendaraan asing (vehicle_registration_type F) yang sedang PS-FOR, belum dibayar, dan fee-nya masih 0; kondisi stage NPA tidak dicek. Apakah Appendix A hanya memuat fee untuk kendaraan asing cannot verify from repo, jadi cakupan ke notice type lain belum terbukti. Nilai tidak divalidasi angka; nilai kosong atau salah menghentikan job dengan error. Status sheet 'Built - Has gap' sejalan dengan temuan ini. Tiket terkait: OCMS-DF-2026-122 (fee belum dikenakan setelah 90 hari, Closed/Prod deployed) dan OCMS-DF-2026-170 (fee 15 dolar salah di notice non-RR3/DR3, Closed); karena perbaikan 170 menulis administration_fee = 0 pada perubahan stage selain RR3/DR3, fee pre-notice bisa terhapus saat stage diubah dan baru dikenakan lagi di run job berikutnya [Medium confidence, tidak diuji]. Nilai AFO/FOD asli di server cannot verify from repo.",
+  "recommendation": "Bisa diklaim untuk konfigurasi AFO/FOD lewat halaman Parameter dan job harian yang menerapkannya ke kendaraan asing. Cakupan untuk notice type lain dan isi Appendix A perlu dikonfirmasi URA; sebelum itu jangan diklaim penuh",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah admin fee pre-notice (AFO/NPA) dan jumlah harinya (FOD/NPA) disimpan sebagai parameter dan officer bisa mengubahnya lewat halaman Parameter",
+      "repo": "ocmsadminui, ocmsadminapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminui/src/App.tsx:375-396; ocmsadminui/src/pages/System/form/ParameterForm.tsx:154-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:81-88; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:90-118; ocmsadminapi/src/main/resources/api-authorization.properties:166-167; ocmsadminui/src/utils/validation/System/ValidParameter.ts:44-46; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:78-121",
+      "fit": "Sesuai",
+      "detail": "Halaman System > Parameter (App.tsx:375-396) menampilkan semua baris ocms_parameter (POST /parameterlist, ParameterController.java:81-88) dan mengizinkan edit field description dan value lewat POST /parameterpatch/{id1}/{id2} (ParameterController.java:90-118; form ParameterForm.tsx:154-175). Job membaca baris FOD/NPA (hari) dan AFO/NPA (jumlah fee) lewat getFodDays dan getAfoAmount (AdminFeeHelper.java:78-121). Fungsi OCMS_SYSTEM_PARAMETER dipetakan di api-authorization.properties:166-167; role pemegangnya cannot verify from repo. Catatan: value hanya wajib diisi, tanpa cek angka atau rentang (ValidParameter.ts:44-46). Seed nilai awal tidak ditemukan di repo; jumlah fee di Appendix A cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job harian Admin Fee membaca konfigurasi itu setiap kali jalan dan berhenti dengan error kalau tidak ada atau tidak valid",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/services/AdminFeeServiceImpl.java:82-100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:78-121; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:498-514; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:122; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:79",
+      "fit": "Sesuai",
+      "detail": "processAdminFees membaca FOD dan AFO di setiap run, tanpa cache (AdminFeeServiceImpl.java:82-100). Kalau salah satu tidak ada atau bukan angka, job mengembalikan gagal dengan pesan 'FOD parameter not found or invalid in database' atau 'AFO parameter not found or invalid in database' dan tidak mengubah notice (AdminFeeServiceImpl.java:82-100; AdminFeeHelper.java:78-121); pemberitahuan error hanya ditulis ke log karena integrasi email masih TODO (AdminFeeHelper.java:498-514). Job dipanggil di executeDayEndJobs (ToppanUploadJobsScheduler.java:122, tidak di-comment) dan scheduler day-end enabled=true di prod, jadwal 00:15 (cron-schedules-prod.properties:61-62; nama job di baris 79). Nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Admin fee dikenakan pada notice di Pre-Notice stage sesuai Appendix A (berlaku untuk semua notice yang memenuhi syarat)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:123-172",
+      "fit": "Sebagian",
+      "detail": "queryEligibleNotices hanya memilih notice dengan vehicle_registration_type = 'F', suspension_type = 'PS' dan epr_reason_of_suspension = 'FOR', belum dibayar (amount_paid 0 atau NULL), administration_fee 0 atau NULL, dan tanggal notice + FOD hari <= hari ini (AdminFeeHelper.java:153-172). Stage NPA tidak dicek, dan notice type atau vehicle type lain tidak tercakup. Notice dengan TS aktif tidak terpilih karena suspension_type harus PS, sehingga fee menunggu sampai TS revive (AdminFeeHelper.java:128-131, tiket OCMS-DF-2026-122, Closed). Apakah Appendix A Annex 1A hanya mengatur kendaraan asing cannot verify from repo (dokumen tidak ada di repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Fee yang dikonfigurasi dicatat di notice, jumlah yang harus dibayar dihitung ulang, dan diteruskan ke database internet",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:258-267; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:275-288; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:332-340",
+      "fit": "Sesuai",
+      "detail": "batchUpdateAdminFee menjalankan satu UPDATE gabungan: administration_fee = jumlah AFO, amount_payable = composition_amount + fee, is_sync = 'N' (AdminFeeHelper.java:258-267); notice tanpa composition_amount dilewati. Nilai amount_payable lalu dibaca ulang dan didorong langsung ke eVON di database internet; kegagalan dorong tidak fatal karena is_sync = 'N' membuat job sync memperbaikinya (AdminFeeHelper.java:275-288, 332-340). Catatan: perbaikan OCMS-DF-2026-170 menulis administration_fee = 0 saat stage berubah ke selain RR3/DR3 (ChangeOfProcessingService.java:1157-1167; ToppanUploadHelper.java:1411), jadi fee pre-notice kemungkinan terhapus kalau stage notice diubah, dan baru dikenakan lagi di run job berikutnya selama notice masih PS-FOR [Medium confidence, tidak diuji]."
+    }
+  ]
+}

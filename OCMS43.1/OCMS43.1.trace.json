@@ -1,0 +1,82 @@
+{
+  "story": "OCMS43.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: repccs/notice_creation/core/helpers/NoticeProcessingHelper (flag payment + kode pesan eService per tipe notice), utilities/suspension_helpers/{RevivalBaseHelper,PermanentRevivalHelper}, crud/beans/SystemConstant, workflows/syncintranetinternet/SyncIntranetInternetService (push VON ke eVON), workflows/adminfee/helpers/AdminFeeHelper, workflows/paymentcutoff/*, schedulers/ToppanUploadJobsScheduler. ocmseserviceapi: workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}. thirdpartyapi: workflows/axsNopo/service/AxsNopoServiceImpl (PONDetailsReq). ocmseserviceui: pages/Payment/{API,PaymentSearchResult}.ts. ocmsadminapi, ocmsadminui: tidak dipakai untuk story ini.",
+  "note": "Status story: Fully paid (status_with_ura); requirement diberikan lewat teks story saja, tidak ada flow deck. Code punya matriks payable/non-payable yang jalan: flag payment_acceptance_allowed dan eservice_message_code diisi per tipe notice, di-push ke eVON oleh cron SyncIntranetInternet, lalu eService dan AXS memvalidasi (FP/PRA, AN, PS-ANS, stage court, transaksi sedang berjalan) sebelum menampilkan notice. Yang tidak sesuai kata 'real-time' dan 'matriks pre-defined': push intranet ke internet adalah batch tiap 10 menit (cron.syncintranetinternet.schedule=0 */10 * * * ?, cron-schedules-prod.properties:291), matriksnya tersebar di beberapa helper tanpa satu tabel/konfigurasi (daftar stage court di eService ParkingFinesServiceImplement.java:33 berbeda dari SystemConstant.java:103), job Payment Acceptance Cutoff untuk notice court dikomentari di scheduler (ToppanUploadJobsScheduler.java:123) dan UPDATE-nya tidak menyetel is_sync='N', dan AXS punya filter sendiri yang berbeda dari eService (AxsNopoServiceImpl.java:125-129 menyembunyikan semua notice yang punya crs_reason_of_suspension). Tiket terkait dipakai sebagai petunjuk: OCMS-DF-2026-007 (E1 vs E2 pada vehicle search), OCMS-DF-2026-010 (flag N dikalahkan record web txn), OCMS-DF-2026-029 (flag dan pesan saat revival), OCMS-DF-2026-099 dan OCMS-DF-2026-168 (eVON tertimpa/tidak ikut berubah setelah bayar); semuanya Closed/Prod deployed, jadi tidak menurunkan verdict. Singpass untuk pencarian by ID, payment gateway, dan nilai property server asli: cannot verify from repo.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian). Inti validasi payable/non-payable di eService, AXS, dan UI sudah ada; jangan klaim 'real-time' (batch 10 menit), matriks tunggal pre-defined, maupun cutoff court otomatis.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan payable/non-payable berdasarkan tipe notice saat notice dibuat (X-type: tidak payable, V/S/D: payable, foreign: payable dengan pesan E6)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:406-408; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:433-444; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:471-487",
+      "fit": "Sesuai",
+      "detail": "setProcessingStagesForX menyetel payment_acceptance_allowed=N dan eservice_message_code=E4 (BLOCK_PAYMENT); setProcessingStagesForVSD menyetel Y dan E1; setForeignVehicleSettings menyetel Y, PS-FOR, dan E6. Kode pesan konstan ada di SystemConstant.java:193-200. Ini aturan 'tipe notice' di story. Jalur create-notice staff di ocmsadminapi (NoticeRecordHelper) tidak ditelusuri terpisah."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan payable/non-payable berdasarkan processing stage (aturan validasi stage, termasuk cutoff pembayaran untuk notice court)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/RevivalBaseHelper.java:586-588; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentRevivalHelper.java:154-156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:109-118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/controllers/PaymentAcceptanceCutoffController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:79",
+      "fit": "Sebagian",
+      "detail": "Aturan stage ada, tetapi hanya saat revival: ESERVICE_ALLOWED_PAYMENT_STAGES dan ESERVICE_E1_MESSAGE_STAGES (SystemConstant.java:109-118) dipakai RevivalBaseHelper dan PermanentRevivalHelper (OCMS-DF-2026-029). Cutoff pembayaran court (payment_acceptance_allowed=N untuk notice yang court_payment_due_date-nya lewat) tidak jalan otomatis: pemanggilan paymentAcceptanceCutoffService.executeJob() di ToppanUploadJobsScheduler.java:123 dikomentari, hanya bisa lewat POST manual /payment-acceptance-cutoff/execute, dan UPDATE di PaymentAcceptanceCutoffServiceImpl.java:79 hanya mengubah VON tanpa menyetel is_sync='N', sehingga perubahan tidak otomatis ikut ke eVON. Daftar stage court di eService (ParkingFinesServiceImplement.java:33) berbeda dari SystemConstant.java:103. Tidak ada satu matriks tunggal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim notice outstanding dari intranet ke channel pembayaran (internet) secara real-time",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:98-101; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:130; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:295-309; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:291-292; ocmsadminprivateapi/src/main/resources/application-prod.properties:100",
+      "fit": "Sebagian",
+      "detail": "SyncIntranetInternetService.syncIntranetToInternet mengambil VON dengan is_sync='N' (baris 130) lalu MERGE ke eocms_valid_offence_notice, termasuk payment_acceptance_allowed, eservice_message_code, last/next_processing_stage, amount_payable (baris 295-309). Ini batch, bukan real-time: cron.syncintranetinternet.schedule=0 */10 * * * ? dengan enabled=true di cron-schedules-prod.properties:291-292 dan payment.sync.enabled=true di application-prod.properties:100 (nilai server asli: cannot verify from repo). Satu run dibatasi MAX_RECORDS_PER_RUN=20000. Perubahan yang tidak menyetel is_sync='N' tidak ikut (lihat langkah cutoff). Tiket OCMS-DF-2026-168 (eVON tertimpa data intranet basi) dan OCMS-DF-2026-099 (eVON tidak berubah ke PS-FP) sudah Closed/Prod deployed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Admin fee yang naik ikut tampil sebagai jumlah yang harus dibayar di channel pembayaran",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:166; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:262-263; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:288; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:122",
+      "fit": "Sesuai",
+      "detail": "AdminFeeHelper.batchUpdateAdminFee menghitung amount_payable = composition_amount + admin fee dan menyetel is_sync='N' (baris 262-263), lalu syncAmountPayableToEvon (baris 288) langsung menulis amount_payable ke eVON tanpa menunggu cron 10 menit. Job dipanggil dari ToppanUploadJobsScheduler.java:122 (day-end 00:15). Hanya notice foreign vehicle (vehicle_registration_type='F', baris 166). Kegagalan push langsung bersifat non-fatal dan jatuh ke cron sync."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender dapat mencari notice (nomor notice, nomor kendaraan, atau ID) di eService",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:78; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:100-114; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:69; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:106",
+      "fit": "Sesuai",
+      "detail": "POST v1/parkingfines memilih jalur berdasarkan payload: searchType=id (butuh JWT, handleIdNoSearchFromJwt), noticeNo (checkNoticesList), atau vehicleNo (findParkingFinesByVehicleNo). Data dibaca dari eVON/eocms_valid_offence_notice. Login Singpass untuk pencarian by ID: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "eService memvalidasi tiap notice (FP/PRA, AN/PS-ANS, stage court, flag payment, pembayaran sedang berjalan) lalu menentukan payable atau tidak",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:211-225; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:269-315; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:374-440",
+      "fit": "Sesuai",
+      "detail": "Pencarian by ID: AN flag=Y atau PS-ANS memberi N dengan pesan E5, FP/PRA memberi N tanpa pesan (baris 211-225). applyTransactionAndConditionLogicBatch (baris 269-315) memblok jika ada transaksi dalam 300 detik (E10, baris 34), lalu memakai eservice_message_code VON. applyVehicleNoConditionLogic (374) memberi E2/N untuk stage court pada vehicle search; applyCpcConditionLogic (406) memberi E4/N jika stage court dan flag N. Tiket OCMS-DF-2026-007 dan OCMS-DF-2026-010 Closed/Prod deployed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Channel AXS juga menerima notice dengan flag payable/non-payable yang sama",
+      "repo": "thirdpartyapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:38; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:125-129; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:135-136; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:148-155; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:754",
+      "fit": "Sebagian",
+      "detail": "PONDetailsReq (AxsNopoController) mengembalikan notice beserta paymentAllowedFlag dari payment_acceptance_allowed (baris 754). Tetapi filternya ditulis ulang dan berbeda dari eService: isPaid di baris 125-129 menyembunyikan semua notice yang crs_reason_of_suspension-nya tidak null (termasuk TS), PS hanya lolos untuk epr_reason RIP/MID/RP2/DIP/FOR (baris 38, 148-155), dan notice non-payable tetap dikirim dengan flag N (komentar baris 135-136). Pesan eService (E1-E12) tidak dikirim ke AXS. Aturan yang sama dua kali di dua tempat, tanpa matriks bersama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender diberi instruksi yang benar: notice payable bisa dipilih, non-payable hanya menampilkan pesan",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:49-53; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:243",
+      "fit": "Sesuai",
+      "detail": "mapToMatrix menurunkan isSelect='Y' hanya jika paymentAcceptanceAllowed==='Y' dan menaruh eserviceMessage/errorMessage ke kolom pesan (API.ts:49-53); baris hanya bisa dipilih bila isSelect==='Y' dan belum initiated (PaymentSearchResult.ts:243). Teks pesan E1-E12 berasal dari tabel user message di server (cannot verify from repo isi tabelnya)."
+    }
+  ]
+}

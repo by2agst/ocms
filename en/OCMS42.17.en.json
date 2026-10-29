@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDQuests,Particulars}.ts, utils/map/MapFurnish.ts, utils/validation/Furnish/ValidHirerDriver.ts (ValidQuestions). ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishValidationServiceImpl,FurnishSubmissionServiceImpl}. ocmsadminprivateapi framework/workflows/furnish_processing/helpers/{FurnishApprovalHelper,FurnishSyncHelper}.java, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, thirdpartyapi: not read for this story.",
+  "note": "The story is not in any flow deck; Sesuai means the code does what the story text says. Sheet status is 'Fully paid'. Question Q1 (was the person the driver who committed the offence) and the follow-up question (valid licence / in charge of the vehicle) exist and are mandatory; the Q1 answer decides owner_driver_indicator (N = Hirer, Y = Driver), which is sent and used by the backend. Two things to watch: (1) a 'No' on the follow-up question is blocked only in the UI (Proceed button disabled); the UI does not collect the follow-up answers itself: quesTwoAns/quesThreeAns are derived from the Q1 answer ('Y' only on the matching branch, empty otherwise; MapFurnish.ts:46-49), so the real follow-up answer is not stored and the server rule in FurnishValidationServiceImpl.java:116-140 never rejects anything coming from this UI; (2) the update of the notice particulars as hirer/driver is done later by the approval cron/manual review, not directly by the page, and FIN/Passport always go to manual review. Cron property values on the real server cannot be verified from the repo.",
+  "recommendation": "Can be claimed with a note: the prompts and the hirer/driver decision exist; the update to the notice happens via the approval cron/manual review, and the follow-up answers are not stored as entered.",
+  "steps": [
+    {
+      "step": "After an individual (non-UEN) ID is entered, the page asks whether the person was the driver who committed the offence (Q1)",
+      "detail": "Q1 label 'Was the person the driver who committed the parking offence(s) ?' (HDQuests.ts:36). InitQ1() is called when the ID type is not UEN (HDQuests.ts:111-115) and creates the Yes/No radio (HDQuests.ts:237-262). Q1 is required for non-UEN and does not apply to UEN (ValidHirerDriver.ts:184-190)."
+    },
+    {
+      "step": "The page shows a follow-up question depending on the answer: if Yes, whether the person had a valid driving licence; if No, whether the person was in charge of the vehicle",
+      "detail": "Q1=Y shows Q1Yes 'Did the driver have a valid driving licence on the offence date(s)?', Q1=N shows Q1No 'Was the person in charge of the vehicle(s) on the offence date(s)?' (HDQuests.ts:37-39, 253-262, 268-292, 353-380); the follow-up answer is required (ValidHirerDriver.ts:192-202). A 'No' answer shows the 'Invalid Particulars' modal and disables the Proceed button (HDQuests.ts:335-351, 382-398; Particulars.ts:64-73, 154-158). Note: the 'in charge' question matches the story example; the licence question is an addition not named in the story."
+    },
+    {
+      "step": "From the answers the page decides whether the furnished person is recorded as hirer or driver",
+      "detail": "owner_driver_indicator = 'H' when UEN or Q1 = 'N', otherwise 'D' (MapFurnish.ts:43, repeated at :167), then sent in the payload and saved by the server to eocms_furnish_application (FurnishSubmissionServiceImpl.java:187). Only Q1 decides; the follow-up answer acts only as a gate (see step 2). The server trusts the value from the UI and does not recompute it from the answers. A person in charge who is not the driver (Q1=N then Q1No=Y) results in Hirer, matching the story example."
+    },
+    {
+      "step": "The particulars of the selected notices are updated as hirer or driver according to that decision",
+      "detail": "The submission is saved as Pending with owner_driver_indicator (FurnishSubmissionServiceImpl.java:187-218), then the Furnish Processing cron (cron.syncinternetintranet.enabled=true, every 10 minutes in cron-schedules-prod.properties:305-312) runs auto-approval: only when all CHECK 1-6 pass (FurnishApprovalHelper.java:153-173) is the new offender created with indicator H/D and the stage moved to RD1 (Hirer) or DN1 (Driver) (FurnishApprovalHelper.java:648-656). FIN or Passport ID types are automatically left pending for manual review (FurnishApprovalHelper.java:296-310), as is a case where a Hirer/Driver with the same role already exists. So the update is not done by the page and is not guaranteed to be automatic. Property values on the real server: cannot verify from repo."
+    }
+  ]
+}

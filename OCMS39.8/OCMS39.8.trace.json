@@ -1,0 +1,73 @@
+{
+  "story": "OCMS39.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/System/{list/RuleCodeList,form/RuleCodeForm}.tsx + App.tsx route /system/computer-rule-code + pages/Notice/component/CompositionAmountInput.tsx + context/OptionsContext.tsx (RULE_CODE); ocmsadminapi crud/ocmsizdb/offencerulecode/{OffenceRuleCode,OffenceRuleCodeController,OffenceRuleCodeRepository} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_RULE_CODE), workflows/notice_creation/core/helpers/{NoticeRecordHelper,ValidationServices,ProcessREPCCSHelper}. ocmsadminprivateapi: hanya membaca deskripsi untuk vHub (VhubOffenceQueryRepository) dan REPCCS; ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story: Fully paid. Requirement text diberikan. Halaman Offence Rule Code lengkap (list, create, edit) dengan dukungan vehicle category dan tanggal efektif, dan authorization dicek di server (OCMS_SYSTEM_RULE_CODE). Tiga hal kurang: composition amount adalah bagian primary key sehingga tidak bisa diedit di tempat (harus baris baru bertanggal), notice otomatis dari EHT/REP/CES memakai amount dari payload, bukan dari tabel (hanya rule no, deskripsi, offence type yang dibaca), dan history table ada tetapi tidak ditulis oleh code. Kode kategori C/H/M untuk car, motorcycle, heavy vehicle bergantung pada baris DB: cannot verify from repo. Tidak ada maintenance ticket yang mengubah penilaian ini.",
+  "recommendation": "Klaim sebagian besar: maintenance rule code, deskripsi, dan composition amount per vehicle category berfungsi. Sampaikan ke URA bahwa perubahan amount lewat baris baru bertanggal dan notice otomatis tetap memakai amount kiriman pengirim",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman Offence Rule Code dan melihat rule code, deskripsi, vehicle category dan composition amount",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:427-449; ocmsadminui/src/pages/System/list/RuleCodeList.tsx:70-87; ocmsadminui/src/pages/System/list/RuleCodeList.tsx:243-270; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeController.java:86-93",
+      "fit": "Sesuai",
+      "detail": "Route /system/computer-rule-code (App.tsx:427-449, judul 'Offence Rule Code' di System.ts) memuat POST /offencerulecodelist (RuleCodeList.tsx:79-82, OffenceRuleCodeController.java:86-93) dan menampilkan rule code, rule no, deskripsi, vehicle category, composition amount dan tanggal efektif (RuleCodeList.tsx:243-270); hasil diurutkan per vehicle category C, H, M, Y, U (RuleCodeList.tsx:70, 87). Authorization function OCMS_SYSTEM_RULE_CODE (api-authorization.properties:176-178) dicek server-side oleh OcmsAuthorizationInterceptor. Arti kode kategori (C, H, M) terhadap car, motorcycle, heavy vehicle: baris standard code VEHICLE_CATEGORY di DB, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menambah offence rule code baru per vehicle type dengan deskripsi dan composition amount",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:66-74; ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:162-170; ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:214-237; ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:239-278; ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:291-342; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCode.java:30-65; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeController.java:53-81; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeController.java:148-231",
+      "fit": "Sesuai",
+      "detail": "Form create mengirim POST /offencerulecode (RuleCodeForm.tsx:66-74) berisi computerRuleCode, offenceType, vehicleCategory (dropdown dari standard code VEHICLE_CATEGORY, RuleCodeForm.tsx:162-170), complaintCode, ruleNo, description, compositionAmount, secondaryFineAmount, effectiveStartDate dan effectiveEndDate (RuleCodeForm.tsx:112-342); entity OffenceRuleCode.java:30-65 menyimpan semuanya. Duplikat dicek lewat /offencerulecodeexists (OffenceRuleCodeController.java:148-231). Satu rule code bisa punya baris terpisah untuk tiap vehicle category dan tiap composition amount karena keduanya bagian primary key."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengubah deskripsi offence rule code yang ada",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:76-91; ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:214-237; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeController.java:95-141",
+      "fit": "Sesuai",
+      "detail": "Edit memanggil POST /offencerulecodepatch/{computerRuleCode}/{effectiveStartDate}/{vehicleCategory}/{compositionAmount} (RuleCodeForm.tsx:76-91). Controller hanya mengizinkan complaintCode, description, effectiveEndDate, offenceType, ruleNo, secondaryFineAmount (PATCH_ALLOWED_FIELDS, OffenceRuleCodeController.java:95-97); deskripsi bisa diubah. Tabel offence_rule_code_history ada sebagai entity (OffenceRuleCodeHistory.java) tetapi tidak ada code di enam repo yang menulisnya; apakah ada trigger DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengubah composition amount rule code yang ada",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/RuleCodeForm.tsx:239-278; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeController.java:95-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCode.java:45-48; ocmsadminui/src/utils/validation/System/ValidRuleCode.ts:39-67; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:27",
+      "fit": "Sebagian",
+      "detail": "Composition amount adalah bagian primary key (OffenceRuleCode.java:45-48), field-nya readonly saat edit (RuleCodeForm.tsx:248) dan tidak ada di PATCH_ALLOWED_FIELDS (OffenceRuleCodeController.java:95-97). Mengubah nominal berarti membuat baris baru (create) dengan tanggal efektif baru dan menutup baris lama lewat effectiveEndDate; tidak ada aksi 'ubah amount' dalam satu langkah, UI hanya memvalidasi bahwa kombinasi rule code + vehicle category + start date belum ada (ValidRuleCode.ts:39, 63, 107); pengecekan rentang tanggal yang tumpang tindih tidak ditemukan, sementara query notice hanya mengambil TOP 1 (OffenceRuleCodeRepository.java:27, 40)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Form notice di staff portal memakai composition amount dari rule code sesuai offence type, vehicle category dan rule code",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/component/CompositionAmountInput.tsx:59-88; ocmsadminui/src/pages/Notice/component/CompositionAmountInput.tsx:121-141; ocmsadminui/src/context/OptionsContext.tsx:475-495",
+      "fit": "Sesuai",
+      "detail": "CompositionAmountInput mengambil RULE_CODE dari POST /offencerulecodelist (OptionsContext.tsx:475-495) dan memfilter baris yang offenceType, vehicleCategory dan computerRuleCode-nya cocok dengan form (CompositionAmountInput.tsx:59-74); jika hanya satu baris, amount diisi otomatis (CompositionAmountInput.tsx:76-88). Field-nya readonly sehingga staff hanya bisa memilih nominal dari tabel (CompositionAmountInput.tsx:121-141). Daftar RULE_CODE di-load di sisi browser, jadi perubahan baru terlihat setelah options di-load ulang."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Rule no dan deskripsi offence dari konfigurasi dipakai pada notice baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:904-920; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository.java:40-46; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:175-180",
+      "fit": "Sesuai",
+      "detail": "Saat notice dibuat, NoticeRecordHelper mencari baris offence rule yang berlaku hari ini (effective_start_date <= now <= effective_end_date) berdasarkan computerRuleCode, vehicleCategory dan offenceNoticeType (NoticeRecordHelper.java:904-908, OffenceRuleCodeRepository.java:40-46), lalu menyimpan ruleNo dan description ke ocms_offence_notice_detail (NoticeRecordHelper.java:916-917). ValidationServices memakai tabel yang sama untuk menentukan offence type (ValidationServices.java:175-180). Cache hasil per hari (NoticeRecordHelper.java:61-66), jadi perubahan deskripsi di hari yang sama bisa baru terlihat besok atau setelah restart."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Composition amount yang dikonfigurasi dipakai pada notice yang dibuat otomatis dari sumber eksternal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:114; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:239-247; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ProcessREPCCSHelper.java:204-210; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:724-727",
+      "fit": "Sebagian",
+      "detail": "Pada notice otomatis (EHT/REP/CES), composition amount diambil dari payload pengirim: eht.getCompositionAmount() (ValidationServices.java:114), FineAmount (ValidationServices.java:239-247) atau ChargeAmount (ProcessREPCCSHelper.java:204-210), lalu disimpan apa adanya sebagai composition_amount dan amount_payable (NoticeRecordHelper.java:724-727). Tabel ocms_offence_rule_code hanya dibaca untuk offence type, rule no dan deskripsi, tidak ada pencocokan amount payload terhadap tabel. Jadi mengubah composition amount di konfigurasi tidak mengubah nominal notice yang datang dari sistem eksternal. Kebijakan nominal pengirim (EHT, REP, CES): cannot verify from repo."
+    }
+  ]
+}

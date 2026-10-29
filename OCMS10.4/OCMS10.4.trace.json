@@ -1,0 +1,46 @@
+{
+  "story": "OCMS10.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (streamLtaUploadData, findAdvisoryNoticeLetters), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor,LtaIdTypeUtil,LtaSnowflakeProcessor}, cron-schedules-prod.properties. Mekanisme LTA bersifat umum (sama untuk NOPO); tidak ada percabangan khusus AN di LTA. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "Status 'Demo paid (50% of 75%)'. Story meminta OCMS memakai pengecekan data pemilik dari Epic OCMS7 untuk AN. Notice AN dibuat dengan next stage ROV (tipe V/S/D), tetap berstatus tidak-PS saat itu, sehingga masuk query LTA Upload yang sama dengan NOPO; hasil LTA diproses oleh LTA Download yang meng-update ocms_offence_notice_owner_driver, memetakan tipe ID (NRIC/FIN/Passport/UEN), lalu memilih jalur (passport atau tanpa kontak ke RD1, ada kontak ke ENA). Karena Epic OCMS7 belum ditelusuri di chunk ini, kesesuaian detail aturan Epic 7 tidak diverifikasi di sini; yang dinilai hanya apa yang dikerjakan code untuk notice AN. Pencarian percabangan khusus AN di folder LTA tidak menemukan apa pun (hanya AN letter di langkah Toppan). Gap kecil: query data passport hanya placeholder. Isi file LTA dan koneksi SFTP LTA cannot verify from repo; demo remark (Vault code split) cannot verify from repo. Tidak ada maintenance ticket yang dipakai. Folder cronservice/ stale tidak dipakai.",
+  "recommendation": "Klaim dengan catatan. Pengecekan data pemilik LTA berjalan untuk notice AN lewat mekanisme umum Epic 7; kekurangannya query passport masih placeholder dan aturan Epic 7 belum diverifikasi di story ini. Cocokkan dengan hasil OCMS7.x.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice AN (REPCCS atau backend) masuk antrean ROV dan dikirim ke LTA untuk cek pemilik kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:61-77; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:87-90; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135",
+      "fit": "Sesuai",
+      "detail": "Notice V/S/D dibuat dengan next stage ROV (NoticeProcessingHelper.java:440 di ocmsadminprivateapi workflows/repccs/notice_creation). Query streamLtaUploadData mengambil next_processing_stage='ROV', tanggal <= hari ini, offence_notice_type O/E, bukan PS, bukan kendaraan foreign (OcmsValidOffenceNoticeRepository.java:61-77); AN belum PS-ANS pada saat ini (PS-ANS dipasang setelah eAN terkirim) sehingga ikut terambil, dan tidak ada filter khusus AN. LtaUploadJob terjadwal 03:00 dan 19:00 dengan enabled=true di PROD (cron-schedules-prod.properties:134-135). Isi file enquiry dan penerimaan LTA cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil LTA memperbarui data pemilik (nama, ID, alamat) pada notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:303-306; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:440-481; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sesuai",
+      "detail": "LTA Download (terjadwal 05:00 dan 21:00, enabled=true di PROD, cron-schedules-prod.properties:148-149) memanggil planOffenceNoticeOwnerDriver (LtaBatchCode0Processor.java:303-306) yang membuat atau meng-update baris owner di ocms_offence_notice_owner_driver dengan id_no yang disanitasi, id_type, nama, dan passport place of issue (440-481) beserta alamat; error saat update menerapkan TS-ROV (308-). Sama untuk semua notice, tanpa percabangan AN. Isi file hasil LTA dan koneksinya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi tipe ID pemilik kendaraan (NRIC, FIN, Passport, UEN)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-57; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:456-458; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:1449-1465",
+      "fit": "Sesuai",
+      "detail": "LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms memetakan kode LTA ke N (NRIC), F (FIN), P (passport kode 2 dan 3), B (UEN/badan usaha) (LtaIdTypeUtil.java:42-57; isPassportIdType di 122-124). LtaBatchCode0Processor memakainya saat menyimpan owner (456-458); kode yang tidak dikenal menghasilkan id_type '-' (1449-1465). Kode LTA aktual di file respons cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan tindak lanjut berdasarkan tipe ID pemilik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:693-698; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:755-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:208-229; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:690-707",
+      "fit": "Sebagian",
+      "detail": "Pemilik passport (kode LTA 2 atau 3) langsung ke stage RD1 setelah queryPassportData (LtaBatchCode0Processor.java:693-698); tipe lain lanjut ke lookup kontak, ada kontak ke ENA dan tidak ada ke RD1 (755-763). Untuk AN, RD1 dengan an_flag Y kemudian dipilih findAdvisoryNoticeLetters sebagai AN letter (OcmsValidOffenceNoticeRepository.java:690-707). Gap: queryPassportData hanya placeholder berisi komentar tanpa pemanggilan sistem apa pun (LtaSnowflakeProcessor.java:208-229), jadi pengecekan data passport sebenarnya tidak terjadi; percabangan khusus AN di LTA tidak ada, AN memakai jalur NOPO yang sama. Kesesuaian dengan aturan Epic OCMS7 belum diverifikasi."
+    }
+  ]
+}

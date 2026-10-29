@@ -1,0 +1,33 @@
+{
+  "story": "OCMS47.9",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/DailyReportJobsScheduler, framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper,jobs/DailyPaidReportJob,helpers/DailyPaidReportHelper}, crud/ocmsizdb/OcmsRefundNotices, cron-schedules-prod.properties, application-prod.properties; ocmsadminapi PaymentUpdateServiceImpl (pembuatan refund)",
+  "note": "Status 'Replacement Story'. The story asks for a downloadable daily summary report on the status of refund advices created/closed/cancelled and letter reminders sent. What exists: the 08:00 Daily Report Job (enabled=true in prod) runs the Payment Exception Report and the Daily Paid Report; both list refunds created yesterday from ocms_refund_notice (Excel + email), and the Daily Paid Report has a summary line 'Total No. of Refunds'. A closed/cancelled status does not exist (the table has no status column) and there are no refund letter reminders. The report is delivered as an email attachment, not a download screen in the staff portal. Tickets: OCMS-SR-2026-112, OCMS-SR-2026-190 (refund logic that feeds the report; 190 is Ready to PRD, main already creates a refund for manual payment over PS-APP in PaymentUpdateServiceImpl.java:103-112, deployment cannot verify), OCMS-SR-2026-153 (ATOMS Flag and Offence Notice Type columns on the Refund sheet), OCMS-SR-2026-157 (closed, merged into 112). The real SMTP value/recipients on the server cannot verify from repo.",
+  "recommendation": "Claim partially: the daily report of created refunds runs. Closed/cancelled status and letter reminders have no code; delivery is by email, not a portal download.",
+  "steps": [
+    {
+      "step": "The refund report is generated automatically every day",
+      "detail": "Daily Report Job is scheduled 0 0 8 * * ? with cron.dailyreport.enabled=true (cron-schedules-prod.properties:255-256); runDailyReportJobs checks the flag and then runs the jobs in order (DailyReportJobsScheduler.java:76-88): job 1 Payment Exception Report and job 2 Daily Paid Report (:96-97). The report date defaults to yesterday (PaymentExceptionReportJob.java:620)."
+    },
+    {
+      "step": "The report lists the refund advices created",
+      "detail": "The exception report reads ocms_refund_notice with CAST(rn.cre_date AS DATE) = report date (PaymentExceptionReportHelper.java:123-141) and writes Refund Date/Time, Refund ID, Refund Reason to Excel (:527-529). The Daily Paid Report has a 'Refund' sheet with Refund ID, Receipt, Amount Paid/Payable, Refund Amount, CRS/EPR reason (DailyPaidReportHelper.java:127-145, :670-700). OCMS-SR-2026-190 (manual payment over PS-APP with no refund) is handled in the main code (PaymentUpdateServiceImpl.java:103-112); deployment cannot verify."
+    },
+    {
+      "step": "The report is a summary of the refund advices",
+      "detail": "The Daily Paid Report has a summary line 'Total No. of Refunds' (DailyPaidReportHelper.java:363-365) and an email table 'Refund Records' (DailyPaidReportJob.java:335). The summary is only the count of refunds created; there is no breakdown by closed/cancelled. The exception report is just a row list plus an exception total."
+    },
+    {
+      "step": "The report shows refund advices that are closed and cancelled",
+      "detail": "Table ocms_refund_notice has no status, close-date or cancel-date column (OcmsRefundNotices.java:27-58; the ocmsadminapi entity is the same, OcmsRefundNotice.java:27-58). The report query only filters on cre_date (PaymentExceptionReportHelper.java:123-141). No code closes or cancels a refund."
+    },
+    {
+      "step": "The report includes refund letter reminders sent (if any)",
+      "detail": "There is no refund letter or reminder in the code (grep refund + reminder across the six repos: none) and no reminder column in the report (PaymentExceptionReportHelper.java:527-529). The 'Unclaimed Batch Data Report' job (DailyReportJobsScheduler.java:100) is for undelivered letters, not refunds."
+    },
+    {
+      "step": "The officer downloads the reports to see the details",
+      "detail": "The reports are sent as .xlsx email attachments (PaymentExceptionReportJob.java:201-213; DailyPaidReportJob.java:198-210) to the recipient lists in application-prod.properties:74-78; there is no download screen in the staff portal for these refund reports. email.enableSmtp=false (:80) but PAYMENT_EXCEPTION_REPORT and DAILY_PAID_REPORT are in email.smtp.allowedSources (:81), so EmailService still sends (EmailService.java:65-67); the real server value cannot verify from repo."
+    }
+  ]
+}

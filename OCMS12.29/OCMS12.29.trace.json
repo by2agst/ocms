@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.29",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, resources/{cron-schedules-prod.properties, application-prod.properties}. Repo lain: tidak dipakai. Copy lama ocmsadminprivateapi/cronservice/ diabaikan (stale)",
+  "note": "Status di stories.json: Demo paid (50% of 75%); demo_remark: Vault & email Code Split, mungkin perlu cek izin email ke App Service (cannot verify from repo). Tidak ada flow deck. Ini versi hirer dari OCMS12.10, tetapi stage DN2 berbeda dari RD2: NotificationSmsEmailHelper.generateMessages sengaja tidak membuat isi email untuk stage DN1, DN2 dan DR3 ('no template available'), dan job lalu mencatat 'Skipping email ... template not found' tanpa mengirim. Jadi email reminder untuk company hirer yang merujuk 2nd letter (DN2) tidak pernah dikirim oleh code ini. Kerangka di sekitarnya ada (refresh email dari DataHive CorpPass lewat UEN, penggabungan per UEN, EmailService), tetapi dimatikan: cron.notification.enabled=false, cron.enareminder.datahive=false, email.enableSmtp=false di prod dan ENOTIFICATION tidak ada di email.smtp.allowedSources prod (application-prod.properties:80-81). Nilai di server sebenarnya, izin email untuk App Service dan template di DB cannot verify from repo. DOS = DataHive/LTA cannot be confirmed from the repo. Tiket: OCMS-DF-2026-180 (Closed; reminder stage RD1-DR3 mengikuti tanggal di surat).",
+  "recommendation": "Jangan klaim langkah email. Untuk stage DN2 code sengaja tidak membuat dan tidak mengirim email ke company hirer; hanya refresh dan penggabungan yang ada, itu pun mati di prod. Minta URA konfirmasi apakah email DN2 untuk company hirer diminta, lalu template dan pengiriman perlu dibangun dan diaktifkan",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memakai email terbaru company hirer dari DOS (DataHive CorpPass lewat UEN)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2485; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Job memanggil refreshContactInfo per record (NotificationSmsEmailJob.java:185-188); untuk id_type B refreshCompanyContactInfo memakai DataHive CorpPass berdasarkan UEN (NotificationSmsEmailHelper.java:2496 dan 2461-2485). Tetapi semua refresh hanya jalan bila cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:92-93) dan nilainya false di cron-schedules-prod.properties:48 (juga dev dan UAT), sehingga email tersimpan di owner_driver yang dipakai. DOS = DataHive/LTA cannot be confirmed from the repo; isi view CorpPass cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi company hirer yang unik dalam tiap batch job supaya satu company mendapat satu email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2227; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2247; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191",
+      "fit": "Sebagian",
+      "detail": "combineNotices menggabungkan notice per kunci B_<UEN> + stage + tanggal jatuh tempo (NotificationSmsEmailHelper.java:2151-2227; getRecipientKey :2230-2247; dipanggil NotificationSmsEmailJob.java:191), jadi notice DN2 satu company dengan due date sama menjadi satu record email. Sebagian karena kunci memuat tanggal jatuh tempo (due date berbeda -> lebih dari satu email), dan karena record gabungan itu tidak pernah menjadi email di stage DN2 (lihat langkah berikutnya)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email berisi notice yang masih outstanding dan merujuk pada 2nd letter reminder/notification",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:311-318; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:456-476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:301",
+      "fit": "Tidak ada code",
+      "detail": "Untuk channel EMAIL pada stage DN1, DN2 dan DR3 generateMessages tidak mengambil template dan tidak menyusun subject/body; cabangnya kosong dengan komentar 'Skip driver notice stages - company email templates not available' (NotificationSmsEmailHelper.java:311-318). determineTemplateName memang akan menyusun nama DN2_EMAIL_COMPANY (:301 dan 456-476), tetapi nama itu tidak dipakai untuk DN2 dan tidak ada template email DN2 di repo. Jadi isi email yang memuat daftar notice dan merujuk 2nd letter tidak dibuat sama sekali."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim email reminder/notification ke company hirer dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-384; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-575; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-72; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81",
+      "fit": "Beda dari flow",
+      "detail": "Di NotificationSmsEmailJob email dikirim satu per satu hanya bila emailContent tidak kosong (NotificationSmsEmailJob.java:378-384); karena isi untuk DN2 kosong (langkah sebelumnya), job mencatat 'Skipping email for notice ... template not found, no content generated' dan tidak memanggil sendEmail (NotificationSmsEmailHelper.java:556-575). Selain itu cron.notification.enabled=false di cron-schedules-prod.properties:236 (scheduler melewati eksekusi, NotificationJobsScheduler.java:30-31 dan 49-52), dan di prod email.enableSmtp=false (application-prod.properties:80) dengan email.smtp.allowedSources yang tidak memuat ENOTIFICATION (application-prod.properties:81), sehingga EmailService menolak (EmailService.java:65-72). Jadi di stage DN2 company hirer tidak mendapat email, berbeda dari story. Izin email untuk App Service dan nilai di server sebenarnya cannot verify from repo."
+    }
+  ]
+}

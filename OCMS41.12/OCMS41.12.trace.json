@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Furnish/{list/FurnishSummaryList,form/SearchForm}, pages/Dashboard/Dashboard, App.tsx, utils/data/LinkData. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication (entity, controller), workflows/furnish/dashboard/FurnishDashboardController (tidak dipanggil UI). ocmsadminprivateapi workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, cron-schedules-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status di stories.json: Demo paid (50% of 75%); requirement punya status. Antrian pending ada sebagai halaman Furnished Hirer/Driver dengan filter default status Pending, kolom Status, dan job yang memasukkan submission gagal-auto-approval ke status Pending. Yang tidak ada: dashboard pribadi officer. Halaman Dashboard staf kosong (Dashboard.tsx:21-30), entity ocms_furnish_application tidak punya field penugasan officer, jadi semua officer berbagi satu daftar. FurnishDashboardController (/furnish/officer/list, /detail) sudah ada di backend dan menyebut OCMS 41.9-41.14 di komentar, tetapi UI tidak memanggilnya dan endpoint itu tidak ada di api-authorization.properties; UI memakai /v1/furnishapplicationlist. OCMS-DF-2026-073 (Closed, Prod deployed): pasangan LPS ROV + NPS ROV salah dianggap bukan furnishable sehingga masuk manual review; sudah diperbaiki menurut tiket, saya tidak memverifikasi perbaikannya di code. Nilai job sync di server sebenarnya cannot verify from repo.",
+  "recommendation": "Klaim: daftar pending terpisah dan pembeda status bisa dibuktikan. Dashboard pribadi per officer tidak ada; tandai sebagai gap atau minta konfirmasi bahwa halaman furnished-list dianggap 'dashboard'",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The officer opens the Furnished Hirer/Driver page from the menu",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:192-194; ocmsadminui/src/utils/data/LinkData.tsx:326",
+      "fit": "Sesuai",
+      "detail": "Link menu 'Furnished Hirer/Driver' ke path /furnished-list (LinkData.tsx:326) dan route furnished-list ke FurnishSummaryList (App.tsx:192-194). Sama dengan langkah 1 OCMS41.11."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notices with furnished particulars pending review are shown in a separate list",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:58-61; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:72; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:34-39; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:174-183",
+      "fit": "Sesuai",
+      "detail": "Halaman furnished-list punya daftar sendiri dari ocms_furnish_application (resource furnishapplicationlist, FurnishSummaryList.tsx:72), terpisah dari Notice Search. Filter default status[$in]=['P'] (FurnishSummaryList.tsx:58-61) dan form search memilih status Pending sebagai default, juga setelah Reset (SearchForm.tsx:34-39, 174-183). Hasilnya: yang pertama terlihat hanya submission Pending. Definisi 'P' = Pending dibaca dari kode FurnishApprovalHelper (STATUS_PENDING); label di dropdown berasal dari standard code FURNISH_STATUS di database (OptionsContext.tsx:217), isi barisnya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pending can be told apart from approved/rejected",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:120-126; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:155-167; ocmsadminui/src/pages/Notice/mode/update/UpdateForm.tsx:98-104; ocmsadminui/src/pages/Notice/form/Form.tsx:92-95",
+      "fit": "Sesuai",
+      "detail": "Setiap baris punya kolom Status yang diformat dari FURNISH_STATUS (FurnishSummaryList.tsx:120-126) dan officer bisa mengganti filter Status untuk melihat Approved/Rejected (SearchForm.tsx:155-167). Di layar detail, submission Approved/Rejected menyembunyikan tab Update Decision (Form.tsx:92-95) dan tidak menjalankan ulang furnishability check (UpdateForm.tsx:98-104), jadi yang sudah diputuskan tidak bisa diputuskan lagi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submissions that fail the auto-approval checks are routed to officers as Pending",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:158-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:183-224; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:505-535; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306",
+      "fit": "Sesuai",
+      "detail": "Job Furnish Processing menjalankan enam pengecekan: permanent suspension aktif, HST ID, FIN/Passport, furnishable stage, existing hirer/driver, prior submission (FurnishApprovalHelper.java:183-224). Bila salah satu gagal, executeManualReview men-set status Pending dan reason_for_review/remarks (FurnishApprovalHelper.java:505-535; dipanggil dari FurnishProcessingService.java:174) lalu status disimpan ke intranet dan Internet (FurnishProcessingService.java:134-197). Job jalan tiap 10 menit dengan enabled=true (cron-schedules-prod.properties:305-306); nilai di server sebenarnya cannot verify from repo. OCMS-DF-2026-073 (Closed) memperbaiki kasus ROV/ROV yang salah masuk manual review."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pending notices appear on the officer's own dashboard",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-30; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplication.java:24-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dashboard/FurnishDashboardController.java:18-32",
+      "fit": "Sebagian",
+      "detail": "Halaman Dashboard staf hanya berisi div kosong tanpa data (Dashboard.tsx:21-30). Entity OcmsFurnishApplication tidak punya field penugasan officer (OcmsFurnishApplication.java:24-130), jadi tidak ada routing per officer; semua officer dengan akses melihat satu daftar yang sama di furnished-list. FurnishDashboardController (/furnish/officer/list, FurnishDashboardController.java:18-32) menyediakan list + workingDaysPending tetapi tidak dipanggil oleh UI dan tidak ada di api-authorization.properties. Daftar bersama itu yang saya hitung sebagai Sebagian."
+    }
+  ]
+}

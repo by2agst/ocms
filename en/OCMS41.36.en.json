@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.36",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, utilities/suspension_helpers/TemporarySuspensionHelper, framework/schedulers/{SyncInternetIntranetJobsScheduler,ToppanUploadJobsScheduler}, framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper}, furnish_processing/helpers/TsPdpLoopingHelper. ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService,helpers/FurnishPersistenceService,submission,approval,rejection}. ocmsadminui pages/Furnish/hooks/useFurnishAPI.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no suspension logic",
+  "note": "Status 'Demo paid (50% of 75%)'; the story has no flow deck, so Sesuai means the code does what the story text says. The Furnish Processing cron (every 10 minutes) runs 6 auto-approval checks; a submission that fails gets a TS with reason PDP and status Pending. Not fully there: the number of days X is only read from the ocms_suspension_reason table (value not visible in the repo, default 30 days), the first TS failure is non-fatal and the job that patches it (TS-PDP Looping) is commented out in the day-end scheduler, and approve/reject from adminui does not revive TS-PDP. The effect of TS on the stage escalation crons was not traced in this story. Tickets OCMS-DF-2026-032 (TS-PDP re-apply, Closed, Prod deployed) and OCMS-DF-2026-073 (routing to manual review) were used as hints and did not change a verdict.",
+  "recommendation": "Claim partially: automatic TS-PDP and Pending status exist, but the X-day value comes only from DB data, the TS-PDP Looping patch job is off, and approve/reject in adminui does not revive TS-PDP",
+  "steps": [
+    {
+      "step": "A submission that does not pass auto-approval goes to the officer review queue",
+      "detail": "FurnishProcessingService.processSingleSubmission runs runValidationChecks; when the result is not approved it calls approvalHelper.executeManualReview (FurnishProcessingService.java:164-175). The job runs every 10 minutes through SyncInternetIntranetJobsScheduler.java:67 with cron.syncinternetintranet.schedule=0 */10 * * * ? and enabled=true in cron-schedules-prod.properties:305-306; the value on the real server cannot be verified from the repo. OCMS-DF-2026-073 (Closed, Prod deployed) shows this manual review path is used in prod."
+    },
+    {
+      "step": "OCMS automatically applies a TS suspension with a specific code (PDP) to the notice",
+      "detail": "executeManualReview calls createTsPdpSuspension (FurnishApprovalHelper.java:516), which calls tsHelper.processTS with reason SystemConstant.SuspensionReason.PDP (value 'PDP', SystemConstant.java:52), source OCMS, with no officer action (FurnishApprovalHelper.java:760-766). The notice that gets TS-PDP is the notice of the Pending submission."
+    },
+    {
+      "step": "The suspension lasts X days",
+      "detail": "processTS is called with daysToRevive = null (FurnishApprovalHelper.java:764), so calculateRevivalDate reads no_of_days_for_revival from the ocms_suspension_reason table for reason PDP and falls back to 30 days when missing (TemporarySuspensionHelper.java:238-247). The X value in the DB cannot be verified from the repo. Another path in ocmsadminapi uses a hardcoded 21 days (FurnishPersistenceService.java:291, called from FurnishSubmissionServiceImpl.java:122 through POST /furnish/submit, FurnishSubmissionController.java:39); no caller of that endpoint exists in ocmsadminui, ocmseserviceui, ocmseserviceapi or thirdpartyapi."
+    },
+    {
+      "step": "The notice does not escalate while the decision is pending (the suspension does not silently lapse)",
+      "detail": "After TS-PDP is due and revived by Auto Revival, AutoRevivalJob.java:164-172 calls processPdpPostRevival, which re-applies TS-PDP while an ocms_furnish_application row with status 'P' still exists (AutoRevivalHelper.java:918-923). Auto Revival is day-end job 2 (ToppanUploadJobsScheduler.java:119; schedule 0 15 0 * * ? and enabled=true in cron-schedules-prod.properties:61-62). OCMS-DF-2026-032 (Closed, Prod deployed) fixed a bug in this re-apply. The gap: the first TS-PDP failure is non-fatal, the submission still becomes Pending without a suspension (FurnishApprovalHelper.java:516-526, 774-785), and the TS-PDP Looping job that patches it is commented out (ToppanUploadJobsScheduler.java:126) and can only be triggered manually through POST /trigger-ts-pdp (AutoRevivalController.java:101). The effect of TS on the stage escalation crons was not traced."
+    },
+    {
+      "step": "The suspension ends when the officer decides (approve/reject)",
+      "detail": "The approve/reject buttons in ocmsadminui call manual-review/approve-hirer, approve-driver and reject (useFurnishAPI.ts:105, 210-211). ManualReviewService only changes the status and syncs to PII (ManualReviewService.java:363-366 for approve, 466-471 for reject) and does not revive TS-PDP. Reviving TS-PDP on approve exists only in POST /furnish/officer/approve (FurnishApprovalServiceImpl.java:96, 217-232), which ocmsadminui does not call; reject (FurnishRejectionServiceImpl.java:77-80) does not revive either. TS-PDP is only released when the due date passes and Auto Revival runs."
+    }
+  ]
+}

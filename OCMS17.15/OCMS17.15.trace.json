@@ -1,0 +1,73 @@
+{
+  "story": "OCMS17.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, parameter checking),helpers/SuspensionProcessingHelper.validateSuspension,helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper}.java. ocmsadminprivateapi AutoRevivalHelper (revive per baris), salinan plus-apply-suspension di framework/workflows/plus. Tidak ada endpoint atau field 'extend' khusus di enam repo. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Tidak ada fitur 'extend TS' tersendiri. Perpanjangan dimodelkan sebagai apply TS baru lewat plus-apply-suspension pada notice yang sudah TS: processTS tidak menolak TS di atas TS dan menambah baris ocms_suspended_notice baru; VON menyimpan tanggal revival terjauh. Validasi 'apakah boleh' ada lewat parameter checking=true (dry-run), tetapi untuk notice yang sudah TS validateSuspension langsung mengembalikan eligible tanpa cek source, stage atau paid (SuspensionProcessingHelper.java:366-370), padahal eksekusi nyata menjalankan semua cek tersebut. Sebaliknya dry-run untuk notice yang VON-nya bukan TS (mis. TS di atas PS FOR/MID) memakai cek 'Overlapping suspension detected' yang tidak ada di eksekusi. Jadi jawaban dry-run tidak selalu sama dengan hasil eksekusi. Durasi perpanjangan dihitung dari hari ini (now + hari), bukan dari tanggal akhir TS lama; jika hasilnya lebih pendek dari tanggal revival yang ada, VON tidak berubah tetapi respons tetap 'TS Success'. Tidak ada aturan batas perpanjangan (jumlah kali atau maksimum hari) dan story tidak menyebut aturannya. Revival: AutoRevivalHelper memproses tiap baris TS yang due dan mempertahankan suspensi yang tersisa (AutoRevivalHelper.java:440-463). Salinan plus-apply-suspension di ocmsadminprivateapi punya logika validasi yang sama; routing APIM mana yang dipakai PLUS tidak bisa diverifikasi dari repo. Tiket: OCMS-DF-2026-025 (pengecekan TS berbasis VON), OCMS-DF-2026-027 (sr_no); tidak ada tiket yang khusus soal extension.",
+  "recommendation": "Klaim sebagian: apply TS lanjutan dari PLUS jalan dan tercatat, tetapi validasi dry-run untuk notice yang sudah TS tidak memeriksa apa pun dan 'extend' tidak punya aturan atau jejak khusus. Minta URA konfirmasi semantik 'extend' (dihitung dari hari ini atau dari tanggal akhir TS lama) dan aturan batasnya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS bisa mengirim permintaan perpanjangan suspensi sementara.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:486-528; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1157-1182",
+      "fit": "Sebagian",
+      "detail": "Tidak ada endpoint, field atau flag 'extend' (grep extend/extension/extendTs di enam repo tanpa hasil yang relevan). PLUS memperpanjang dengan memanggil plus-apply-suspension lagi: suspensionType TS, kode, daysToRevive baru. Jalur kirimnya ada dan divalidasi field wajibnya (CTRL:504-528), tetapi request tidak menandai bahwa ini perpanjangan, dan caller auth plus-* tidak terlihat (JwtFilter.java:179): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS bisa meminta OCMS memeriksa permintaan tanpa menerapkannya.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:486-492; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:995-1000; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:342-366",
+      "fit": "Sesuai",
+      "detail": "plus-apply-suspension menerima query param checking=true yang menjalankan validateSuspension tanpa menulis apa pun (srNo '0', CTRL:997), sehingga PLUS bisa menanyakan lebih dulu apakah permintaan boleh. Mekanismenya sesuai story; isi validasinya dinilai di langkah berikut."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah perpanjangan boleh dilakukan.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:365-370; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:412-440; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:595-613; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:73-96",
+      "fit": "Beda dari flow",
+      "detail": "Untuk notice yang VON-nya sudah TS dan request TS, validateSuspension langsung mengembalikan eligible (SPH:366-370 'idempotent') sebelum cek source permission, stage, paid dan overlap (SPH:412-440). Jadi dry-run perpanjangan selalu 'boleh' walau eksekusi bisa menolaknya (stage tidak eligible, source tidak berhak, dsb. di TSH:73-96). Arah sebaliknya juga ada: untuk notice yang VON-nya bukan TS, dry-run menolak 'Overlapping suspension detected' (SPH:595-613) padahal eksekusi tidak punya cek itu. Validasi story ('OCMS dapat memvalidasi apakah boleh') tidak konsisten dengan hasil eksekusi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat perpanjangan benar-benar dikirim, notice diperiksa ulang.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:68-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-275; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-336",
+      "fit": "Sesuai",
+      "detail": "Eksekusi (checking=false) memeriksa ulang source permission PLUS (BASE:294-336), stage (BASE:189-275), notice sudah dibayar (TSH:87-90) dan overlap PS (TSH:159-178) sebelum menulis. Komentar TSH:68-70 menyatakan TS di atas TS sengaja diteruskan. Notice yang tidak lolos dijawab success=false + alasan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspensi diperpanjang sebanyak hari yang diminta PLUS.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:98-118; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:181-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:519-523",
+      "fit": "Sebagian",
+      "detail": "Revival date baru = now + daysToRevive (TSH:188-190), bukan tanggal akhir TS lama + hari; VON hanya diperbarui ke tanggal terjauh (TSH:110-118). Jika hasilnya lebih pendek dari tanggal yang ada, VON tidak berubah tetapi respons tetap 'TS Success' (TSH:140). Hari 0 atau negatif diganti default (TSH:192-208, sama dengan OCMS17.12/17.14). Story tidak menyebut dihitung dari kapan; cannot verify business intent from repo. Tidak ada batas jumlah atau maksimum hari perpanjangan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspensi yang diperpanjang tercatat dan notice tetap tersuspensi.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:120-137; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-465; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:440-463",
+      "fit": "Sebagian",
+      "detail": "Perpanjangan disimpan sebagai baris ocms_suspended_notice baru dengan source PLUS dan tanggalnya sendiri; baris TS lama tetap ada (TSH:129-133) dan tidak ditandai sebagai 'diperpanjang'. Saat TS lama jatuh tempo, AutoRevivalHelper me-revive baris yang due dan mempertahankan TS tersisa di VON (AutoRevivalHelper:440-463), jadi notice tidak ikut revive selama TS baru masih aktif. Tidak ada kolom atau flag extension, alasan atau hitungan perpanjangan untuk audit."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS menerima jawaban untuk tiap notice dalam permintaan perpanjangan.",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1198; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-548",
+      "fit": "Sesuai",
+      "detail": "PLUS menerima results[] per notice: success true 'TS Success' atau success false + message alasan, masing-masing dengan appCode OCMS-2000 / OCMS-4000 (addAppCodeToResults, CTRL:1186-1198). Untuk dry-run, hasilnya eligible true/false + message."
+    }
+  ]
+}

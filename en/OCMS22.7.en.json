@@ -1,0 +1,29 @@
+{
+  "story": "OCMS22.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: App.tsx (empty COURT block), Meta/System.ts (Court Batch Limit/Duration parameter menus, path only), pages/NoticeSearch/hook/useSearch.ts (csd_batch_no for court cases already at summons). ocmsadminapi: crud/ocmsizdb/sequence/SequenceService (getNextBatchId still commented out), crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingService,EligibilityService} (Change Processing Stage per notice, not a court batch). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court batch code",
+  "note": "The story wants OCMS to assign a court application batch number from a pre-defined series continuing past numbers, and to update the processing stage of the notices in that batch. The code does not have this: there is no batch number generator (SequenceService.java:13-14 keeps getNextBatchId commented out as 'add later'), no court application batch column/entity, no confirm endpoint, and the COURT route in App.tsx:313 is empty. The only related thing is the generic Change Processing Stage mechanism (ChangeOfProcessingService.processBatch, :88) which changes the stage of selected notices through CPS with a random UUID requestId, not a number series, and it is not triggered by a court application confirmation, so it is not claimed. csd_batch_no in useSearch.ts:144-150 is the summons batch of notices already at COS/COM/COT/COW, a different feature. Ticket OCMS-SR-2026-107 (patch adding $100 surcharge when moving to a court stage) touches CPS, not a batch. Needs verification with URA where this feature is built.",
+  "recommendation": "Do not claim as done. There is no court application batch numbering or batch-based stage update; per-notice CPS is not a substitute. Ask URA/the team where this feature is built, or mark it as a gap",
+  "steps": [
+    {
+      "step": "The officer confirms to proceed with court application after reviewing the notice list",
+      "detail": "There is no court application confirmation screen or button: the COURT block in App.tsx:313 is empty and no page calls a court application API. Grep for court application, courtbatch, court-batch in ocmsadminui only finds report labels and parameter menus."
+    },
+    {
+      "step": "OCMS creates a court application batch number from a pre-defined series continuing from past numbers",
+      "detail": "SequenceService only has getNextSequence(sequenceName) and getNextTxnRefNumber; getNextBatchId is still commented 'Add these later when needed' (SequenceService.java:11-14). There is no court batch sequence/number format and no batch column on OcmsCourtCase (OcmsCourtCase.java:21-31). Grep for batch_no / batchNumber in ocmsadminapi and ocmsadminprivateapi only finds SMS/email batches."
+    },
+    {
+      "step": "OCMS updates the processing stage of all notices in that batch",
+      "detail": "What exists is Change Processing Stage: ChangeOfProcessingService.processBatch (:88-92) takes an item list from the officer and EligibilityService decides the target stage (CPC/CFC, :270-292). That is per notice, manually triggered from the CPS menu, not tied to a court batch number and not triggered by a court application confirmation, so it is not claimed for this step. On the cron side CPC is only used as the next stage after DR3/RR3 in the Toppan letter flow (ToppanUploadHelper.java:1818), not because of a court batch."
+    },
+    {
+      "step": "Each notice in the batch stores the batch number so the batch sent for address checks can be identified",
+      "detail": "There is no court application batch number column on VON or OcmsCourtCase (only notice_no, court_payment_due_date, reason; OcmsCourtCase.java:21-31). The MHA upload query selects notices by stage, not by batch (MhaNricDataHelper.java:186-193), so the batch cannot be identified during the address check."
+    },
+    {
+      "step": "The officer can see the batch sent for address checks before court application",
+      "detail": "There is no court batch screen. useSearch.getNoticesByCourtBatchNo only finds court cases by csd_batch_no for notices already at COS/COM/COT/COW (useSearch.ts:144-150), i.e. the summons batch after court application, not before. The Court Batch Limit/Duration parameter menus (System.ts:18-19, 147-154) are path entries only; no backend reference found (grep court-batch, COURT_BATCH in ocmsadminapi and ocmsadminprivateapi is empty)."
+    }
+  ]
+}

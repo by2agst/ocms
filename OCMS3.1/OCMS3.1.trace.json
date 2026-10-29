@@ -1,0 +1,73 @@
+{
+  "story": "OCMS3.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/repccs/notice_creation/core (RepccsCreateNoticeController /v1/repccsWebhook, CreateNoticeServiceImpl.processRepccsCreateNotice, helpers/RepWebHookPayloadValidator, ValidationServices, NoticeRecordHelper, NoticeProcessingHelper). ocmsadminapi workflows/notice_creation/core (CreateNoticeController /repccsWebhook-create-notice: salinan lama), auth/filter/JwtFilter. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk story ini",
+  "note": "Status di sheet: 'Requirement given - Gen flow'. Tidak ada flow deck OCMS, jadi 'Sesuai' berarti code melakukan apa yang tertulis di teks story. Penerimaan REPCCS real-time ada dan lengkap: endpoint webhook, validasi payload, simpan VON/OND/eVON/eOND dalam satu request, stage awal, dan balasan langsung. Dua celah: (1) AN dari REPCCS hanya ditandai an_flag Y dan diblok bayar, baris PS-ANS tidak dibuat (hanya jalur CES yang membuatnya, CreateNoticeServiceImpl.java:764); (2) kegagalan setelah validasi (di dalam createNotice) tidak menandai audit sebagai gagal sehingga tidak masuk report. Tiket maintenance yang relevan, semuanya Closed/Prod deployed dan tidak menurunkan fit: OCMS-DF-2026-100 (penyimpanan intranet/internet dipisah, is_sync). Yang tidak bisa dibuktikan dari repo: endpoint mana yang dipakai REPCCS (private /v1/repccsWebhook atau salinan lama di ocmsadminapi), konfigurasi APIM, nilai subscription key, isi tabel offence rule code per environment. Key validation mati di dev dan uat (properties), hanya prod yang true. Salinan lama di ocmsadminapi tetap terbuka tanpa JWT dan tanpa key.",
+  "recommendation": "Bisa diklaim untuk penerimaan real-time, validasi, penyimpanan NOPO/UPL dan stage awal. Tandai dua celah: AN REPCCS tanpa PS-ANS, dan penolakan dalam createNotice tidak tercatat di audit. Minta URA/REPCCS konfirmasi endpoint yang dipakai dan matikan salinan lama di ocmsadminapi bila tidak dipakai.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "REPCCS mengirim parking offence notice ke OCMS secara real-time lewat satu panggilan (webhook), dan OCMS langsung menerimanya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/RepccsCreateNoticeController.java:39-42; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:99; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:168; ocmsadminprivateapi/src/main/resources/application-prod.properties:125-126",
+      "fit": "Sesuai",
+      "detail": "POST /v1/repccsWebhook (RepccsCreateNoticeController.java:39-42) menerima satu notice per request. processRepccsCreateNotice (CreateNoticeServiceImpl.java:99) memvalidasi dan membuat notice lalu membalas di request yang sama (:168), jadi tidak ada queue atau batch file. Header Ocp-Apim-Subscription-Key dicocokkan dengan Key Vault hanya bila ocms.repccs.key.validation.enabled=true: true di application-prod.properties:126, false di application-uat.properties:119 dan dev. Ada salinan lama di ocmsadminapi (CreateNoticeController.java:46, /repccsWebhook-create-notice) yang dilewatkan JwtFilter tanpa JWT (JwtFilter.java:181) dan tanpa cek subscription key. Endpoint mana yang sebenarnya dipanggil REPCCS, routing APIM, dan apakah REPCCS mengirim ke sana: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data notice dari REPCCS diperiksa sebelum diterima (field wajib, ANSFlag Y/N, subsystem label, offence code)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:30-73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:169-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:178-211; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:447-476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:170-179; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:154-164",
+      "fit": "Sesuai",
+      "detail": "validateMandatoryFields (RepWebHookPayloadValidator.java:30-73) memeriksa TransactionID, CaptureDateTime, OffenceCode, car park, OperatorID, data kendaraan, ANSFlag harus Y atau N (:169-176), fine amount, tanggal tidak boleh di masa depan, dan panjang field. Subsystem label harus 3-8 karakter dan owner-nya MEV_Vehicle, REPCCS_ENC atau REPCCS_EHT (:178-211). Offence code harus ada di tabel rule code (:447-476). Gagal validasi dibalas 400 dengan pesan generik (CreateNoticeServiceImpl.java:170-179). Notice no yang sudah ada dibalas 226 lalu diubah controller menjadi HTTP 200 dengan appCode OCMS-4000 (CreateNoticeServiceImpl.java:154-164, RepccsCreateNoticeController.java:60-70). Isi data rule code di environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice of Parking Offence (NOPO) yang diterima disimpan sebagai notice baru di intranet (VON, OND) dan internet (eVON, eOND)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:861-864; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:494-501; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeRecordHelper.java:281-286; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeRecordHelper.java:307-311; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:215-218; ocmsadminprivateapi/src/main/resources/application-prod.properties:100",
+      "fit": "Sesuai",
+      "detail": "Offence type (O/E/U/A/T) dicari dari tabel offence rule code berdasarkan OffenceCode dan vehicle category (ValidationServices.java:215-218). createNoticeRecord (CreateNoticeServiceImpl.java:861-864) menyiapkan entity, lalu batchSaveNoticeRecords (:494-501) menyimpan VON dan OND di intranet dan, karena payment.sync.enabled=true (application-prod.properties:100), eVON dan eOND di internet (NoticeRecordHelper.java:307-311). Baris intranet diberi is_sync N dan baru menjadi Y setelah save internet commit (NoticeRecordHelper.java:281-286); ini hasil perbaikan OCMS-DF-2026-100 (Closed, Prod deployed) yang dibuat untuk jalur CES tapi kodenya sama di sini. Notice no untuk label 003-010 dan 020-021 boleh kosong dan dibuat OCMS (NoticeValidationHelper): detail pembuatan nomor tidak ditelusuri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Advisory Notice (AN) yang diterima dikenali (ANSFlag Y) dan disimpan sebagai AN yang tidak bisa dibayar",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeRecordHelper.java:591-598; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:843-846; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:764; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:124-147",
+      "fit": "Sebagian",
+      "detail": "ANSFlag dari payload dipetakan ke an_flag (ValidationServices.java:126). Bila Y, VON disimpan dengan an_flag Y dan payment_acceptance_allowed N (NoticeRecordHelper.java:591-598). OCMS juga menjalankan pengecekan AN sendiri untuk offence type O dan kendaraan S/D/V/I (CreateNoticeServiceImpl.java:843-846) yang menambah eservice_message_code ANS bila lolos (NoticeProcessingHelper.java:124-147). Yang tidak ada di jalur REPCCS: baris PS-ANS di suspended_notice dan field suspension di VON hanya dibuat bila createWithAnsSuspension=true, dan flag itu hanya diset di cabang CES/Certis label 030-999 (CreateNoticeServiceImpl.java:764). processPS_ANS ada tapi tidak dipanggil di mana pun. Jadi AN dari REPCCS ditandai dan diblok bayar, tapi tanpa PS-ANS dan, bila ANSFlag Y tapi pengecekan OCMS tidak lolos, tanpa eservice message ANS. Apakah itu memang desain REPCCS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice UPL (unauthorised use of parking lots, tanpa nomor kendaraan) dikenali dan disimpan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:119-125; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:690-693; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:816; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:390-410; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:215-218",
+      "fit": "Sesuai",
+      "detail": "Kendaraan tak teridentifikasi dikenali dari VehicleCategory 0, VehicleRegistration X dan LicencePlate N.A (RepWebHookPayloadValidator.java:119-125). Nomor kendaraan N.A dipetakan ke vehicle registration type X (CreateNoticeServiceImpl.java:690-693). Untuk tipe X, setProcessingStagesForX dipanggil (CreateNoticeServiceImpl.java:816): payment_acceptance_allowed N, composition_amount diset 0, eservice message BLOCK_PAYMENT, next stage DN1 (NoticeProcessingHelper.java:390-410). Offence type U datang dari lookup tabel rule code untuk category 0 (ValidationServices.java:215-218): ada tidaknya baris rule code itu di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tersimpan langsung diberi processing stage awal supaya OCMS bisa mulai memprosesnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:816-819; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:423-441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:390-410",
+      "fit": "Sesuai",
+      "detail": "Kendaraan V/S/D mendapat last stage NPA dan next stage ROV, payment diizinkan (setProcessingStagesForVSD, NoticeProcessingHelper.java:423-441). Tipe X (UPL) mendapat next stage DN1 dengan pembayaran diblok (:390-410). Stage ini diisi sebelum VON disimpan (CreateNoticeServiceImpl.java:816-819, lalu :864). Cron downstream yang mengambil stage ROV/DN1 adalah story lain dan tidak ditelusuri di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tiap penerimaan dicatat di audit transaction dan REPCCS langsung menerima hasilnya (OK atau ditolak); kegagalan bisa ditelusuri",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:108; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:235-261; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:133-185; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:503-509; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:526-531; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/RepccsCreateNoticeController.java:43-58",
+      "fit": "Sebagian",
+      "detail": "Sebelum validasi, saveAudit menulis baris ocms_web_txn_audit dengan sender REP dan status 0 (CreateNoticeServiceImpl.java:108, ValidationServices.java:235-261). Kegagalan validasi, duplicate, key salah dan error tak terduga memanggil updateAuditError sehingga status 1 (CreateNoticeServiceImpl.java:133-185). Sukses dibalas message OK tanpa noticeNo (RepccsCreateNoticeController.java:43-58). Celahnya: kegagalan di dalam createNotice (gagal ambil offence type, exception di processSingleNotice, batch save gagal, :503-509) dibalas ke REPCCS sebagai gagal (:526-531) tetapi baris audit tidak pernah diupdate, jadi tetap status 0 dan tidak punya VON. Report 'Notices Created by Enforcement Systems' hanya membaca VON dan audit status 1, jadi penolakan semacam ini tidak muncul di sana. Sebagian besar penolakan lewat validasi tercatat dengan benar."
+    }
+  ]
+}

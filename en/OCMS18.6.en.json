@@ -1,0 +1,25 @@
+{
+  "story": "OCMS18.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/PS/{form/PSForm,form/PSDetails,form/PSSummary,list/PSList,page/PS,page/PSView}.tsx, pages/NoticeSearch/hook/{ApplyOperationAction.tsx,useBatchOperation.ts}, context/OptionsContext.tsx, utils/{mapping,validation}/PS/PS.ts, utils/constant.ts. ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-apply-suspension, staff-revive-suspension, staff-check-suspension-eligibility), core/helpers/{PermanentSuspensionHelper,SuspensionBaseHelper,SuspensionProcessingHelper,PermanentRevivalHelper,RevivalBaseHelper}, crud/ocmsizdb/suspendednotice/SuspendedNotice, api-authorization.properties (OCMS_APPLY_PS). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not used by this staff PS flow",
+  "note": "Status in stories.json is 'Fully paid'; there is no OCMS flow deck, so Sesuai means the code does what the story text says. The PS form lives on route ps/* (ocmsadminui/src/App.tsx:164) and is opened from the notice search result. The code list is limited by the APPLY_PS_ALLOWED constant (17 codes); APP, FP, PRA cannot be picked from the staff UI. The contents of the suspension reason table in the DB (active codes and descriptions) are not seeded in the repo: cannot verify from repo. No maintenance ticket changes the verdict of a step in this story.",
+  "recommendation": "Can be claimed. Note: the UI does not filter on active status (only the server rejects an inactive code) and the contents of the code list in the DB must be checked in the environment",
+  "steps": [
+    {
+      "step": "The PS form loads the list of PS suspension codes from the server into a drop-down",
+      "detail": "When PSDetails opens, setOptions is called with type PS, filter reasonOfSuspension[$in]=APPLY_PS_ALLOWED (ANS, CAN, CFA, DBB, DIP, FCT, FOR, FTC, MID, OTH, RIP, RP2, SCT, SLC, SSV, VCT, VST; APP, FP, PRA are deliberately absent) and suspensionSource=OCMS. CB_SUSPENSION POSTs to the suspensionreasonlist endpoint with suspensionType=PS and builds options from reasonOfSuspension + description. This endpoint is allowed for function OCMS_APPLY_PS (api-authorization.properties:61-63). The status A filter in the UI is commented out (OptionsContext.tsx:282), so inactive codes may also show; the server rejects them at apply (SuspensionBaseHelper.java:294-311). The suspension reason table contents are not seeded in the repo: cannot verify from repo."
+    },
+    {
+      "step": "The officer picks one suspension code from the drop-down (code + description, mandatory)",
+      "detail": "DropdownInput uses isRequired and showFilter, each option is labelled 'code - description' (JoinValue, OptionsContext.tsx:295). The yup validation suspension_code required (PS.ts:28) runs in onConfirmation; when empty an alert 'Failed to PS the notice(s). Please check your form.' appears and the process stops (PSForm.tsx:67-83). One code applies to all notices in the batch."
+    },
+    {
+      "step": "The officer can enter special remarks (optional) to give more detail on the reason",
+      "detail": "The remark TextAreaInput allows at most 200 characters with a remaining-character counter (showCharLeft). PSFormValidation only requires suspension_code, so the remark is optional as 'if any' says. The length 200 equals the suspension_remarks column (length 200) in the SuspendedNotice entity. The label comes from i18n key batch.reason_manual_override; its translated text was not checked."
+    },
+    {
+      "step": "The chosen code and remarks are carried into the apply permanent suspension request",
+      "detail": "PSMapping.CreateDataMapping maps the form to the payload: reasonOfSuspension = suspension_code, suspensionRemarks = remark, officerAuthorisingSuspension = user.userId. The payload is sent at apply (story 18.9) and read by the server in staffApplySuspension (SuspensionProcessingController.java:221-225). The server does not validate the remark length; the only limit is the 200 DB column."
+    }
+  ]
+}

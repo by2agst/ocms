@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Revival/form/{RevivalForm,RevivalSummary}, pages/Revival/list/RevivalList, components/datagrid/column/index.tsx. ocmsadminapi helpers/{RevivalBaseHelper,TemporaryRevivalHelper} (revive behaviour that the summary does not reflect). Other repos: not relevant",
+  "note": "Sheet status: Demo paid (50% of 75%), 1 point; no flow deck. The summary is a notice table (notice number, type, date, place, rule code, vehicle, stages, suspension type, reason, due date of revival, payment status, amount payable) plus a box with the revival reason and remark. Shortfalls: the suspension shown is only the VON fields (one latest suspension), while the server revives ALL active TS and PS suspensions of that notice; a reduction is only visible indirectly (reason RED and the current amount payable), without the pre-reduction value. Ticket OCMS-DF-2026-184 (Pending UAT Verification): VON due_date_of_revival does not show the longest TS for 23 notices, so the Due Date of Revival column in the summary can be wrong; the fix status cannot be verified from repo. The revival reason display depends on the key reason_data.reason_of_revival, which is not a field of the Isuspensionreason type (the field is reasonOfSuspension), so probably only the description shows; runtime behaviour was not tested.",
+  "recommendation": "Claim partially: the notice summary, reason and remark exist; per-row suspension detail and reduction detail are incomplete. Track OCMS-DF-2026-184.",
+  "steps": [
+    {
+      "step": "The summary lists the notices to be revived with their key notice data",
+      "detail": "The Summary tab renders RevivalList in readonly SUMMARY mode with the selected notice data (RevivalForm.tsx:390-402). Columns: notice/summon/NTAC numbers, type, date-time, place, rule code, vehicle number, processing stage and date, next stage and date, suspension type, reason, due date of revival, payment status and amount payable (RevivalList.tsx:68-100)."
+    },
+    {
+      "step": "The summary shows the suspension currently in force on each notice",
+      "detail": "The Suspension Type, Reason for Suspension and Due Date of Revival columns come from the VON fields suspensionType, eprReasonOfSuspension and dueDateOfRevival (column/index.tsx:242-268), i.e. one latest suspension. Staff revive takes ALL active TS and PS suspensions of the notice (TemporaryRevivalHelper.java:157-166; RevivalBaseHelper.java:237-262), but the summary does not load the suspended_notice rows (the SRList component that would show them is commented out: RevivalForm.tsx:372,401). A notice with several active suspensions is therefore not fully visible before confirmation. Ticket OCMS-DF-2026-184 (Pending UAT Verification): VON due_date_of_revival holds the shorter TS rather than the longest for 23 notices; the fix status cannot be verified from repo."
+    },
+    {
+      "step": "The summary shows the reduction currently in force on the notice",
+      "detail": "The summary has no reduction-specific column or component. A reduction is only visible indirectly: when the notice has a TS-RED, the Reason for Suspension column shows RED and Total Amount Payable shows the current value (column/index.tsx:255-260,284-296). The pre-reduction value that revive restores is read by the server from ocms_reduced_offence_amount (RevivalBaseHelper.java:860-922) but is not shown to the officer."
+    },
+    {
+      "step": "The summary shows the revival reason and special remarks the officer entered",
+      "detail": "RevivalSummary shows a 'Revival Record' box with the Revival Reason and Remark from the form (RevivalSummary.tsx:42-67; used at RevivalForm.tsx:405). The reason label is built from reason_data.reason_of_revival and reason_data.description (RevivalSummary.tsx:43-46); the first is not a field of the Isuspensionreason type (reasonOfSuspension), so probably only the description shows. Runtime behaviour was not tested; the reason and remark are still displayed."
+    }
+  ]
+}

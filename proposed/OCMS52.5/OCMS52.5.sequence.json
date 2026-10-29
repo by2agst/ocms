@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS52.5 Hourly AXS Send to URA Payment Gateway",
+    "output": "OCMS52.5.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "participants": [
+    {
+      "id": "sync",
+      "type": "backend",
+      "label": "Sync job",
+      "sublabel": "every 10 min"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "web_txn_detail",
+      "sublabel": "urapg_sync_status"
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "URA PG job",
+      "sublabel": "hourly"
+    },
+    {
+      "id": "pg",
+      "type": "external",
+      "label": "URA Payment Gateway",
+      "sublabel": "insertOcmsAxsTxn"
+    },
+    {
+      "id": "mail",
+      "type": "external",
+      "label": "Error e-mail",
+      "sublabel": "disabled"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 250,
+      "label": "Mark"
+    },
+    {
+      "from": 252,
+      "to": 400,
+      "label": "Send hourly"
+    },
+    {
+      "from": 402,
+      "to": 500,
+      "label": "Errors"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "sync",
+      "to": "db",
+      "y": 165,
+      "label": "AXS txn: urapg_sync_status = N",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m1",
+      "from": "cron",
+      "to": "db",
+      "y": 205,
+      "label": "Read rows N, type 01, sender AXS",
+      "variant": "dashed"
+    },
+    {
+      "id": "m2",
+      "from": "db",
+      "to": "cron",
+      "y": 235,
+      "label": "Pending list",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "cron",
+      "to": "pg",
+      "y": 275,
+      "label": "POST all pending in one request",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "pg",
+      "to": "cron",
+      "y": 305,
+      "label": "Per receipt: S or E",
+      "variant": "return"
+    },
+    {
+      "id": "m5",
+      "from": "cron",
+      "to": "db",
+      "y": 335,
+      "label": "S rows set to Y",
+      "variant": "dashed"
+    },
+    {
+      "id": "m6",
+      "from": "cron",
+      "to": "db",
+      "y": 365,
+      "label": "E, null or exception stay N",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "cron",
+      "to": "mail",
+      "y": 415,
+      "label": "notifyUraPgErrors (empty body)",
+      "variant": "default"
+    },
+    {
+      "id": "m8",
+      "from": "mail",
+      "to": "cron",
+      "y": 445,
+      "label": "Nothing sent, error log only",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "sync",
+      "from": 160,
+      "to": 200,
+      "type": "backend"
+    },
+    {
+      "participant": "cron",
+      "from": 200,
+      "to": 470,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 160,
+      "to": 380,
+      "type": "database"
+    },
+    {
+      "participant": "pg",
+      "from": 270,
+      "to": 320,
+      "type": "external"
+    },
+    {
+      "participant": "mail",
+      "from": 410,
+      "to": 450,
+      "type": "external"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches story",
+      "items": [
+        "Rows marked N after sync",
+        "Hourly send to gateway",
+        "Y only when acknowledged"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Error e-mail is switched off",
+        "No retry limit",
+        "No reconciliation check"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "Gateway and APIM key",
+        "Rows ever accepted",
+        "Prod flag values"
+      ]
+    }
+  ]
+}

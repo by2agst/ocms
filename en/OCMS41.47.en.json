@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.47",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/useODH.tsx (Override and Confirm modals), pages/BatchFurnish/form/BatchFurnishForm.tsx (Batch Furnish Confirmation modal); ocmsadminapi workflows/furnish/stafffurnish/StaffFurnishService.staffFurnish (record and address overwrite). Other repos: no code.",
+  "note": "Status Demo paid (50% of 75%). Both prompts exist, but the order differs on the single path: the overwrite warning appears before the officer types, and the final confirmation does not mention overwrite. The batch path mentions overwrite in the final confirmation. No maintenance ticket changes this verdict.",
+  "recommendation": "Claim partially: confirmation and overwrite are proven; on the single path the overwrite warning appears before input, not in the final confirmation.",
+  "steps": [
+    {
+      "step": "OCMS asks the officer to confirm before the particulars are saved (Furnish, Update, Redirect, Batch)",
+      "detail": "After the form passes validation a confirmation modal is shown: 'Do you wish to proceed to Furnish the particulars?' / 'Do you wish to proceed to update the particulars?' / 'Do you wish to proceed to Redirect the Notice?' (useODH.tsx:169-189). The API is only called after OK (onOk -> onAPI, :524-532). Batch: modal 'Batch Furnish Confirmation' (BatchFurnishForm.tsx:89-96, 251-258). Sesuai."
+    },
+    {
+      "step": "If particulars already exist, OCMS warns that they will be overwritten",
+      "detail": "Single: when the mode is Furnish and `existing` is present, the modal 'Existing <role> details will be overwritten. Do you want to proceed to furnish for notice no. ...?' with Yes/No is shown (useODH.tsx:143-148, 533-545). Differs from the story: the warning appears BEFORE the officer types (the fields are then cleared by onOverrideOk, :224-239), while the final confirmation after input only says 'proceed to Furnish' without the word overwrite (:169-175). The Edit path has no overwrite warning. Batch: the overwrite sentence is in the final confirmation (BatchFurnishForm.tsx:89) but is always shown even when no old data exists. Sebagian."
+    },
+    {
+      "step": "Old particulars are only overwritten after the officer agrees; declining leaves the old data intact",
+      "detail": "No/close only hides the modal (onOverrideClose, useODH.tsx:241-243) without calling the API, so the old data stays intact. After Yes and submit, the server sets the previous offender to indicator N, deletes the old addresses of that role (StaffFurnishService.java:200-211) and saves a new ONOD record with the same PK (noticeNo, ownerDriverIndicator) via offenderService.save (:213-231), so the old record of that role is overwritten. The service save() implementation was not read; merge-by-PK is assumed from the composite entity id. Sesuai."
+    }
+  ]
+}

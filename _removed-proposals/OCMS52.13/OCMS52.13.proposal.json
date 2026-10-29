@@ -1,0 +1,89 @@
+{
+  "id": "OCMS52.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "steps": [
+    {
+      "step": {
+        "en": "POST /v1/submit-unclaimed applies the TS-UNC suspension to each submitted notice",
+        "id": "POST /v1/submit-unclaimed memasang suspension TS-UNC ke tiap notice yang di-submit"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:386-420",
+      "detail": {
+        "en": "processUnclaimedReminders saves a SuspendedNotice (TEMPORARY, reason UNC) and updates the VON, but only when skipSuspension is false. The suspension is skipped for PS notices, Court-stage notices, notices with no current offender in ONOD, and notices whose letter recipient is not the current offender (lines 346-384). A notice at a stage that is not eligible fails with 'Not eligible for suspension' (lines 351-362). So TS-UNC is not applied to every submitted notice.",
+        "id": "processUnclaimedReminders menyimpan SuspendedNotice (TEMPORARY, reason UNC) dan update VON, tapi hanya kalau skipSuspension = false. Suspension di-skip untuk notice PS, notice di stage Court, notice yang tidak punya current offender di ONOD, dan notice yang penerima suratnya bukan current offender (baris 346-384). Notice di stage yang tidak eligible gagal dengan 'Not eligible for suspension' (baris 351-362). Jadi TS-UNC tidak dipasang ke semua notice yang di-submit."
+      }
+    },
+    {
+      "step": {
+        "en": "After processing, an Excel report is generated with one row per submitted record and Status and Error Message columns (Success / Failed)",
+        "id": "Setelah diproses, dibuat report Excel dengan satu baris per record yang di-submit, plus kolom Status dan Error Message (Success / Failed)"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java:53-121",
+      "detail": {
+        "en": "UnclaimedController.submitUnclaimed calls reportService.generateUnclaimedReminderReport(unclaimedRecords, processingResults, userId) right after processUnclaimedReminders (controller line 159). The service builds an XSSFWorkbook, one row per record, 15 base columns plus 'Status' and 'Error Message' (header lines 162-166, row values line 255: 'Success' or 'Failed', error text only for failed rows), and uploads it to blob path unclaimed/<timestamp>-Unclaimed-Report.xlsx. Failed notices still appear in the report. The column layout was not compared with any URA template (cannot verify from repo). Related tickets OCMS-DF-2026-085/086/087/090 are defects on the screen fields, not on this report.",
+        "id": "UnclaimedController.submitUnclaimed memanggil reportService.generateUnclaimedReminderReport(unclaimedRecords, processingResults, userId) tepat setelah processUnclaimedReminders (controller baris 159). Service membuat XSSFWorkbook, satu baris per record, 15 kolom dasar plus 'Status' dan 'Error Message' (header baris 162-166, nilai baris 255: 'Success' atau 'Failed', teks error hanya untuk baris yang gagal), lalu upload ke blob path unclaimed/<timestamp>-Unclaimed-Report.xlsx. Notice yang gagal tetap muncul di report. Susunan kolom belum dibandingkan dengan template URA (cannot verify from repo). Ticket OCMS-DF-2026-085/086/087/090 adalah defect di field layar, bukan di report ini."
+      }
+    },
+    {
+      "step": {
+        "en": "The report shows, per notice, the suspension that was actually applied",
+        "id": "Report menunjukkan, per notice, suspension yang benar-benar terpasang"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java:225-257",
+      "detail": {
+        "en": "The columns 'Current Suspension', 'Suspension Code', 'Period of Suspension' and 'Suspension Remarks' are copied from the submitted record (DTO), not read back from the suspended notice that was saved. When TS-UNC is skipped (PS, Court stage, no current offender, recipient mismatch) UnclaimedServiceImpl line 452 still returns success=true with the skip reason only in the message, and the report writes Status 'Success' with an empty Error Message (message text is not written to the Excel). So the officer cannot tell from the Excel whether TS-UNC was really applied.",
+        "id": "Kolom 'Current Suspension', 'Suspension Code', 'Period of Suspension' dan 'Suspension Remarks' disalin dari record yang di-submit (DTO), bukan dibaca ulang dari suspended notice yang disimpan. Waktu TS-UNC di-skip (PS, Court stage, no current offender, recipient mismatch), UnclaimedServiceImpl baris 452 tetap mengembalikan success=true dengan alasan skip hanya di message, dan report menulis Status 'Success' dengan Error Message kosong (teks message tidak ditulis ke Excel). Jadi officer tidak bisa tahu dari Excel apakah TS-UNC benar-benar terpasang."
+      }
+    },
+    {
+      "step": {
+        "en": "The response carries the report path and an expiry time 24 hours ahead",
+        "id": "Response membawa path report dan waktu expiry 24 jam ke depan"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:186-196",
+      "detail": {
+        "en": "The response data.report has url = the blob path (unclaimed/<file>.xlsx) and expiresAt = LocalDateTime.now().plusHours(24). expiresAt is only a timestamp in the response: the download endpoint does not check it, the UI does not read it, and no blob lifecycle or cleanup rule for unclaimed/ exists in the repo (cannot verify from repo whether the Azure container deletes after 24 hours). The report is generated after the suspensions are already saved; if the blob upload fails the caller gets OCMS-5001 and no results list even though notices were already updated.",
+        "id": "data.report di response berisi url = blob path (unclaimed/<file>.xlsx) dan expiresAt = LocalDateTime.now().plusHours(24). expiresAt hanya timestamp di response: endpoint download tidak mengeceknya, UI tidak membacanya, dan tidak ada aturan lifecycle atau cleanup blob untuk unclaimed/ di repo (cannot verify from repo apakah Azure container menghapus setelah 24 jam). Report dibuat setelah suspension sudah tersimpan; kalau upload blob gagal, caller menerima OCMS-5001 tanpa daftar results padahal notice sudah ter-update."
+      }
+    },
+    {
+      "step": {
+        "en": "The submit page downloads the report automatically when report.url is returned",
+        "id": "Halaman submit mengunduh report otomatis saat report.url dikembalikan"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx:171-208",
+      "detail": {
+        "en": "onSubmit posts 'submit-unclaimed' and, when report?.url is present (line 261), awaits downloadReport(report.url) (line 263). downloadReport takes the file name from the URL, POSTs download/blob with source 'UNCLAIMED', and triggers a browser download via an anchor element. On the API side FileDownloadController maps UNCLAIMED to azure.blob.unclaimed.output=offence/unclaimed/ (container offence = azure.blob.container-name), which resolves to the same blob path the report was uploaded to. Failures show an error modal. It uses download/blob, not the /report/{reportId} endpoint. Actual Azure behaviour cannot be verified from repo.",
+        "id": "onSubmit mem-POST 'submit-unclaimed' dan, kalau report?.url ada (baris 261), menjalankan await downloadReport(report.url) (baris 263). downloadReport mengambil nama file dari URL, POST download/blob dengan source 'UNCLAIMED', lalu memicu download browser lewat anchor element. Di sisi API, FileDownloadController memetakan UNCLAIMED ke azure.blob.unclaimed.output=offence/unclaimed/ (container offence = azure.blob.container-name), yang menunjuk ke blob path yang sama dengan tempat report di-upload. Kalau gagal tampil modal error. Yang dipakai download/blob, bukan endpoint /report/{reportId}. Perilaku Azure sebenarnya cannot verify from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "POST /v1/submit-unclaimed/report/{reportId} downloads the report",
+        "id": "POST /v1/submit-unclaimed/report/{reportId} mengunduh report"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:217-266",
+      "detail": {
+        "en": "downloadReport rejects an empty or non-sanitized reportId (400), appends .xlsx when missing, downloads blob unclaimed/<reportId> from the default container, returns 404 REPORT_NOT_FOUND when null, otherwise the file with the xlsx content type and attachment disposition. api-authorization.properties line 107 lists /v1/submit-unclaimed under OCMS_UNCLAIMED and the interceptor matches by uri.startsWith, so the sub-path is covered. The ocmsadminui code does not call this endpoint (it uses download/blob).",
+        "id": "downloadReport menolak reportId kosong atau yang tidak lolos sanitize (400), menambah .xlsx kalau belum ada, mengunduh blob unclaimed/<reportId> dari container default, mengembalikan 404 REPORT_NOT_FOUND kalau null, kalau ada mengembalikan file dengan content type xlsx dan attachment disposition. api-authorization.properties baris 107 mendaftarkan /v1/submit-unclaimed di OCMS_UNCLAIMED dan interceptor mencocokkan dengan uri.startsWith, jadi sub-path ikut tercakup. Code ocmsadminui tidak memanggil endpoint ini (pakai download/blob)."
+      }
+    }
+  ],
+  "note": {
+    "en": "The report exists and works end to end (generate, upload, auto-download). Gaps: TS-UNC is skipped for several notice types and the Excel does not show that (it reports Success and echoes the submitted suspension columns); expiresAt is informational only; the Excel layout was not compared with a URA template; officer in the report generation is the system user id, not the logged-in user. Real Azure container state and any blob lifecycle rule cannot be verified from the repo. No flow deck or ticket asks for this report.",
+    "id": "Report-nya ada dan jalan dari ujung ke ujung (generate, upload, auto-download). Gap: TS-UNC di-skip untuk beberapa jenis notice dan Excel tidak menunjukkan itu (tetap Success dan hanya menyalin kolom suspension yang di-submit); expiresAt cuma informasi; susunan Excel belum dibandingkan dengan template URA; user pada pembuatan report adalah system user id, bukan user yang login. State container Azure sebenarnya dan aturan blob lifecycle cannot be verified from repo. Tidak ada flow deck atau ticket yang meminta report ini."
+  },
+  "corrections": [
+    "Acceptance 1: TS-UNC is applied only for non-PS, non-Court notices that have a current offender matching the letter recipient and an eligible stage; otherwise it is skipped or fails, so 'applies TS-UNC' must be conditional.",
+    "Acceptance 2: expiresAt is only a value in the response; nothing in the repo enforces or checks the 24-hour expiry.",
+    "Acceptance 3/4: the UI auto-download uses POST download/blob (source UNCLAIMED), not POST /v1/submit-unclaimed/report/{reportId}; that endpoint exists but is not called by ocmsadminui.",
+    "User story text 'status of each notice and the suspension applied': the Excel has Status Success/Failed and an error message, but the suspension columns echo the submitted input, and a skipped TS-UNC still shows Success.",
+    "Evidence list: UnclaimedReportService.java:53 and the controller lines are correct; the UI evidence SubmitForm.tsx:171 is the downloadReport callback, add :261-263 for the report.url trigger."
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS45.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui pages/Payment/PaymentCash.tsx, App.tsx (route payment/cash). ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateController,PaymentUpdateServiceImpl,PaymentValidator}, resources/api-authorization.properties. ocmsadminprivateapi: tidak dipakai di jalur ini. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada",
+  "note": "Story minta officer, dari work item notice TS karena mismatch amount, meng-update notice sebagai paid sesuai amount dan receipt yang dibayar tanpa reduction manual. Status story di sheet: Demo paid (50% of 75%). Yang ada adalah layar Manual Payment (route payment/cash) yang memanggil POST /v1/updatePayment: officer mengetik Notice No., Amount Paid, Date of Payment, Payment Mode, Remarks. Tidak ada work item sebagai titik masuk dan tidak ada input receipt; receipt MPY dibuat otomatis, sedangkan receipt asli dari gateway/AXS tidak dihubungkan. Hasil ditentukan membandingkan total bayar dengan amount_payable saat ini: sama atau lebih jadi PS-FP (lebih juga membuat refund OVP), kurang jadi PS-PRA (PaymentValidator.java:64-91). Jadi kasus $40 vs $55 tetap PS-PRA dan reduction manual masih perlu (tiket OCMS-SR-2026-080). Pada jalur PS-FP, epr_reason_of_suspension 'PAM' tidak dibersihkan dan baris suspended_notice TS-PAM tidak ditutup oleh code ini (PaymentUpdateServiceImpl.java:373-381); jalur PS-PRA menimpa epr dengan 'PRA' (389-399). Tiket OCMS-SR-2026-190 (Ready to PRD) menambah refund untuk manual payment di atas PS-APP; belum terbukti live. Otorisasi role: mapping OCMS_PAYMENT_CASH di api-authorization.properties:111-112; siapa yang memegang role itu cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Layar manual payment dan update notice ada, tetapi tidak terhubung ke work item, tidak ada input receipt, dan kasus kurang bayar tetap PS-PRA. Minta URA/tim konfirmasi apakah demo 50% mencakup hal ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka notice TS karena mismatch amount untuk di-follow up (dari work item)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:338-339; ocmsadminui/src/pages/Payment/PaymentCash.tsx:169-175; ocmsadminui/src/pages/Payment/PaymentCash.tsx:236-243; ocmsadminapi/src/main/resources/api-authorization.properties:111-112",
+      "fit": "Sebagian",
+      "detail": "Officer bisa membuka layar Manual Payment lewat route payment/cash (App.tsx:338-339), mencari per Notice No. (PaymentCash.tsx:169-175) dan form hanya dikunci untuk PS-FP/PS-PRA atau TS-PP (PaymentCash.tsx:236-243), jadi notice TS-PAM tetap bisa diisi. Titik masuk dari work item tidak ada (dashboard kosong, lihat OCMS45.2). Endpoint /v1/updatePayment dipetakan ke role OCMS_PAYMENT_CASH (api-authorization.properties:111-112); pemegang role cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memasukkan amount yang dibayar dan detail receipt/pembayaran",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:316; ocmsadminui/src/pages/Payment/PaymentCash.tsx:343-344; ocmsadminui/src/pages/Payment/PaymentCash.tsx:351; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:160-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:218-219",
+      "fit": "Sebagian",
+      "detail": "Form punya Amount Paid, Date of Payment, Payment Mode dan Remarks (PaymentCash.tsx:316, 343-344, 351). Tidak ada field receipt: receipt number dibuat otomatis berawalan MPY (PaymentUpdateServiceImpl.java:160, 218-219) dan payment_date_and_time diisi dari tanggal yang diketik (PaymentUpdateServiceImpl.java:168). Receipt asli dari gateway/AXS di web_txn_detail tidak dipakai atau ditautkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update notice sebagai paid sesuai amount yang dibayar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateController.java:40; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:85-124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentValidator.java:64-91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:373-381; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:389-399",
+      "fit": "Sebagian",
+      "detail": "POST /v1/updatePayment (PaymentUpdateController.java:40) memanggil processPaymentUpdate: insert web_txn_detail, validasi, lalu update VON/eVON (PaymentUpdateServiceImpl.java:85-124). Total bayar >= amount_payable menjadi PS-FP, lebih bayar juga membuat refund OVP; kurang bayar menjadi PS-PRA (PaymentValidator.java:64-91; PaymentUpdateServiceImpl.java:373-381, 389-399). Jadi 'paid' penuh hanya tercapai kalau amount ≥ amount_payable saat ini; kasus mismatch kurang bayar tetap PS-PRA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer tidak perlu mengurangi amount secara manual supaya pembayaran bisa di-update",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:250-259; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentValidator.java:91-93; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:389-399",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada langkah otomatis yang menyesuaikan amount_payable ke jumlah yang dibayar. Layar hanya memberi hint 'Amount entered is lesser than the Amount Payable.' (PaymentCash.tsx:250-259) dan service mencatat PS-PRA (PaymentValidator.java:91-93; PaymentUpdateServiceImpl.java:389-399). Tiket OCMS-SR-2026-080: untuk 694100370T officer tidak bisa reduction karena sudah PS-PRA dan MGG mem-patch amount_payable ke $40. Fit sama dengan OCMS45.1 langkah terakhir."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah di-update, notice berakhir sebagai paid dan suspension sementara karena mismatch tidak lagi menahan notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:373-381; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:389-399; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:457-470",
+      "fit": "Sebagian",
+      "detail": "Jalur PS-FP mengganti suspension_type menjadi PS dan crs_reason FP, payment_acceptance_allowed 'N' (PaymentUpdateServiceImpl.java:373-381), dan menambah baris suspended_notice PS (457-470). Namun epr_reason_of_suspension 'PAM' tidak dibersihkan dan baris suspended_notice TS-PAM tidak ditutup di jalur ini; jalur PS-PRA menimpa epr dengan 'PRA' (389-399). Apakah ada proses lain yang menutup TS-PAM lama (misal auto revival, AutoRevivalHelper.java:72) cannot verify from repo untuk kasus ini."
+    }
+  ]
+}

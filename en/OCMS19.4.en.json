@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{context/NoticeSearchUploadContext,page/upload/UploadErrorList,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/page/Revival, utils/validation/NoticeSearch/Valid.ts, components/datagrid/table/TableBody.tsx, i18n/en/translation.json; ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not used",
+  "note": "Error messages for invalid values exist: a wrong notice number format is flagged in the form and in the upload rows, and upload rows that are not found go into a Record Not Found table. The revival-specific message (notice without suspension/reduction) only appears after the officer picks Apply Revival, not at search or upload time, and an empty search only shows the generic text No records to display. Edge case: if the staff-revive-eligibility call fails, the UI swallows the error and moves to an empty Revival page with no message. A reduction check (notice has no reduction) is not part of eligibility; only TS/PS is checked. No maintenance ticket changes this story's verdict.",
+  "recommendation": "Claim in part: format validation and Record Not Found exist. Record that the no-suspension message appears at the Apply Revival stage and an empty search shows only generic text.",
+  "steps": [
+    {
+      "step": "OCMS shows an error when the searched or uploaded value is invalid (wrong notice number format)",
+      "detail": "The yup NoticeNo validation uses Format(NOTICE) and the message error.notice_no.format Invalid notice no. (Valid.ts:18-32, i18n/en/translation.json:988-991); it is attached to the search form (ValidNoticeSearchAll.ts:25) and to every upload row (NoticeSearchUploadContext.tsx:90-101); failed rows go into the error table with a Description View Detail column (UploadErrorList.tsx:104-117). Only the format is checked, not a checksum or existence."
+    },
+    {
+      "step": "OCMS shows an error when an uploaded notice is not found",
+      "detail": "If validoffencenoticelist returns 0 rows, the row gets the api error Record is not found (NoticeSearchUploadContext.tsx:134-135) and is shown in the red Record Not Found (n) box with a Download Record button (UploadErrorList.tsx:46-66). For a normal search (not upload) there is no not-found message, see step 4."
+    },
+    {
+      "step": "OCMS shows an error when the notice has no suspension or reduction to revive",
+      "detail": "The message Notice has no TS/PS suspension to revive. comes from staff-revive-eligibility (SuspensionProcessingController.java:392-397) and is shown as an error list in a modal (ApplyOperationAction.tsx:184-197), but only after the officer ticks notices and presses Select on Apply Revival; in the search or upload results the notice is listed as normal. Other rules on the same endpoint: TS-HST is rejected (378-381), more than 1 PS is rejected (402-410), notice not found (371). Reduction is not checked separately: a notice without TS/PS is treated as having no reduction; the reduction record check only logs a warning during revival (RevivalBaseHelper.java:880-884). Edge case: if the eligibility call errors, the catch empties success and failed (useBatchOperation.ts:262-265), handleRV still navigates with an empty list (ApplyOperationAction.tsx:199-205) and the Revival page renders nothing (Revival.tsx:113), with no error message."
+    },
+    {
+      "step": "OCMS shows a message when no applicable notice is found for revival in the search",
+      "detail": "A search that finds nothing only shows the generic text No records to display in the datagrid (TableBody.tsx:19; NoticeSearchAllList.tsx does not set an empty label). There is no dedicated message that no notice can be revived. A search that finds notices of which none has a suspension still shows the full list with no warning."
+    }
+  ]
+}

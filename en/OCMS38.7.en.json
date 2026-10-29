@@ -1,0 +1,29 @@
+{
+  "story": "OCMS38.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: pages/NoticeUPL (EndorseList, useEndorsement: UPL endorse calls approvalinbox, workitem, workflow), App.tsx route /upl/endorsement, utils/data/LinkData.tsx (UPL menu commented out). ocmsadminprivateapi: cron-schedules-prod.properties (cron.monthlyreport: Monthly Exception, Monthly Paid, HST Monthly Query), workflows/paymentReport/jobs/MonthlyPaidReportJob and PaymentExceptionReportJob.executeMonthly (payment reports by email). ocmsadminapi: workflows/notice_management/filedownload/downloadfile/FileDownloadController (sourcePathMap without an endorsement source), ocmsadminui pages/Report (no endorsement tab). No endorsement report code.",
+  "note": "The story asks for a monthly report on the endorsements an officer made through work items. There is no endorsement report code. A monthly cron does exist (cron.monthlyreport, 1st of the month 08:30, enabled=true in cron-schedules-prod.properties:275-276) but it runs Monthly Exception Report, Monthly Paid Report and HST Monthly Query (:282-284): payment/HST reports emailed to a fixed recipient list, not an endorsement report and not sent to the endorsing officer. The endorse side itself exists only in the UI (UPL) and calls approvalinbox/workitem, which are absent from the backend; the UPL menu is commented out. Status Requirement given - Gen flow: no flow deck. email.enableSmtp=false in application-prod.properties:80 does not change this (MONTHLY_PAID_REPORT is in email.smtp.allowedSources); the real server value: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the monthly cron and the report email infrastructure can be reused. It needs endorsement data in the backend, a monthly endorsement report job, and a view/download in the Report module.",
+  "steps": [
+    {
+      "step": "The officer endorses a decision on a notice through a work item in the dashboard",
+      "detail": "The UPL endorse screen exists: route /upl/endorsement (App.tsx:83-87), a list of NPA notices of type U (EndorseList.tsx) and onEndorseAPI which calls the UPL_APPROVAL workflow then PATCHes approvalinbox (useEndorsement.tsx:140-175). But the UPL menu is commented out (LinkData.tsx:397), it is not a work item in the dashboard, and the approvalinbox, workitem and UPL_APPROVAL workflow endpoints are not found in the backend (grep UPL_APPROVAL and approvalinbox in backend src: 0 hits; no work item controller). The approvalinbox PATCH only runs when isAPIFound (STAGING/LOCAL). So it is UI only; end-to-end is not proven from the repo."
+    },
+    {
+      "step": "OCMS keeps a record of each endorsement (who, when, notice, decision) as report input",
+      "detail": "The endorsement record exists only in the UI: the approvalinbox PATCH fills the decision, user ID and approval time (useEndorsement.tsx:166-175). The backend has no entity, repository or table for approvalinbox or endorsement (grep endorse, approvalinbox in ocmsadminapi and ocmsadminprivateapi src: 0 hits in Java and properties). A DB table without an entity: cannot verify from repo."
+    },
+    {
+      "step": "OCMS generates the monthly endorsement report automatically",
+      "detail": "The monthly cron exists (cron.monthlyreport.schedule=0 30 8 1 * ?, enabled=true, cron-schedules-prod.properties:275-276) but runs only three jobs: Monthly Exception Report, Monthly Paid Report, HST Monthly Query (:282-284). They report payments/refunds (PaymentExceptionReportJob.executeMonthly, :248; MonthlyPaidReportJob, :47-51) and HST, not endorsements. The HST job produces MonthlyHSTWorkItemsReport (11 HST statistics such as HST ID and TS-HST counts, HstReportHelper.java:511-566, HstReportServiceImpl.java:323), not endorsement statistics. There is no endorsement job, helper or query (grep endorse in ocmsadminapi and ocmsadminprivateapi src: 0 hits). The generic monthly cron mechanism exists, the content the story asks for does not. Ticket OCMS-SR-2026-148 (closed) is only about columns and recipients of the Monthly Paid Report."
+    },
+    {
+      "step": "The officer can view the endorsement report in OCMS (dashboard/Report module)",
+      "detail": "The Report module has only the tabs Notices Created by Enforcement Systems, RIP, Notices Created in Backend, LTA, vHub, MHA, eNotification, DataHive Contact Info, Reminder Letter, CPS, PS, DataHive FIN, DataHive UEN (ReportList.tsx:50-146). There is no endorsement tab and the Dashboard is empty (Dashboard.tsx:17-31). The Monthly Paid/Exception reports do not appear in the module either; they are emailed."
+    },
+    {
+      "step": "The officer can download the endorsement report",
+      "detail": "The generic POST /v1/download/blob uses sourcePathMap (TOPPAN, LTA, MHA, DATAHIVE, ENOTIF, UNCLAIMED, TEMPLATE, UEN, FIN, VHUB; FileDownloadController.java:89-99) and has no endorsement source. The only way Monthly Paid/Exception reach users is an email attachment to a fixed recipient list (MonthlyPaidReportJob.java:212-227, email.report.paymentreport.monthly.recipients in application-prod.properties:75), not to the endorsing officer. No endorsement report exists, so nothing can be downloaded."
+    }
+  ]
+}

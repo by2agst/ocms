@@ -1,0 +1,45 @@
+{
+  "story": "OCMS17.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, plus-suspension-codes),helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper,helpers/SuspensionProcessingHelper}.java, auth/filter/JwtFilter.java. A second copy sits in ocmsadminprivateapi framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java. Effect on jobs: ocmsadminprivateapi AutoRevivalHelper, LtaUploadHelper, MhaNricDataHelper, NotificationSmsEmailHelper, DataHiveUenFinService. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no PLUS code",
+  "note": "POST plus-apply-suspension takes the notice list, suspensionType, reasonOfSuspension, daysToRevive, remarks and officer from PLUS, rejects requests missing mandatory fields, forces suspensionSource = PLUS, then runs the same processTS as the staff flow (source permission from ocms_suspension_reason, stage, paid, PS overlap) and writes VON, eVON and ocms_suspended_notice. PLUS gets a results[] per notice with an appCode. Not proven or different: (1) JwtFilter skips every plus-* URL (JwtFilter.java:179), so protection of the PLUS caller depends on APIM and is not visible in the repo; (2) which codes PLUS may use depends on ocms_suspension_reason rows (source PLUS, status A) that are not in the repo; (3) daysToRevive 0 or negative passes the mandatory check and is replaced by a default (same as OCMS17.12); (4) 'will not escalate' is only partly true: VON gets suspension_type TS and the MHA, SMS/email and DataHive UEN jobs filter suspension_type IS NULL, but LTA upload only excludes PS and in fact moves TS to RD1 (LtaUploadHelper.java:175), and the Toppan letter selection was not found to use this filter, so it cannot be confirmed; (5) no locking/idempotency: a late TS-APP could overwrite a PS-APP (OCMS-SR-2026-146, fixed by a data patch, cause on the PLUS timeout side) and a PLUS retry adds another suspended_notice row. The endpoint exists in two copies (ocmsadminapi and ocmsadminprivateapi); which APIM route PLUS uses cannot be verified from the repo. Tickets: OCMS-DF-2026-025 (PLUS TS-RED rule up to COS), OCMS-DF-2026-027 (duplicate sr_no in PLUS batches), OCMS-SR-2026-146. The Auto Revival cron uses cron.toppanupload.enabled=true (cron-schedules-prod.properties:62); the real server value cannot be verified.",
+  "recommendation": "Claim partially: the PLUS interface to apply TS with a code and days exists and writes the data correctly. Note: PLUS authentication is not visible in the repo, the PLUS code list depends on DB data, and 'will not escalate' is only partly honoured by the jobs.",
+  "steps": [
+    {
+      "step": "PLUS can send notices with a suspension code and number of days.",
+      "detail": "plusApplySuspension accepts noticeNo[], suspensionType, reasonOfSuspension, daysToRevive, suspensionRemarks, officerAuthorisingSuspension; an empty mandatory field gets a 400 'OCMS-4000 Invalid request' (CTRL:504-528). The number of days is read from daysToRevive (extractDaysToRevive, CTRL:1157-1182), so PLUS can send a specific code and number of days."
+    },
+    {
+      "step": "Only the PLUS system is allowed to send these requests.",
+      "detail": "JwtFilter.isPublicEndpoint treats every plus-* path as public (JwtFilter.java:179), so plus-apply-suspension needs no JWT. Caller protection (APIM / network / key) is not visible in the repo: cannot verify from repo. The endpoint changes notice status, so the code gives no proof that only PLUS can call it."
+    },
+    {
+      "step": "Suspensions from PLUS are recorded as coming from PLUS.",
+      "detail": "suspensionSource is forced to PLUS; a request with any other suspensionSource is rejected with 400 (CTRL:532-538). The suspension is recorded with source PLUS and processIndicator 'Manual' (CTRL:1037-1041), so ocms_suspended_notice tells PLUS TS apart from staff TS."
+    },
+    {
+      "step": "Only suspension codes meant for PLUS are accepted.",
+      "detail": "A code is accepted only if an ocms_suspension_reason row exists with suspension_type TS, reason, suspension_source PLUS and status A (BASE:294-336); otherwise 'Source not authorized to use this Suspension Code'. PLUS can fetch the code list through plus-suspension-codes (CTRL:133-137). The mechanism exists, but which codes exist and their default days live in DB data, not in the repo: cannot verify from repo. The default-days lookup always uses source OCMS even for a PLUS request (TSH:197)."
+    },
+    {
+      "step": "Notices that cannot be suspended are rejected with a reason.",
+      "detail": "Before applying, processTS checks the stage (BASE:189-275; ROV/CLV/NRO have their own stage limits), whether the notice is paid (crs_reason not empty, TSH:87-90) and the overlap with PS (only FOR/MID/DIP/RP2/RIP allow TS, TSH:31-33, 159-178). Special PLUS TS-RED rule up to stage COS (BASE:197-205, OCMS-DF-2026-025). A failing notice gets success=false + a reason; a PLUS request with checking=true runs validation without writing (CTRL:995-1000)."
+    },
+    {
+      "step": "The notice is suspended for exactly the number of days PLUS sent.",
+      "detail": "Revival date = now + daysToRevive (TSH:188-190). daysToRevive is mandatory (null is rejected, CTRL:519-523), but 0 or negative passes and is replaced by the default from ocms_suspension_reason or 30 days (TSH:192-208) without notice. Same fit as OCMS17.12 (same fact)."
+    },
+    {
+      "step": "The suspension is saved and PLUS gets a result per notice.",
+      "detail": "Result is the same as the staff flow: updateVON (suspension_type TS, reason, furthest revival date), updateEVON and a new ocms_suspended_notice row with suspension_source PLUS, remarks, officer and a per-notice sequence srNo (OCMS-DF-2026-027 fixed). PLUS receives a results[] per notice with appCode OCMS-2000 / OCMS-4000 (CTRL:552-555, 1186-1198)."
+    },
+    {
+      "step": "While the TS is active the notice should not move to the next stage.",
+      "detail": "A notice with TS does not stop in every job. The MHA enquiry file only takes notices with null suspension_type or TS-HST/TS-UNC (MhaNricDataHelper:196-215), ENA SMS/email requires suspension_type IS NULL (NotificationSmsEmailHelper:1034, except TS-HST), DataHive UEN/FIN also IS NULL (DataHiveUenFinService:238). LTA upload only excludes PS; TS is moved to RD1 (LtaUploadHelper:175). The Toppan letter selection was not found to filter on suspension_type: cannot confirm. When the due date is reached AutoRevivalHelper revives the TS and keeps any remaining suspension (AutoRevivalHelper:440-463); this job sits in the toppanupload cron enabled=true (cron-schedules-prod.properties:62), the real server value cannot be verified."
+    },
+    {
+      "step": "A late or repeated PLUS request does not undo a permanent suspension.",
+      "detail": "There is no protection against late or repeated requests: the PS-overlap validation and the VON write are not under one lock, and updateVON overwrites suspension_type without a re-check. OCMS-SR-2026-146: a TS-APP from PLUS that completed late overwrote a PS-APP, and the PLUS retry applied the TS again (fixed by a data patch; main cause was PLUS's 30-second timeout). Every retry that passes validation adds another ocms_suspended_notice row (no idempotency key). The repo behaviour for that case has not changed."
+    }
+  ]
+}

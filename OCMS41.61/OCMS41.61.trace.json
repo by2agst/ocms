@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.61",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: agencies/mha/{upload,download} (OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, MhaNricDownloadHelper.bufferMhaRegistrationAddress), datahiveuenfin/DataHiveUenFinService (updateCompanyAddress, placeholder createWorkItem*), furnish_processing/FurnishApprovalHelper (furnished_mail), toppan/upload/ToppanUploadHelper (letter_address). ocmsadminui: menu Work Items (LinkData.tsx, Meta/WorkItem.ts) tanpa halaman. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code perbandingan address",
+  "note": "Status story: User Story Removed, jadi tidak diklaim; langkah ditulis dari teks story dan dicocokkan ke code apa adanya. Yang ada hanya pengambilan registered address (mha_reg) dari MHA untuk NRIC dan, untuk perusahaan, dari DataHive UEN (job UEN/FIN dimatikan di prod config). Tidak ada code yang membandingkan registered address dengan furnished address (postal code, unit), tidak ada keputusan lanjut-atau-work-item, dan pembuatan work item hanya placeholder log. Bagian DOS/DataHive di luar MHA: cannot verify from repo. Tidak ada tiket maintenance yang mengubah verdict.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil registered address terbaru milik individu atau perusahaan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:565-569; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2294-2334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1633; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1732; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Individu: query upload MHA memilih notice di stage RD1/RD2/RR3/DN1/DN2/DR3 dengan offender_indicator Y dan id_type N (hanya NRIC; FIN dan passport tidak ikut) (OcmsValidOffenceNoticeRepository.java:565-569); hasil MHA ditulis sebagai row mha_reg dengan full replace (MhaNricDownloadHelper.java:2294-2334, OCMS-DF-2026-130). Perusahaan: DataHiveUenFinService menyimpan alamat ACRA sebagai mha_reg (:1633, :1732), tetapi job DataHive UEN/FIN dimatikan di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52) dan DataHive NRIC enrichment juga false (:50). Nilai asli di server cannot verify from repo. Story Removed: langkah yang ada code-nya dicatat Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan registered address dengan furnished address (postal code sama, unit number tidak hilang)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2280-2340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723-1760; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:193",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan perbandingan postal code atau unit antara row mha_reg dan furnished_mail di enam repo (dicari: compare, mismatch, equals pada postal, furnished bersama mha_reg/lta_reg, sameAddress). Satu-satunya equals pada postal code adalah deteksi alamat invalid '000000' (MhaNricRecordValidator.java:193). Jalur tulis mha_reg (MhaNricDownloadHelper.java:2280-2340, DataHiveUenFinService.java:1723-1760) tidak pernah membaca row furnished_mail."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika cocok, OCMS melanjutkan dengan particulars yang sudah di-update",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2323-2325; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:627-634",
+      "fit": "Sebagian",
+      "detail": "Tidak ada keputusan cocok atau tidak: row mha_reg ditulis tanpa syarat, dan letter_address=Y hanya diberikan bila belum ada row Y untuk notice dan role itu (MhaNricDownloadHelper.java:2323-2325). Akibatnya furnished_mail yang dibuat saat furnish dengan letter_address=Y (FurnishApprovalHelper.java:627-634) tetap menjadi alamat surat. Hasilnya terlihat seperti lanjut dengan data baru, tetapi bukan hasil perbandingan. Story Removed: Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika tidak cocok, OCMS membuat work item yang di-route ke dashboard OIC untuk follow-up",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2924; ocmsadminui/src/utils/data/LinkData.tsx:170-176; ocmsadminui/src/utils/Meta/WorkItem.ts:1-12",
+      "fit": "Tidak ada code",
+      "detail": "Fungsi createWorkItemForPRSC dan saudaranya (EP/LTVP/WP) hanya menulis log '[PLACEHOLDER] Work item creation skipped' (DataHiveUenFinService.java:2920-2924) dan dipakai untuk kasus FIN/pass, bukan address mismatch. Staff UI hanya punya menu Work Items dengan anak HST (LinkData.tsx:170-176, Meta/WorkItem.ts:1-12); tidak ada route /work-item atau halaman dashboard OIC untuk item ini, dan ocmsadminapi tidak punya entity atau endpoint work item."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/suspendednotice (SuspendedNoticeControllerPlus, SuspendedNoticeServiceImplPlus, dto/SuspendedNoticePlusDto) untuk POST /plus-suspended-notice, plus helpers/SuspensionProcessingHelper.validateSuspension dan PermanentSuspensionHelper di notice_creation/core. Salinan di ocmsadminprivateapi framework/workflows/plus/notice_management/suspension.",
+  "note": "OCMS tidak mengirim detail PS lama bersama jawaban check; jawaban check PS-di-atas-PS hanya {noticeNo, eligible:true, message} (SuspensionProcessingHelper.java:1198-1205). Detail (reasonOfSuspension, dateOfSuspension, suspensionSource, dateOfRevival, officer, remarks) hanya bisa diambil PLUS lewat panggilan terpisah POST /plus-suspended-notice yang mendukung filter noticeNo, suspensionType, dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:47-61). Tidak ada parameter konfirmasi 'overwrite'; PLUS cukup memanggil ulang plus-apply-suspension. Demo remark story menyebut API tidak menarik data dan dugaan koneksi DB putus setelah deployment PLUS 20 September; ini tidak bisa dinilai dari repo. Pembacaan memakai isolation READ_UNCOMMITTED (SuspendedNoticeServiceImplPlus.java:33). Tidak ada maintenance ticket yang cocok dengan langkah ini.",
+  "recommendation": "Klaim sebagian: detail PS yang ada bisa diambil lewat endpoint terpisah, tetapi OCMS tidak mengirimnya sebagai bagian dari jawaban check dan tidak ada langkah konfirmasi. Demo remark menandai masalah koneksi/API yang belum terselesaikan; jangan klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyertakan detail permanent suspension yang ada dalam jawaban ke PLUS setelah menemukan PS lama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:386-405; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1198-1205",
+      "fit": "Beda dari flow",
+      "detail": "Jawaban check untuk notice yang sudah PS hanya eligible:true dan teks 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205). Tidak ada kode PS lama maupun tanggal suspension di response. Fakta yang sama dengan OCMS18.17 langkah 4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail permanent suspension yang ada (kode dan tanggal suspension) tersedia bagi PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeControllerPlus.java:33-37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeServiceImplPlus.java:47-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeServiceImplPlus.java:75-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/dto/SuspendedNoticePlusDto.java:13-56",
+      "fit": "Sebagian",
+      "detail": "POST /plus-suspended-notice mengembalikan baris ocms_suspended_notice terbaru lebih dulu (SuspendedNoticeServiceImplPlus.java:75) dengan reasonOfSuspension, dateOfSuspension, dateOfRevival, suspensionSource, officer dan remarks (SuspendedNoticePlusDto.java:13-56); filter yang dibolehkan termasuk noticeNo, suspensionType, dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:47-61) sehingga PLUS bisa meminta PS aktif. Ini mekanisme tarik oleh PLUS, bukan OCMS yang mengirim saat check; PLUS harus memanggilnya sendiri. Demo remark menyebut API tidak menarik data dari DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User PLUS mengetahui suspension yang ada dan dapat mengonfirmasi untuk menimpa permanent suspension yang ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-562; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130",
+      "fit": "Sebagian",
+      "detail": "Tidak ada field atau endpoint konfirmasi overwrite di OCMS. Konfirmasi hanya berupa PLUS memanggil ulang POST /plus-apply-suspension dengan kode PS baru; panggilan execute pertama pun sudah menimpa tanpa menunggu konfirmasi (PermanentSuspensionHelper.java:125-130). Dialog konfirmasi ke user PLUS ada di UI PLUS: cannot verify from repo."
+    }
+  ]
+}

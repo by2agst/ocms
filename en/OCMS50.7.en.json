@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts, Table/Column.ts, hooks/Auth.ts, components/modal/ModalSPCP.ts; ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (vehicle search, E2/E4/E5, ID search via JWT), crud/ocmsezdb/eocmsvalidoffencenotice + eocmsusermessage, workflows/spcp/SpcpController. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant",
+  "note": "The story asks the page to prompt the offender to log in with Singpass when there are non-payable outstanding fines under the searched vehicle, so the details can be seen. The code has a non-payable mechanism: for vehicle search, notices in a court stage (CPC, CFC, COM, COS, COW, CWM, CWW, CTW, CWT) get payment_acceptance N with message E2 (ParkingFinesServiceImplement.java:386-391); the row has no checkbox and an info icon that opens the message text. But the E2 text is read from the DB (getMessage -> eocms_user_message, :59-66) and its content is not in the repo; the quote in OCMS-DF-2026-011 shows E2 points to 'search using your ID number at www.ura.gov.sg/pf', not to a Singpass login, and the UI has no login button in that message (formatMessageWithLink only converts 'chat with us'). The Singpass/Corppass buttons exist on the ID Number tab of the same page, and after login the ID search shows non-payable notices (E4/E5) with details. The Singpass handshake cannot verify from repo; the production message wording cannot verify from repo.",
+  "recommendation": "Claim partially: non-payable detection and the detail view after login exist. An explicit Singpass login prompt is not proven in the code; ask URA to confirm the E2 message text in PRD or add a login button in that message",
+  "steps": [
+    {
+      "step": "The offender searches fines by vehicle number",
+      "detail": "The 'Vehicle Number' tab uses a vehicle number input and a Turnstile captcha (PaymentSearch.ts:590-597, 617), then POSTs v1/parkingfines {vehicleNo}. handleVehicleNoSearch (ParkingFinesController.java:385-420) calls findParkingFinesByVehicleNo. This search needs no login because /v1/parkingfines is public in JwtFilter (JwtFilter.java:133)."
+    },
+    {
+      "step": "The system marks the outstanding fines of that vehicle that cannot be paid",
+      "detail": "applyVehicleNoConditionLogic: if last_processing_stage is in COURT_PROCESSING_STAGES (:33) then paymentAcceptanceAllowed = 'N' with message E2 (:386-391); otherwise it uses the payment_acceptance_allowed flag from eVON and eservice_message_code (:392-399). findAllByVehicleNoIn only takes notices without crs_reason_of_suspension and without an_flag Y (EocmsValidOffenceNoticeRepository.java:48-61). The UI turns N into isSelect = 'N' (API.ts:52). The E1 vs E2 fix for vehicle search is in OCMS-DF-2026-007, and the court message without outstanding notices in OCMS-DF-2026-011 (both Closed, Prod deployed)."
+    },
+    {
+      "step": "The page shows a prompt asking the offender to log in with Singpass",
+      "detail": "The message mechanism exists: non-payable rows have an info icon that opens a modal with the message from the API (PaymentSearchResult.ts:234-273). The E2 content is read from eocms_user_message through getMessage (ParkingFinesServiceImplement.java:59-66) and is not in the repo. The E2 text quoted in OCMS-DF-2026-011 reads '...please search using your ID number at www.ura.gov.sg/pf...', without the word Singpass, and there is no login button or link in that modal: formatMessageWithLink only turns 'chat with us' into a link (PaymentSearchResult.ts:51-58). So an explicit Singpass login prompt is not proven; the actual PRD text cannot verify from repo."
+    },
+    {
+      "step": "The offender can log in with Singpass or Corppass from the search page",
+      "detail": "Singpass (individual) and Corppass (business) buttons exist on the 'ID Number' tab of the Payment page and call onSingpass/onCorppass (PaymentSearch.ts:336-352, 561-588; Auth.ts:156-168). They are part of the normal ID search and are not triggered by a non-payable result. The ModalSPCP component ('Login with Singpass', ModalSPCP.ts:32) is defined but nothing renders <uds-modal-spcp> in src. The generic login on the page is not the prompt the story means, so Sebagian. The Singpass login itself cannot verify from repo."
+    },
+    {
+      "step": "After login, the offender sees the details of the non-payable fine",
+      "detail": "handleIdNoSearchFromJwt takes the identity from the JWT/session, then findParkingFinesByIdNo returns non-payable notices: annulled or PS-ANS with message E5 (:212-220), FP/PRA without a message (:221-224), and court stages with acceptance N with message E4 through applyCpcConditionLogic. The table shows notice number, vehicle, place/date/time of offence, offence code, and the message in a modal; the amount column shows '-' for non-payable rows (Column.ts:109-122) and the status shows '-' (Column.ts:139-177). The ID search only loads PII rows with offender_indicator = 'Y'. The Singpass identity and the PII content in the Internet DB (demo remark 'PII encryption') cannot verify from repo."
+    }
+  ]
+}

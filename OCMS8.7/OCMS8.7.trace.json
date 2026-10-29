@@ -1,0 +1,55 @@
+{
+  "story": "OCMS8.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/agencies/mha/download/{helpers/MhaNricRecordValidator (handleDuplicateUins, selectMostRecentRecord), jobs/MhaNricDownloadJob (pemanggilan), helpers/MhaNricDownloadHelper (bufferMhaRegistrationAddress, letter_address)}, workflows/agencies/toppan/upload/jobs/ToppanUploadJob (filter letter_address), workflows/agencies/mha/upload/jobs/MhaNricUploadJob (reset letter_address), services/datahive/.../DataHiveFINBatchService + workflows/datahiveuenfin/services/DataHiveUenFinService (alamat FIN dari DataHive). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status stories: 'Fully paid'. Jalur NRIC (file hasil MHA, job aktif di PROD: cron-schedules-prod.properties:119-122) mengerjakan inti story: dua baris dengan UIN dan nomor notice yang sama dalam satu file dikelompokkan sebagai duplicate, baris dengan Date of Address Change terbaru dipilih, lalu ditulis sebagai alamat mha_reg dengan letter_address='Y' yang dipakai Toppan. Celahnya: pemilihan hanya membandingkan baris dalam satu file; alamat yang sudah tersimpan tidak dibandingkan, sehingga file berikutnya dengan tanggal lebih lama menimpa alamat yang lebih baru (full replace, OCMS-DF-2026-130). Jalur FIN dari DataHive hanya membandingkan tanggal untuk EP dan memilih WP/EP di atas LTVP/STP tanpa melihat tanggal; job DH UEN/FIN false di PROD. Sumber ICA langsung dan isi file MHA cannot verify from repo. Maintenance ticket: OCMS-DF-2026-130 dan OCMS-DF-2026-134 (keduanya Closed) menyentuh penimpaan alamat mha_reg; kodenya sudah memuat perbaikannya (full replace dan scope per notice).",
+  "recommendation": "Klaim jalur NRIC untuk pemilihan alamat berdasarkan tanggal terbaru dalam satu file. Tandai Sebagian untuk penimpaan lintas file dan untuk alamat FIN dari DataHive. Pertimbangkan membandingkan tanggal dengan alamat yang sudah tersimpan dan membandingkan tanggal lintas EP/WP/pass",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima 2 set alamat berbeda untuk record yang sama dari file hasil MHA dan mengenalinya sebagai duplicate",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:248-295; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:936-940",
+      "fit": "Sesuai",
+      "detail": "handleDuplicateUins mengelompokkan record per UIN, lalu per uraReferenceNo; UIN dan nomor notice yang sama dengan lebih dari satu baris dianggap true duplicate (MhaNricRecordValidator.java:261-295). Dipanggil dari job di langkah 'RED Step' (MhaNricDownloadJob.java:936-940). Catatan: UIN sama dengan notice berbeda diproses sendiri-sendiri, bukan duplicate (:277-283). Bahwa MHA mewakili ICA dan isi file di PROD cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan tanggal update alamat (Date of Address Change) dan memilih yang terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:333-339; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricRecordValidator.java:357-368",
+      "fit": "Sesuai",
+      "detail": "selectMostRecentRecord mengumpulkan tanggal unik non-null; bila ada lebih dari satu tanggal berbeda, baris dengan tanggal terbesar dipilih tanpa flag (MhaNricRecordValidator.java:357-368, max dengan Comparator.naturalOrder). Kasus tanggal sama atau kosong ditangani di story OCMS8.8."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui alamat pada notice dengan alamat yang terpilih",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:765-786; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2288-2326",
+      "fit": "Sebagian",
+      "detail": "Alamat terpilih ditulis ke alamat mha_reg milik notice di file lewat bufferMhaRegistrationAddress (MhaNricDownloadHelper.java:765-786), memakai full replace sehingga field kosong menghapus nilai lama (:2292-2316, perbaikan OCMS-DF-2026-130) dan dibatasi ke notice di file (OCMS-DF-2026-134). Kurangnya: tidak ada pembandingan dengan alamat yang sudah tersimpan; effectiveDate hanya diisi dari Date of Address Change baru (:2310-2314). Jadi bila file berikutnya membawa alamat dengan tanggal lebih lama, alamat lama itu menimpa yang lebih baru. Pemilihan 'terbaru' hanya berlaku antar baris dalam satu file."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Letter notification dikirim ke alamat yang terakhir diperbarui",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2321-2326; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:190; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:265-268",
+      "fit": "Sesuai",
+      "detail": "Baris mha_reg yang baru ditandai letter_address='Y' bila belum ada baris lain yang memegang 'Y' untuk notice dan indikator owner/driver itu (MhaNricDownloadHelper.java:2321-2326); letter_address mha_reg di-reset sebelum enquiry dikirim (MhaNricUploadJob.java:190). Toppan hanya mengambil notice dengan letter_address='Y' (ToppanUploadJob.java:265-268), jadi surat mengikuti alamat yang baru ditulis. Pembuatan PDF/file Toppan sendiri di luar chunk ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk FIN: OCMS memilih alamat terbaru bila DataHive mengembalikan lebih dari satu alamat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:454-456; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:500-508; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2533-2552; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Untuk EP, bila satu FIN punya beberapa baris EPFOREIGNER, dipilih yang LAST_CHANGE_ADDRESS_DT terbaru (DataHiveFINBatchService.java:454-456, 500-508). Untuk WP, pilihannya berdasarkan ISSUANCE_DT, bukan tanggal alamat (:610). Antar sumber, alamat work permit selalu menang atas alamat pass LTVP/STP tanpa membandingkan tanggal (DataHiveUenFinService.java:2533-2552). Job DH UEN/FIN false di cron-schedules-prod.properties:52 (nilai deployed cannot verify from repo)."
+    }
+  ]
+}

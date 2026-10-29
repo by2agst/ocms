@@ -1,0 +1,25 @@
+{
+  "story": "OCMS15.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingController.plusChangeProcessingStage (catch PlusChangeStageException -> 422, Exception -> 500), ChangeOfProcessingService.processPlusChangeStage (error collection). Other repos: no code",
+  "note": "Story status: Requirement given - Gen flow (no OCMS flow deck). The error reply mechanism to PLUS exists (HTTP 422 with status FAILED, code, message). What is thin is when it fires: only CFC from source 005, notice not found, and duplicates (see OCMS15.13); other not-applicable cases produce no error. There is also a consistency gap: there is no wrapping transaction for the whole batch (processPlusChangeStage has no @Transactional; @Transactional on a protected method called from the same class does not go through the proxy, so it needs a runtime check, cannot verify from repo), so notices that succeeded before the failing one stay saved while PLUS receives FAILED. No maintenance ticket directly targets this error reply.",
+  "recommendation": "Claim the 422 error reply mechanism. Do not claim that every not-applicable notice produces an error; the partially-saved batch gap needs clarifying with the team",
+  "steps": [
+    {
+      "step": "When a notice is not applicable, OCMS answers PLUS with a structured error (status FAILED, code, message)",
+      "detail": "PlusChangeStageException is caught by the controller and answered as HTTP 422 {status:FAILED, code:<errorCode>, message} (ChangeOfProcessingController.java:516-526); the exception class carries an errorCode (ChangeOfProcessingService.java:1607-1618). Unexpected errors are answered 500 {status:ERROR, code:INTERNAL_ERROR} with a generic message (ChangeOfProcessingController.java:527-536)."
+    },
+    {
+      "step": "The error message names which notice failed and why",
+      "detail": "Each failure is written as 'Notice <no> failed: <code> - <message>' (ChangeOfProcessingService.java:1376-1384), duplicates as 'Duplicate noticeNo in request' (:1361), then everything is joined with '; ' into one PROCESSING_FAILED message (:1389-1392). The CFC source 005 rule is thrown earlier with code OCMS-4004 without a notice name (:1302-1306)."
+    },
+    {
+      "step": "Every not-applicable notice condition produces an error to PLUS",
+      "detail": "Only three conditions end in an error: CFC from source 005 (:1302-1306), notice not found (:1470-1476), duplicate (:1360-1366). Other conditions (court stage, PS, stage map, role) are not checked on the PLUS path and the notice is still changed (see OCMS15.13), while offenceType U to DN1/DN2/DR3/CPC is answered SUCCESS (:1311-1317). Fit follows OCMS15.13."
+    },
+    {
+      "step": "A mixed request: PLUS knows exactly which notices changed and which did not",
+      "detail": "processPlusChangeStage has no wrapping transaction and processes notices one by one (ChangeOfProcessingService.java:1288, 1357-1387); @Transactional exists only on the protected method processPlusNoticeWithStageNewFlow (:1458-1459), which is called from the same class and therefore bypasses the proxy. As a result notices that succeeded before the failing one appear to stay saved while PLUS receives a FAILED that lists only the failed notices (:1389-1392); successful notices are not named. Transaction behaviour at runtime: cannot verify from repo."
+    }
+  ]
+}

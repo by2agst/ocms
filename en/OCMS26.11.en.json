@@ -1,0 +1,29 @@
+{
+  "story": "OCMS26.11",
+  "flow_ref": "User story (not in a flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController.casUpdateCourtNotices, service/CasIntegrationServiceImpl.updateCourtNotices, dto/CasUpdateNoticeItem}, config/WebConfig, auth/filter/JwtFilter, crud/ocmsizdb/stagemap/StageValidationService. ocmsadminui pages/NoticeSearch/hook/useSearch.ts (pencarian warrant_no). Tidak ada code untuk menerima update adjudication khusus warrant of arrest, mencatat outcome court, atau alur tindak lanjut warrant: ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi, ocmseserviceui tidak punya code court adjudication.",
+  "note": "The story status in the sheet is blank (requirement not given), traced normally. The only entry point from the court into OCMS is the generic POST /v1/casUpdateCourtNotices, which overwrites the stage columns, stage dates, amount_payable, payment_acceptance_allowed and suspension fields on VON (intranet) and eVON (internet). The endpoint has no concept of a warrant of arrest: there is no WOA-specific field, branch or stage in the DTO or service, and no column or entity for an adjudication outcome (OcmsCourtCase only has noticeNo, courtPaymentDueDate, reason). The stage sent by the caller is accepted as-is because StageValidationService.validateStagesFromExternalSource is never called. Staff search by warrant_no calls a warrantofarrest resource that has no controller in ocmsadminapi. The endpoint bypasses JwtFilter and the authorization interceptor, and ocms.cas.key.validation.enabled=false in prod: protection depends on APIM, cannot verify from repo. Whether CAS really sends WOA updates through this endpoint cannot verify from repo. Ticket OCMS-SR-2026-179 (On Hold): NRO/CSD/CSR stages from CAS do not set payment_acceptance_allowed.",
+  "recommendation": "Claim only the generic stage and amount_payable write via the CAS endpoint. Adjudication outcome and warrant of arrest follow-up are not built: ask URA/the team whether WOA is built in the CAS system or another repo.",
+  "steps": [
+    {
+      "step": "The court system sends the case adjudication update for an issued warrant of arrest to OCMS",
+      "detail": "There is only one generic entry point from CAS: POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101), max 500 notices per request (:124). There is no endpoint, field or message type specific to a warrant of arrest, so a WOA adjudication can only arrive through the generic stage/amount payload; whether CAS really sends it cannot verify from repo. The endpoint is excluded from the authorization interceptor (WebConfig.java:85) and JwtFilter, and ocms.cas.key.validation.enabled=false in prod (application-prod.properties:55): protection depends on APIM, cannot verify from repo."
+    },
+    {
+      "step": "OCMS updates the notice processing stages according to the adjudication update",
+      "detail": "last/prev/next processing stage from the payload overwrite the columns on VON (CasIntegrationServiceImpl.java:437-439) and eVON (:472-473); an empty field keeps the old value. Stages are not validated: validateStagesFromExternalSource (StageValidationService.java:70) is only defined and never called from updateCourtNotices, so any stage is accepted. There is no mapping to a warrant of arrest stage. A notice already at FULL_PAYMENT is rejected (:336). OCMS-SR-2026-179 (On Hold): NRO/CSD/CSR stages from CAS do not set payment_acceptance_allowed so the notice cannot be paid online."
+    },
+    {
+      "step": "OCMS records the adjudication outcome on the notice",
+      "detail": "The CasUpdateNoticeItem DTO only carries noticeNo, suspensionType, stages/dates, atomsFlag, amountPayable, paymentAcceptanceAllowed, eprReasonOfSuspension, eprDateOfSuspension; there is no outcome/adjudication result field. The OcmsCourtCase entity only has noticeNo, courtPaymentDueDate, reason and is only read (plus-get-court-case-info) or written by plus-payment-activation, not by the CAS update. Synonyms tried: outcome, adjudicat, judgment, verdict, decision in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi and ocmsadminui. Only a UI model type Icourtoutcomeapproval.d.ts exists, with no page or endpoint."
+    },
+    {
+      "step": "OCMS updates the notice amount payable according to the adjudication update",
+      "detail": "amountPayable from the payload is written to amount_payable on VON (CasIntegrationServiceImpl.java:445, set clause :111, executed :384) and eVON (:474, :148, :390); if not sent the old value is kept. This meets the step content (amount payable gets updated), regardless of case type. Ticket OCMS-SR-2026-179 states amount_payable from CAS is populated correctly."
+    },
+    {
+      "step": "The Court Processing Officer follows up the issued warrant of arrest from the notice",
+      "detail": "Notice search by warrant_no calls the 'warrantofarrest' resource (useSearch.ts:69-75), but there is no warrantofarrest controller/entity in ocmsadminapi or ocmsadminprivateapi (the name only appears in api-authorization.properties:23), so the call has no server. There is no screen, stage or job for WOA follow-up. The only related item is the UI message 'Notice has been submitted to State Court' (useStagePermissions.tsx:86), which only blocks editing. Synonyms tried: warrant, WOA, arrest, summon, court in both layers (UI and API)."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS14.26",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper.processTsClvLooping}, utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils, framework/workflows/casvipvehicle (refresh CAS), framework/schedulers/ToppanUploadJobsScheduler, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.applyClvSuspensionForVipVehicles, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findToppanNoticesForStage. ocmsadminapi: SuspensionBaseHelper (stage CLV), AutoSuspensionHelper.triggerClvSuspension (tidak ada caller). ocmsadminui: utils/constant.ts (APPLY_TS_ALLOWED memuat CLV). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story status 'Requirement given - Gen flow'. In code a classified vehicle = vehicle_registration_type 'V' (VIP), set from table ocms_vip_vehicle when the notice is created (SpecialVehUtils.java:88,142); that table is refreshed by the CAS cron at 02:00 (cron-schedules-prod.properties:336-337); the CAS API content cannot be verified from the repo. The TS-CLV application that really runs daily is in the auto-revival cron (AutoRevivalHelper.processTsClvLooping): notices at RR3/DR3 of type V and not PS-FP get TS-CLV. The second path in ToppanUploadHelper (after the RR3/DR3 letter) uses the vehicle-number regex ^V[A-Z0-9]+$, not the VIP table, and only runs when letter generation is triggered manually (ToppanUploadJobsScheduler.java:118 is commented out, per the addendum fact). The suspension period is not in code: it is read from column no_of_days_for_revival of table ocms_suspension_reason (30 days default when nothing is found); a code comment says 21 days but the DB value cannot be verified from the repo. There is no dedicated staff screen for this story; the staff TS list includes CLV (constant.ts:111-112) but it is not checked on the server. Tickets: OCMS-SR-2026-051 (VIP table patched via DB, no maintenance screen) and OCMS-DF-2026-117 (user questioned reapply of TS-CLV/HST; closed with no code change).",
+  "recommendation": "Claim most of it. TS-CLV application at RR3/DR3 by the auto-revival cron exists and is enabled in the prod properties. Do not claim the period (the value is in the DB) and do not claim full 'does not escalate': only the Toppan letter queue was checked against suspension; other stages were not traced.",
+  "steps": [
+    {
+      "step": "A classified (VIP) vehicle is recognised so its notice gets type V",
+      "detail": "When a notice is created, SpecialVehUtils.isVip(vehNo) queries table ocms_vip_vehicle (status A) through OcmsVipVehicleService.isVipVehicle (SpecialVehUtils.java:88,138-143) and the result becomes type V. The table is filled by the CAS VIP refresh cron every day at 02:00, enabled=true in prod (cron-schedules-prod.properties:336-337); the CAS API content cannot be verified from the repo. OCMS-SR-2026-051: a user asked for this table to be patched via DB, there is no maintenance screen. This is a prerequisite of the story, not the suspension itself."
+    },
+    {
+      "step": "OCMS applies TS-CLV to classified-vehicle notices sitting at stage RR3/DR3",
+      "detail": "The auto-revival job calls processTsClvLooping (AutoRevivalJob.java:178): it loads VON rows with last_processing_stage RR3/DR3 (AutoRevivalHelper.java:1048-1050), skips those that are not type V or already PS-FP (:1111-1112), then calls tsHelper.processTS(noticeNo, OCMS, \"CLV\", null, ...) (:1126-1129). The job is part of the 00:15 day-end scheduler (ToppanUploadJobsScheduler.java:119), cron.toppanupload.enabled=true in prod (cron-schedules-prod.properties:61-62); the real server value cannot be verified from the repo. It also runs when no notice needs reviving (AutoRevivalJob.java:108-109)."
+    },
+    {
+      "step": "TS-CLV can only be applied at the stages before court (RR3/DR3)",
+      "detail": "checkStageAllowed rejects CLV at any stage other than RR3 or DR3 with the message 'CLV code can only be applied at RR3 or DR3 stage' (CLV_ALLOWED_STAGES SuspensionBaseHelper.java:67, branch :181-184). The same rule exists in ocmsadminapi (SuspensionBaseHelper.java:222-225). Court stages CRT/CRC are rejected first (:167-170)."
+    },
+    {
+      "step": "The suspension period follows the suspension code (CLV)",
+      "detail": "The period is not written in code: calculateRevivalDate looks up no_of_days_for_revival in table ocms_suspension_reason for reason CLV (TemporarySuspensionHelper.java:232-243) and falls back to 30 days when nothing is found (:246-248). The comment at ToppanUploadHelper.java:713 says 21 days, but that is only a comment; the DB value cannot be verified from the repo. The mechanism is right, the period value cannot be proven from the repo."
+    },
+    {
+      "step": "A suspended notice does not move to the next stage (does not escalate)",
+      "detail": "updateVON sets suspension_type=TS and due_date_of_revival on VON (SuspensionBaseHelper.java:317-318). The Toppan letter queue (findToppanNoticesForStage) only takes von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), so TS notices miss the next letter. Other stages (for example court referral) were not traced. The second path ToppanUploadHelper.applyClvSuspensionForVipVehicles (:333-335,691-731) picks VIPs by regex ^V[A-Z0-9]+$ on the vehicle number, not the VIP table, and only runs when letter generation is triggered manually (ToppanUploadJobsScheduler.java:118 is commented out)."
+    }
+  ]
+}

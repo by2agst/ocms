@@ -1,0 +1,33 @@
+{
+  "story": "OCMS12.19",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, combineNotices, generateMessages, determineTemplateName, sendBatchSms)}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, properties cron-schedules-prod and application-prod (cron.notification.enabled, sms.enable). Other repos: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: 'May need to check if SMS permission needs to be granted' (cannot verify from repo). There is no flow deck. The same eNotification cron as OCMS9.7/9.8 sends the SMS reminder for stages RD1 to DR3 including RR3: notices are picked through the due-date window, individuals are merged per ID, the template is picked from the stage (RR3_SMS_INDIVIDUAL). Not proven: the sentence referring to the 3rd letter (it lives in the DB template) and real delivery, because in PROD cron.notification.enabled=false and sms.enable=false with no sms.allowedSources. Obtaining the number from DOS is covered by OCMS12.18 and not repeated here. The merge step fit equals OCMS9.7.",
+  "recommendation": "Claim partially. Collecting, merging, per-stage templates and sending a batch SMS exist, but they are switched off in PROD and the sentence referring to the 3rd letter lives only in a DB template. Show the content of template RR3_SMS_INDIVIDUAL and one RR3 SMS sent in UAT",
+  "steps": [
+    {
+      "step": "OCMS collects outstanding individual owner notices at stage RR3 for the day's batch",
+      "detail": "The eNotification job calls queryRecordsForReminder() (NJ:162) and tags each row with the stage taken from last_processing_stage (NJ:170-180). The query selects notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, not in the exclusion list, with no notification record yet for the same stage, and whose due date (last_processing_date + parameters POS + PDD) falls within the ENOTEDAYS window from today (NH:1109-1114, 1135-1160). So an RR3 notice is picked once its due date is close, matching the story words 'fines that will be due soon'. The values of ENOTEDAYS/POS/PDD live in the DB, cannot verify from repo. Vehicle types I, D, V are excluded (NH:1151)."
+    },
+    {
+      "step": "OCMS identifies the unique individual owner among the notices in the batch",
+      "detail": "combineNotices(records) (NJ:191) groups through getRecipientKey: for an individual the key is 'I_' + ID number (NH:2230-2245) (NH:2230-2245). But compositeKey = recipientKey + '_' + stage + '_' + paymentDueDate (NH:2178), so the same individual owner with a different due date or stage becomes a separate group and can still receive more than one message on the same day. The story asks for one unique recipient per batch, same finding as OCMS9.7."
+    },
+    {
+      "step": "Only individual owners receive the SMS; IDs on the exclusion list and passports are skipped",
+      "detail": "Before the SMS is prepared, IDs in ocms_enotification_exclusion_list are skipped (NJ:226) and ID type P/PASSPORT is skipped (NJ:237). Company records (idType B) stay out of the SMS batch (NJ:274-276) and sendBatchSms also rejects companies (NH:1544). The SMS channel is chosen for everything except idType B (NH:448-457). This matches 'individual vehicle owners'."
+    },
+    {
+      "step": "The SMS lists the outstanding notices combined per recipient",
+      "detail": "Non-ENA notices with the same key are merged: combinedNotices is joined with '.', amountPayable is summed (NH:2182-2200). prepareTemplateData passes noticeCount, combinedNotices, amountPayable, paymentDueDate, vehicleNo to the template (NH:410-433). generateMessages picks template <STAGE>_SMS_INDIVIDUAL and adds _COMBINED when more than one notice is present (NH:284-301, 459-475). The template content is in ocms_template_store, not in the repo (cannot verify from repo)."
+    },
+    {
+      "step": "The SMS refers to the 3rd letter reminder",
+      "detail": "The code only picks the template name from the stage: for an RR3 notice that becomes RR3_SMS_INDIVIDUAL or RR3_SMS_INDIVIDUAL_COMBINED (NH:459-475). No code inserts a letter reference (number/date of the 3rd letter); whether the text mentions the third letter depends only on the template in the DB. The template is not in the repo, cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the SMS reminder through the batch SMS service",
+      "detail": "The job calls sendBatchSms (NJ:289-291), which calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NH:1611-1612). But in PROD: cron.notification.enabled=false (cron-schedules-prod.properties:236, the scheduler returns at NSCH:49-52), sms.enable=false (application-prod.properties:87) and sms.allowedSources is not set in application-prod.properties, so sendBatchSms returns status 'disabled' (SMS:401-409). In dev and uat sms.enable is also false but sms.allowedSources=ENOTIFICATION (application-uat.properties:82), so UAT can send if the cron is triggered manually. Ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. Real SMS delivery by the provider cannot be verified from repo."
+    }
+  ]
+}

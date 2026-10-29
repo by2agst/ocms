@@ -1,0 +1,25 @@
+{
+  "story": "OCMS48.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "Staff UI (ocmsadminui): no confirm step and no success prompt for a court notice bulk decision. Batch application of values exists only in ocmsadminapi workflows/cas_integration (CasIntegrationController /casUpdateCourtNotices and /plus-payment-activation; CasIntegrationServiceImpl.updateCourtNotices and updatePaymentActivation), called by the CAS/PLUS systems, writing VON and eVON. A per-action prompt exists only in the UPL endorsement flow (pages/NoticeUPL/Hooks/useEndorsement.tsx), a different feature.",
+  "note": "Story is Removed (status_with_ura). There is no confirm button and no bulk decision success prompt in the staff portal; the only ModalConfirm/ModalAlert in this area belong to the per-notice UPL Decision Request/Endorsement (useEndorsement.tsx:270-281, 261-268). Batch application exists on the API side but is triggered by CAS/PLUS, not by an officer confirmation: /casUpdateCourtNotices processes up to 500 notices with chunked UPDATEs to VON (ocmsizmgr.ocms_valid_offence_notice) and to eVON (ocmsezmgr.eocms_valid_offence_notice) when an eVON row exists (CasIntegrationServiceImpl.java:368, 385-393), and rejects FULL_PAYMENT notices (CasIntegrationServiceImpl.java:336). /plus-payment-activation takes at most 10 notices and updates VON, ocms_court_case and eVON (CasIntegrationServiceImpl.java:741-743). The API response carries updatedCount/failedCount per notice for the CAS caller, not a prompt to an officer. The decision takes effect immediately with no endorsement gate. The verdict stays Removed; not claimed. Tickets: OCMS-SR-2026-179 and OCMS-DF-2026-173 (wrong flag values after a CAS update or settled status), OCMS-DF-2026-010 (payment deactivation overridden by a web txn record).",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Officer confirms applying the bulk decision to the selected notices",
+      "detail": "There is no bulk confirm step for court notices. The only ModalConfirm in this area is the per-notice confirmation for UPL Decision Request/Endorsement (useEndorsement.tsx:270-281, text 'Are you sure you want to ... this UPL notice'), a different feature. Searched confirm, bulk, court in ocmsadminui; nothing relevant."
+    },
+    {
+      "step": "OCMS applies the decision to all selected court notices in bulk",
+      "detail": "Batch application exists, but it is triggered by another system: /casUpdateCourtNotices (CasIntegrationController.java:101) accepts up to 500 notices (line 124) and /plus-payment-activation (line 220) up to 10 notices (line 229). It is not the result of an officer confirmation in the staff portal. FULL_PAYMENT notices are rejected (CasIntegrationServiceImpl.java:336). Both endpoints skip JWT (JwtFilter.java:183, WebConfig.java:83-85); APIM protection: cannot verify from repo."
+    },
+    {
+      "step": "Decision values are saved on the notices so the portal respects them",
+      "detail": "CAS writes to VON and to eVON when an eVON row exists (CasIntegrationServiceImpl.java:368, 385-393); PLUS writes to VON, ocms_court_case and eVON (lines 741-743). But only amount_payable, payment_acceptance_allowed, stage and suspension fields are written (SET clauses lines 103-117, 144-155); composition amount is not written, and the due date goes only via PLUS to ocms_court_case. The cutoff cron that turns the flag off after the due date writes only VON, not the eVON that the portal reads (PaymentAcceptanceCutoffServiceImpl.java:77-83). So an 'N' flag from the cutoff does not reach the public portal. Tickets OCMS-DF-2026-010 and OCMS-SR-2026-021 show the portal/ePay reads the flag from eVON/txn data that can diverge."
+    },
+    {
+      "step": "Officer sees a success prompt after the bulk decision is applied",
+      "detail": "There is no success prompt for a bulk decision in the staff portal. The ModalAlert in useEndorsement.tsx:261-268 belongs to the per-notice UPL flow. The /casUpdateCourtNotices response (updatedCount, failedCount, per-notice results) goes to the CAS caller; no officer UI reads it."
+    }
+  ]
+}

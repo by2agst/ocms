@@ -1,0 +1,64 @@
+{
+  "story": "OCMS9.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/agencies/lta/download/{helpers/LtaSnowflakeProcessor, services/LtaDownloadServiceImpl}, workflows/datahivecontactinfo/{services/DatahiveContactInfoServiceImpl, helpers/DatahiveContactInfoHelper, jobs/DatahiveContactInfoJob}, sftp-common.properties. ocmsadminapi: workflows/reports/daily/DailyReportServiceImpl, filedownload/FileDownloadController, api-authorization.properties. ocmsadminui: pages/Report/lists/{ReportList.tsx, ReportListHiveContactInfo.tsx}, utils/constant.ts. Repo lain: tidak ada code",
+  "note": "Status di stories.json 'Demo paid (50% of 75%)'. Laporan 'DataHive Contact Information' ada dan lengkap dari ujung ke ujung: call result DataHive dikumpulkan saat LTA download, dibuat jadi Excel (sheet Summary/Error/Success), disimpan ke Azure Blob, dikirim email, lalu muncul di tab Report 'Hive Contact Info' staff portal untuk di-download dengan otorisasi OCMS_REPORT_HIVE_CONTACT di server. Celahnya: (1) laporan tidak punya jadwal harian sendiri, dibuat setiap LTA download selesai (cron 05:00 dan 21:00) sehingga bisa ada dua file per hari dan gagal-buat tidak mengubah status job; (2) Summary hanya berisi jumlah submitted/returned/error, tidak ada hitungan 'record diperbarui' yang diminta story; (3) lookup yang terjadi di cron eNotification (jalur flag datahive, off) tidak masuk laporan; (4) 'dashboard OIC' diartikan sebagai halaman Report staff portal, tidak ada widget dashboard khusus. DOS = DataHive, izin Vault, isi Excel di produksi, dan daftar penerima email cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Laporan dan download-nya terbukti di code; belum sesuai: hitungan 'record diperbarui' tidak ada di Summary, dan pembuatannya per LTA download, bukan satu laporan harian. Minta URA konfirmasi apakah dua file per hari bisa diterima.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat setiap ID yang dikirim ke DOS beserta waktu kirim dan waktu terima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:94-104; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:114-124; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:131-142; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:102-116",
+      "fit": "Sesuai",
+      "detail": "Setiap lookupContact di LTA download menambah satu DatahiveCallResult (LS:94, 114, 131) berisi noticeNo, ownerId, ownerIdType, hasContact, mobile/email, queryTable, callTimestamp, responseTimestamp, dan errorType/errorMessage. Field ini yang dipakai laporan (CI:102-116). Lookup di cron eNotification (jalur flag off) tidak dicatat di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan ringkasan memuat jumlah record yang dikirim, yang diperbarui, dan yang error",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:306-314; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:236",
+      "fit": "Sebagian",
+      "detail": "Sheet Summary berisi tanggal/waktu generate, 'Total no. of records submitted to DataHive', 'Total no. of records returned by DataHive', dan 'No. of records with errors' (CI:310-312). Tidak ada hitungan record yang benar-benar diperbarui di OCMS (patch ke owner_driver di LS:187 tidak dihitung), jadi bagian 'records updated' dari story tidak terpenuhi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat detail record yang sukses dan exception per record",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:98-135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:236-238",
+      "fit": "Sesuai",
+      "detail": "buildReportDataFromCallResults memisahkan record sukses (isSuccess dan hasContact) ke sheet Success dan sisanya, termasuk 'No contact information found' dan error query, ke sheet Error dengan kolom error_message (CI:98-135). Kolom: notice_no, id_no, id_type, name, mobile_email, dataset (Singpass/Corppass), date_time_sent, date_time_received."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan dibuat setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/services/LtaDownloadServiceImpl.java:99-120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/services/DatahiveContactInfoServiceImpl.java:46-59; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:264",
+      "fit": "Sebagian",
+      "detail": "Tidak ada cron laporan sendiri; triggerDatahiveContactInfoReportGeneration dipanggil setelah LTA download selesai (LD:99-120, juga lewat callback Comcrypt), dan cron ltadownload jalan 05:00 dan 21:00 (prod:148). Nama file memakai suffix HHmmss (CI:264) sehingga dua file per hari mungkin terbit. Kegagalan pembuatan hanya di-log, tidak menggagalkan job (try/catch di LD:112-124 hanya log error). Satu 'laporan harian' tunggal tidak dijamin; isi hanya lookup dari LTA download."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diarahkan ke dashboard OIC (halaman Report staff portal)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahivecontactinfo/helpers/DatahiveContactInfoHelper.java:264-270; ocmsadminprivateapi/src/main/resources/sftp/sftp-common.properties:61; ocmsadminapi/src/main/resources/application.properties:118; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:171-172; ocmsadminui/src/pages/Report/lists/ReportList.tsx:101-106; ocmsadminui/src/utils/constant.ts:259; ocmsadminapi/src/main/resources/api-authorization.properties:141-142",
+      "fit": "Sesuai",
+      "detail": "Excel diunggah ke blob <blob.folder.toppan.download>report/ (CI:267, sftp-common:61) yang sama dengan azure.blob.datahive.output di adminapi (application.properties:118). DailyReportServiceImpl melayani source DATAHIVE dengan prefix DHCONTACTINFO_Report_ (DRS:38, 171). Di adminui tab 'Hive Contact Info' tampil bila user punya function OCMS_REPORT_HIVE_CONTACT (ReportList.tsx:101-106), dan di server mapping OCMS_REPORT_HIVE_CONTACT mengizinkan /v1/daily-report/search dan /v1/download/blob (api-authorization.properties:141-142). Tidak ada widget dashboard terpisah; 'dashboard OIC' dibaca sebagai halaman Report ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC dapat mengunduh laporan untuk melihat detail record yang dikirim",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListHiveContactInfo.tsx:49; ocmsadminui/src/pages/Report/lists/ReportListHiveContactInfo.tsx:88-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:93; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:201",
+      "fit": "Sesuai",
+      "detail": "ReportListHiveContactInfo memanggil daily-report/search dengan source 'DATAHIVE' untuk rentang tanggal (UIH:49) dan tiap baris punya tombol Download (UIH:88-92) yang memakai /v1/download/blob; FileDownloadController memetakan DATAHIVE ke folder yang sama (FDC:93). Pengunduhan di produksi dan isi Excel cannot verify from repo."
+    }
+  ]
+}

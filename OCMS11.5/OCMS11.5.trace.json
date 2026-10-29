@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (combineNotices, getRecipientKey, generateMessages, sendEmail)}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. Repo lain: tidak ada code kirim email ini",
+  "note": "Status story 'Demo paid (50% of 75%)', demo_remark soal Vault & email permission untuk App Service. Company (ID type B) memang diarahkan ke email dan notice digabung per UEN+stage+due date (termasuk ENA). Tetapi pengiriman nonaktif menurut repo: cron.notification.enabled=false di dev, UAT dan prod, dan di prod email.enableSmtp=false dengan email.smtp.allowedSources yang tidak memuat ENOTIFICATION sehingga EmailService menolak. Stage driver notice (DN1, DN2, DR3) tidak punya email template dan dilewati. Template email ada di DB, bukan di repo. OCMS-DF-2026-180 (closed) memperbaiki due date ENA dan menunggu cron aktif. Nilai per environment, Vault dan izin email cannot verify from repo. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian. Pemilihan company unik sudah sesuai, tetapi job dan pengiriman email nonaktif menurut repo, stage DN1/DN2/DR3 tanpa email, dan template ada di DB. Minta bukti aktivasi cron dan template di PRD.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi pemilik company yang unik (berdasarkan UEN) per batch supaya satu company mendapat satu email yang merangkum NOPO-nya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2169-2182; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2235-2242; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:274-277",
+      "fit": "Sesuai",
+      "detail": "getRecipientKey memakai 'B_' + UEN untuk ID type B, dan combineNotices menggabung notice company per UEN + stage + due date, termasuk stage ENA (pengecualian ENA hanya untuk individu, NotificationSmsEmailHelper.java:2169-2172). Company dikeluarkan dari batch SMS dan hanya dikirimi email (NotificationSmsEmailJob.java:274-277). Fakta ini berbeda dari individu ENA di OCMS11.4 yang memang tidak digabung."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email berisi detail NOPO yang diterbitkan (nomor notice, kendaraan, jumlah denda, jatuh tempo)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-300; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:312-330; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-440",
+      "fit": "Sebagian",
+      "detail": "generateMessages memakai template {STAGE}_EMAIL_COMPANY (plus _COMBINED), dibelah jadi subject dan body, dengan data prepareTemplateData (noticeNo, vehicleNo, amountPayable, noticeDateTime, paymentDueDate, combinedNotices). Untuk DN1, DN2, DR3 email dilewati karena tidak ada template company (NotificationSmsEmailHelper.java:313-317). Teks template di DB (ocms_template_store), tidak di-seed di repo, jadi redaksi cannot verify from repo. OCMS-DF-2026-180 (closed) memperbaiki due date ENA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim email reminder/notifikasi ke pemilik company dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-390; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:48-52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-72",
+      "fit": "Sebagian",
+      "detail": "Job memanggil sendEmail per company (NotificationSmsEmailJob.java:378-390) lewat EmailService dengan source ENOTIFICATION. Tapi scheduler dilewati kalau cron.notification.enabled=false (NotificationJobsScheduler.java:48-52; false di dev, UAT, prod, cron-schedules-prod.properties:236). Di prod email.enableSmtp=false dan email.smtp.allowedSources tidak memuat ENOTIFICATION (application-prod.properties:80-81), sehingga EmailService.sendEmail return false (EmailService.java:65-72). Di UAT ENOTIFICATION ada di allowlist (application-uat.properties:79) tetapi cron off. Aktivasi nyata di PRD, Vault, dan izin email cannot verify from repo."
+    }
+  ]
+}

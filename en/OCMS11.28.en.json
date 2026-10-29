@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.28",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: NotificationSmsEmailJob + NotificationSmsEmailHelper (RD1 reminder query, DataHive Singpass/CorpPass contact refresh, contact validation, opt-out/passport), FurnishApprovalHelper (hirer contact from the furnish form), CombinedSchedulerTriggerController, cron-schedules-{dev,uat,prod}.properties. Other repos: no relevant code. Only ocmsadminprivateapi/src/main/java is cited (the cronservice/ folder at the repo root is an old copy and is not used)",
+  "note": "Status in stories.json: Demo paid (50% of 75%); demo_remark about Vault and the Vault permission for the App Service. This is the hirer version of OCMS11.8 (owner): the same eNotification job handles ENA and the RD1-DR3 reminders without distinguishing owner, hirer or driver. For notices whose last stage is RD1 and nearing the due date, the job prepares the contact, validates mobile/email, and skips opt-out/passport. Partial because (1) the DataHive refresh is controlled by cron.enareminder.datahive, which is false in dev/uat/prod, so the stored contact is used, which for a hirer comes from the owner's furnish form; (2) the job is switched off (cron.notification.enabled=false) in all environments and only runs through a manual trigger. Tickets as hints: OCMS-DF-2026-180 (Closed, waiting for the eNotification cron to be activated). DOS data source = DataHive, Vault, property values in Azure: cannot verify from repo.",
+  "recommendation": "Partial claim: the contact check and opt-out logic exist, but the DataHive refresh and the eNotification cron are off in the properties",
+  "steps": [
+    {
+      "step": "After the hirer's 1st letter (RD1) is sent, OCMS selects the NOPOs that need an electronic reminder",
+      "detail": "queryRecordsForReminder selects notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) whose due date (last_processing_date + POS + PDD) is inside the ENOTEDAYS window, that have no send record at that stage, offender_indicator 'Y' (so the active hirer), not vehicle type I/D/V, and no revival between the two processing dates (NotificationSmsEmailHelper.java:1076-1167; called at NotificationSmsEmailJob.java:161-163). The query does not distinguish hirer, owner or driver; all use one path. Partial because cron.notification.enabled=false in dev, uat and prod (cron-schedules-prod.properties:236), so the job only runs through a manual trigger (CombinedSchedulerTriggerController.java:104-108); OCMS-DF-2026-180 (Closed) says the eNotification cron is waiting to be activated. Value in Azure: cannot verify from repo. Same as OCMS11.8 step 1."
+    },
+    {
+      "step": "OCMS checks the latest mobile number/email from the data source (Epic OCMS9) and updates the hirer's data",
+      "detail": "The job calls batchPreloadContactInfo and then refreshContactInfo per notice (NotificationSmsEmailJob.java:185-188). When enabled, individuals are looked up in DataHive Singpass (NotificationSmsEmailHelper.java:2710-2760) and companies in CorpPass (2496-2530), then the new number/email is written to ocms_offence_notice_owner_driver through updateOcmsContactInfo (2800-2828). But refreshContactInfo returns straight away using the stored contact when cron.enareminder.datahive is not 'true' (2325-2335, 2461-2485), and that property is false in dev, uat and prod (cron-schedules-prod.properties:48). For a hirer, the stored contact is the email and phone typed by the owner in the furnish form (FurnishApprovalHelper.java:552-558), not data from an official source, so in the repo configuration the latest-number/email check does not run. Whether DataHive = 'DOS' in the story and the Vault permission (demo_remark): cannot verify from repo. Same as OCMS11.8 step 2."
+    },
+    {
+      "step": "Hirer NOPOs without a valid contact (individual without mobile, company without email) are skipped",
+      "detail": "validateContactInfo rejects records with a contactError, individuals without phoneNo, and companies (id_type B) without an email (NotificationSmsEmailHelper.java:2259-2290). In the job, failed records are skipped with a log; there is no stage patch for reminder stages (only ENA is diverted to RD1), and companies are kept out of the SMS batch (NotificationSmsEmailJob.java:254-266, 269-272). Same as OCMS11.8 step 3."
+    },
+    {
+      "step": "Hirers who opted out or hold a passport do not get an electronic reminder",
+      "detail": "The reminder query drops id_no values found in ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1131-1134); the job loads the whole exclusion list once (loadAllExcludedIds, 1207-1230) and skips excluded records or id_type P/PASSPORT before the SMS batch is built (NotificationSmsEmailJob.java:194, 226-241). The exclusion list contents are DB data: cannot verify from repo. Same as OCMS11.8 step 4."
+    }
+  ]
+}

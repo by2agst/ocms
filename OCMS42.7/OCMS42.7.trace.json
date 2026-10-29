@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui hooks/Auth.ts, pages/Furnish/{Landing,Furnish,API,Form/OParticulars,Form/Particulars,Summary}.ts, components/form/{Contact,Email}.ts; ocmseserviceapi workflows/spcp/{controller/UserInfoController,service/SpcpServiceImpl}, workflows/furnish/FurnishSubmissionController, application-prod.properties. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status story 'Fully paid'. Alur MyInfo untuk individu ada: setelah notice dipilih, UI otomatis memanggil POST /v1/userinfo, backend memanggil MyInfo lewat gateway SPCP, lalu nama, nomor HP dan email mengisi form. Celah: NRIC/FIN tidak ditampilkan di halaman (field ID di-comment, ID diambil dari session saat submit) dan Confirm Email tidak ikut terisi. Jika MyInfo gagal atau kosong, UI diam saja dan field Full Name tetap disabled sampai user menekan Clear. Respons MyInfo asli, Singpass dan nilai spcp.bypass di server: cannot verify from repo (application-prod.properties tidak mengatur spcp.bypass, default false di UserInfoController.java:32).",
+  "recommendation": "Klaim sebagian: nama, nomor HP dan email terisi dari MyInfo; ID tidak tampil di halaman. Konfirmasi ke URA apakah ID wajib terlihat di form",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Individu login Singpass di halaman Furnish; session membawa NRIC dan transaction id",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Landing.ts:84-92; ocmseserviceui/src/hooks/Auth.ts:170-172; ocmseserviceui/src/hooks/Auth.ts:360; ocmseserviceui/src/pages/Furnish/Furnish.ts:185-190; ocmseserviceui/src/utils/env.ts:66-69",
+      "fit": "Sesuai",
+      "detail": "Tombol Singpass di Landing memanggil onFurnishSingpass() yang menjalankan onSingpass(isBack, 'FURNISH') (Landing.ts:88, Auth.ts:170-172). Setelah login, Auth.ts:360 menyimpan authID sebagai txn id yang nanti dipakai fetchAndApplyUserInfo (Furnish.ts:187) bersama appId khusus Furnish (env.ts:66-69, nilai dari env VITE). Handshake Singpass dan nilai appId asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah notice dipilih, halaman otomatis meminta data MyInfo tanpa aksi user (ada juga tombol Retrieve MyInfo)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Furnish.ts:432-440; ocmseserviceui/src/pages/Furnish/Furnish.ts:185-199; ocmseserviceui/src/pages/Furnish/Furnish.ts:455-457; ocmseserviceui/src/pages/Furnish/Form/OParticulars.ts:127-133; ocmseserviceui/src/pages/Furnish/Form/OParticulars.ts:185-189",
+      "fit": "Sesuai",
+      "detail": "notices.onSelected langsung memanggil fetchAndApplyUserInfo() (Furnish.ts:439). Fungsi ini memakai authType SP, txn id dan appId lalu memanggil APIGetUserInfo (:185-196). Tombol gambar 'Retrieve MyInfo with Singpass' di OParticulars (:186-189) memicu fungsi yang sama (:127-133, Furnish.ts:455-457). Jika authType, txn id atau appId kosong, fungsi return tanpa pesan (:190)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Backend mengambil data MyInfo lewat gateway SPCP memakai appId, txnNo dan NRIC dari session",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:53-57; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:95-105; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/service/SpcpServiceImpl.java:100-118; ocmseserviceapi/src/main/resources/application-prod.properties:61",
+      "fit": "Sesuai",
+      "detail": "POST /v1/userinfo mengambil userId dari JWT (bukan dari FE) lalu untuk authType SP memanggil spcpService.getMyInfoData(appId, txnNo, userId) (UserInfoController:95-98). SpcpServiceImpl:100-118 memanggil URL /spcpDS/myinfo/getMyinfoData/v1 di gateway (application-prod.properties:61). Mode bypass (data hardcoded) hanya aktif kalau spcp.bypass.enabled=true (UserInfoController:90, default false di :32); properti itu hanya ada di application-dev.properties:46 dan tidak ada di application-prod.properties. Isi respons MyInfo dan nilai di server asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nama, nomor kontak dan email dari MyInfo mengisi form owner",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/API.ts:425-436; ocmseserviceui/src/pages/Furnish/Furnish.ts:201-222; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:158-170; ocmseserviceui/src/pages/Furnish/Form/OParticulars.ts:176-179; ocmseserviceui/src/components/form/Email.ts:95-97",
+      "fit": "Sesuai",
+      "detail": "APIGetUserInfo membaca name, email (atau emailUser@emailHost hasil splitEmailField) dan mobileNo.countryCode/number (API.ts:425-436). applyUserInfoToFields mengisi oName, oContactCode, oContactNo, oEmail lewat setValue (Furnish.ts:215-220), dan nama dikunci disabled=true (OParticulars.ts:179). Ada tiga hal yang perlu diwaspadai: (1) oComEmail tidak diisi, user harus mengetik ulang Confirm Email dan paste dimatikan (Email.ts:95-97); (2) kalau MyInfo gagal atau kosong, API.ts:432 return success=false dan UI tidak menampilkan pesan, sementara Full Name tetap disabled sampai user menekan Clear (OParticulars.ts:158); (3) form hanya menampilkan country code +65 (Contact.ts:121-127), jadi nomor MyInfo non-SG bisa tidak cocok dengan tampilan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID (NRIC/FIN) ikut terisi otomatis dan terlihat di halaman",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/OParticulars.ts:204-215; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:79-84; ocmseserviceui/src/pages/Furnish/Summary.ts:117-148",
+      "fit": "Sebagian",
+      "detail": "Field ID/ID type dan alamat di form owner di-comment (OParticulars.ts:204-215) dan ringkasan review hanya menampilkan Full Name, Mobile Number, Email (Summary.ts:117-148). NRIC/FIN dipakai tetapi berasal dari session JWT saat submit (FurnishSubmissionController:81-84), bukan dari data MyInfo yang diisi ke halaman. Jadi identitas dipastikan benar secara backend, tetapi user tidak melihat ID terisi seperti contoh di story ('Name, ID, Contact number')."
+    }
+  ]
+}

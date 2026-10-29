@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.20",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension, helpers/PermanentSuspensionHelper.processPS + reviveOldPS, SuspensionBaseHelper.updateDatabase. A copy exists in ocmsadminprivateapi utilities/suspension_helpers/PermanentSuspensionHelper.",
+  "note": "Automatic revive of the old PS and applying the new one without deleting history exist: reviveOldPS fills dateOfRevival, revivalReason (PSR for PLUS, CSR for paid notices), officer, remarks on the active ocms_suspended_notice rows, then a new row is inserted (PermanentSuspensionHelper.java:125-130, 245-305). What does not match: OCMS neither waits for nor checks a PLUS confirmation; the first execute call with a different code already overwrites, and there is no confirmation flag. Risk: an exception in reviveOldPS is swallowed (PermanentSuspensionHelper.java:301-304), so the new PS is still applied even if the old row failed to revive. The demo remark says 'PLUS cannot overwrite existing PS' (PLUS side: cannot verify from repo). Ticket OCMS-DF-2026-075 (closed) changed the PS-over-PS path for paid notices and OCMS-DF-2026-152 (Ready to DEV) concerns the refund response.",
+  "recommendation": "Claim mostly for the OCMS side: automatic revive and kept history are proven in code. OCMS does not check the PLUS confirmation, and the demo status 'PLUS cannot overwrite' must be resolved with the PLUS team before a full claim.",
+  "steps": [
+    {
+      "step": "OCMS receives the confirmation from PLUS to overwrite the existing permanent suspension",
+      "detail": "There is no confirmation parameter. The 'confirmation' is just a POST /plus-apply-suspension call (checking=false) with the new PS code; OCMS does not tell it apart from a first request and does not wait for an earlier confirmation (PermanentSuspensionHelper.java:125-130). The confirmation dialog is in the PLUS UI: cannot verify from repo."
+    },
+    {
+      "step": "OCMS automatically revives the existing permanent suspension",
+      "detail": "reviveOldPS finds the notice rows in ocms_suspended_notice with suspensionType PS and dateOfRevival null, then sets dateOfRevival = now, revivalReason (PSR when the source is PLUS and the notice is unpaid, CSR when paid, PermanentSuspensionHelper.java:259-271), officerAuthorisingRevival, revivalRemarks, processIndicator Manual and saves them (PermanentSuspensionHelper.java:277-295). It runs before the new PS is applied (PermanentSuspensionHelper.java:127-130). Risk: an exception is swallowed and the process continues (PermanentSuspensionHelper.java:301-304); the 'No active PS found' case is only logged (PermanentSuspensionHelper.java:297-299). The ocmsadminprivateapi copy is similar (ocmsadminprivateapi PermanentSuspensionHelper.java:460-517)."
+    },
+    {
+      "step": "OCMS applies the new permanent suspension code to the notice",
+      "detail": "After the revive, calculateRevivalDate returns null for PS (PermanentSuspensionHelper.java:133, 379-383) and updateDatabase updates the VON and eVON with the new code and inserts a new ocms_suspended_notice row (PermanentSuspensionHelper.java:139-141, SuspensionBaseHelper.java:474-497). For a paid notice with a refund code, the CRS fields on VON/eVON are cleared and a refund is created (SuspensionBaseHelper.java:365-374; PermanentSuspensionHelper.java:146-147), per OCMS-DF-2026-075."
+    },
+    {
+      "step": "Past permanent suspension records are not deleted",
+      "detail": "Revive only changes columns on the old row (setDateOfRevival, revivalReason, and so on, PermanentSuspensionHelper.java:279-286) and then calls saveAll; PermanentSuspensionHelper has no delete call and the new PS is inserted as an extra row (SuspensionBaseHelper.java:466). The history stays in ocms_suspended_notice with dateOfRevival filled."
+    },
+    {
+      "step": "OCMS sends PLUS the result that the new suspension code was applied",
+      "detail": "Response {noticeNo, srNo, success:true, message:'PS Success'} with appCode OCMS-2000, HTTP 200 (PermanentSuspensionHelper.java:150; SuspensionProcessingController.java:552-555, 1191-1192). For a PS refund, refundNoticeId is added; OCMS-DF-2026-152 (Ready to DEV/In SIT) reports a wrong value before the fix, and main code already returns the real refund ID (PermanentSuspensionHelper.java:358-370). Receipt and overwrite at PLUS ('PLUS cannot overwrite existing PS' in the demo remark): cannot verify from repo."
+    }
+  ]
+}

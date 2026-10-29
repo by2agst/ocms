@@ -1,0 +1,64 @@
+{
+  "story": "OCMS8.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: datahiveuenfin/services/DataHiveUenFinService (processPRSCGrantFlow, applyTSOLD, saveGrantDataToPass, createWorkItemForPRSC), services/datahive/.../DataHiveFINBatchService (view PRGRANT/SCGRANT), utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/autorevival/helpers/AutoRevivalHelper, notification_sms_email/helpers/NotificationSmsEmailHelper. ocmsadminapi, ocmsadminui: tidak ada trigger khusus",
+  "note": "Status di sheet 'Requirement given - Gen flow' dan demo_remark 'Really no Vault or unsure about handling?', jadi requirement tidak diberikan secara rinci; step diturunkan dari teks story. Satu-satunya trigger suspension untuk perubahan status adalah FIN yang tercatat di view PRGRANT/SCGRANT (jadi PR atau citizen): data grant disimpan lalu notice diberi TS-OLD (DataHiveUenFinService.java:3241-3262). Perubahan alamat saja tidak menyuspend notice, dan perubahan status pemegang NRIC tidak tertangkap (file MHA tidak punya field citizenship). Ada tiga hal yang perlu diperhatikan. Pertama, komentar di baris 2819 bilang TS-OLD tanpa auto-revival, padahal daysToRevive null membuat TemporarySuspensionHelper mengambil hari dari ocms_suspension_reason atau default 30 hari (TemporarySuspensionHelper.java:222-247) dan AutoRevival me-revive TS yang jatuh tempo (AutoRevivalHelper.java:394-398), jadi notice bisa jalan lagi tanpa keputusan OIC; isi baris OLD di ocms_suspension_reason: cannot verify from repo. Kedua, work item untuk OIC hanya placeholder yang menulis log (baris 2920-2925), jadi OIC tidak diberi tahu (itu cakupan OCMS8.6). Ketiga, applyTSOLD hanya menulis log error bila processTS gagal (baris 2824-2828) dan flow tetap dianggap selesai. Seluruh jalur ini ada di job DataHive yang off di PROD (cron-schedules-prod.properties:52). Tidak ada tiket pemeliharaan yang menyebut TS-OLD atau PR/SC.",
+  "recommendation": "Klaim sebagian. TS-OLD untuk FIN yang jadi PR/citizen sudah ada, tetapi tidak ada trigger untuk perubahan lain, suspension punya tanggal revival otomatis, OIC tidak diberi tahu, dan job off di PROD. Requirement tidak diberikan rinci; minta URA konfirmasi suspension code dan lama suspension yang dimaksud.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima perubahan status dari ICA/DOS (misalnya FIN menjadi PR/citizen)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:46-48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:321-334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:370-375; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1504; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "View V_DH_MHA_PRGRANT dan V_DH_MHA_SCGRANT dicari berdasarkan PREVIOUS_FIN dan hasilnya ditandai isConverted dengan conversionType PR atau SC (DataHiveFINBatchService.java:46-48, 321-334, 370-375); storeFinDataResult membacanya sebagai prScConverted (DataHiveUenFinService.java:1504). Hanya konversi FIN ke PR/SC yang tertangkap; perubahan status pemegang NRIC tidak, dan DataHive hanya ditanya untuk notice yang jatuh tempo di stage reminder. Job off di PROD (cron-schedules-prod.properties:52)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan status tempat tinggal (alamat) yang diterima juga memicu suspension",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1560; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:784",
+      "fit": "Tidak ada code",
+      "detail": "Alamat baru dari DataHive (DataHiveUenFinService.java:1560) atau MHA (MhaNricDownloadHelper.java:784) hanya menimpa record mha_reg; tidak ada pembandingan dengan alamat lama dan tidak ada suspension karena perubahan alamat. Suspension di kedua jalur hanya karena alamat tidak valid (TS-NRO), tidak ditemukan, atau meninggal. Pemilihan alamat bila ada dua alamat berbeda adalah cakupan OCMS8.7/8.8."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan data perubahan status (tanggal grant PR/SC) sebelum menyuspend",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2843; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3241-3252",
+      "fit": "Sesuai",
+      "detail": "processPRSCGrantFlow langkah 1 memanggil saveGrantDataToPass yang menulis tanggal grant, previous FIN dan reference period ke ocms_dh_mha_pass (DataHiveUenFinService.java:3241-3252, 2843). Tidak ada ketentuan story soal ini, tetapi data ini yang akan dilihat OIC."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menangguhkan notice untuk sementara dengan suspension code khusus (TS-OLD)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3255-3256; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2808-2828; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:153; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:222-247",
+      "fit": "Sebagian",
+      "detail": "applyTSOLD memanggil tsHelper.processTS dengan reason OLD dan remarks 'ID found in Granted PR/SC' (DataHiveUenFinService.java:3255-3256, 2808-2828); hasilnya VON suspension_type TS + eVON + suspended_notice (TemporarySuspensionHelper.java:153). Sebagian karena: daysToRevive null sehingga tanggal revival diambil dari ocms_suspension_reason atau default 30 hari (TemporarySuspensionHelper.java:222-247), bukan 'sampai OIC memutuskan'; processTS bisa ditolak (cek source permission, stage, notice sudah dibayar) dan kegagalan hanya di-log (baris 2824-2828) sehingga notice bisa tidak tersuspend; isi baris OLD di ocms_suspension_reason: cannot verify from repo. Komentar di baris 2819 ('no auto-revival') tidak sesuai dengan perilaku code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak naik tahap selama menunggu keputusan OIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:238; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1034; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:394-398; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:245-248",
+      "fit": "Sebagian",
+      "detail": "Seleksi follow-up DataHive/MHA mensyaratkan suspension_type NULL (DataHiveUenFinService.java:238; MhaNricDataHelper.java:198-205) dan seleksi eNotification ENA juga (NotificationSmsEmailHelper.java:1034), jadi notice TS-OLD tidak diproses lagi di jalur itu. Namun AutoRevivalHelper me-revive TS yang due date-nya lewat (baris 394-398) dan due date TS-OLD berasal dari tabel atau default 30 hari (TemporarySuspensionHelper.java:245-248), sehingga notice bisa naik tahap tanpa keputusan OIC. Seleksi pencetakan surat reminder (Toppan) tidak ditemukan memfilter suspension di folder toppan/upload: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC diberi tahu agar bisa memutuskan notice yang ditangguhkan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2925; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3259-3260",
+      "fit": "Tidak ada code",
+      "detail": "createWorkItemForPRSC adalah placeholder: hanya menulis log '[PLACEHOLDER] Work item creation skipped ... feature not ready' (DataHiveUenFinService.java:2920-2925) dan dipanggil dari processPRSCGrantFlow (baris 3259-3260). Tidak ada notifikasi atau work item lain untuk OIC pada TS-OLD. Pembuatan work item adalah cakupan OCMS8.6. Apakah OIC memantau lewat daftar suspension di staff portal: cannot verify from repo."
+    }
+  ]
+}

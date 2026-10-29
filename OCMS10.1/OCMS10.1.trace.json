@@ -1,0 +1,55 @@
+{
+  "story": "OCMS10.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsansvehServiceImpl, utilities/repccs/RepccsAnsDatFileGenerator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findRepccsVehiclesForAnsVeh), framework/services/comcrypt (PGP + upload SFTP), framework/controllers/RepccGenerateFilesController, cron-schedules-*.properties, sftp/*.properties. ocmsadminui pages/Cron/list/CronList.tsx (trigger manual). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk file ANSVEH",
+  "note": "Status story 'Requirement given - Gen flow'. Code yang ada: job REPCCS Generate File (ocmsadminprivateapi) membuat file ANSVEH berisi daftar kendaraan lewat query ke ocms_valid_offence_notice, menulis format fixed-width H/D/T, menyalin ke blob, meminta enkripsi PGP ke COMCRYPT, lalu callback COMCRYPT meng-upload file terenkripsi ke SFTP REPCCS. Gap utama: scheduler gabungan 'Combined REP Upload' dimatikan di properties PROD (cron.repupload.enabled=false), jadi pengiriman harian otomatis tidak jalan di PROD kecuali dipicu manual atau ada override environment (cannot verify from repo). Aturan seleksi kendaraan di query tidak sama dengan cek AN saat create notice (window pakai cre_date dan tahun dari ocms_parameter, bukan 24 bulan notice date; exemption rule tidak ikut). Penerimaan file di sisi REPCCS dan isi ocms_parameter/ocms_standard_code (ANS_PS_REASON) cannot verify from repo. Tidak ada maintenance ticket yang relevan. Folder ocmsadminprivateapi/cronservice/ adalah salinan stale dan tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian. Query, format file, enkripsi, dan upload SFTP ada, tetapi job harian mati di properties PROD dan aturan seleksi kendaraan tidak sama dengan cek AN. Minta URA/tim konfirmasi flag PROD dan window (ocms_parameter ANS PERIOD) sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menjalankan job harian yang membuat file ANSVEH untuk REPCCS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/RepUploadJobsScheduler.java:38-51; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:193-194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob.java:118-138",
+      "fit": "Sebagian",
+      "detail": "RepUploadJobsScheduler.runRepUploadJobs dijadwalkan harian 00:01 (RepUploadJobsScheduler.java:38-51) dan memanggil RepccsGenerateFileJob; service ANS Vehicle adalah service pertama di job itu (RepccsGenerateFileJob.java:118-138). Tetapi cron-schedules-prod.properties:194 berisi cron.repupload.enabled=false, sehingga di PROD scheduler langsung return (RepUploadJobsScheduler.java:45-48); dev dan uat true (cron-schedules-uat.properties:196). Job hanya bisa jalan lewat trigger manual (CronList.tsx:61 -> RepccGenerateFilesController.java:53-61). Apakah ada override flag per environment cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih kendaraan yang tidak qualified untuk ANS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:432-466; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsansvehServiceImpl.java:54-62",
+      "fit": "Sebagian",
+      "detail": "Query findRepccsVehiclesForAnsVeh mengambil DISTINCT vehicle_no dari ocms_valid_offence_notice yang bukan foreign (vehicle_registration_type <> 'F', baris 436), cre_date dalam N tahun terakhir dengan N dari ocms_parameter code ANS / parameter_id PERIOD (437-446), dan notice-nya tidak suspended, atau TS, atau PS dengan epr_reason_of_suspension yang bukan kode aktif ANS_PS_REASON (447-466). Artinya kendaraan yang punya notice 'aktif' dikirim sebagai tidak qualified. Gap: cek AN saat create notice memakai notice_date_and_time dan 24 bulan hard-coded (AdvisoryNoticeHelper.java:192 di ocmsadminprivateapi workflows/repccs/notice_creation) serta exemption rule, sedangkan query ini memakai cre_date, tahun dari parameter, dan tidak membaca exemption rule; jadi daftar yang dikirim bisa beda dari keputusan AN di OCMS. Nilai ocms_parameter dan isi ocms_standard_code cannot verify from repo (data DB). Bila daftar kosong job selesai sukses tanpa file (RepccsansvehServiceImpl.java:56-62)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file ANSVEH (header, detail, trailer) dengan nama REPCCS-OCMS-IN-ANSVEH-timestamp",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsansvehServiceImpl.java:68-91; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepccsAnsDatFileGenerator.java:123-128",
+      "fit": "Sesuai",
+      "detail": "RepccsansvehServiceImpl mengubah daftar vehicle_no menjadi data, memvalidasi plate tidak kosong (68-78), lalu membuat isi file dan nama file (81-91). RepccsAnsDatFileGenerator menulis record fixed-length 50 karakter: header H, detail D + plate, trailer T + jumlah record (konstanta di RepccsAnsDatFileGenerator.java:31-37) dan nama REPCCS-OCMS-IN-ANSVEH-yyyyMMddHHmmss (123-128). Kesesuaian dengan spesifikasi interface REPCCS (dokumen di luar repo) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File disalin ke blob lalu dienkripsi PGP lewat COMCRYPT",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsansvehServiceImpl.java:96-122; ocmsadminprivateapi/src/main/resources/sftp/sftp-prod.properties:42",
+      "fit": "Sesuai",
+      "detail": "File asli di-upload ke blob (RepccsansvehServiceImpl.java:96-103); upload SFTP tanpa enkripsi sengaja di-skip (105-106); lalu comcryptTokenHelper.requestToken dengan operasi ENCRYPTION dan appcode OCMSREPCCS001 (110-122; sftp-prod.properties:42). Resolver COMCRYPT memetakan appcode REPCCS ke workflow PGP (ComcryptWorkflowConfigResolver.java:133-135). Respons dan kunci COMCRYPT cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File terenkripsi dikirim ke REPCCS lewat SFTP",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:256-258; ocmsadminprivateapi/src/main/resources/sftp/sftp-common.properties:32; ocmsadminprivateapi/src/main/resources/application-prod.properties:82",
+      "fit": "Sebagian",
+      "detail": "Setelah COMCRYPT membalas, ComcryptCallbackHelper meng-upload file terenkripsi ke folder SFTP dari resolver, yaitu sftp.folders.repccs.upload=/REP_IN (sftp-common.properties:32) pada server repccs (sftp-prod.properties:92-95); sftp.enabled=true di PROD (application-prod.properties:82) tetapi false di dev dan uat (application-uat.properties:72), jadi di UAT file tidak benar-benar terkirim. Code mengirim file, tetapi penerimaan oleh REPCCS dan pemakaian daftar untuk keputusan menerbitkan AN ada di luar repo (cannot verify from repo)."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS34.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Report/{index.tsx, lists/ReportList.tsx (Workorder Reports tab commented out), lists/ReportListWorkOrder.tsx, lists/ReportListDOS.tsx}, utils/models/Fapi.d.ts (reports/workorder/excel comment); ocmsadminprivateapi workflows/datahiveuenfin/{services/DataHiveUenFinService, models/DataHiveFinData}, schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties; ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (inbound PLUS only). No work order/tagging code in ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story status is blank in stories.json, so it is traced normally; there is no OCMS flow deck, so Sesuai means the code does what the story text says. Epic 34 (Tagging / warrant work order) is essentially not built: the phrase 'Generate Work Order' does not appear in the six repos; the only trace is a 'Workorder Reports' tab in the staff portal that is commented out and has no backend (columns notice_no, vehicle_no, ref_num, source, is_converted, other info; empty resource). What exists is a generic DataHive (FIN/UEN) address lookup for notices at reminder stages that runs on a schedule, not from a button, and is switched off in prod (cron.mhadownload.uenfin.enabled=false). The real server flag value: cannot verify from repo.",
+  "recommendation": "Do not claim as done. The Generate Work Order button, screen and per-click ID submission do not exist; only the scheduled DataHive lookup (off in prod) can be reused. Ask URA/the team to confirm whether this feature was built elsewhere.",
+  "steps": [
+    {
+      "step": "Tagging officer opens the work order preparation screen in the staff portal",
+      "detail": "There is no tagging/work order screen. The 'Workorder Reports' tab is in ReportList.tsx but the whole TabItem block is commented out (147-201), so it is not shown. ReportListWorkOrder uses an empty resource and the columns notice_no/vehicle_no/ref_num/source/is_converted, not a warrant ID list."
+    },
+    {
+      "step": "Officer clicks the 'Generate Work Order' button",
+      "detail": "There is no 'Generate Work Order' button in ocmsadminui and no work order controller/endpoint in ocmsadminapi or ocmsadminprivateapi (grep work order/workorder/work_order/tagging finds nothing). Only a type comment `reports/workorder/excel` in Fapi.d.ts:307 exists, with no server implementation."
+    },
+    {
+      "step": "OCMS sends the IDs to the relevant agencies to obtain registered addresses",
+      "detail": "IDs are sent to an agency, but not for a work order: the DataHive UEN/FIN job picks notices at stage RD1/RD2/RR3/DN1/DN2/DR3 with id_type F or B, offender_indicator Y, no suspension and not in ocms_hst (DataHiveUenFinService.java:235-246), then queries DataHive/Snowflake. It is started by the schedule/job trigger, unrelated to a button or a warrant ID list. In prod cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52), so the job is skipped (MhaDownloadJobsScheduler.java:104). Real server value: cannot verify from repo. ICA/DOS coverage: cannot confirm from repo."
+    },
+    {
+      "step": "Registered addresses are received in real-time",
+      "detail": "Addresses from DataHive are indeed received and saved as type_of_address mha_reg to the internet address table (DataHiveUenFinService.java:2731, 2744) and to unc_hst_addr (:682), but not real-time per click: they are processed in batch (grouped by ID type) by a scheduled job, with no response to an officer screen. Off in prod (uenfin.enabled=false); real server value: cannot verify from repo. Same fit as OCMS34.7 step 4."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS16.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator,helpers/ReductionPersistenceService,helpers/ReductionRuleService,dto/ReductionRequest}, crud/beans/SystemConstant (rule code dan stage hard-coded), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus. ocmsadminui pages/NoticeSearch/list/NoticeValidList.tsx (kolom amount_payable), utils/models/Fnotice.d.ts:536. Tidak ada tabel/properties parameter rumus reduction di ocmsadminapi/ocmsadminprivateapi",
+  "note": "Status story: Requirement given - Gen flow (5 point). OCMS hanya menerima hasil reduction dari PLUS (sistem eksternal) lewat POST /v1/plus-apply-reduction dengan amountReduced (dollar) dan amountPayable. Tidak ada input persentase (-X%), tidak ada rumus di parameter table (rule code 30305/31302/30302/21300 dan daftar stage hard-coded di SystemConstant.java dan di query native), tidak ada perhitungan atau tampilan reduced amount di OCMS. Search notice di staff portal ada dan menampilkan amount_payable, tetapi tidak punya aksi reduction. Apakah PLUS menyediakan -$X/-X% dan rumusnya: cannot verify from repo. Tidak ada ticket maintenance yang mengubah verdict.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penerimaan nominal reduction dari PLUS dan kolom amount_payable di search yang ada; persentase, parameter table, dan perhitungan/tampilan di OCMS tidak ada. Minta URA/tim konfirmasi apakah dibangun di PLUS.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer sudah menampilkan notice hasil search beserta key details",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:56-63",
+      "fit": "Sebagian",
+      "detail": "Search notice di staff portal ada dan menampilkan suspension type, suspension reason, payment status, dan amount_payable (ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:56-63). Ini halaman search umum, bukan alur reduction: grep 'reduc' di ocmsadminui/src/pages/NoticeSearch tidak menemukan hasil dan tidak ada aksi reduction dari hasil search."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menerapkan reduction nominal tetap (-$X)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29",
+      "fit": "Sebagian",
+      "detail": "API menerima amountReduced sebagai angka dollar positif (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37) lewat POST /plus-apply-reduction (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29), jadi nominal tetap bisa diterapkan dari PLUS. Tetapi tidak ada layar atau aksi di staff portal OCMS bagi officer untuk memasukkan -$X; input di PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menerapkan reduction persentase tetap (-X%)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82; ocmsadminui/src/utils/models/Fnotice.d.ts:536",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada field persen di ReductionRequest (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82) dan tidak ada perhitungan persen di service atau validator. Type \"custom-precentage\" di ocmsadminui/src/utils/models/Fnotice.d.ts:536 hanya deklarasi yang tidak dipakai. Persen di PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Rumus reduction dikelola di parameter table",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:108-115; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:139-145; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:56-67",
+      "fit": "Tidak ada code",
+      "detail": "Aturan reduction hard-coded: computer rule code 30305, 31302, 30302, 21300 dan daftar stage di ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:108-115 dan :139-145, diulang di query native (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:56-67). Tidak ada entity, tabel, atau properties untuk rumus -$X/-X% (grep 'reduc' di ocmsadminapi/src/main/resources tidak ada hasil). ReductionValidator.validateAll/validateEligibility dan ReductionRuleService.isNoticeEligibleForReduction tidak dipanggil dari ReductionServiceImpl (grep), jadi alur aktif memakai query native saja."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis menghitung dan menampilkan reduced composition amount dari reduction yang diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:109",
+      "fit": "Beda dari flow",
+      "detail": "OCMS tidak menghitung: amountPayable datang dari PLUS, divalidasi sama dengan current - amountReduced (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195), lalu disimpan apa adanya ke amount_payable (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:109). Tampilan reduced amount untuk diverifikasi tidak ada (field di ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:244-247 memakai source \"UNKNOWN\"; lihat OCMS16.6)."
+    }
+  ]
+}

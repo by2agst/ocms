@@ -1,0 +1,33 @@
+{
+  "story": "OCMS38.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeUPL/{List/EndorseList,Form/{ModalForm,EndorseForm},Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, utils/config/env.ts, utils/data/LinkData.tsx, App.tsx, pages/Dashboard/Dashboard.tsx. ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi: no receiver for approvalinbox, workitem or the UPL_APPROVAL command",
+  "note": "Status sheet: Requirement given - Gen flow. The story asks for endorsement from a dashboard work item with re-route + alert on rejection. Only the UPL endorsement screen exists in the UI (EndorseList, EndorseForm), and it does not appear in DEV/UAT/PRO because the list waits for approvalinbox, which is called only when isAPIFound (STAGING/LOCAL, env.ts:11); the UPL menu is commented out. Rejection does nothing (useEndorsement.tsx:201-203): no re-route and no alert. No backend receiver for approvalinbox/workitem/UPL_APPROVAL exists in the repos. Sibling OCMS13.5-13.7 cover the same UPL flow and should stay consistent. No relevant maintenance ticket.",
+  "recommendation": "Very limited claim. Only the UPL endorsement screen (UI) exists and is not proven active in URA environments; re-route on reject, the alert to the OIC and the dashboard do not exist. Align with OCMS13.5-13.7.",
+  "steps": [
+    {
+      "step": "An endorsement work item is routed to the officer's dashboard",
+      "detail": "There is no dashboard (Dashboard.tsx:26-29 is empty). The UPL endorsement list (route App.tsx:85) is not a dashboard and does not read work items: it reads the 'approvalinbox' resource (EndorseList.tsx:36-53), only when isAPIFound. The 'UPL Endorsement' work item the UI creates uses allocated_to = the creating user (NoticeUPL.ts:192-195, '//! Hard code'), not the endorsing officer. No receiver for approvalinbox/workitem exists in the six repos."
+    },
+    {
+      "step": "The officer clicks the work item and views the decision made (e.g. mention outcome)",
+      "detail": "The Endorsement list shows UPL notices (stage NPA, decision not yet Y) with an 'Endorse' button that opens a modal; ENDORSE mode shows DecisionRequestDetail (ModalForm.tsx:302). But the list renders only when 'notices' is not null (EndorseList.tsx:81) and 'notices' is filled only when isAPIFound (EndorseList.tsx:52; env.ts:11: STAGING or LOCAL), so in DEV/UAT/PRO the list is not shown. The UPL menu is also commented out (LinkData.tsx:397). The real VITE_ENV cannot be verified from the repo."
+    },
+    {
+      "step": "The officer endorses or rejects the decision",
+      "detail": "EndorseForm offers a Decision Y/N choice and a Remark (EndorseForm.tsx:44 ff.); submit runs useEndorsement.onEndorseAPI, which POSTs the UPL_APPROVAL workflow (useEndorsement.tsx:155-163, mapping NoticeUPL.ts:104-127). The UPL_APPROVAL command does not exist in the backend (grep in ocmsadminapi and ocmsadminprivateapi: 0 hits), so the server effect cannot be verified from the repo; the UI raises an error when the response lacks notice_no (:159-163)."
+    },
+    {
+      "step": "The endorsement outcome is recorded (officer, date, remark)",
+      "detail": "MapPatchApprovalInbox in ENDORSE mode fills approval, approval_officer, approval_date, remark_approval (NoticeUPL.ts:159-163) and PATCHes 'approvalinbox' only when isAPIFound (useEndorsement.tsx:167-185), i.e. STAGING/LOCAL. No approvalinbox entity exists in the backend repos, so storage cannot be verified from the repo."
+    },
+    {
+      "step": "If rejected, the work item is re-routed to the OIC who sent it",
+      "detail": "A code comment says 'Decision N would do nothing' (useEndorsement.tsx:201-203): the stage changes only when approval == 'Y' (:188), and no new work item or allocated_to change occurs on rejection. No re-route code exists in the six repos (grep reassign/allocate/routed: no relevant hits)."
+    },
+    {
+      "step": "An alert is sent to the dashboard of the OIC who routed the notice",
+      "detail": "There is no dashboard with alerts (Dashboard.tsx:26-29) and no officer alert entity or endpoint in the six repos (see the notification step in OCMS38.1)."
+    }
+  ]
+}

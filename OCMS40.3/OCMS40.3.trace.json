@@ -1,0 +1,46 @@
+{
+  "story": "OCMS40.3",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari), ocmsadminprivateapi services/datahive/nricFinUenDataRetrieval/DataHiveUENServiceImpl + workflows/datahiveuenfin (sync UEN/FIN dimatikan di prod), controllers/DataHiveController (query SQL mentah tanpa UI), DataHiveTestController (endpoint test sementara), ocmsadminapi crud OcmsDhAcra* dan CronProxyController, ocmsadminui pages/Vault/Datahive/UENDetail.tsx + Notice/detail/OwnerDetails.tsx",
+  "note": "Story minta officer mengirim ID number (UEN) ke DOS dan menerima info perusahaan. Status story kosong (tidak ada requirement/status yang diberikan), jadi ditrace normal. Layar ad-hoc tidak bisa diakses (route/menu dikomentari). Yang ada: batch DataHive UEN/FIN yang mengambil company detail, shareholder dan board ACRA per notice (DataHiveUENServiceImpl.java:59) dan menyimpannya ke ocms_dh_acra_*; tab 'UEN Details' di Notice detail hanya menampilkan tanggal registrasi/deregistrasi, entity status code dan company type code (shareholder dan board dikomentari di UENDetail.tsx). Sync itu dimatikan di prod (cron.mhadownload.uenfin.enabled=false) sehingga di environment prod data UEN belum terisi dari repo ini. Ada juga endpoint backend POST /v1/datahive/query (SQL mentah) dan endpoint test sementara GET /api/datahive/test/uen/{uen}, keduanya tanpa UI dan tanpa proxy dari ocmsadminapi. DOS = DataHive/LTA cannot be confirmed from the repo; nilai properties server asli dan view DataHive cannot verify from repo.",
+  "recommendation": "Klaim hanya sebagai Sebagian: pengambilan data perusahaan (ACRA) lewat DataHive ada tetapi per notice dan dimatikan di prod, tampilannya terbatas, dan layar ad-hoc belum ada. Minta URA konfirmasi apakah DOS = DataHive dan apakah endpoint /v1/datahive/query boleh dihitung sebagai bagian story.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman query ad-hoc di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:331; ocmsadminui/src/utils/data/LinkData.tsx:255-259; ocmsadminui/src/utils/data/LinkData.tsx:405; ocmsadminui/src/utils/Meta/SearchVault.ts:1-12",
+      "fit": "Tidak ada code",
+      "detail": "Path /search-vault (judul 'Agencies Information') dan item menu 'Ad-hoc Vault Query' didefinisikan (SearchVault.ts:1-12, LinkData.tsx:255-259), tapi route di App.tsx:331 dan menu.push di LinkData.tsx:405 dikomentari, begitu juga import Epic40 (App.tsx:54); folder pages/epic40 tidak ada di ocmsadminui. Halaman tidak bisa dibuka dari staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) hanya daftar laporan tanpa controller atau authorization mapping, bukan form query; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi ID number (UEN) perusahaan, UI mengirim ke API",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/UPLOffender.tsx:11; ocmsadminui/src/utils/mapping/index.ts:37; ocmsadminui/src/utils/validation/index.ts:43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:33-34",
+      "fit": "Tidak ada code",
+      "detail": "Komponen form SearchVaultUEN/SearchVaultUIN hanya tersisa sebagai import yang dikomentari (UPLOffender.tsx:11, ReportListDOS.tsx:25); mapping dan validation epic40 juga dikomentari (utils/mapping/index.ts:37, utils/validation/index.ts:43). Di ocmsadminapi tidak ada endpoint yang menerima UEN perusahaan untuk satu query; yang berbau enquiry hanya trigger batch tanpa parameter POST /lta-enquiry/trigger (CronProxyController.java:33-34), dan ocmsadminapi tidak punya proxy ke /v1/datahive/query di ocmsadminprivateapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim ID number ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:59; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:717; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:104; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/DataHiveController.java:62-63; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/DataHiveTestController.java:112-118",
+      "fit": "Sebagian",
+      "detail": "retrieveUENData(uen, noticeNumber, indicator) mengirim UEN ke DataHive tetapi selalu butuh noticeNumber dan dipanggil dari job sync untuk notice yang ada (DataHiveUenFinService.java:717; DataHiveUENServiceImpl.java:59). Job itu dimatikan di prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52; dicek di MhaDownloadJobsScheduler.java:104); nilai server asli cannot verify from repo. Endpoint on-demand yang ada tanpa UI: POST /v1/datahive/query menerima SQL mentah (DataHiveController.java:62-63) dan GET /api/datahive/test/uen/{uen}?noticeNumber, controller test sementara yang berkomentar 'Remove this controller after testing' (DataHiveTestController.java:20-23,112-118). Keduanya bukan alur officer. DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima info perusahaan dan menampilkannya ke officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:43-45; ocmsadminui/src/pages/Notice/detail/OwnerDetails.tsx:517-519; ocmsadminui/src/pages/Vault/Datahive/UENDetail.tsx:110-121; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsDhAcraCompanyDetail/OcmsDhAcraCompanyDetailController.java:30-32",
+      "fit": "Sebagian",
+      "detail": "Hasil disimpan ke ocms_dh_acra_company_detail, ocms_dh_acra_shareholder_info dan ocms_dh_acra_board_info (DataHiveUENServiceImpl.java:43-45) dan tab 'UEN Details' muncul di Notice detail untuk ID type B (OwnerDetails.tsx:517-519). Yang tampil hanya tanggal registrasi/deregistrasi, entity status code dan company type code (UENDetail.tsx:110-121); field shareholder dan board dikomentari. Tampilan per notice, bukan hasil query officer; selama sync dimatikan di prod data ini bisa kosong (cannot verify from repo)."
+    }
+  ]
+}

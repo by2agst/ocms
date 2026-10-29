@@ -1,0 +1,29 @@
+{
+  "story": "OCMS22.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/agencies/mha/upload/{jobs/MhaNricUploadJob,helpers/MhaNricDataHelper} (upload IDs to MHA, selection by stage RD1-DR3), mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper} (mha_reg address update, DataHive), resources/cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court batch code",
+  "note": "The story wants OCMS to send the IDs of notices in the court application batch to the relevant agencies and update the latest registered address (as per Epic OCMS8). The OCMS8 mechanism exists: the MhaNricUploadJob cron builds the NRO file for MHA and MhaNricDownloadJob reads the result and replaces the mha_reg address (MhaNricDownloadHelper.java:2288-2334). But the population sent is selected from next_processing_stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:186-193), not notices in a court application batch; the court batch does not exist (see OCMS22.7), so batch notice IDs are never selected as such. So the generic-mechanism steps are Sebagian at most. In prod the mhaupload/mhadownload crons are enabled=true but cron.mhadownload.datahive=false and uenfin.enabled=false (cron-schedules-prod.properties:50,52), so DataHive enrichment is off; the real server value cannot be verified from the repo. MHA, SFTP and DataHive cannot be verified from the repo. Tickets OCMS-DF-2026-130 and OCMS-DF-2026-134 (old address not cleared / wrong notice address overwritten in the MHA cron) are Closed and the fix is visible in the code; the remarks of both say the MHA cron was not yet turned on in Production.",
+  "recommendation": "Claim only partly. Sending IDs to MHA and updating the address through the OCMS8 mechanism exists, but it is not limited to notices in a court application batch (the batch does not exist) and DataHive is off in prod. Confirm with URA whether OCMS8 is accepted as enough for this story",
+  "steps": [
+    {
+      "step": "The court application batch already has a number and the notice stages are updated (precondition from the previous story)",
+      "detail": "This precondition is not met in the code because the court batch does not exist (see OCMS22.7): no batch number series (SequenceService.java:11-14) and no batch column (OcmsCourtCase.java:21-31)."
+    },
+    {
+      "step": "OCMS selects the IDs of the notices in the court application batch to send to the agencies",
+      "detail": "The MHA upload selection uses next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) with next_processing_date <= tomorrow, empty suspension_type, id_type N and offender_indicator Y (MhaNricDataHelper.java:34, 186-193). There is no court batch or court stage (CPC/CFC) filter, so IDs of notices in a court batch are not selected by batch."
+    },
+    {
+      "step": "OCMS sends the IDs to MHA through an upload file",
+      "detail": "MhaNricUploadJob (extends TrackedCronJobTemplate, folder from sftp.folders.mha.upload, :39-45) runs on schedule 0 0 9,14,21 MON-SAT and is enabled=true in prod (cron-schedules-prod.properties:105-106). This is the OCMS8 mechanism for notices at normal letter stages, not specific to a court batch, so Sebagian at most. The real server property value and receipt by MHA/SFTP: cannot verify from repo. The remark of ticket OCMS-DF-2026-134 says the MHA cron was not yet turned on in Production at that time."
+    },
+    {
+      "step": "OCMS receives the MHA result and updates the latest registered address of the notice",
+      "detail": "MhaNricDownloadHelper stores the address from the MHA response as type_of_address mha_reg with a full replace, blank/NA fields clear the old value (MhaNricDownloadHelper.java:2288-2334, fix OCMS-DF-2026-130). The address update is scoped to the notice being processed (OCMS-DF-2026-134, comment at :760-764). The mhadownload cron is enabled=true in prod (cron-schedules-prod.properties:119-120). It applies to notices sent through the upload above, not a court batch, so Sebagian. Content of the MHA response: cannot verify from repo."
+    },
+    {
+      "step": "OCMS also queries the other agency (DataHive) for the latest NRIC/UEN/FIN data",
+      "detail": "DataHive enrichment exists in MhaNricDownloadJob and only runs when cron.mhadownload.datahive=true (MhaNricDownloadJob.java:138, 706). In prod the value is false (cron-schedules-prod.properties:50) and the UEN/FIN job has uenfin.enabled=false (:52), with properties comments 'Keep disabled until URA completes UAT verification' and 'Keep disabled in PROD until DataHive view names are verified'. So execution of this step is switched off in the prod config; the real server value cannot be verified from the repo. It is also not tied to a court batch."
+    }
+  ]
+}

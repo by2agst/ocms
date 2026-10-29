@@ -1,0 +1,55 @@
+{
+  "story": "OCMS11.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: LtaBatchCode0Processor (routing ENA/RD1 setelah hasil LTA), NotificationSmsEmailJob/Helper (eNotification, opt-out, patch ke RD1), MhaNricDataHelper + MhaNricDownloadJob (update alamat owner dari MHA), ToppanLettersGeneratorJob + OcmsValidOffenceNoticeRepository (pemilihan notice RD1). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code yang relevan untuk story ini",
+  "note": "Status di stories.json: Demo paid (50% of 75%). Story 1 point: sebelum 1st letter reminder (RD1) dikirim, OCMS mengecek apakah electronic reminder sudah dikirim / owner opt-out / NOPO dibuat backend, lalu memperbarui particulars owner sesuai Epic OCMS8. Di code ada: routing ENA atau RD1 setelah hasil LTA (ada kontak -> ENA; tidak ada / opt-out / passport -> RD1), eNotification yang memindahkan notice opt-out ke RD1, update alamat owner lewat MHA untuk NRIC, dan pemilihan notice RD1 oleh Toppan. Tidak ada: pembeda NOPO frontend (EHT/OBU) vs backend di jalur reminder, dan refresh DataHive untuk UEN/FIN di properties prod (cron.enareminder.datahive, cron.mhadownload.datahive, cron.mhadownload.uenfin.enabled semuanya false); langkah DataHive di ToppanLettersGeneratorJob juga di-comment. Job eNotification mati (cron.notification.enabled=false) di dev/uat/prod. Nilai property per environment di Azure cannot verify from repo. Sumber data DOS dan Vault cannot verify from repo.",
+  "recommendation": "Klaim sebagian: routing ENA/RD1, opt-out, dan pemilihan notice RD1 ada; refresh particulars lewat DataHive belum aktif di properties prod dan pembeda NOPO frontend/backend tidak ada",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dengan kontak elektronik dikirimi electronic reminder (ENA) dulu, sisanya langsung ke 1st letter (RD1)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:754-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:810-853; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:860-900; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Setelah hasil LTA diproses, planStandardVehicle (LtaBatchCode0Processor.java:754-763) memanggil DataHive lookup: ada mobile/email -> planStageToENA (810-853, next stage ENA), tidak ada -> planStageToRD1 (860-900). Job eNotification (NotificationSmsEmailJob.java:161-162) lalu mengirim electronic reminder untuk notice ENA. Sebagian karena (1) tidak ada pembeda NOPO frontend (EHT/OBU) vs backend di jalur ini, dan (2) cron.notification.enabled=false di dev/uat/prod (cron-schedules-prod.properties:236), jadi job hanya jalan lewat trigger manual (CombinedSchedulerTriggerController.java:105-108). Ticket OCMS-DF-2026-160 (Pending Closure): 894 notice sudah loncat ke ENA/RD1 tanpa vehicle ownership, jadi routing dari hasil LTA masih punya defect terbuka; OCMS-DF-2026-052 (Closed) memperbaiki notice Diplomat yang salah masuk ENA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner yang opt-out dari electronic reminder dikecek dan dialihkan ke 1st letter (RD1)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:686-690; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:695-698; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-241; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1237-1271",
+      "fit": "Sesuai",
+      "detail": "Owner yang ada di ocms_enotification_exclusion_list (opt-out) langsung dialihkan ke RD1 saat hasil LTA diproses (LtaBatchCode0Processor.java:686-690); passport juga ke RD1 (695-698). Kalau notice sudah ENA, job eNotification memanggil patchNextStageToRd1NextDay untuk ID yang di-exclude atau passport (NotificationSmsEmailJob.java:226-241), yang mengisi next stage RD1 untuk hari berikutnya (NotificationSmsEmailHelper.java:1237-1271). Query reminder juga membuang ID di exclusion list (1131-1134). Isi exclusion list adalah data DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek bahwa NOPO dibuat backend / dikonversi karena unpaid parking charges dan admin fee",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:666-684",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan pengecekan asal NOPO. Jalur routing LTA (LtaBatchCode0Processor.java:666-684) dan query pemilihan notice RD1 (OcmsValidOffenceNoticeRepository.java:608-612) tidak membaca subsystem/asal pembuatan notice. Grep EHT/OBU/backend/converted di ocmsadminprivateapi hanya kena di pembuatan notice (repccs/notice_creation) dan jalur Advisory Notice, tidak di reminder. Notice backend lewat jalur yang sama (hasil LTA -> ENA/RD1) tanpa pengecekan asal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui particulars owner (alamat/kontak) sesuai Epic OCMS8 sebelum 1st letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:556-570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:706-722; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:126-148; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48-52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:120",
+      "fit": "Sebagian",
+      "detail": "Untuk owner ber-NRIC (id_type N) notice di stage RD1-DR3 dikirim ke MHA lewat MhaNricUploadJob (MhaNricDataHelper.java:81, query OcmsValidOffenceNoticeRepository.java:556-570) dan hasilnya mengisi alamat mha_reg; cron MHA upload/download enabled di prod (cron-schedules-prod.properties:106,120). Untuk FIN/UEN sumbernya DataHive, tetapi cron.mhadownload.datahive=false dan cron.mhadownload.uenfin.enabled=false di prod (cron-schedules-prod.properties:50-52; MhaNricDownloadJob.java:706-722 melewati langkah DataHive), dan langkah DataHive di ToppanLettersGeneratorJob.java:126-148 di-comment. Jadi particulars owner non-NRIC tidak diperbarui otomatis sebelum RD1 di konfigurasi prod. Ticket OCMS-DF-2026-130 (Closed, alamat MHA lama tidak terhapus) dan OCMS-DF-2026-183 (Pending Closure, MHA tidak bisa memproses beberapa file URA2NRO) menunjukkan jalur MHA masih punya masalah operasional."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice siap untuk 1st letter reminder (next stage RD1, jatuh tempo, tidak disuspend)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:245-249; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:151-166",
+      "fit": "Sesuai",
+      "detail": "Query findToppanNoticesForStage mengambil notice dengan next_processing_stage = 'RD1', next_processing_date <= hari ini, suspension_type IS NULL, offender_indicator 'Y', dan bukan Advisory Notice (OcmsValidOffenceNoticeRepository.java:608-612). Dipanggil per stage oleh ToppanUploadJob (ToppanUploadJob.java:245-249) di dalam loop semua stage (ToppanLettersGeneratorJob.java:151-166). Pengiriman file ke vendor dinilai di OCMS11.7."
+    }
+  ]
+}

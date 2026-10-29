@@ -1,0 +1,37 @@
+{
+  "story": "OCMS15.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController (POST /v1/change-processing-stage/validate and submit), ChangeOfProcessingService.validateNotices/processNotice, EligibilityService.checkEligibility}. ocmsadminui pages/CPS/form/CPSForm.tsx (onConfirmation), utils/constant.ts. Other repos: not relevant",
+  "note": "The story example (a notice at an Owner stage cannot move to a Driver stage) is enforced by EligibilityService: the offender role comes from ONOD, then the new stage is checked against the per-role stage set (Driver: DN1, DN2, DR3, CPC; Owner/Hirer/Director: ROV, RD1, RD2, RR3, CFC, CPC). On top of that: court stage block, PS block (except codes DIP/FOR/MID/RIP/RP2), offence type, RD2 requirement and CFC entity rules. The check runs in validate and again on submit. Gap: the UI offers ENA, which is always rejected (same as OCMS15.7). The comment at EligibilityService.java:62-63 says offence type 'O or U' but the code allows O and E; the code is what counts. ONOD/VON data in the DB: cannot verify from repo. No maintenance ticket is specific to eligibility.",
+  "recommendation": "Claim with a note: 6 Sesuai, 1 Sebagian (ENA is offered by the UI but always rejected).",
+  "steps": [
+    {
+      "step": "OCMS is called to check the new stage when the officer clicks Proceed to CPS",
+      "detail": "Proceed to CPS runs onConfirmation: FE validation, then POST change-processing-stage/validate with all notices (CPSForm.tsx:90-117, button :380-386). The controller validateChangeProcessingStage (ChangeOfProcessingController.java:140-142) delegates to validateNotices (:191-192), which does not change data."
+    },
+    {
+      "step": "The new stage must fit the notice's offender role (Owner cannot go to a Driver stage)",
+      "detail": "The role comes from ONOD offender_indicator='Y' (findCurrentOffender :157-166; resolveRole :215-226, defaults to OWNER when no ONOD exists). getEligibleStages gives DN1/DN2/DR3/CPC for Driver and ROV/RD1/RD2/RR3/CFC/CPC for Owner/Hirer/Director (:49-50, :253-259); a stage outside the set is rejected with INELIGIBLE_STAGE (:108-113). This is exactly the story example. ONOD data in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Notices at a court stage or under permanent suspension (PS) are refused",
+      "detail": "Notices at stage CRT/CRC/CFI are rejected with COURT_STAGE (EligibilityService.java:85-88; SystemConstant.java:100). Notices with suspension_type 'PS' are rejected with PS_BLOCKED unless eprReasonOfSuspension is DIP, FOR, MID, RIP or RP2 (:57-59, :90-99). These rules prevent wrongly applied stage changes, in line with the story purpose."
+    },
+    {
+      "step": "Owner/Hirer rules: offence type, must have reached RD2, and CFC entity rule",
+      "detail": "Owner/Hirer is only allowed for offence type O or E (:51, :115-122; the comment at :62-63 says 'O or U', the code governs). RR3/CFC/CPC need the notice to be at RD2 or later, except ACRA entity BN/LP (:124-150, RD2_NOT_PROCESSED). CFC needs ID type UEN 'B' and entity BN/LP (:128-138, ENTITY_TYPE_INVALID). The ACRA lookup in the DB: cannot verify from repo."
+    },
+    {
+      "step": "The result is split per notice and invalid notices are shown to the officer",
+      "detail": "validateNotices calls checkEligibility per notice and fills changeableNotices or nonChangeableNotices with a code and message (ChangeOfProcessingService.java:217-320). The UI shows the reason per notice and stops if even one is non-changeable, so nothing reaches the confirmation (CPSForm.tsx:125-147). As a result one invalid notice holds back the whole batch."
+    },
+    {
+      "step": "Validity is checked again on save so a wrong stage is never applied",
+      "detail": "processNotice calls checkEligibility again before touching VON and returns FAILED with a code when the notice is not eligible (ChangeOfProcessingService.java:975-983), so calling submit directly without validate is still safe for the stage rules. The submit controller does not repeat the 'remark required for OTH' check (only in validate, ChangeOfProcessingController.java:163-185); that is a field rule, not a stage rule."
+    },
+    {
+      "step": "Stage choices in the UI match the stages the server accepts",
+      "detail": "The UI offers ENA (constant.ts:149-158) although ENA is in no role's stage set (EligibilityService.java:49-50), so ENA always fails INELIGIBLE_STAGE at the Proceed step (:108-113). CFC is the reverse: accepted by the server, not offered by the UI. The rejection still happens on the server, so no wrong stage is applied; what is lacking is an option that can never be used. Same fact as in OCMS15.7."
+    }
+  ]
+}

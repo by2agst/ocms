@@ -1,0 +1,73 @@
+{
+  "story": "OCMS5.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui App.tsx (route notices/create/o/upload), pages/Notice/{mode/upload/{Upload,UploadPreview,ListValid,ListError,UploadView,UploadResult},context/NoticeUploadContext,hook/{ActionNoticeUpload,useNoticeUploadSubmit}}, components/{SheetUpload,form/FileInput}.tsx, context/SheetContext.tsx, utils/validation/Format/ValidFile.ts, utils/data/SheetData.ts. ocmsadminapi workflows/notice_creation/core/CreateNoticeServiceImpl (/staff-create-notice, batch), workflows/notice_management/filedownload/downloadfile/FileDownloadController (template). Repo lain: tidak dipakai",
+  "note": "Status stories.json 'Fully paid', demo_remark kosong. Fitur upload massal ada dan lengkap alurnya (template, parse, validasi per baris, submit per batch 30, hasil sukses/gagal/duplikat), tetapi formatnya XLSX, bukan CSV seperti di story: ValidFile.ts:154 hanya memasukkan xlsx (csv dan xls di-comment) dan FileInput menolak mime lain. Ticket OCMS-DF-2026-188 (Pending UAT Verification): download template create-notice mengembalikan 404 dari POST /download/blob, jadi officer tidak bisa mengambil template; template ada di Azure Blob sehingga keberadaan file: cannot verify from repo. Batas ukuran file di kode 2 MB (ValidFile.ts:167-170) sedangkan teks hint di halaman menyebut 10 MB (SheetUpload.tsx:206).",
+  "recommendation": "Klaim sebagian: bulk upload XLSX berjalan, CSV tidak didukung. Minta URA konfirmasi apakah XLSX diterima sebagai pengganti CSV, dan tunggu OCMS-DF-2026-188 (download template) selesai UAT",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman bulk upload dari form Create Parking Offence Notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/NoticeOForm.tsx:60-64; ocmsadminui/src/App.tsx:132-146; ocmsadminui/src/pages/Notice/mode/upload/Upload.tsx:75-80",
+      "fit": "Sesuai",
+      "detail": "Tombol 'Upload XLSX for Multiple Notices' di toolbar form create (mode CREATE) menuju /notices/create/o/upload (NoticeOForm.tsx:60-64). Route upload dibungkus SheetProvider dan NoticeUploadProvider dengan sub-route preview, view, edit, result (App.tsx:132-146). Halaman upload memakai SheetUpload (Upload.tsx:75-80)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengunduh template file untuk diisi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/mode/upload/Upload.tsx:40-51; ocmsadminui/src/context/SheetContext.tsx:73-82; ocmsadminui/src/utils/data/SheetData.ts:205-215",
+      "fit": "Sebagian",
+      "detail": "Tombol download memanggil POST download/blob dengan source TEMPLATE dan fileName 'Create-Parking-Offence-Notices-Template.xlsx' (Upload.tsx:40-51; nama di SheetContext.tsx:73-82); kolom template didefinisikan di HeaderNoticeO (SheetData.ts:205-215). Ticket OCMS-DF-2026-188 (Pending UAT Verification) melaporkan download ini 404 sehingga officer tidak bisa mengambil template. Ada tidaknya file di Azure Blob: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer meng-upload file dalam format CSV",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Format/ValidFile.ts:154; ocmsadminui/src/utils/validation/Format/ValidFile.ts:167-170; ocmsadminui/src/components/form/FileInput.tsx:150-157; ocmsadminui/src/components/SheetUpload.tsx:201-207",
+      "fit": "Beda dari flow",
+      "detail": "Format yang diterima hanya .xlsx: FileTypeFormat Sheet = [xlsx] dengan csv dan xls di-comment (ValidFile.ts:154), FileInput menolak file yang mime-nya tidak ada di daftar dengan 'File format is not acceptable.' (FileInput.tsx:150-157), dan teks halaman 'Accepted file format is only .xlsx' (SheetUpload.tsx:201-207). File .csv akan ditolak. Batas ukuran kode 2 MB (ValidFile.ts:167-170) tidak sama dengan hint 10 MB di halaman (SheetUpload.tsx:206)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem membaca file dan mencocokkan kolom dengan template",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/context/SheetContext.tsx:177-217; ocmsadminui/src/components/SheetUpload.tsx:107-125",
+      "fit": "Sesuai",
+      "detail": "setFile membaca file dengan SheetRead, memetakan tiap baris ke key header template, membuang baris kosong, lalu membandingkan jumlah dan label kolom dengan template; bila beda muncul 'The uploaded file does not match the required template format' dan bila tidak ada baris muncul 'contains no data rows' (SheetContext.tsx:177-217). Error ditampilkan sebagai modal (SheetUpload.tsx:107-125)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tiap baris divalidasi dan dipisah menjadi daftar valid dan daftar error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/context/NoticeUploadContext.tsx:147-218; ocmsadminui/src/pages/Notice/mode/upload/ListValid.tsx:68-79; ocmsadminui/src/pages/Notice/mode/upload/ListError.tsx:38-50; ocmsadminui/src/pages/Notice/hook/ActionNoticeUpload.tsx:183-190",
+      "fit": "Sesuai",
+      "detail": "onReady memetakan tiap baris ke form notice dan menjalankan schema yup yang sama dengan form manual (ValidNoticeUpload) per baris; baris yang gagal diberi objek error (NoticeUploadContext.tsx:147-218). ListValid menampilkan 'Review Uploaded Parking Offence Notices (n)' dengan aksi Edit dan Delete (ListValid.tsx:68-125), ListError menampilkan baris Failed dengan deskripsi error (ListError.tsx:38-50). Submit ditolak selama masih ada baris error (ActionNoticeUpload.tsx:183-190), jadi baris itu harus diedit atau dihapus dulu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer submit dan konfirmasi, lalu semua notice valid dibuat di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/ActionNoticeUpload.tsx:198-212; ocmsadminui/src/pages/Notice/hook/useNoticeUploadSubmit.ts:111-165; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:731-790; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:806-818; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:380-386; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:436-442",
+      "fit": "Sesuai",
+      "detail": "Submit membuka modal 'Are you sure you want to submit the notice(s)?' (ActionNoticeUpload.tsx:198-212). Setelah OK, satu baris dikirim lewat jalur single, banyak baris dipecah per 30 dan dikirim berurutan ke POST staff-create-notice (useNoticeUploadSubmit.ts:111-165). Di backend tiap DTO diproses processSingleNotice dalam satu loop, gagal/duplikat dicatat tanpa menghentikan baris lain (CreateNoticeServiceImpl.java:731-790), lalu semua entity disimpan batch ke VON, detail, eVON (CreateNoticeServiceImpl.java:806-818; NoticeRecordHelper.java:380-386, 436-442). Hasil per baris dicocokkan lagi dengan membaca validoffencenoticelist memakai kunci gabungan tipe+waktu+kategori+nomor+PP+rule+amount (useNoticeUploadSubmit.ts:181-250); nomor notice bisa tertukar antar dua baris yang identik."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer melihat hasil: berapa notice berhasil, duplikat, atau gagal, dan bisa membuat ulang yang gagal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/ActionNoticeUpload.tsx:145-181; ocmsadminui/src/pages/Notice/mode/upload/UploadResult.tsx:100-131; ocmsadminui/src/pages/Notice/hook/useNoticeUploadSubmit.ts:157-162; ocmsadminui/src/pages/Notice/hook/useNoticeUploadSubmit.ts:168-178; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:958-965; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1119-1120",
+      "fit": "Sesuai",
+      "detail": "onSaveAllConfirmed memisahkan hasil menjadi sukses, duplikat dan gagal dengan pesan ringkasan '<n> notices created successfully', '<n> duplicate case(s) detected', atau '<n> out of <m> case(s) failed' (ActionNoticeUpload.tsx:145-181), lalu menuju halaman result. Halaman result menampilkan daftar Failed dengan tombol 'Re-create Notices' yang memuat ulang baris gagal ke preview (UploadResult.tsx:100-131). Pesan 'Duplicate' di UI bergantung pada duplicateNoticesCount dari response (useNoticeUploadSubmit.ts:157-162, 168-178). Di backend jalur staff, flag duplikat hanya muncul bila noticeNo dikirim dan sudah ada (CreateNoticeServiceImpl.java:958-965; upload staff tidak mengirim noticeNo), sedangkan duplikat offence tetap dibuat dengan PS-DBB (CreateNoticeServiceImpl.java:1119-1120), jadi cabang pesan duplikat di UI mungkin jarang terpicu; perilaku pastinya di environment: cannot verify from repo."
+    }
+  ]
+}

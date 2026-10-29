@@ -1,0 +1,185 @@
+{
+ "id": "OCMS52.1",
+ "checked_by": "ledger-L1",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "A daily job picks all TS rows in ocms_suspended_notice with date_of_revival empty and due_date_of_revival before the start of tomorrow.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsSuspendedNotice/OcmsSuspendedNoticeRepository.java",
+   "line": 108,
+   "missing": "Quote proves the due-date filter; 'date_of_revival IS NULL' is line 107, start-of-tomorrow is AutoRevivalHelper.java:117, TS = SystemConstant.java:26, daily schedule = ToppanUploadJobsScheduler.java:119 + cron-schedules-prod.properties:61-62 (real server value cannot be verified from repo).",
+   "fix_en": "",
+   "quote": "\"AND s.dueDateOfRevival < :beforeDate \" +"
+  },
+  {
+   "i": 1,
+   "claim": "A notice is skipped (not revived) when it is paid (...), has no due TS, has an active PS whose reason is not DIP, MID, FOR, RIP or RP2, or its last processing stage is not an allowed revival stage; the court stages CSD, CSR, COS and COM are allowed only when a due TS has reason RED.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 419,
+   "missing": "One quote shows the RED court exception; the other skip conditions are each a 'continue' at AutoRevivalHelper.java:387 (crs_reason), :390 (epr PRA), :400 (no due), :406-408 (blocking PS), :416-420 (stage); set constants SystemConstant.java:69, :122, :127. Note 'no active TS' skip (line 382) is not listed in the acceptance, harmless.",
+   "fix_en": "",
+   "quote": "due.stream().anyMatch(s -> \"RED\".equals(s.getReasonOfSuspension()));"
+  },
+  {
+   "i": 2,
+   "claim": "Due TS rows are marked revived with reason SPO and remark 'Auto-revived on due date'; if another suspension is still active, the remaining suspension with the latest date_of_suspension is copied to VON and eVON, and VON.due_date_of_revival takes the furthest due date of the remaining suspensions (eVON gets no due date).",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 429,
+   "missing": "Quote proves remark; 'SPO' is line 428; latest remaining = :452; furthest due date only to VON = :454-459 and :650 (v.due_date_of_revival = t.due_date); eVON UPDATE sets only type, reason, date (:704-707). 'Remaining' includes any active suspension (TS or PS), not only TS. VON (izdb) and eVON (ez DB) are written separately (:530, :534), atomicity cannot be verified from repo.",
+   "fix_en": "",
+   "quote": "\"Auto-revived on due date\",                  // revival_remarks"
+  },
+  {
+   "i": 3,
+   "claim": "After revival, TS-PDP is re-applied for an unpaid notice that has a Pending furnish application (status P). TS-HST and TS-CLV are also re-applied ... (OCMS-DF-2026-117); this part is not part of the claim.",
+   "status": "partly",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 974,
+   "missing": "Re-apply only happens for a revived row whose reason is PDP (this line), not for any revived notice. 'Unpaid' here is isPaidNotice() = active permanent PS-FP or PS-PRA (:1245-1250), which differs from the 'paid' definition in acceptance 1 (crs_reason / epr PRA, :387/:390); for a PS-FP/PS-PRA notice the code patches VON instead (:984-988). Pending furnish = f.status = 'P' at :924, processTS call at :1011-1014. The HST/CLV sentence is a disclaimer, not a testable claim.",
+   "fix_en": "After revival, TS-PDP is re-applied on a notice whose revived TS row has reason PDP, when the notice has no active PS-FP or PS-PRA and has a Pending furnish application (status P).",
+   "quote": "if (!SystemConstant.SuspensionReason.PDP.equals(reason)) continue;"
+  },
+  {
+   "i": 4,
+   "claim": "Officers can also fire the job by hand from the staff portal Cron page (Auto Revival); the same button is cited in OCMS52.3, so it must be claimed in one place only.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 60,
+   "missing": "Button exists (CronList.tsx:60) and chain UI -> CronProxyController.java:354 -> CronProxyService.java:295 -> AutoRevivalController.java:61 (background thread, returns at once). 'Claimed in one place only' is a claim-management note, not provable from code. Which staff roles hold OCMS_CRON (api-authorization.properties:187) cannot be verified from repo.",
+   "fix_en": "Officers can also start the job by hand from the staff portal Cron page ('Auto Revival' button); the request is proxied to the cron tier and the job runs in the background. (Move the 'claim once' note to the risks list.)",
+   "quote": "{ cronName: \"Auto Revival\", description: \"Click to trigger Auto Revival cron\", endpoint: \"cron/auto-revival/trigger\" },"
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java",
+   "line": 119,
+   "note": "Call is live (job 1,3,4,5b lines are commented, not this one). Prod schedule 0 15 0 * * ? and enabled=true at cron-schedules-prod.properties:61-62 imported by application-prod.properties:17. Real server value cannot be verified from repo; the job dies with the combined scheduler. If a stricter reading is wanted: Sesuai only 'in repo prod properties'.",
+   "quote": "runJob(job2Name, () -> autoRevivalService.executeJob().get(), taskResults);"
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsSuspendedNotice/OcmsSuspendedNoticeRepository.java",
+   "line": 107,
+   "note": "Together with :108 and AutoRevivalHelper.java:117 (startOfTomorrow). Step wording matches.",
+   "quote": "\"AND s.dateOfRevival IS NULL \" +"
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 408,
+   "note": "Each condition is an executing 'continue' (387,390,400,408,420). Step text lists the stages NPA..CFC, which match SystemConstant.java:122. 'Paid' in the step means crs_reason/epr PRA, the step text just says 'paid': add the definition when quoting.",
+   "quote": "if (hasBlockingPs) { skippedBlockingPs++; skippedCount++; continue; }"
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 428,
+   "note": "Params built at :426-436 and written by JOIN UPDATE at :592-603 (composite key notice_no + date_of_suspension + sr_no).",
+   "quote": "\"SPO\",                                       // revival_reason"
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 452,
+   "note": "Step wording is provable (clear :447-448, latest copy :451-462) and could be Sesuai, but Sebagian is kept: VON and eVON are separate DB writes (:530 vs :534) with no shared transaction, and the 'keep' is the LATEST date_of_suspension, only VON gets the furthest due date (:459, eVON UPDATE :704-707). Reword step: 'the remaining suspension with the latest date_of_suspension is copied to VON and eVON'.",
+   "quote": ".max((a, b) -> a.getDateOfSuspension().compareTo(b.getDateOfSuspension()))"
+  },
+  {
+   "i": 5,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 760,
+   "note": "Trigger is the reason of the revived row only (HST :760, CLV :823) with isPaidNotice guard (:764, :828); no HST-ID or vehicle-type check here (V check is only :1111 in the looping step). proposal.json detail en says line 760/823 but id says 755/815-820: make the id text consistent. Outside the claim (see acceptance 3).",
+   "quote": "if (!SystemConstant.SuspensionReason.HST.equals(reason)) continue;"
+  },
+  {
+   "i": 6,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java",
+   "line": 924,
+   "note": "Executing lines: :924 (status = 'P'), :974 (only reason PDP), :1011-1014 processTS PDP. Add to step: 'when the revived TS reason is PDP and the notice has no active PS-FP/PS-PRA'.",
+   "quote": "\"WHERE f.status = 'P'\");"
+  },
+  {
+   "i": 7,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 60,
+   "note": "Chain verified: CronProxyController.java:354, CronProxyService.java:295, AutoRevivalController.java:61 (runAsyncWithUser, returns at once). Route App.tsx:319. Roles cannot be verified from repo.",
+   "quote": "{ cronName: \"Auto Revival\", description: \"Click to trigger Auto Revival cron\", endpoint: \"cron/auto-revival/trigger\" },"
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 61,
+   "meaning": "Prod schedule of the combined day-end scheduler that runs Auto Revival (00:15 daily). Same value in dev/uat files line 62/61.",
+   "quote": "cron.toppanupload.schedule=0 15 0 * * ?"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 62,
+   "meaning": "Prod enabled flag is true, so runDayEndJobs() does not return early (ToppanUploadJobsScheduler.java:102 gate). Real server value cannot be verified from repo.",
+   "quote": "cron.toppanupload.enabled=true"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 17,
+   "meaning": "Prod profile imports cron-schedules-prod.properties (the quote is cut: only cron-schedules-prod.properties part matters).",
+   "quote": "spring.config.import=classpath:sftp/sftp-common.properties,classpath:sftp/sftp-prod.properties,classpath:datahive/datahive-prod.properties,classpath:cron-schedu"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS19.9",
+   "status": "Demo paid (50% of 75%), 1 pt",
+   "second_claim_risk": "maybe",
+   "reason": "19.9 is the officer-facing revival summary/confirm screen; 52.1 is a headless cron. Different trigger, but URA may argue the revival write logic (TS revive, VON/eVON sync) is the 'proceed to revive' part of 19.9."
+  },
+  {
+   "story": "OCMS19.1",
+   "status": "Demo paid (50% of 75%), 3 pts",
+   "second_claim_risk": "maybe",
+   "reason": "19.1 is an officer choosing the revival type (TS/PS/reduction). Auto revival is TS only with no officer input; low text overlap, but shared revival helpers may be read as the same capability."
+  },
+  {
+   "story": "OCMS19.15",
+   "status": "No requirement, 3 pts",
+   "second_claim_risk": "no",
+   "reason": "19.15 is PLUS sending revival requests. 52.1 has no PLUS input at all."
+  },
+  {
+   "story": "OCMS14.28",
+   "status": "Requirement given - Gen flow, 5 pts",
+   "second_claim_risk": "yes",
+   "reason": "The user story of 52.1 itself (TS-HST/TS-CLV re-apply after expiry) overlaps 14.28 'continue the TS when the existing suspension expires'; the claim must stay on base revival + TS-PDP and 14.28 should not be cited."
+  }
+ ],
+ "verdict": "FIX WORDING"
+}

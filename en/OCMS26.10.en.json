@@ -1,0 +1,21 @@
+{
+  "story": "OCMS26.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl} (casUpdateCourtNotices rejects FULL_PAYMENT notices), crud/ocmsizdb/OcmsCourtCase; ocmsadminui pages/Notice/form/History.tsx. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no adjudication code",
+  "note": "Requirement status is not given in stories.json (blank); the story is traced normally. The story asks OCMS to receive an adjudication update for a settled notice and update the notice so the officer knows State Courts has processed it. The code has no adjudication receiver and no 'processed by State Courts' marker. There is only the REST casUpdateCourtNotices (per-notice push from CAS) which overwrites stage/suspension, and a notice whose payment_status is FULL_PAYMENT is rejected with 'Notice already Paid' / OCMS-4002 (CasIntegrationServiceImpl.java:336-343). If 'settled' in the story means paid, this path works against the story; if it means settled at court, the code does not distinguish it. The meaning of 'settled' cannot be determined from the repo. The update step is rated Sebagian to stay consistent with the processing-stage step of OCMS26.6. Tickets OCMS-SR-2026-164 and OCMS-SR-2026-179 hint that the court sync from CAS to OCMS is not complete (hints, not proof). Ticket OCMS-DF-2026-173 uses 'Settled' for Fully Paid notices, a hint that operationally settled means paid (not proof). Internal status on the State Courts side and the CAS contract: cannot verify from repo.",
+  "recommendation": "Do not claim as complete. Only the generic stage/suspension update from CAS exists, and an already-paid notice is rejected. Ask URA/the team to clarify what 'settled' means and where the adjudication result is stored, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives a case adjudication update for a settled notice",
+      "detail": "There is no adjudication-update receiver. casUpdateCourtNotices (CasIntegrationController.java:101-102) only accepts a per-notice stage/suspension push from CAS with no adjudication result field (CasUpdateNoticeItem.java:26-74); not credited. Synonyms tried across the six repos (UI and API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Zero hits in the backend; only TypeScript types in the UI."
+    },
+    {
+      "step": "The notice is updated according to the adjudication result",
+      "detail": "casUpdateCourtNotices overwrites stage, suspension and amount on VON/eVON from the CAS payload (CasIntegrationServiceImpl.java:430-459), but a FULL_PAYMENT notice is rejected with 'Notice already Paid' (CasIntegrationServiceImpl.java:336-343). The adjudication result itself is not stored. The meaning of 'settled' (paid or settled at court) cannot be determined from the repo. Same fit as OCMS26.6 processing-stage step."
+    },
+    {
+      "step": "The officer can tell that State Courts has processed the settled notice",
+      "detail": "There is no 'processed by State Courts' marker or status in ocms_court_case (OcmsCourtCase.java:24-31) or on VON. The Court Application History tab in History.tsx:170-172 is commented out and its grid (History.tsx:71-100) has no backend. The only related message is the warning 'Notice has been submitted to State Court' in useStagePermissions.tsx:86 (an edit restriction), which is not an adjudication result marker; not credited."
+    }
+  ]
+}

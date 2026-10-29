@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS9.4 Mobile Number Lookup and SMS",
+    "locale": "en",
+    "output": "OCMS9.4.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "lta",
+      "type": "backend",
+      "label": "LTA download",
+      "sublabel": "LtaBatchCode0Processor"
+    },
+    {
+      "id": "dh",
+      "type": "external",
+      "label": "DataHive",
+      "sublabel": "Singpass contact view"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "OCMS DB",
+      "sublabel": "owner_driver + VON"
+    },
+    {
+      "id": "job",
+      "type": "backend",
+      "label": "eNotification cron",
+      "sublabel": "NotificationSmsEmailJob"
+    },
+    {
+      "id": "sms",
+      "type": "external",
+      "label": "SMS gateway",
+      "sublabel": "SMS gateway"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 300,
+      "label": "ENA entry (LTA)"
+    },
+    {
+      "from": 322,
+      "to": 480,
+      "label": "Daily SMS job (11:00)"
+    },
+    {
+      "from": 482,
+      "to": 520,
+      "label": "End"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "lta",
+      "to": "db",
+      "y": 165,
+      "label": "Exclusion check first (opted out: RD1)",
+      "variant": "default"
+    },
+    {
+      "id": "m1",
+      "from": "lta",
+      "to": "dh",
+      "y": 195,
+      "label": "SELECT CONTACT WHERE UIN = NRIC/FIN",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "dh",
+      "to": "lta",
+      "y": 225,
+      "label": "Mobile number or none",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "lta",
+      "to": "db",
+      "y": 255,
+      "label": "Write tel_no, code 65; stage ENA",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "lta",
+      "to": "db",
+      "y": 285,
+      "label": "No number: stage RD1 (letter)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m5",
+      "from": "job",
+      "to": "db",
+      "y": 345,
+      "label": "ENA records, last date <= now",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m6",
+      "from": "job",
+      "to": "dh",
+      "y": 375,
+      "label": "Refresh contact: flag false in all envs (before exclusion)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "job",
+      "to": "sms",
+      "y": 405,
+      "label": "Batch SMS, one per notice",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "sms",
+      "to": "job",
+      "y": 435,
+      "label": "Status polled (not in repo)",
+      "variant": "return"
+    },
+    {
+      "id": "m9",
+      "from": "job",
+      "to": "db",
+      "y": 465,
+      "label": "Save send status",
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "lta",
+      "from": 160,
+      "to": 290,
+      "type": "backend"
+    },
+    {
+      "participant": "job",
+      "from": 340,
+      "to": 470,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 162,
+      "to": 470,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches flow",
+      "items": [
+        "NRIC/FIN sent to a gov source",
+        "Mobile saved on the offender",
+        "No number: letter track"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Code says DataHive, not DOS",
+        "Cron lookup runs before exclusion",
+        "21:00 notices wait until 11:00"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "DOS = DataHive?",
+        "Cron enabled value per env",
+        "SMS gateway and Vault permission"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.20",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/urapg/service/EPaymentCallbackService, workflows/parkingfines/ParkingFinesServiceImplement, crud/ocmsezdb/eocmswebtxndetail; ocmseserviceui pages/Payment/{PaymentProcessing,PaymentResult,Payment}.ts. Other repos: no code",
+  "note": "A failed transaction is recorded with status E and the failure page shows a red message. Two differences from the story: (1) the only button on the failure page is 'Close', which opens /car-parks-portal/ocms/payment, the start of the fine search, not the list of payment modes, and sessionStorage is cleared so the selection is lost (PaymentResult.ts:50-56); (2) repeat payment on the same notice is blocked for 300 seconds from when the transaction started because the last transaction with status E is treated as 'still processing' (ParkingFinesServiceImplement.java:332-345, 34), so the offender cannot retry immediately. OCMS-DF-2026-026 (closed, prod deployed) fixed the block that leaked past 5 minutes, but the block within the first 5 minutes is still in the code. The failure message is generic and carries no transaction number or reason. Same note as OCMS50.18: recording status E through the failure callback does not verify with the PG.",
+  "recommendation": "Claim partly. Add a button back to the payment-mode list and lift the 5-minute block for transactions with status E so a retry is possible at once, or ask URA to confirm the current behaviour",
+  "steps": [
+    {
+      "step": "A failed transaction is recorded as failed in the database",
+      "detail": "The failure callback and a success callback that fails verification both write status E and error_remarks 'Code: <ResponseCode> - Failed' (EPaymentCallbackService.java:135, 208, 519-526). Same gap as OCMS50.18: the failure path does not use the PG verification result and its idempotency only checks 'already E' (168-178, 207), so a late failure callback can overwrite an S transaction."
+    },
+    {
+      "step": "The processing page routes the unsuccessful transaction to the failure page",
+      "detail": "Only status 'S' goes to /payment/success; everything else, including E, empty data or a network error, goes to /payment/failure (PaymentProcessing.ts:57-65). For an E transaction this is right; for status I/P or a read failure the failure page also appears even though the payment may have succeeded (see OCMS50.18)."
+    },
+    {
+      "step": "The page shows an error message that the transaction was unsuccessful",
+      "detail": "InitTransactionFailed shows a red alert with a cross icon and the text 'Error occured while processing payment.' plus URA Car Parks Division contact and operating hours (PaymentResult.ts:58-68, 226-248). The message is generic: no transaction number or rejection reason, and it has the typo 'occured'. Same message step as in OCMS50.18."
+    },
+    {
+      "step": "The offender is redirected to the list of payment modes",
+      "detail": "The only button on the failure page is 'Close', which runs sessionStorage.clear() then window.location.href = '/car-parks-portal/ocms/payment' (PaymentResult.ts:50-56), the start of the fine search, not the payment-mode list. The mode list (PaymentSearchResult.ts:589-640) only appears after the offender searches again and selects notices. 'Back to View Fines' exists only on step 3 before paying (PaymentProcess.ts:45-60). The payment page path is hard-coded."
+    },
+    {
+      "step": "The offender can repeat payment with the same or another mode",
+      "detail": "A new transaction can be created with any mode (UraPaymentService.java:139-145, a new ID each time). But the fine search reads the last transaction per notice and anything that is not 'S', including 'E', counts as still processing for 300 seconds from transaction_date_and_time (ParkingFinesServiceImplement.java:332-345, 34, 461-465): message E10 appears and paymentAcceptanceAllowed is forced to N (273-279). After 5 minutes message E11 appears and the notice can be paid again (346-349, 281-292). So an immediate retry after a failure is blocked for up to 5 minutes. OCMS-DF-2026-026 (Closed) fixed the block leaking past 5 minutes, not the block inside 5 minutes."
+    }
+  ]
+}

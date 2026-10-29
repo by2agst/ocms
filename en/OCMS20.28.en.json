@@ -1,0 +1,33 @@
+{
+  "story": "OCMS20.28",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/HST/revival/{form/HSTRevivalForm,form/SearchIDForm,list/OutstandingNoticesList}, pages/HST/hooks/useHST, App.tsx, utils/data/LinkData, utils/Meta/HSTs. ocmsadminapi workflows/notice_management/suspension/{HstManagementController, HstManagementServiceImpl, revivenotice/helpers/ReviveProcessingHelper}, resources/api-authorization.properties. ocmsadminprivateapi schedulers/ToppanUploadJobsScheduler, workflows/autorevival/helpers/AutoRevivalHelper, crud/ocmsizdb/OcmsValidOffenceNotice. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status 'Demo paid (50% of 75%)', demo remark 'Manual revive so notice processing continue'. The feature exists and is clear: the HST > Manual HST Revival menu (/hst/revival) calls POST /v1/revive-hst, which revives TS-HST on all notices of the ID without checking the revival due date, clears the VON/eVON suspension, and deletes the HST row (HstManagementServiceImpl.java:419-470, 515-556). The notices are then no longer excluded from enquiry queries that use NOT EXISTS ocms_hst (OcmsValidOffenceNoticeRepository.java:549, 576). The automated HST Auto Suspension and HST Looping jobs are commented out of the day-end scheduler (ToppanUploadJobsScheduler.java:120-121), so a manual lift does not clash with the automated process; auto revival re-applies TS-HST only for suspensions it revived itself (AutoRevivalHelper.java:757-775, OCMS-DF-2026-117). One thing to watch: a per-notice exception is only logged (HstManagementServiceImpl.java:460-462) and the HST row is still deleted (:466); if one notice fails to revive, the ID can no longer be found on the revival page (its check needs the HST row). The transaction effect (rollback or not) cannot be verified from repo. Which roles may use OCMS_HST_REVIVAL cannot be verified from repo.",
+  "recommendation": "Safe to claim as a working feature. Note one risk: a per-notice revive failure is swallowed and the HST row is still deleted, so a notice can be left in TS-HST with no UI path to lift it. The screen lifts per ID, not per notice (the normal revive blocks TS-HST, ReviveProcessingHelper.java:146-151)",
+  "steps": [
+    {
+      "step": "The officer opens the Manual HST Revival screen at any time",
+      "detail": "The HST menu has a child 'Manual HST Revival' (LinkData.tsx:183-203, Meta HSTs.ts:16-19) and the route /hst/revival (App.tsx:196-200). There is no time, schedule or job-status restriction in the UI or the revive API. The endpoint maps to permission OCMS_HST_REVIVAL (api-authorization.properties:102-103); which roles hold it cannot be verified from repo."
+    },
+    {
+      "step": "The officer looks up the ID and OCMS confirms it is under HST",
+      "detail": "SearchIDForm calls check-hst with checkType revival (SearchIDForm.tsx:53). The API returns the stored name and address from ocms_hst if present (HstManagementServiceImpl.java:101-118, 157-165); otherwise the UI shows 'not suspended under HST' and stops (SearchIDForm.tsx:64). The notice list on screen comes from offencenoticeownerdriverlist with only an idNo filter (SearchIDForm.tsx:78-81), not only outstanding notices, although the table title says 'Outstanding Notices (Will be revived)'."
+    },
+    {
+      "step": "The officer confirms the manual lift",
+      "detail": "The Revive HST button opens the 'Confirm HST Revival' modal that mentions deleting the HST ID and reviving all TS-HST (HSTRevivalForm.tsx:52-76). After OK, the UI POSTs revive-hst with idNo, name and address (HSTRevivalForm.tsx:81-94, useHST.tsx:138-141). Same as the confirmation step in OCMS20.26."
+    },
+    {
+      "step": "TS-HST on all notices of the ID is revived immediately without waiting for the automated process",
+      "detail": "reviveHst revives the latest TS-HST on every offender notice of that ID without checking due_date_of_revival or any job schedule (HstManagementServiceImpl.java:423-428, 515-556). The normal per-notice revive blocks TS-HST (ReviveProcessingHelper.java:146-152), so this page is the manual path. The automated HST Auto Suspension and HST Looping jobs are commented out of the day-end scheduler (ToppanUploadJobsScheduler.java:120-121), while AutoRevival still runs (:119) and only re-applies TS-HST for suspensions it revived itself (AutoRevivalHelper.java:757-775). A suspension already revived manually has date_of_revival set, so it is not picked up. Same fit as the revive step in OCMS20.26. Ticket OCMS-DF-2026-117 (closed) concerns the TS-HST looping logic."
+    },
+    {
+      "step": "The special indicator is removed from the ID",
+      "detail": "hstService.delete(idNo) deletes the row in ocms_hst (HstManagementServiceImpl.java:466); the 'H' indicator depends on that row (:69-89). Risk note: a per-notice exception is only logged (:460-462) and the delete still runs, so if one notice fails to revive it stays in TS-HST and the ID no longer shows on the revival page; the rollback effect cannot be verified from repo. Same fit as the 'indicator removed' step in OCMS20.26."
+    },
+    {
+      "step": "The notices resume processing after the lift",
+      "detail": "Revival clears suspension_type, eprReasonOfSuspension, eprDateOfSuspension and dueDateOfRevival on VON and syncs eVON (HstManagementServiceImpl.java:540-553). The enquiry queries that use NOT EXISTS ocms_hst (OcmsValidOffenceNoticeRepository.java:549, 576) no longer exclude the ID because the HST row is gone, and the Toppan query only requires suspension_type IS NULL. Note: Toppan letter generation itself only runs through a manual trigger and the Toppan upload is blocked by config (see OCMS20.26); that is not part of this lift step."
+    }
+  ]
+}

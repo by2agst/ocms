@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (count outstanding per ID) dan StaffFurnishService; ocmsadminprivateapi toppan/upload/helpers/ToppanUploadHelper (letter per stage, MID/DIP di RR3/DR3 di-PS, PDF hanya AN letter), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, resources/application-prod.properties; ocmsadminui pages/Report/lists/ReportListReminder dan api-authorization.properties. Tidak ada code letter per entity atau threshold di keenam repo.",
+  "note": "Story minta OCMS mengenali entity dengan jumlah outstanding notice tertentu (kondisi predefined), membuat reminder letter PDF atas notice itu, dan officer bisa unduh/cetak untuk postage. Yang ada hanya pembuatan letter Toppan per notice per stage (bukan per entity, bukan PDF kecuali AN letter), dengan day-end cron yang tidak memanggil pembuat letter dan upload Toppan diblokir di prod. Tidak ada hitung per entity, tidak ada ambang, tidak ada letter PDF DIP/MID. Fakta turunan: di prod sftp.upload.disabledServers=toppan (nilai server asli: cannot verify from repo). Tidak ada ticket yang spesifik untuk fitur ini; OCMS-DF-2026-192 hanya menyangkut trigger letter Toppan generik. Status story: Requirement given - Gen flow.",
+  "recommendation": "Jangan klaim sebagai selesai. Letter reminder per entity (threshold, PDF, unduh) belum ada di code; hanya letter Toppan generik per notice. Konfirmasi scope dengan URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice DIP/MID sudah di-temporary suspend otomatis dengan suspension code dan periode tertentu (hasil OCMS14.5)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-1993; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2014; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:749-777; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:111-113",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada temporary suspension untuk DIP/MID. Di Toppan stage RR3/DR3 kendaraan dengan vehicleRegistrationType I (Military) atau D (Diplomatic) dikeluarkan dari letter (ToppanUploadHelper.java:1979-1993), lalu applyPsSuspensionForMidDipVehicles memanggil psHelper.processPS (PermanentSuspensionHelper) dengan kode PS-MID atau PS-DIP (ToppanUploadHelper.java:749-777, dipanggil di :2014). Itu permanent suspension tanpa periode atau parameter durasi. Kode MID/DIP juga diperlakukan sebagai PS reason (SuspensionProcessingHelper.java:111-113). Fakta yang sama dengan OCMS14.5 (story saudara)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali entity yang punya jumlah outstanding notice tertentu di semua kendaraannya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:220-229; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:742-760",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya hitungan outstanding adalah countOutstandingNoticesByIdNo per satu ID (OcmsValidOffenceNoticeRepository.java:220-229), dipakai pencarian furnish oleh officer (StaffFurnishService.java:742-760). Tidak ada job yang menyisir semua entity, menjumlahkan notice dari semua kendaraan, atau membandingkan dengan ambang. Hal yang sama dengan OCMS14.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dipilih berdasarkan kondisi predefined (suspension status, suspension code, suspension type)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:202; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:227",
+      "fit": "Tidak ada code",
+      "detail": "Query hitung outstanding hanya memakai (v.suspension_type != 'PS' OR v.suspension_type IS NULL) (OcmsValidOffenceNoticeRepository.java:202, :227); tidak ada filter suspension code DIP/MID atau status suspension aktif. Sama dengan OCMS14.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat reminder letter untuk notice yang outstanding di bawah entity tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-2014; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-41; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada letter per entity. Reminder/demand letter Toppan dibuat per notice sesuai stage (RD1, RD2, RR3, DN1, DN2, DR3), dan untuk MID/DIP di RR3/DR3 letter dilewati lalu di-PS (ToppanUploadHelper.java:1979-2014). Day-end cron tidak memanggil pembuat letter (ToppanUploadJobsScheduler.java:118 di-comment); hanya trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34-41). Di prod upload ke Toppan diblokir (sftp.upload.disabledServers=toppan, application-prod.properties:86); nilai asli di server: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder letter dibuat dalam format PDF",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:371",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya pembuat PDF di jalur letter adalah AnLetterPdfService untuk Advisory Notice Letter (ToppanUploadHelper.java:371, generateAnLetterPdf). Tidak ditemukan code PDF untuk reminder letter DIP/MID atau untuk letter gabungan per entity; format file stage RD/DN lain tidak dibuktikan di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengunduh atau mencetak letter untuk postage",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListReminder.tsx:42-60; ocmsadminui/src/pages/Report/lists/ReportListReminder.tsx:73-88; ocmsadminapi/src/main/resources/api-authorization.properties:144-145",
+      "fit": "Tidak ada code",
+      "detail": "Ada tab Reminder Letter Reports yang mendaftar file hasil Toppan (toppan-report/search) dengan tombol Download (ReportListReminder.tsx:42-60, :73-88), tetapi itu mekanisme generik, bukan letter entity DIP/MID. Mapping OCMS_REPORT_REMINDER hanya memberi /v1/toppan-report/search dan /v1/standardcodelist tanpa /v1/download/blob (api-authorization.properties:144-145). Karena letter entity tidak ada, tidak ada yang diunduh untuk story ini."
+    }
+  ]
+}

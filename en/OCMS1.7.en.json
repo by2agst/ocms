@@ -1,0 +1,33 @@
+{
+  "story": "OCMS1.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, cron-schedules-*.properties; ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController; ocmsadminui App.tsx + pages/ManageTemplate. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: User Story Removed (5 points), the verdict stays Removed. The similar code is the company email path of the same eNotification cron as OCMS1.6: owners with idType 'B' (UEN) get an email, not an SMS. Company notices are combined per UEN + stage + due date into one email (combineNotices), which comes close to 'unique company owner', but notices with different due dates still produce separate emails. As in OCMS1.6, the template data has no admin fee, the scheduler flag cron.notification.enabled=false in every environment (cron-schedules-prod.properties:236), ticket OCMS-DF-2026-180 waits for the cron to go live, and the DataHive/CorpPass lookup is off (cron.enareminder.datahive=false). Email for the driver stages DN1/DN2/DR3 is skipped on purpose because no company template exists (NotificationSmsEmailHelper.java:313-318). The 'DOS' source, the SMTP/email gateway, and the template content in the database: cannot verify from repo. The source used is src/main/java (the cronservice/ copy at the root of ocmsadminprivateapi differs and is not built). Double check note: the story is Removed, so steps that have code are counted as Partial (not Matches) to stay consistent with OCMS1.1-1.5; nothing is claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "The company vehicle owner email addresses have been obtained from DOS before the email is sent",
+      "detail": "For idType 'B', refreshContactInfo calls refreshCompanyContactInfo (CorpPass DataHive) only when cron.enareminder.datahive=true (NotificationSmsEmailHelper.java:2461-2476, :2496); it is false in every environment (cron-schedules-prod.properties:48), so the stored email_addr of the owner/driver is used (query :1017). The 'DOS' source: cannot verify from repo."
+    },
+    {
+      "step": "The unique company vehicle owners for the emails in each batch are identified",
+      "detail": "Company notices (idType B) are combined per recipientKey 'B_'+UEN, stage, and paymentDueDate into one record with combinedNotices and a summed amountPayable (NotificationSmsEmailHelper.java:2178-2200; the UEN key is in getRecipientKey :2230-2241). So one UEN with the same due date receives one email. But the key includes due date and stage, so one UEN with different due dates still gets several emails; the story asks for one per unique company owner per batch."
+    },
+    {
+      "step": "The email goes only to company vehicle owners",
+      "detail": "sendEmail = idType 'B' (NotificationSmsEmailJob.java:353-354) and the email is sent per record in block :377-389 only for those records; determineDeliveryChannel maps 'B' to EMAIL (NotificationSmsEmailHelper.java:443-452). Individuals get no email from this path."
+    },
+    {
+      "step": "The email is built from an email template configured in OCMS",
+      "detail": "The company template is chosen by the name {stage}_EMAIL_COMPANY[_COMBINED] (NotificationSmsEmailHelper.java:459-475), loaded from ocms_template_store and split into subject and body by splitEmailTemplate (:313-328). Staff manage EMAIL templates through ManageTemplate (ocmsadminui/src/App.tsx:277 edit, :291 create) and OcmsTemplateStoreController (:52). The DN1/DN2/DR3 stages are skipped because there is no company template (:313-318). The template content in the database: cannot verify from repo."
+    },
+    {
+      "step": "The email states the outstanding parking charges and the admin fee",
+      "detail": "The placeholder data only holds amountPayable (sum of the combined notices) and paymentDueDate (NotificationSmsEmailHelper.java:410-421); no admin fee is passed to the template. The admin fee is only set at RR3/DR3 (ToppanUploadHelper.java:1320-1324; other stages write 0 per OCMS-DF-2026-170). Same fit as the OCMS1.6 step 'states charges, admin fee, due date'."
+    },
+    {
+      "step": "The email is sent to each company owner by the batch job",
+      "detail": "For each company record the job calls notificationHelper.sendEmail (NotificationSmsEmailJob.java:377-389), which uses emailService.sendEmail (NotificationSmsEmailHelper.java:556-580) when notification.email.enabled=true, then saveSendStatus (:396). As with SMS, the scheduled trigger is off because cron.notification.enabled=false (NotificationJobsScheduler.java:48-54; cron-schedules-prod.properties:236) and ticket OCMS-DF-2026-180 says the cron is not yet active. Real delivery through the email service: cannot verify from repo."
+    }
+  ]
+}

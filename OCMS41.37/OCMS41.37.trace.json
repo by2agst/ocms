@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.37",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper,helpers/FurnishSyncHelper}, crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl. ocmsadminui pages/Furnish/{list/FurnishSummaryList.tsx,form/DecisionForm.tsx}. ocmseserviceapi workflows/furnish/{FurnishSubmissionServiceImpl,FurnishApplicationListServiceImpl}",
+  "note": "Status 'Demo paid (50% of 75%)'. Status Pending (kode 'P') di-set otomatis oleh cron Furnish Processing, ditulis ke Intranet DB dan di-sync ke Internet DB, dan list staff default menyaring status P. Yang tidak sesuai: story minta 'user ID saya' tampil, sedangkan cron memakai akun teknis ocmsiz_app_conn dan tidak ada user officer pada saat status Pending di-set. Label teks 'Pending' di UI berasal dari opsi FURNISH_STATUS (data DB) dan tidak bisa diverifikasi dari repo.",
+  "recommendation": "Diklaim sebagian: status Pending otomatis dan tampil di list staff ada; tampilan user ID officer tidak ada (hanya akun sistem)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis mengubah status request menjadi Pending kalau tidak lolos auto-approval",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:189-198",
+      "fit": "Sesuai",
+      "detail": "executeManualReview men-set submission.setStatus(STATUS_PENDING='P') di memori (FurnishApprovalHelper.java:95, 529-531), lalu FurnishProcessingService.batchSaveToIntranet memanggil batchUpdateStatusPending (FurnishProcessingService.java:189-198) yang menjalankan UPDATE ocms_furnish_application SET status = 'P' (OcmsFurnishApplicationServiceImpl.java:85). Record dari eService juga lahir dengan status P (FurnishSubmissionServiceImpl.java:210 di ocmseserviceapi)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Pending juga ditulis ke sisi Internet supaya konsisten",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:218-230",
+      "fit": "Sesuai",
+      "detail": "batchSyncStatusToInternet memanggil eFurnishService.batchUpdateStatus(..., 'P', reason, DEFAULT_SYSTEM_USER_ID) (FurnishProcessingService.java:225-228) yang mengubah eocms_furnish_application.status dan upd_user_id (EocmsFurnishApplicationServiceImpl.java:159-166)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff bisa melihat request berstatus Pending saat browsing di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:60",
+      "fit": "Sesuai",
+      "detail": "FurnishSummaryList.tsx memakai defaultFilters 'status[$in]': ['P'] (baris 60) dan menampilkan kolom status lewat FURNISH_STATUS (baris 121-124), data dari POST furnishapplicationlist (OcmsFurnishApplicationController.java:52). Teks label 'Pending' berasal dari opsi FURNISH_STATUS di DB dan tidak bisa diverifikasi dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Pending ditampilkan bersama user ID officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:9",
+      "fit": "Beda dari flow",
+      "detail": "Cron menulis upd_user_id Internet = DEFAULT_SYSTEM_USER_ID 'ocmsiz_app_conn' (SystemConstant.java:9, FurnishProcessingService.java:227); record Intranet dibuat dengan cre_user_id yang sama dan upd_user_id null (FurnishSyncHelper.java:242-244) dan UPDATE status Pending tidak menyentuh kolom user (OcmsFurnishApplicationServiceImpl.java:85). DecisionForm.tsx hanya menampilkan 'Created By' dan 'Updated By' (baris 414, 419), jadi yang tampil akun sistem atau kosong, bukan user ID officer. Saat status Pending di-set belum ada officer yang terlibat."
+    }
+  ]
+}

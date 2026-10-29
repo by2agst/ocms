@@ -1,0 +1,55 @@
+{
+  "story": "OCMS10.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor,LtaSnowflakeProcessor,LtaIdTypeUtil}, framework/services/datahive/contact/DataHiveContactServiceImpl, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAdvisoryNoticeLetters), cron-schedules-prod.properties. Mekanisme umum (sama untuk NOPO) dengan template AN_SMS/AN_EMAIL. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "Status 'Demo paid (50% of 75%)'. Setelah data pemilik dari LTA masuk, LTA Download memetakan tipe ID, melewati lookup kontak untuk passport, memanggil DataHive untuk NRIC/FIN/UEN, menulis nomor mobile dan email ke ocms_offence_notice_owner_driver, lalu mengarahkan notice ke ENA (ada kontak) atau RD1 (tidak ada kontak). Notice AN dengan stage ENA dan an_flag Y dipilih job eNotification yang memakai template AN_SMS/AN_EMAIL lalu memasang PS-ANS setelah terkirim. Gap utama: scheduler eNotification dimatikan di properties PROD (cron.notification.enabled=false, komentar 'Disabled in PROD to prevent sending SMS/Email notifications'), jadi notifikasi elektronik AN tidak jalan otomatis di PROD. Aturan detail Epic OCMS9 tidak ditelusuri di chunk ini; data kontak DataHive, gateway SMS/email, dan override environment cannot verify from repo. Demo remark (Vault) cannot verify from repo. Tidak ada maintenance ticket yang dipakai. Folder cronservice/ stale tidak dipakai.",
+  "recommendation": "Klaim dengan catatan. Identifikasi tipe ID, lookup kontak, update nomor mobile/email, dan routing ENA/RD1 ada. Notifikasi elektronik AN dimatikan di properties PROD dan aturan Epic OCMS9 belum diverifikasi.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi tipe ID pemilik kendaraan dari data LTA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-57; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:456-458; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:1449-1465",
+      "fit": "Sesuai",
+      "detail": "Sama dengan OCMS10.4: LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms memetakan kode LTA ke N, F, P, atau B (LtaIdTypeUtil.java:42-57) dan hasilnya disimpan sebagai id_type owner (LtaBatchCode0Processor.java:456-458; kode tidak dikenal menjadi '-' di 1449-1465). Hasil klasifikasi dipakai lagi oleh lookup kontak (ContactIdTypeClassifier) dan oleh pemilihan channel notifikasi (UEN ke email, lainnya SMS). Kode LTA aktual cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek nomor mobile dan email pemilik lewat DataHive (passport dilewati)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:693-709; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:59-100",
+      "fit": "Sesuai",
+      "detail": "Untuk pemilik passport, lookup dilewati dan notice ke RD1 (LtaBatchCode0Processor.java:693-698). Untuk tipe lain dataHiveContactService.lookupContact dipanggil (706-709): validasi input, klasifikasi tipe ID (NRIC/FIN lewat Singpass, UEN lewat Corppass), build query, eksekusi dengan retry, parse hasil (DataHiveContactServiceImpl.java:59-100). Error preparation dicatat dan notice berhenti; error query dicatat (TS-SYS dikomentari, tidak diterapkan). Isi data DataHive dan akses koneksinya cannot verify from repo; aturan Epic OCMS9 tidak ditelusuri di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui nomor mobile dan email pemilik di data notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:755-759; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:772-798",
+      "fit": "Sesuai",
+      "detail": "Bila lookup menemukan mobile atau email, planContactUpdate membersihkan nomor ke digit, menulis offenderTelNo dengan kode negara Singapore, dan emailAddr ke ocms_offence_notice_owner_driver (LtaBatchCode0Processor.java:755-759, 772-798); bila keduanya kosong tidak ada update. Jalur lama LtaSnowflakeProcessor.updateContactInfoFromResult (160-178) sama; komentar 'only for Singpass' di sana tidak ditegakkan oleh kondisi if. Validasi format nomor/email di luar pembersihan digit tidak ditemukan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice diarahkan ke jalur notifikasi elektronik bila ada kontak, atau ke surat bila tidak ada",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:755-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:690-707",
+      "fit": "Sesuai",
+      "detail": "Bila hasil lookup punya kontak, stage diubah ke ENA (planStageToENA, LtaBatchCode0Processor.java:760); bila tidak, ke RD1 (762). Notice AN dengan an_flag Y dan next stage RD1 lalu dipilih findAdvisoryNoticeLetters untuk AN letter (OcmsValidOffenceNoticeRepository.java:690-707), sedangkan yang di ENA masuk query eNotification (NotificationSmsEmailHelper.java:1000-1030). Percabangan ini umum, tanpa pembeda khusus AN di LTA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notifikasi elektronik (SMS atau email) AN dapat dikirim kepada pemilik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:231-236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:277-282; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:398-407",
+      "fit": "Sebagian",
+      "detail": "Job eNotification memilih notice stage ENA (NotificationSmsEmailHelper.java:1000-1030), memakai template AN_SMS (individu) atau AN_EMAIL (perusahaan) bila an_flag Y (NotificationSmsEmailHelper.java:277-282, 352-380), dan memasang PS-ANS setelah terkirim (NotificationSmsEmailJob.java:398-407). Tetapi cron-schedules-prod.properties:236 berisi cron.notification.enabled=false dengan komentar 'Disabled in PROD to prevent sending SMS/Email notifications' (231-235), jadi pengiriman otomatis tidak jalan di PROD. Pengiriman sendiri (story OCMS10.6 dan OCMS10.7) serta gateway SMS/email cannot verify from repo."
+    }
+  ]
+}

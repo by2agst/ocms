@@ -1,0 +1,21 @@
+{
+  "story": "OCMS11.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (combineNotices, generateMessages, sendBatchSms)}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, application-prod.properties, cron-schedules-prod.properties. Other repos: no SMS sending code",
+  "note": "Story status 'Demo paid (50% of 75%)', demo_remark about Vault & SMS permission for the App Service. The SMS sending code exists (batch to Postman2 via APIM, up to 1000 per batch, status polling) but it is not active in the repo: cron.notification.enabled=false in dev, UAT and prod (cron-schedules-prod.properties:236), and in prod sms.enable=false with no sms.allowedSources, so SmsUtil refuses sending with source ENOTIFICATION. Ticket OCMS-DF-2026-180 (closed, deployed to PRD) waits for the eNotification cron to be activated. Unique-owner handling: reminders are merged per owner+stage+due date, but ENA notices for individuals are deliberately not merged (one SMS per notice). The template text lives in the DB (ocms_template_store), not in the repo. Per-environment values, Vault and SMS permission cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence.",
+  "recommendation": "Claim partially. The SMS sending code exists, but per the repo the job is off in every environment (and SMS is refused in prod), the unique-owner merge does not apply to ENA, and the templates live in the DB. Ask for evidence of the cron activation and templates in PRD before claiming in full.",
+  "steps": [
+    {
+      "step": "OCMS identifies the unique individual owners per batch so one owner gets one SMS summarising their NOPOs",
+      "detail": "combineNotices merges notices per owner key (I_ + ID) + stage + due date, so RD1-DR3 reminders of one person become one SMS. But for stage ENA, individual notices are deliberately not merged and get a unique key per notice (NotificationSmsEmailHelper.java:2169-2172), so one person with several ENA notices receives several SMSes. There is no phone-number dedup at batch level."
+    },
+    {
+      "step": "The SMS contains the details of the issued NOPOs (notice number, vehicle, fine amount, due date)",
+      "detail": "generateMessages picks the template ENA_SMS_INDIVIDUAL / RD1_SMS_INDIVIDUAL etc. (plus _COMBINED) and prepareTemplateData fills name, noticeNo, vehicleNo, amountPayable, noticeDateTime, paymentDueDate and the combinedNotices list. The template text lives in the DB (ocms_template_store) and is not seeded in the repo, so the message wording cannot verify from repo; if a template is missing the SMS is skipped with an error log (line 308). OCMS-DF-2026-180 (closed) fixed the ENA due date to eNA date + PDD without post-dating days."
+    },
+    {
+      "step": "OCMS sends the SMS reminder/notification to individual owners in the batch job",
+      "detail": "The job sends through sendBatchSms (up to 1000 per batch, Postman2 via APIM, status polling, one retry if the whole batch fails) with source ENOTIFICATION. But the scheduler skips execution when cron.notification.enabled=false (NotificationJobsScheduler.java:48-52), and the value is false in dev, UAT and prod (cron-schedules-prod.properties:236). Prod also has sms.enable=false (application-prod.properties:87) with no sms.allowedSources, so SmsUtil.sendBatchSms refuses (SmsUtil.java:401-410). In UAT, ENOTIFICATION is in sms.allowedSources (application-uat.properties:82), but the cron is still off. Real activation in PRD, Vault and SMS permission cannot verify from repo; OCMS-DF-2026-180 says the eNotification cron is still waiting to be activated."
+    }
+  ]
+}

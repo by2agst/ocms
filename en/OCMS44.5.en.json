@@ -1,0 +1,29 @@
+{
+  "story": "OCMS44.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentValidator} (sets PS-FP on VON and eVON, creates suspended_notice). ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (cron queries that skip PS). No code that receives a Cumulus receipt.",
+  "note": "Status 'Fully paid' in the sheet. The story says suspension happens after a Cumulus receipt is received; in the code the suspension runs in the same request that saves the payment, with no Cumulus. The end result is right for full or over payment: VON becomes PS with crs_reason FP, payment_status FP, payment_acceptance_allowed N, then eVON is updated and a suspended_notice row is created. Things to watch: (1) a partial payment also makes the notice PS (epr PRA, crs FP, payment_status FP), so it will not escalate even though a balance is still due, and a later top-up counts as a double payment and is refunded (PaymentValidator.java:109-113); (2) a 0.00 payment goes down the partial path (see OCMS44.3); (3) a payment over a PS-APP notice is not set to PS-FP but becomes a refund (OCMS-SR-2026-190); (4) the eVON update is silently skipped when the eVON row is missing (PaymentUpdateServiceImpl.java:410-413) and atomicity across VON/eVON/suspended_notice cannot be verified from the repo; OCMS-DF-2026-099 reports internet eVON out of sync after full payment on the cron path, not this one. That every stage cron stops for PS is verified only for the ROV query (OcmsValidOffenceNoticeRepository.java:73, 134, 146) and ENA (:166), not all stages.",
+  "recommendation": "Claim the core PS-FP suspension after full payment. The 'after the Cumulus receipt' trigger does not exist; ask URA to confirm that partial payments are also set to PS.",
+  "steps": [
+    {
+      "step": "Suspension is triggered after the receipt details from Cumulus are received and updated",
+      "detail": "There is no Cumulus receipt receiver (see OCMS44.3 and OCMS44.4). processPaymentUpdate saves the payment, runs the validator and changes the notice status immediately in one transaction (PaymentUpdateServiceImpl.java:83-132), so the trigger is the staff Update action, not a receipt."
+    },
+    {
+      "step": "OCMS marks the notice permanently suspended as paid (PS-FP)",
+      "detail": "For an exact or higher payment, handleFullPayment/updateVONForFullPayment set VON: suspension_type PS, crs_reason_of_suspension FP, crs_date_of_suspension = payment date, payment_status FP, payment_acceptance_allowed N (PaymentUpdateServiceImpl.java:295-310, 373-383; PaymentValidator.java:63-89). Exceptions: a notice already PS-APP is not set to PS-FP but gets a refund (PaymentUpdateServiceImpl.java:98-116, OCMS-SR-2026-190); a payment on an already paid notice counts as a double payment and is refunded (PaymentValidator.java:50-61)."
+    },
+    {
+      "step": "OCMS records the suspension in suspended_notice",
+      "detail": "createSuspendedNotice adds a row with sr_no from a sequence, type PS, reason FP, source OCMS, remarks 'Full payment received' (PaymentUpdateServiceImpl.java:307-309, 457-473). For an overpayment the remarks hold the excess amount (PaymentUpdateServiceImpl.java:352-354)."
+    },
+    {
+      "step": "The paid status is also pushed to eVON so the public portal no longer shows the notice as unpaid",
+      "detail": "updateEVONForFullPayment updates eVON: PS, crs FP, payment_status FP, payment_acceptance_allowed N, eservice_message_code E2, is_sync Y (PaymentUpdateServiceImpl.java:304-305, 408-425). If the eVON row is missing the update is skipped with a warn log (PaymentUpdateServiceImpl.java:410-413). eVON is in another database; atomicity with VON cannot be verified from the repo. OCMS-DF-2026-099 (eVON out of sync after full payment) concerns the SuspensionBaseHelper cron path, not this manual path."
+    },
+    {
+      "step": "The notice does not escalate to the next stage",
+      "detail": "The ROV cron queries exclude suspension_type PS (OcmsValidOffenceNoticeRepository.java:73, 134, 146) and the ENA query only takes suspension_type NULL or TS-HST (:166), so a PS-FP notice stops at those two stages. I did not verify every other stage. Note: a partial payment also yields PS (epr PRA, crs FP), so an unpaid-balance notice stops escalating too (PaymentUpdateServiceImpl.java:316-333; PaymentValidator.java:109-113). Revival by cron is outside this story."
+    }
+  ]
+}

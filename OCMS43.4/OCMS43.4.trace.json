@@ -1,0 +1,55 @@
+{
+  "story": "OCMS43.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/schedulers/DailyReportJobsScheduler, framework/workflows/paymentReport/{services/DailyPaidReportServiceImpl,jobs/DailyPaidReportJob,helpers/DailyPaidReportHelper,helpers/PaymentExceptionReportHelper}, framework/workflows/synctxndata/CronSyncTxnData, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminui pages/Cron/list/CronList.tsx (hanya trigger). ocmsadminapi cronproxy, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini.",
+  "note": "Status story: Fully paid (status_with_ura). Daily Paid Report jalan tiap hari 08:00 untuk tanggal kemarin dan dikirim sebagai lampiran Excel (sheet Summary, eService, AXS, Offline, JTC, Refund). Celah: (a) query memilih notice berdasarkan crs_date_of_suspension = tanggal laporan (DailyPaidReportHelper.java:88-89), sehingga pembayaran manual dengan tanggal mundur tidak muncul pada hari ia diinput (tiket OCMS-SR-2026-106, Closed dengan keputusan mempertahankan logika sekarang); hanya transaksi terbaru per notice yang dipakai (baris 96-123) dan record URA dengan sender tak dikenal tidak masuk sheet mana pun (baris 186); (b) 'errors, if any' tidak ada di laporan ini: kegagalan CronSyncTxnData per notice hanya masuk log (CronSyncTxnData.java:240), sedangkan PS-PRA/TS-PAM/refund ada di Payment Exception Report terpisah; (c) tidak ada layar download, staff portal hanya bisa memicu pengiriman email (CronList.tsx:53), jadi 'download' berarti membuka lampiran email. Tiket lain: OCMS-DF-2026-013 (total JTC $0), OCMS-SR-2026-088 (kategori JTC vs URA), OCMS-DF-2026-104 (email ganda), OCMS-SR-2026-153 (kolom ATOMS), OCMS-SR-2026-016 (penerima); semua Closed/Prod deployed. email.enableSmtp=false di prod, tetapi DAILY_PAID_REPORT ada di email.smtp.allowedSources (application-prod.properties:80-81) sehingga email ini tetap lewat; pengiriman SMTP nyata dan penerima: cannot verify from repo.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian). Laporan harian dan pengiriman email ada; cakupan 'notice updated as paid' bergantung pada tanggal suspension, dan 'errors' tidak ada di laporan ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan harian secara otomatis setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:262-263; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:76; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:97; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/DailyPaidReportServiceImpl.java:42",
+      "fit": "Sesuai",
+      "detail": "cron.dailyreport.schedule=0 0 8 * * ? dan enabled=true di prod (job 2 = Daily Paid Report); DailyReportJobsScheduler menjalankan job berurutan (baris 97) dan tanggal laporan default adalah kemarin (DailyPaidReportServiceImpl.java:42). Nilai server asli: cannot verify from repo. Tiket OCMS-DF-2026-104 (email ganda) Closed/Prod deployed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat notice yang diperbarui sebagai sudah dibayar pada hari itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:88-89; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:96-123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:186",
+      "fit": "Sebagian",
+      "detail": "Query memilih von.crs_reason_of_suspension IN ('PRA','FP') dan CAST(crs_date_of_suspension AS DATE) = tanggal laporan (baris 88-89). Itu tanggal suspension, bukan tanggal notice diperbarui: pembayaran manual dengan tanggal mundur tidak muncul pada hari ia diinput (OCMS-SR-2026-106, Closed, logika dipertahankan). Hasil dideduplikasi per notice dengan hanya transaksi terbaru (baris 96-123) sehingga beberapa pembayaran parsial satu notice menjadi satu baris, dan record dengan PP code URA tetapi sender bukan URA/AXS/OCMS tidak masuk kategori mana pun (komentar baris 186)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan berupa file Excel berisi ringkasan dan detail transaksi per channel pembayaran",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:247-264; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:473-474",
+      "fit": "Sesuai",
+      "detail": "generateExcelReport membuat sheet Summary, eService Successful Txns, AXS Successful Txns, Offline Payments, JTC Collections, dan Refund (baris 247-264); sheet channel memuat receipt, jumlah, tanggal/waktu bayar, Vehicle No, dan Offence Date and Time (baris 473-474). Tiket OCMS-DF-2026-013, OCMS-SR-2026-088, dan OCMS-SR-2026-153 (total JTC, kategori, kolom ATOMS) Closed/Prod deployed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan juga memuat error (jika ada) pada proses pembaruan status bayar",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:70-86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:240; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:96",
+      "fit": "Sebagian",
+      "detail": "Daily Paid Report sendiri tidak punya sheet atau bagian error. Yang paling dekat adalah Payment Exception Report (job 1 di scheduler yang sama, DailyReportJobsScheduler.java:96) yang memuat PS-PRA, TS-PAM, dan refund (PaymentExceptionReportHelper.java:70-86); itu pengecualian pembayaran, bukan error proses. Kegagalan pembaruan per notice di CronSyncTxnData hanya masuk log dan dicoba ulang (CronSyncTxnData.java:240), tidak masuk laporan mana pun. Tiket OCMS-SR-2026-112 (kolom laporan exception, Closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan dikirim ke petugas sebagai lampiran Excel yang bisa di-download (dan ada email khusus bila tidak ada data atau gagal)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/DailyPaidReportJob.java:150-153; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/DailyPaidReportJob.java:201; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/DailyPaidReportJob.java:213; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/DailyPaidReportJob.java:144; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/DailyPaidReportJob.java:156; ocmsadminprivateapi/src/main/resources/application-prod.properties:74; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminui/src/pages/Cron/list/CronList.tsx:53",
+      "fit": "Sesuai",
+      "detail": "DailyPaidReportJob membuat byte Excel (baris 150), mengirim lewat EmailService ke email.report.paymentreport.daily.recipients (application-prod.properties:74) dengan lampiran OCMS_Daily_Paid_Report_yyyyMMdd.xlsx dan source DAILY_PAID_REPORT (baris 201, 213); jika tidak ada data dikirim email 'no data' (baris 144), jika gagal dikirim email failure (baris 156). email.enableSmtp=false di prod, tetapi DAILY_PAID_REPORT ada di email.smtp.allowedSources (baris 80-81), jadi tidak ditahan. Tidak ada layar download di staff portal, hanya tombol trigger (CronList.tsx:53); download = membuka lampiran email. Penerima nyata dan SMTP: cannot verify from repo."
+    }
+  ]
+}

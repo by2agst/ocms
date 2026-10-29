@@ -1,0 +1,25 @@
+{
+  "story": "OCMS48.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchAllForm,hook/useSearchParams,hook/useSearch,list/NoticeSearchAllList}.tsx (generic Notice Search page: Notice No., ID No., Court Mention Date, result list). The 'applicable' validation exists only in other tiers at update time: ocmsadminapi workflows/cas_integration/service/CasIntegrationServiceImpl.java (PLUS payment activation) and ocmsadminprivateapi workflows/plus/payment_activation_court/PaymentActivationCourtServiceImpl.java. There is no dedicated screen, route or function id for enabling/disabling payment of court notices.",
+  "note": "The story asks the officer to search notices (notice number, ID number, court mention date) through the enable/disable-payment function for court notices, and for OCMS to validate whether the found notices are applicable. The staff portal only has the generic Notice Search page used by every function: Notice No. (NoticeSearchAllForm.tsx:65), ID No. (:543) and Court Mention Date From/To (:319, :349) fields exist, but there is no dedicated screen/route/function id for this function (BATCH_OPERATION_FUNCTION_MAP only has TS, PS, REVIVAL, CPS, BATCH_FURNISH, constant.ts:275-281). Search results are not filtered by eligibility (court stage, unpaid). The court stage and not-paid checks only exist when PLUS calls the update API (PaymentActivationCourtServiceImpl.java:44; CasIntegrationServiceImpl.java:790), not when the officer searches. The backend search endpoints (idNo, courtmention) were not read down to the table; the sheet status 'Demo paid' cannot be confirmed from the repo, cannot verify from repo what was demoed. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially. The generic search (notice no, ID no, court mention date) can be reused, but the enable/disable payment screen and search-time eligibility validation do not exist. Ask URA/the team to confirm whether this function was deliberately built as a PLUS API (see OCMS48.2) instead of a staff screen.",
+  "steps": [
+    {
+      "step": "Officer searches notices by notice number or ID number",
+      "detail": "The Notice Search page has Notice No. (NoticeSearchAllForm.tsx:65) and ID No. (:543) inputs; idNo is sent as a query param (useSearchParams.tsx:530). But this is the generic search page for all staff functions, not a dedicated screen for enabling/disabling payment of court notices: there is no route, menu or function id for it (constant.ts:275-281 only has TS, PS, REVIVAL, CPS, BATCH_FURNISH). Sebagian because the generic mechanism exists but is not the function the story names."
+    },
+    {
+      "step": "Officer searches by court mention date",
+      "detail": "The form has Court Mention Date From/To (NoticeSearchAllForm.tsx:319, :349). When filled, getNoticesByCourtMention calls GET endpoint 'courtmention' with mention_date[$gte]/[$lte] filters (useSearch.ts:99-111; useSearchParams.tsx:232-241). Same as the previous step: generic page, not the enable/disable function. The backend 'courtmention' endpoint was not read down to the table, cannot verify from repo."
+    },
+    {
+      "step": "OCMS lists the notices found",
+      "detail": "NoticeSearchAllList shows notice_no (NoticeSearchAllList.tsx:139) and processing_stage (:156) for whatever notices the query returns. The list is not limited to notices that may have payment enabled/disabled, so it is a generic list."
+    },
+    {
+      "step": "OCMS validates whether the searched notices are applicable for enable/disable payment",
+      "detail": "There is no eligibility validation on the search side: the list (NoticeSearchAllList.tsx:122-129 etc.) does not check court stage or payment status. Similar checks exist, but on another path and only when PLUS requests an update: court stage in PaymentActivationCourtServiceImpl.java:44 (COURT_STAGES, SystemConstant.java:103) and already-paid in CasIntegrationServiceImpl.java:790 (see OCMS48.2). That is not validation of the officer's search results."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS9.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/agencies/lta/download/{helpers/LtaSnowflakeProcessor, services/LtaDownloadServiceImpl}, workflows/datahivecontactinfo/{services/DatahiveContactInfoServiceImpl, helpers/DatahiveContactInfoHelper, jobs/DatahiveContactInfoJob}, sftp-common.properties. ocmsadminapi: workflows/reports/daily/DailyReportServiceImpl, filedownload/FileDownloadController, api-authorization.properties. ocmsadminui: pages/Report/lists/{ReportList.tsx, ReportListHiveContactInfo.tsx}, utils/constant.ts. Other repos: no code",
+  "note": "Status in stories.json is 'Demo paid (50% of 75%)'. The 'DataHive Contact Information' report exists end to end: DataHive call results are collected at LTA download, built into an Excel file (sheets Summary/Error/Success), stored in Azure Blob, emailed, and shown in the 'Hive Contact Info' tab of the staff portal Report page for download, with server-side authorization OCMS_REPORT_HIVE_CONTACT. The gaps: (1) the report has no daily schedule of its own, it is built every time an LTA download finishes (cron 05:00 and 21:00) so there can be two files per day, and a failed build does not change the job status; (2) the Summary holds only submitted/returned/error counts, not the 'records updated' count the story asks for; (3) lookups made in the eNotification cron (the datahive flag path, off) are not in the report; (4) 'OIC dashboard' is interpreted as the staff portal Report page, there is no dedicated dashboard widget. DOS = DataHive, the Vault permission, the Excel content in production and the email recipient list cannot be verified from the repo.",
+  "recommendation": "Claim partially. The report and its download are proven in code; not matching: the 'records updated' count is missing from the Summary, and it is built per LTA download, not as one daily report. Ask URA whether two files per day are acceptable.",
+  "steps": [
+    {
+      "step": "OCMS logs every ID sent to DOS with its send time and receive time",
+      "detail": "Each lookupContact at LTA download adds one DatahiveCallResult (LS:94, 114, 131) with noticeNo, ownerId, ownerIdType, hasContact, mobile/email, queryTable, callTimestamp, responseTimestamp and errorType/errorMessage. These fields feed the report (CI:102-116). Lookups made in the eNotification cron (the flag-off path) are not recorded here."
+    },
+    {
+      "step": "The summary report holds the number of records sent, updated and in error",
+      "detail": "The Summary sheet holds generation date/time, 'Total no. of records submitted to DataHive', 'Total no. of records returned by DataHive' and 'No. of records with errors' (CI:310-312). There is no count of records actually updated in OCMS (the patch to owner_driver at LS:187 is not counted), so the 'records updated' part of the story is not met."
+    },
+    {
+      "step": "The report holds the details of successful records and the exception per record",
+      "detail": "buildReportDataFromCallResults puts successful records (isSuccess and hasContact) in the Success sheet and the rest, including 'No contact information found' and query errors, in the Error sheet with an error_message column (CI:98-135). Columns: notice_no, id_no, id_type, name, mobile_email, dataset (Singpass/Corppass), date_time_sent, date_time_received."
+    },
+    {
+      "step": "The report is generated every day",
+      "detail": "There is no cron of its own for the report; triggerDatahiveContactInfoReportGeneration is called after the LTA download finishes (LD:99-120, also through the Comcrypt callback), and the ltadownload cron runs at 05:00 and 21:00 (prod:148). The file name uses an HHmmss suffix (CI:264) so two files per day may be produced. A build failure is only logged and does not fail the job (the try/catch at LD:112-124 only logs the error). A single 'daily report' is not guaranteed; the content is only lookups from LTA download."
+    },
+    {
+      "step": "The report is routed to the OIC dashboard (staff portal Report page)",
+      "detail": "The Excel is uploaded to blob <blob.folder.toppan.download>report/ (CI:267, sftp-common:61), the same path as azure.blob.datahive.output in adminapi (application.properties:118). DailyReportServiceImpl serves source DATAHIVE with prefix DHCONTACTINFO_Report_ (DRS:38, 171). In adminui the 'Hive Contact Info' tab shows when the user has function OCMS_REPORT_HIVE_CONTACT (ReportList.tsx:101-106), and on the server the OCMS_REPORT_HIVE_CONTACT mapping allows /v1/daily-report/search and /v1/download/blob (api-authorization.properties:141-142). There is no separate dashboard widget; 'OIC dashboard' is read as this Report page."
+    },
+    {
+      "step": "The OIC can download the report to see the details of the records sent",
+      "detail": "ReportListHiveContactInfo calls daily-report/search with source 'DATAHIVE' for a date range (UIH:49) and each row has a Download button (UIH:88-92) that uses /v1/download/blob; FileDownloadController maps DATAHIVE to the same folder (FDC:93). Download in production and the Excel content cannot be verified from the repo."
+    }
+  ]
+}

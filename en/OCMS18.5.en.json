@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/{NoticeSearchSlot,NoticeSearchUploadSlot},list/NoticeSearchAllList,hook/{ApplyOperationAction,useBatchOperation}}, pages/PS/{page/{PS,PSView},form/{PSForm,PSDetails},list/PSList}, utils/{constant,option,mapping/PS/PS}.ts. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-apply-suspension, staff-revive-suspension),helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}}, api-authorization.properties (OCMS_APPLY_PS), config/WebConfig (OcmsAuthorizationInterceptor)",
+  "note": "Status 'Fully paid'. Bulk permanent suspension is built end to end: select notices (checkbox / select all up to 1000) -> Apply Operation 'Apply PS' -> eligibility check -> PS code + remarks form -> confirmation -> POST staff-apply-suspension with the list of notices -> PS success recorded in valid_offence_notice, eVON and suspended_notice. Two gaps: (1) the eligibility check only checks the processing stage and one failure cancels the whole selection (same as OCMS18.3); (2) PSForm.onAPI does not check res.error, so a timeout/error on a large batch gives an empty result and the success message 'Applied Successfully to 0 Notices' (PSForm.tsx:149-160,213-219). The same pattern was fixed for TS in TSForm.tsx:109-116 after OCMS-SR-2026-022 (Closed); that fix is not in PSForm. Batch atomicity (one @Transactional in the controller) was not tested. Other tickets: OCMS-DF-2026-114 and OCMS-DF-2026-075 (PS-CAN/PS-APP fixes, Closed), OCMS-DF-2026-097/173 (PS-ANS payment flag, Closed). The OCMS_APPLY_PS permission from ACM and per-environment values cannot be verified from repo.",
+  "recommendation": "Claim partially (see Sebagian/Beda dari flow steps)",
+  "steps": [
+    {
+      "step": "Officer selects notices from the search or upload results (rows or all)",
+      "detail": "The search and upload result grids have a checkbox per row and select-all (NoticeSearchAllList.tsx:122-129; UploadResult.tsx:64-69). Select-all on search reloads the whole result through validoffencenoticelist and is rejected when the total is above NOTICE_SEARCH_LIMIT = 1000 (NoticeSearchAllList.tsx:40-63; constant.ts:96)."
+    },
+    {
+      "step": "Officer chooses the 'Apply PS' operation and presses Select",
+      "detail": "The Apply Operation dropdown contains Apply PS (option.tsx:314-319), filtered with hasFunction(OCMS_APPLY_PS) (constant.ts:275-281; NoticeSearchSlot.tsx:285-292), and the Select button is enabled when rows and an operation are chosen (:298-302); the same slot is used on the upload result (NoticeSearchUploadSlot.tsx:126-145). On the server, OCMS_APPLY_PS maps staff-apply-suspension and staff-revive-suspension (api-authorization.properties:61-63) through OcmsAuthorizationInterceptor (WebConfig.java:73-91). Who holds that functionId cannot be verified from repo."
+    },
+    {
+      "step": "OCMS checks the eligibility of the selected notices before opening the permanent suspension form",
+      "detail": "handlePS calls staff-check-suspension-eligibility (SuspensionProcessingController.java:277-315). For PS the backend only checks lastProcessingStage (SuspensionProcessingHelper.java:283-295); if any fails, the error modal shows and the PS form is not opened at all for the notices that passed (ApplyOperationAction.tsx:160-173); if all pass, setBatch stores the notices and navigates to /notices/ps (:175-181). Same fact as OCMS18.3 step 5."
+    },
+    {
+      "step": "Officer fills the PS reason code and remarks and confirms the permanent suspension",
+      "detail": "PSDetails loads the PS code options from suspensionreasonlist limited by APPLY_PS_ALLOWED and source OCMS (PSDetails.tsx:47-51; constant.ts:114-115), with a required suspension_code and remarks up to 200 characters (PSDetails.tsx:62-92). 'Procced to PS' validates the form and shows the modal 'Do you want to proceed to Permanently Suspend the notice(s)?' (PSForm.tsx:67-91)."
+    },
+    {
+      "step": "One request applies permanent suspension to all selected notices (bulk)",
+      "detail": "PSForm.onAPI maps the whole noticeNo list, suspensionType=PS, reasonOfSuspension, suspensionRemarks and officerAuthorisingSuspension (PS.ts:21-27) and calls POST staff-apply-suspension once (PSForm.tsx:140-149). The controller processes each notice in order with processNoticeList and an srNo from the SUSPENDED_NOTICE_SEQ sequence, forcing source OCMS (SuspensionProcessingController.java:213-243,978-1017). An old PS without payment is revived first through staff-revive-suspension (PSForm.tsx:116-138)."
+    },
+    {
+      "step": "Permanent suspension is recorded on each notice",
+      "detail": "processPS validates the mandatory fields, notice, source, stage and paid notices (only APP/CAN/CFA/VST for a paid notice), then updateDatabase sets suspensionType=PS, eprReasonOfSuspension, eprDateOfSuspension and dueDateOfRevival=null on VON and eVON and inserts a suspended_notice row with officer, remarks and processIndicator 'Manual' (PermanentSuspensionHelper.java:56-158; SuspensionBaseHelper.java:340-366,440-492). Certain PS codes also switch off payment_acceptance_allowed (SuspensionBaseHelper.java:350-356). A refund is created automatically for a paid notice with a refund code (PermanentSuspensionHelper.java:147)."
+    },
+    {
+      "step": "OCMS shows the bulk result: number succeeded and the failed list with reasons",
+      "detail": "After submit, the result per notice is split into success and failed; the modal shows '{n} out of {total} Notices Failed ...' or 'Permanent Suspension Applied Successfully to {n} Notices', then PSView shows the successful notices and the failed list (PSForm.tsx:149-160,203-237; PSView.tsx:20-46). But onAPI does not check res.error before reading res.result?.data.results ?? [] (PSForm.tsx:149-151): if the request times out or errors on a large batch, the result is empty and the modal still says success for 0 notices (PSForm.tsx:213-219). The same bug was reported for TS in OCMS-SR-2026-022 (Closed) and fixed in TSForm.tsx:109-116, but not in PSForm. Whether the controller transaction rolls back the whole batch on failure was not tested."
+    }
+  ]
+}

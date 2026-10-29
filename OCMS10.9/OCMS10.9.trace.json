@@ -1,0 +1,73 @@
+{
+  "story": "OCMS10.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob, jobs/ToppanUploadJob, helpers/ToppanUploadHelper, helpers/AnLetterPdfService, models/ToppanStage}, framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAdvisoryNoticeLetters), crud/ocmsizdb/OcmsAnLetter, properties application-prod dan cron-schedules-prod. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code letter AN",
+  "note": "Status sheet: Requirement given - Gen flow; remark 'Check if SG completed this function for AN'. Jawabannya: code ada. Stage ANL di Toppan menyaring notice an_flag='Y' di RD1 yang belum PS-ANS dan belum ada di ocms_an_letter (OcmsValidOffenceNoticeRepository.java:667-707), membuang yang tanpa alamat (ToppanUploadHelper.java:2580-2600), membuat PDF dari template AN_LETTER (AnLetterPdfService.java:36-62) dan data file 719-karakter yang sama dengan stage lain (ToppanUploadJob.java:280-286; AgencyFileExchangeServiceImpl.java:84-85), lalu mengirim lewat COMCRYPT ke SFTP Toppan (ToppanUploadJob.java:349). Kelemahannya ada di pengiriman: PDF hanya di-upload ke blob, tidak ada permintaan COMCRYPT/SFTP untuk PDF (ToppanUploadJob.java:326-342, log di :327 menulis 'blob and SFTP' tapi hanya uploadToBlob di :332). Dan sftp.upload.disabledServers=toppan di dev/uat/prod (application-prod.properties:86) memblokir upload ke Toppan (tiket OCMS-DF-2026-170 blok, OCMS-DF-2026-192 Ready to UAT). Karena gate delivery di-bypass saat diblokir (ToppanUploadJob.java:421-433), stage ANL tetap 'maju': PS-ANS diterapkan, ocms_an_letter dicatat, letter_address direset (ToppanUploadHelper.java:241-293) padahal tidak ada file yang sampai ke vendor. Isi template AN_LETTER di database, format data file menurut spesifikasi Toppan, dan penerimaan/pencetakan oleh vendor: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Pembuatan letter AN (query, PDF, data file) lengkap, tapi pengiriman ke vendor diblokir konfigurasi dan PDF tidak punya jalur kirim selain blob; stage tetap maju walau tidak terkirim. Minta konfirmasi URA apakah blok Toppan masih berlaku dan bagaimana PDF diterima vendor",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice AN yang perlu dikirim suratnya (belum PS-ANS, belum pernah dikirim)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:667-707; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2531-2545; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:152; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:25; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sesuai",
+      "detail": "findAdvisoryNoticeLetters memilih an_flag='Y', next_processing_stage='RD1', next_processing_date <= hari ini, bukan PS-ANS, dan notice_no belum ada di ocms_an_letter (OcmsValidOffenceNoticeRepository.java:667-707), dipanggil getAdvisoryNoticeLettersOptimized (ToppanUploadHelper.java:2531-2545). ANL adalah stage terakhir di loop Toppan (ToppanLettersGeneratorJob.java:152; ToppanStage.java:25) dan cron Toppan aktif di prod (cron-schedules-prod.properties:61-62). Letter RD1 biasa mengecualikan AN (:611) sehingga tidak dobel."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya notice AN yang punya alamat terbaru yang masuk letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2574-2578; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2580-2600",
+      "fit": "Sesuai",
+      "detail": "Alamat ditambahkan lewat enrichNoticesWithAddressesOptimized untuk ANL (ToppanUploadHelper.java:2574-2578) dan notice tanpa field alamat dibuang dari letter (:2580-2600). Gap pemberitahuan untuk notice yang dibuang dibahas di OCMS10.8 langkah terakhir; yang diminta langkah ini (hanya yang punya alamat dikirim) dipenuhi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat AN dibuat dalam format PDF",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/AnLetterPdfService.java:36-62; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/AnLetterPdfService.java:73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:356-380; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:324-342",
+      "fit": "Sebagian",
+      "detail": "generateAnLetterPdfs memanggil AnLetterPdfService per notice (ToppanUploadHelper.java:356-380): template 'AN_LETTER' diambil dari database lalu dirender ke PDF dengan OpenHTML2PDF (AnLetterPdfService.java:36-62, 73), dipanggil di ToppanUploadJob.java:324-342. Kegagalan satu PDF hanya dicatat dan notice tetap ada di data file. Template AN_LETTER tidak ada di repo; keberadaan, isi, dan hasil render cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat AN dibuat dalam format data file untuk vendor",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:280-286; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:84-85; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:560-600",
+      "fit": "Sesuai",
+      "detail": "Stage ANL memakai jalur yang sama dengan stage Toppan lain: nama file URA-DPT-ANL-D1-{timestamp} dan isi fixed-width 719 karakter dari createToppanRequestFileContent untuk agencyType TOPPAN_ANL (ToppanUploadJob.java:280-286; AgencyFileExchangeServiceImpl.java:84-85, 560-600), diurutkan menurut kode pos. Kecocokan dengan spesifikasi Toppan cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data file dikirim ke vendor untuk dicetak dan dikirim pos",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:314; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:349-357; ocmsadminprivateapi/src/main/resources/application-prod.properties:84-86; ocmsadminprivateapi/src/main/resources/application-uat.properties:77",
+      "fit": "Sebagian",
+      "detail": "File diunggah ke blob lalu minta enkripsi COMCRYPT yang callback-nya mengunggah ke SFTP Toppan (ToppanUploadJob.java:314, 349-357). Tapi sftp.upload.disabledServers=toppan di dev/uat/prod (application-prod.properties:84-86; application-uat.properties:77) memblokir upload ke Toppan (komentar properties: OCMS-DF-2026-170), sehingga di konfigurasi repo file tidak sampai ke vendor. Tiket OCMS-DF-2026-192 (Ready to UAT) membahas stage yang tidak maju akibat blok ini. Penerimaan, pencetakan, dan pos oleh Toppan, serta nilai per-environment, cannot verify from repo. Sama dengan OCMS1.9 langkah kirim ke vendor."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PDF surat AN sampai ke vendor",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:326-342; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:349-352",
+      "fit": "Sebagian",
+      "detail": "PDF AN hanya di-upload ke blob lewat uploadToBlob (ToppanUploadJob.java:326-342); log di :327 menulis 'uploading to blob and SFTP' tetapi tidak ada panggilan SFTP. Permintaan COMCRYPT hanya untuk requestFileName, yaitu data file (:349-352). Jadi tidak ada jalur kirim PDF ke vendor di repo selain blob; apakah vendor/proses lain mengambil PDF dari blob cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah surat dikirim, notice dicatat sebagai sudah dikirim surat AN dan ditangguhkan (PS-ANS)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:241-293; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:876-881; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:955-975; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:421-433",
+      "fit": "Sebagian",
+      "detail": "updateProcessingStage untuk ANL menerapkan PS-ANS, memajukan next_processing_date, mencatat ke ocms_an_letter, dan mereset letter_address (ToppanUploadHelper.java:241-293, 876-881, 955-975). Namun confirmDeliveryAndAdvanceStage mem-bypass gate delivery saat server Toppan diblokir (ToppanUploadJob.java:421-433), jadi di konfigurasi repo semua itu terjadi walau tidak ada file yang sampai ke vendor: notice tercatat 'sudah dikirim surat' dan tidak akan dikirim ulang. Langkah ini tidak diminta eksplisit oleh story; dicantumkan karena menentukan apakah surat tidak terkirim ulang."
+    }
+  ]
+}

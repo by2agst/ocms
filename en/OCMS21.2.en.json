@@ -1,0 +1,29 @@
+{
+  "story": "OCMS21.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/NoticeRecordHelper (PS-DBB created at INSERT, no SMS/email call); ocmsadminprivateapi workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (generic sendSms/sendEmail for eNotification) + application-prod.properties/cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code.",
+  "note": "Sheet status: 'Requirement given - Gen flow'; demo remark: 'Check if SK did SMS to notify PS-DBB. Doubt it.' Reading the code supports that doubt: no code sends a cancellation SMS/email after PS-DBB, and nothing checks 'notification already sent the same day'. Only a generic SMS/email sender for eNotification exists, and it is switched off in the prod properties (sms.enable=false, email.enableSmtp=false, cron.notification.enabled=false; real server values cannot verify from repo). Because PS-DBB is set on the new notice at creation, the order 'SMS sent first, then suspended' also does not happen on this path. No relevant maintenance ticket.",
+  "recommendation": "Do not claim as done. Build a cancellation notification trigger after PS-DBB (and the same-day notification check), then confirm the requirement with URA",
+  "steps": [
+    {
+      "step": "The outstanding duplicate notice has already been permanently suspended by OCMS (PS-DBB)",
+      "detail": "PS-DBB is applied to the NEW notice at INSERT (see OCMS21.1), so that notice never had a notification before. The code does not suspend an older outstanding notice that was already sent an SMS/email the same day, so the combination 'duplicate was SMSed, then suspended' does not happen through this automatic path."
+    },
+    {
+      "step": "OCMS checks whether an SMS/email notification was already sent for that notice on the same day",
+      "detail": "The table ocmsizmgr.ocms_sms_notification_records is read by NotificationSmsEmailHelper for the eNotification (ENA reminder) logic, but no query or code links PS-DBB to same-day notification records. Grep for DBB in the notification_sms_email folder, ocmsadminapi notice_creation (SMS/email) and thirdpartyapi: no hits. Story demo remark: 'Check if SK did SMS to notify PS-DBB. Doubt it.'"
+    },
+    {
+      "step": "The PS-DBB suspension triggers a cancellation message to the vehicle owner",
+      "detail": "The PS-DBB creation path only fills the VON and the ocms_suspended_notice record (NoticeRecordHelper.java:497-503, 602-620); there is no call to SmsUtil/EmailService or a notification queue. Grepping 'cancel' in the ocmsadminprivateapi/ocmsadminapi resources only finds payment reports, not message templates."
+    },
+    {
+      "step": "The SMS/email text states that the notice has been cancelled",
+      "detail": "The existing message content is only for eNotification reminders (stage ENA/DN/DR). No template or 'notice has been cancelled' text was found in the six repos (grep cancel/dibatalkan in resources and source). Template content in the DB (ocms_standard_code / template table) cannot verify from repo."
+    },
+    {
+      "step": "The SMS/email is delivered to the vehicle owner",
+      "detail": "A generic sending mechanism exists (NotificationSmsEmailHelper.sendSms/sendEmail), but it is only used by the eNotification job, not by the DBB suspension. Prod properties: sms.enable=false (application-prod.properties:87), email.enableSmtp=false (80), cron.notification.enabled=false (cron-schedules-prod.properties:236); the real server values cannot verify from repo. None of this mechanism is tied to the story."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS14.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (filter MID/DIP pada RR3/DR3 + applyPsSuspensionForMidDipVehicles), utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}, crud/ocmsizdb/OcmsValidOffenceNotice (query stage), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, models/ToppanStage. Repo lain: tidak ada code untuk story ini.",
+  "note": "Notice D dan I memang dihentikan setelah RD2 secara otomatis oleh sistem dengan kode khusus DIP atau MID dan tidak naik ke RR3. Tetapi jenis suspension-nya Permanent (PS-DIP, PS-MID), bukan temporary dengan periode tertentu seperti teks story: PermanentSuspensionHelper bertipe PS dan tidak ada hari atau tanggal revival. Penerapannya terjadi di dalam proses generate letter RR3/DR3 yang hanya jalan lewat trigger manual (executeJob dikomentari di scheduler). Teks story mengharapkan temporary suspension; kalau URA menerima PS maka itu perubahan requirement. Validasi stage SuspensionBaseHelper justru melarang DIP/MID di RR3/DR3, jadi kode ini hanya lolos karena last stage notice masih RD2. Notice VIP memakai TS-CLV 21 hari looping (bukan scope story ini). Perilaku server nyata cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Penghentian otomatis dengan kode DIP/MID ada, tetapi bentuknya PS permanen tanpa periode dan hanya jalan lewat trigger manual. Jangan klaim temporary suspension dengan periode.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kendaraan khusus sudah diproses sampai tahap Reminder 2",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-20; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1974-1977",
+      "fit": "Sebagian",
+      "detail": "Notice D dan I berjalan RD1 lalu RD2 dan baru pada pemrosesan RR3 dikenali dan dihentikan (ToppanStage.java:19-20; ToppanUploadHelper.java:1974-1977: notice dengan last stage RD2 diambil untuk RR3). Sama dengan OCMS14.3 step Reminder 2: surat hanya jalan lewat trigger manual dan upload Toppan diblok (ToppanUnifiedController.java:34; ToppanUploadJobsScheduler.java:118; application-prod.properties:86), fit Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem men-suspend notice secara otomatis tanpa tindakan officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-2015; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:749-797; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34",
+      "fit": "Sebagian",
+      "detail": "Pada pemrosesan stage RR3 atau DR3, notice tipe I atau D difilter keluar dan applyPsSuspensionForMidDipVehicles memanggil psHelper.processPS dengan user sistem (ToppanUploadHelper.java:1979-2015,749-797). Otomatis, tetapi hanya berjalan di dalam generate letter yang butuh trigger manual (ToppanUnifiedController.java:34); panggilan executeJob dari cron dikomentari (ToppanUploadJobsScheduler.java:118). Jadi tanpa trigger manual tidak ada suspension otomatis."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension memakai kode khusus untuk jenis kendaraan: DIP untuk diplomat dan MID untuk militer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:764-768; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:53-54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:80-83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:205-208",
+      "fit": "Sesuai",
+      "detail": "Kode dipilih dari tipe kendaraan: I jadi MID, D jadi DIP (ToppanUploadHelper.java:764-768; SystemConstant.java:53-54), dan validasi stage membatasi DIP dan MID ke NPA, ROV, RD1, RD2, DN1, DN2 (SuspensionBaseHelper.java:80-83,205-208). Catatan: bagian jenis suspension dan periode dinilai di step berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension bersifat temporary dengan periode tertentu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:60-61; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:771-777",
+      "fit": "Beda dari flow",
+      "detail": "processPS di PermanentSuspensionHelper bertipe PS (PermanentSuspensionHelper.java:60-61) dan dipanggil tanpa hari atau tanggal revival (ToppanUploadHelper.java:771-777). Hasilnya PS-DIP atau PS-MID permanen, bukan TS dengan jumlah hari. Kode TS hanya dipakai untuk VIP (TS-CLV 21 hari, ToppanUploadHelper.java:709-716), itu bukan scope story ini. Tidak ada tiket yang mengubah ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang di-suspend tidak naik ke tahap proses berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1984-2003",
+      "fit": "Sesuai",
+      "detail": "Query yang memilih notice untuk tiap stage hanya mengambil suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611), jadi notice yang sudah PS tidak dipilih lagi; dan pada run RR3/DR3 notice I dan D dikeluarkan dari daftar sehingga tidak dibuat surat RR3 dan stage tidak dimajukan untuknya (ToppanUploadHelper.java:1984-2003). Berlaku selama suspension aktif; kapan dan siapa me-revive PS tidak dinilai di story ini."
+    }
+  ]
+}

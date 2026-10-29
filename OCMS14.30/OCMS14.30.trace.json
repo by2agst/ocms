@@ -1,0 +1,46 @@
+{
+  "story": "OCMS14.30",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi: workflows/furnish/{stafffurnish/{controllers/StaffFurnishController,services/StaffFurnishService},helpers/FurnishabilityChecker,manual/{ManualFurnishController,ManualFurnishServiceImpl,helpers/ManualFurnishValidationService},plusintegration/controllers/PlusIntegrationController}, workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/CreateNoticeHelper}. ocmsadminui: pages/Notice/hook/useODH.tsx (staff-furnish/*). ocmsadminprivateapi: agencies/toppan/upload/helpers/ToppanUploadHelper (PS-FOR). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story berstatus 'User Story Removed': verdict tetap Removed meski ada code, tidak ada diagram, tidak diklaim. Code yang ditemukan: furnish oleh staff (staff-furnish/*) dan PLUS (/plus-furnish) lewat StaffFurnishService, dan manual furnish officer (/furnish/officer/manual/single). Temuan penting: notice kendaraan asing dibuat dengan PS-FOR aktif (CreateNoticeHelper.java:175) dan FurnishabilityChecker.checkPermanentSuspension menolak SEMUA PS aktif tanpa pengecualian (FurnishabilityChecker.java:340-348), padahal javadoc StaffFurnishService.java:83-85 mengaku PS-FOR boleh. Akibatnya jalur staff-furnish dan PLUS memblokir notice kendaraan asing sampai PS-FOR di-revive; jalur /furnish/officer/manual hanya cek stage (ManualFurnishValidationService.java:33-58) jadi tidak memblokir, tetapi tidak ada pemanggil di ocmsadminui. Appendix B/Annex 1A tidak ada di repo sehingga 'automated processing workflow' cannot verify from repo. Authorization endpoint PLUS: JwtFilter melewati plus-* sehingga proteksi bergantung pada APIM yang tidak terlihat di repo. Tidak ada tiket maintenance yang relevan dipakai untuk verdict.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kendaraan pelanggar dikenali sebagai kendaraan asing (tipe F) dan notice-nya outstanding",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1197-1205; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/CreateNoticeHelper.java:148-176",
+      "fit": "Sebagian",
+      "detail": "Saat notice dibuat, tipe kendaraan F memicu createForeignVehicleSuspension yang menyisipkan PS-FOR ke suspended_notice (CreateNoticeServiceImpl.java:1197-1205; CreateNoticeHelper.java:148-176). Pengenalan tipe F ada; tetapi PS-FOR langsung aktif, yang mempengaruhi langkah furnish berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer meng-update/furnish driver's particulars secara manual di OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:107-110; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:340-348; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:83-85; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:33-58",
+      "fit": "Sebagian",
+      "detail": "Staff portal memanggil staff-furnish/furnish-redirect-check (ocmsadminui useODH.tsx:106) yang lewat FurnishabilityChecker; checkPermanentSuspension menolak notice dengan PS aktif apa pun, termasuk FOR (FurnishabilityChecker.java:107-110,340-348, pesan MSG_PS_SUSPENDED). Javadoc StaffFurnishService.java:83-85 menyebut FOR dikecualikan, tapi code tidak mengecualikan. Jadi notice kendaraan asing diblokir sampai PS-FOR di-revive. Jalur /furnish/officer/manual/single hanya cek stage (ManualFurnishValidationService.java:33-58) dan tidak memblokir, tapi tidak ada pemanggilnya di ocmsadminui."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver's particulars di-furnish lewat PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-148; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:175-186",
+      "fit": "Sebagian",
+      "detail": "POST /plus-furnish memanggil staffFurnishService.staffFurnish (PlusIntegrationController.java:136-148) yang memulai dengan checkFurnishable yang sama (StaffFurnishService.java:175-186), jadi notice kendaraan asing dengan PS-FOR aktif ditolak dengan HTTP 422. JwtFilter melewati endpoint plus-*, perlindungan bergantung pada APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah furnish, notice dilanjutkan ke tahap driver (DN1) sesuai automated processing workflow",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:238-258; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:924-931",
+      "fit": "Sebagian",
+      "detail": "staffFurnish mengganti offender dan mengubah stage ke DN1 untuk driver (StaffFurnishService.java:238-258, determineNewStage :924-931). Ini alur furnish umum, tidak ada cabang khusus kendaraan asing. Appendix B / Annex 1A tidak ada di repo, jadi kesesuaian dengan 'automated processing workflow' cannot verify from repo."
+    }
+  ]
+}

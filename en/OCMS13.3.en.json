@@ -1,0 +1,25 @@
+{
+  "story": "OCMS13.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx (/upl/* routes), utils/data/LinkData.tsx, pages/NoticeUPL/{List/RequestList,List/UPLHistory,Hooks/useEndorsement}, pages/NoticeSearch/list/NoticeValidUPLList, pages/Notice/form/Form.tsx, pages/Dashboard/Dashboard.tsx, utils/mapping/NoticeUPL.ts, utils/constant.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice. The workitem, approvalinbox and workflow endpoints: not found in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi",
+  "note": "Status 'Requirement given - Gen flow'. The story asks OCMS to create a work item holding the offence information and offence history, routed to the officer's dashboard. The UI does have a list page of UPL notices (/upl/decision-request) and a Propose button that POSTs to the 'workitem' resource, but: the work item is created manually by the officer (not automatically once particulars are received), there is no workitem, approvalinbox or workflow endpoint/entity in the six repos (the API host the UI calls, VITE_API_OCMS_HOST, cannot be verified from repo), the Dashboard page is empty, the UPL and Work Item menus are commented out (LinkData.tsx:396-398), and the 'UPL History' tab is commented out (Form.tsx:346-350). The filter 'decision[$ne]=Y' uses a decision column that is commented out in the backend (OcmsValidOffenceNotice.java:165-175). Ticket OCMS-SR-2026-193 (Ready to UAT) states the root cause 'Missing feature. UPL processing logic has not been implemented in OCMS'; OCMS-SR-2026-166 and -189 are manual UPL composition-amount patches. One more point: a UPL notice is created with next stage DN1 (NoticeProcessingHelper.java:390-411) and automated jobs select DN1 without waiting for a decision, so nothing holds the notice until the officer decides.",
+  "recommendation": "Do not claim as done. Only a UPL notice list on a page whose menu is hidden exists; the work item, the history and the routing to the dashboard do not. Ask the team in which repo the workitem/approvalinbox/workflow API was built",
+  "steps": [
+    {
+      "step": "OCMS automatically creates a work item once the offender's (individual or owner/partner/director) particulars are received/updated",
+      "detail": "The only creator of a work item is the UI: when the officer presses Propose, onRequestAPI POSTs to the 'workitem' resource (useEndorsement.tsx:119-121) with the MapPostApprovalWorkItem body (work_ref 'UPL Endorsement', remark 'UPL Notice Pending Endorsement', allocated_to = the logged-in user; NoticeUPL.ts:172-196, constant.ts:300-303). There is no controller, entity, repository or cron for workitem/approvalinbox/workflow in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi (grep found nothing); the API host the UI calls cannot be verified from repo. No automatic trigger exists after particulars are received/updated (see OCMS13.1 steps 3-4). OCMS-SR-2026-193: 'UPL processing logic has not been implemented in OCMS'."
+    },
+    {
+      "step": "The officer sees the offence information of UPL notices awaiting a decision",
+      "detail": "The page /upl/decision-request (App.tsx:84) shows type U (UPL) notices at stage NPA (RequestList.tsx:36-40) with columns notice no, type, date/time, place, rule code, stage, vehicle no, vehicle type and current offender (NoticeValidUPLList.tsx:24-60) through POST /validoffencenoticelist, which exists in the backend (OcmsValidOffenceNoticeController.java:55). This is a notice list, not a work item. The UPL menu is commented out (LinkData.tsx:396-398), so the page is reachable only by URL. The filter 'decision[$ne]=Y' uses a decision column that is commented out in the backend (OcmsValidOffenceNotice.java:165-175), so the effect of that filter cannot be verified from repo."
+    },
+    {
+      "step": "The work item holds the offender's offence history",
+      "detail": "The UPLHistory component looks up other UPL notices of the same offender (getNoticesByOD, offender_indicator Y; UPLHistory.tsx:40-57), but its only mount point, the 'UPL History' tab at Form.tsx:346-350, is commented out and the component is not imported anywhere else (grep). The officer has no path to this history, and since the work item does not exist (step 1), the history is not part of one either."
+    },
+    {
+      "step": "The work item is automatically routed to the officer's dashboard for decision-making",
+      "detail": "The Dashboard page only contains an empty row (Dashboard.tsx:18-31). The Work Items menu (LinkWorkItem, LinkData.tsx:170-180) is commented out (LinkData.tsx:396-398) and App.tsx has no /work-item route (the UPL routes are only at :83-95). allocated_to on the work item is set to the user who creates it (NoticeUPL.ts:194), not routed to another officer; there is no automatic allocation. The backend for work items does not exist (step 1)."
+    }
+  ]
+}

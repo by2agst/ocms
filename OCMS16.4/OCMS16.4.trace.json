@@ -1,0 +1,46 @@
+{
+  "story": "OCMS16.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/NoticeSearchOutstandingList,hook/useBatchOperation,hook/ApplyOperationAction}, App.tsx (route fr dikomentari), utils/Meta/NoticeOperation.ts, i18n/en/translation.json (batch.form.fr). ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,dto/ReductionRequest,helpers/ReductionPersistenceService}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code apply reduction",
+  "note": "Status di stories.json: 'Requirement given - Gen flow' (tidak ada flow deck). Yang ada: checkbox select di list Outstanding (untuk TS/PS/revival/CPS, tanpa aksi FR) dan endpoint PLUS POST /v1/plus-apply-reduction yang menerapkan reduction untuk SATU notice per request secara transaksional (amount_payable baru, TS-RED, baris ocms_reduced_offence_amount, sinkron ke eVON). Yang tidak ada: pilihan aksi Fine Reduction di staff portal (route fr, import Epic16 dikomentari) dan endpoint bulk. Hal yang perlu dicatat: field yang berubah adalah amount_payable, composition_amount tidak disentuh jalur reduction. Apakah PLUS memanggil endpoint berulang untuk notice terpilih: cannot verify from repo. Endpoint plus-* dilewati JwtFilter (JwtFilter.java:179); perlindungannya bergantung pada APIM, cannot verify from repo. Tiket: OCMS-DF-2026-072 (nilai amount_payable di ocms_reduced_offence_amount diubah menjadi nilai sebelum reduction, ReductionPersistenceService.java:160-166) dan OCMS-DF-2026-028 (revival TS-RED memakai nilai itu).",
+  "recommendation": "Klaim sebagian (50%). Yang solid hanya penerapan reduction per notice di backend. Pilihan aksi Fine Reduction dan bulk di staff portal tidak ada; konfirmasi ke URA apakah bulk dikerjakan PLUS (loop per notice).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih satu atau lebih notice dari hasil pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:145-151; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:19-27",
+      "fit": "Sebagian",
+      "detail": "List Outstanding punya checkbox select per baris dan select all (NoticeSearchOutstandingList.tsx:145-151), tetapi hasil pilihan hanya diteruskan ke batch operation TS/PS/REVIVAL/CPS/PAY/PAY_ACT/REFUND/BATCH_FURNISH (useBatchOperation.ts:19-27), bukan reduction."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih aksi Fine Reduction untuk notice terpilih",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:171-173; ocmsadminui/src/utils/Meta/NoticeOperation.ts:17; ocmsadminui/src/utils/Meta/NoticeOperation.ts:25-34; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:27-60; ocmsadminui/src/i18n/en/translation.json:737; ocmsadminui/src/i18n/en/translation.json:746",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada aksi Fine Reduction. Route fr, fr/view, fr/verification ada di blok komentar (App.tsx:171-173). Konstanta PathNoticeOperationFR didefinisikan (NoticeOperation.ts:17) tetapi tidak dimasukkan ke peta INDEX/VIEW (NoticeOperation.ts:25-34). Konfigurasi aksi batch tidak punya FR (ApplyOperationAction.tsx:27-60). Hanya string i18n 'Fine Reduction' dan 'Fine Reduction Notice Record' yang tersisa (translation.json:737,746). Dicari lewat kata reduction, reduce, FR, Epic16 di ocmsadminui; tidak ada hasil lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan reduction sekaligus ke semua notice terpilih (bulk)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29-69; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:43-57",
+      "fit": "Sebagian",
+      "detail": "Backend menerapkan reduction per notice: ReductionRequest hanya punya satu noticeNo (ReductionRequest.java:30), controller POST /v1/plus-apply-reduction memproses satu request (ReductionController.java:29-69) dan ReductionServiceImpl.handleReductionRequest bekerja untuk satu notice (ReductionServiceImpl.java:43-57). Tidak ada endpoint atau loop bulk di ocmsadminapi/ocmsadminprivateapi. Bulk hanya mungkin bila PLUS memanggil endpoint berulang: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reduction tercatat pada setiap notice yang dikurangi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:101-109; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:123-140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:156-171; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:205-210; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:82-96; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:49-72",
+      "fit": "Sesuai",
+      "detail": "Sebelum menyimpan, notice dicek: ada, belum paid, eligible, amount dan tanggal konsisten (OcmsValidOffenceNoticeRepository.java:49-72; ReductionServiceImpl.java:82-96). Lalu applyReduction (ReductionServiceImpl.java:113) berjalan dalam satu transaksi: VON diubah ke suspension TS-RED dengan amount_payable baru dan due_date_of_revival terjauh (ReductionPersistenceService.java:101-109), ditambah baris ocms_suspended_notice (ReductionPersistenceService.java:123-140) dan baris ocms_reduced_offence_amount berisi amount sebelum reduction (ReductionPersistenceService.java:156-171, OCMS-DF-2026-072), lalu eVON disinkronkan (ReductionPersistenceService.java:205-210). Catatan: yang berubah amount_payable, bukan composition_amount."
+    }
+  ]
+}

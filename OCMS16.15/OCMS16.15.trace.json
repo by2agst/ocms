@@ -1,0 +1,37 @@
+{
+  "story": "OCMS16.15",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl (ReductionResult.Success), ReductionController.mapResultToResponse + determineHttpStatus}; dto/ReductionResult. Repo lain: tidak ada code",
+  "note": "Pesan sukses dikirim sebagai HTTP 200 dengan teks 'Reduction Success' pada response request yang sama; tidak ada callback atau push terpisah ke PLUS. Hasil Success dibuat setelah applyReduction selesai dan commit (bean persistence terpisah, @Transactional commit saat method keluar). Gap: pesan yang sama juga dikirim saat tidak ada pengurangan yang terjadi, yaitu notice yang sudah TS-RED (ALREADY_REDUCED), sehingga pengguna PLUS bisa mengira jumlah baru sudah berlaku (ReductionServiceImpl.java:176-183). Tampilan pesan di PLUS cannot verify from repo. Tidak ada tiket pemeliharaan yang menyentuh pesan sukses.",
+  "recommendation": "Klaim sebagian besar. Pesan sukses ada dan dikirim setelah commit; kurangi untuk kasus sukses palsu pada notice yang sudah TS-RED.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah pengurangan berhasil tersimpan, OCMS menyusun hasil sukses",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:112-124",
+      "fit": "Sesuai",
+      "detail": "ReductionResult.Success dibuat setelah persistenceService.applyReduction(context) kembali tanpa exception (ReductionServiceImpl.java:113,120-124); persistence adalah bean lain dengan @Transactional, jadi commit sudah terjadi saat method kembali (ReductionPersistenceService.java:56)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan keberhasilan ke PLUS ('Reduction Success', HTTP 200) pada response request yang sama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:59-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:120-122; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:165-166",
+      "fit": "Sesuai",
+      "detail": "mapResultToResponse mengubah Success menjadi CrudResponse.success('Reduction Success') dan determineHttpStatus memberi 200 (ReductionController.java:120-122,165-166), dikembalikan di ReductionController.java:59-68. Penerimaan dan tampilan di PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan sukses hanya dikirim bila pengurangan benar-benar terjadi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:51-52; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-183",
+      "fit": "Sebagian",
+      "detail": "Untuk notice TS-RED (ALREADY_REDUCED) service mengembalikan Success 'Reduction already applied - request processed successfully (idempotent)' tanpa mengubah data (ReductionServiceImpl.java:176-183); controller tetap mengirim 'Reduction Success' 200. Fakta sama dengan OCMS16.12 dan OCMS16.14."
+    }
+  ]
+}

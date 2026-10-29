@@ -1,0 +1,25 @@
+{
+  "story": "OCMS24.14",
+  "flow_ref": "There is no OCMS flow deck; steps are taken from the story text. Sheet status is blank; demo_remark: 'No vault' (a claim, not evidence).",
+  "code_summary": "The contact check lives in the eNotification job (ocmsadminprivateapi): refreshContactInfo is called for all records and uses DataHive (Singpass for individuals, Corppass for companies) only when cron.enareminder.datahive=true; in prod it is false so the stored owner/driver contact is used as-is. Records without a valid contact are skipped. All of this is for parking reminder records, not a court summons batch. DOS = DataHive/LTA cannot be confirmed from the repo.",
+  "note": "Sheet status is blank; demo_remark 'No vault' suggests the vault lookup is not there. Fits follow sibling OCMS9.4 (Sebagian) for the same contact facts and OCMS24.13 for the court batch. Ticket OCMS-DF-2026-180 is only a hint that the eNotification cron is not yet active.",
+  "recommendation": "Sebagian: the OCMS9-style contact check exists for parking reminders but is not tied to a court summons batch, and the DataHive lookup is off in the prod repo config.",
+  "steps": [
+    {
+      "step": "The contact check runs for defendants whose court summons is unpaid X days before the due date",
+      "detail": "The eNotification job calls refreshContactInfo for records from queryRecordsForEna and queryRecordsForReminder (NotificationSmsEmailJob.java:161-162, :187), limited to parking stages RD1 to DR3 (NotificationSmsEmailHelper.java:1114). There is no court summons batch selection, same as OCMS24.13 step 2."
+    },
+    {
+      "step": "OCMS checks the updated mobile number/email address as per Epic OCMS9",
+      "detail": "refreshContactInfo uses DataHive (refreshIndividualContactInfo for Singpass, :2710-2716; refreshCompanyContactInfo for Corppass, :2496) only when statusGetDatahive = true; otherwise it only normalizes the stored number (NotificationSmsEmailHelper.java:2461-2475). In prod cron.enareminder.datahive=false (cron-schedules-prod.properties:48), so no DataHive lookup; real server value cannot verify from repo. DOS = DataHive/LTA cannot be confirmed from the repo. Same as OCMS9.4 (Sebagian)."
+    },
+    {
+      "step": "A defendant without a valid mobile/email is not sent an electronic reminder",
+      "detail": "Records with invalid contact are skipped (NotificationSmsEmailJob.java:252-266); ENA is patched to RD1, reminder stages are only skipped with a log. Applies to parking reminders, not court summonses."
+    },
+    {
+      "step": "OCMS sends electronic reminders on the outstanding court summonses",
+      "detail": "The template is chosen per reminder stage through determineTemplateName (NotificationSmsEmailHelper.java:459), with no court summons path or content; the word court appears in neither the helper nor the job. Court templates exist only as placeholders in the ManageTemplate UI (see OCMS24.16). The cron is also off in prod (cron-schedules-prod.properties:236, cannot verify the real server value)."
+    }
+  ]
+}

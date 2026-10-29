@@ -1,0 +1,29 @@
+{
+  "story": "OCMS13.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/NoticeUPL/{List/EndorseList,List/RequestList,Form/EndorseForm,Form/ModalForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, App.tsx (route upl), utils/data/LinkData.tsx, utils/config/env.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (decision columns commented out). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no workflow/approvalinbox/workitem controller",
+  "note": "The story asks that a decision rejected by the 2OIC comes back to the officer as a work item for review. Status 'Requirement given - Gen flow'; the demo remark records a bug ('UPL notice not in decision request inbox'). ocmsadminui has UPL pages (routes upl/decision-request and upl/endorsement, App.tsx:84-85) with a Y/N Decision form, but the menu entry is commented out and tagged UNCONFIRMED (LinkData.tsx:396-397), the Endorsement list renders only when isAPIFound is true (STAGING/LOCAL builds only, env.ts:11), and every save goes to /workflow (command UPL_APPROVAL), /approvalinbox and /workitem, which have no controller in the six repos. The decision columns of the VON entity are also commented out (OcmsValidOffenceNotice.java:165-175). So no server code stores the rejection or moves a work item back to the officer. Ticket OCMS-SR-2026-185 states that UPL processing logic 'has not been developed in OCMS'. A backend outside the six repos and the VITE_ENV value of each environment: cannot verify from repo.",
+  "recommendation": "Do not claim in full. Only the Y/N Decision form and the Decision Request screen exist (hidden from the menu); storing the rejection and routing a work item to the officer are not in the repo. Ask URA/the team in which repo the /workflow UPL_APPROVAL, /approvalinbox and /workitem endpoints are built, or mark it as a gap",
+  "steps": [
+    {
+      "step": "The 2OIC opens the list of UPL notices waiting for endorsement",
+      "detail": "The upl/endorsement route exists (App.tsx:85) and its filter is NPA notices of type U (EndorseList.tsx:57-58). However, the list renders only when the notices state is filled (EndorseList.tsx:81) and that state is filled only when isAPIFound is true (EndorseList.tsx:52); isAPIFound means a STAGING or LOCAL build (env.ts:11), so DEV/UAT/PRO builds show no list. The LinkUPL menu entry is commented out and tagged UNCONFIRMED (LinkData.tsx:396-397). The VITE_ENV value per environment: cannot verify from repo."
+    },
+    {
+      "step": "The 2OIC rejects the officer's decision (Decision N and a remark)",
+      "detail": "The Endorse form has a required Decision select 'Y - Yes' / 'N - No' and a Remark (EndorseForm.tsx:43-60). The admin/oic role is only used for the created_by_label text (NoticeUPL.ts:30-33), not for access control; nothing checks that the user is a 2OIC, and there is no server endpoint that checks the role (see step 3). The form can only be reached from the list in step 1."
+    },
+    {
+      "step": "OCMS stores the 2OIC rejection on the notice (decision N, officer, date, remark)",
+      "detail": "The UI sends POST /workflow with command UPL_APPROVAL and decision 'N' (NoticeUPL.ts:115-125; useEndorsement.tsx:155-163), then PATCH /approvalinbox only when isAPIFound (useEndorsement.tsx:167-178). There is no controller for workflow, approvalinbox or workitem in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi or thirdpartyapi (grep for Mapping finds none); /v1/workflow appears only as an access list in api-authorization.properties:23. The VON entity does not map the decision columns (commented out, OcmsValidOffenceNotice.java:165-175). Without a handler the /workflow reply has no notice_no and the UI throws 'Request Failed' (useEndorsement.tsx:159-163). A handler in another repo: cannot verify from repo. Ticket OCMS-SR-2026-185: UPL processing logic 'has not been developed in OCMS'."
+    },
+    {
+      "step": "OCMS routes the work item back to the officer who made the decision",
+      "detail": "The only place a work item is created is MapPostApprovalWorkItem when a decision request is made (NoticeUPL.ts:172-197; useEndorsement.tsx:121), with allocated_to = the user logged in at that time. The reject path creates or re-assigns no work item, and /workitem has no controller (see step 3). The Decision Request list shows NPA notices of type U with decision != Y (RequestList.tsx:36-40), not a per-officer inbox; because the decision column is not in the VON entity, whether a rejected notice shows up in that list again cannot be proven from the repo. The demo remark ('UPL notice not in decision request inbox. Bug') matches this gap."
+    },
+    {
+      "step": "The officer reviews and makes a new decision through the Decision Request",
+      "detail": "The Decision Request screen exists: the Propose button opens the 'UPL Decision Request Form' (RequestList.tsx; ModalForm.tsx:204) which sends POST /approvalinbox (only when isAPIFound) and POST /workitem (useEndorsement.tsx:94-137). Those endpoints are not in the six repos and the UPL menu is commented out (LinkData.tsx:396-397), so on non-STAGING builds the officer has no working path that saves. Same fact as the decision request in sibling story OCMS13.4."
+    }
+  ]
+}

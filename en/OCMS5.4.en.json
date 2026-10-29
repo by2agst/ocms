@@ -1,0 +1,37 @@
+{
+  "story": "OCMS5.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx (route notices/create/o/upload), pages/Notice/{mode/upload/{Upload,UploadPreview,ListValid,ListError,UploadView,UploadResult},context/NoticeUploadContext,hook/{ActionNoticeUpload,useNoticeUploadSubmit}}, components/{SheetUpload,form/FileInput}.tsx, context/SheetContext.tsx, utils/validation/Format/ValidFile.ts, utils/data/SheetData.ts. ocmsadminapi workflows/notice_creation/core/CreateNoticeServiceImpl (/staff-create-notice, batch), workflows/notice_management/filedownload/downloadfile/FileDownloadController (template). Other repos: not used",
+  "note": "stories.json status is 'Fully paid', demo_remark is empty. The bulk upload feature exists with a complete flow (template, parse, per-row validation, submit in batches of 30, success/failed/duplicate result), but the format is XLSX, not CSV as in the story: ValidFile.ts:154 only lists xlsx (csv and xls are commented out) and FileInput rejects other mime types. Ticket OCMS-DF-2026-188 (Pending UAT Verification): the create-notice template download returns 404 from POST /download/blob, so officers cannot fetch the template; the template lives in Azure Blob so whether the file exists: cannot verify from repo. The file size limit in code is 2 MB (ValidFile.ts:167-170) while the hint text on the page says 10 MB (SheetUpload.tsx:206).",
+  "recommendation": "Claim partially: the XLSX bulk upload works, CSV is not supported. Ask URA whether XLSX is accepted instead of CSV, and wait for OCMS-DF-2026-188 (template download) to pass UAT",
+  "steps": [
+    {
+      "step": "Officer opens the bulk upload page from the Create Parking Offence Notice form",
+      "detail": "The 'Upload XLSX for Multiple Notices' button in the create form toolbar (CREATE mode) goes to /notices/create/o/upload (NoticeOForm.tsx:60-64). The upload route is wrapped in SheetProvider and NoticeUploadProvider with sub-routes preview, view, edit, result (App.tsx:132-146). The upload page uses SheetUpload (Upload.tsx:75-80)."
+    },
+    {
+      "step": "Officer downloads the template file to fill in",
+      "detail": "The download button calls POST download/blob with source TEMPLATE and fileName 'Create-Parking-Offence-Notices-Template.xlsx' (Upload.tsx:40-51; name in SheetContext.tsx:73-82); the template columns are defined in HeaderNoticeO (SheetData.ts:205-215). Ticket OCMS-DF-2026-188 (Pending UAT Verification) reports this download returns 404 so officers cannot fetch the template. Whether the file exists in Azure Blob: cannot verify from repo."
+    },
+    {
+      "step": "Officer uploads the file in CSV format",
+      "detail": "Only .xlsx is accepted: FileTypeFormat Sheet = [xlsx] with csv and xls commented out (ValidFile.ts:154), FileInput rejects files whose mime is not in the list with 'File format is not acceptable.' (FileInput.tsx:150-157), and the page text says 'Accepted file format is only .xlsx' (SheetUpload.tsx:201-207). A .csv file is rejected. The code size limit of 2 MB (ValidFile.ts:167-170) differs from the 10 MB hint on the page (SheetUpload.tsx:206)."
+    },
+    {
+      "step": "The system reads the file and matches its columns to the template",
+      "detail": "setFile reads the file with SheetRead, maps each row to the template header keys, drops empty rows, then compares column count and labels with the template; a mismatch shows 'The uploaded file does not match the required template format' and no rows shows 'contains no data rows' (SheetContext.tsx:177-217). The error is shown as a modal (SheetUpload.tsx:107-125)."
+    },
+    {
+      "step": "Each row is validated and split into a valid list and an error list",
+      "detail": "onReady maps each row to the notice form and runs the same yup schema as the manual form (ValidNoticeUpload) per row; a failing row gets an error object (NoticeUploadContext.tsx:147-218). ListValid shows 'Review Uploaded Parking Offence Notices (n)' with Edit and Delete actions (ListValid.tsx:68-125), ListError shows Failed rows with the error description (ListError.tsx:38-50). Submit is refused while any error row remains (ActionNoticeUpload.tsx:183-190), so that row must be edited or deleted first."
+    },
+    {
+      "step": "Officer submits and confirms, then all valid notices are created in OCMS",
+      "detail": "Submit opens the modal 'Are you sure you want to submit the notice(s)?' (ActionNoticeUpload.tsx:198-212). After OK, one row goes through the single path, many rows are split into groups of 30 and sent sequentially to POST staff-create-notice (useNoticeUploadSubmit.ts:111-165). In the backend each DTO is processed by processSingleNotice in one loop, failures/duplicates are recorded without stopping other rows (CreateNoticeServiceImpl.java:731-790), then all entities are batch saved to VON, detail, eVON (CreateNoticeServiceImpl.java:806-818; NoticeRecordHelper.java:380-386, 436-442). Each row's result is matched again by reading validoffencenoticelist with a composite key of type+time+category+number+PP+rule+amount (useNoticeUploadSubmit.ts:181-250); the notice numbers of two identical rows can be swapped."
+    },
+    {
+      "step": "Officer sees the result: how many notices succeeded, were duplicates or failed, and can re-create the failed ones",
+      "detail": "onSaveAllConfirmed splits the outcome into success, duplicate and failed with summary messages '<n> notices created successfully', '<n> duplicate case(s) detected' or '<n> out of <m> case(s) failed' (ActionNoticeUpload.tsx:145-181), then goes to the result page. The result page shows a Failed list with a 'Re-create Notices' button that reloads the failed rows into the preview (UploadResult.tsx:100-131). The 'Duplicate' message in the UI depends on duplicateNoticesCount from the response (useNoticeUploadSubmit.ts:157-162, 168-178). In the backend staff path the duplicate flag appears only when noticeNo is sent and already exists (CreateNoticeServiceImpl.java:958-965; the staff upload does not send noticeNo), while duplicate offences are still created with PS-DBB (CreateNoticeServiceImpl.java:1119-1120), so the UI duplicate message branch may rarely fire; exact behaviour in the environment: cannot verify from repo."
+    }
+  ]
+}

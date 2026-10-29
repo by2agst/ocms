@@ -1,0 +1,46 @@
+{
+  "story": "OCMS16.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator,helpers/ReductionPersistenceService,dto/ReductionRequest} (POST /v1/plus-apply-reduction dipanggil PLUS), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus. ocmsadminui pages/Notice/detail/SuspensionDetail.tsx (field Reduced Amount tidak terhubung) dan utils/models/Fnotice.d.ts:536 (type TStageReductionType tidak dipakai). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code reduction",
+  "note": "Status story: Requirement given - Gen flow (2 point). Di repo, reduction di OCMS hanya berupa penerima: PLUS (sistem eksternal, tidak ada di enam repo) memanggil POST /v1/plus-apply-reduction dengan amountReduced dan amountPayable yang sudah dihitung (ReductionRequest.java:37,43). Tidak ada input jumlah stage, tidak ada perhitungan dari stage, dan tidak ada layar OCMS yang menampilkan reduced amount (field di SuspensionDetail.tsx memakai source UNKNOWN). Satu-satunya yang cocok sebagian adalah penerimaan hasil konfirmasi dan validasi aritmetika amount. Apakah PLUS menghitung per stage dan menampilkannya: cannot verify from repo. Ticket OCMS-DF-2026-072 (Closed, Prod deployed) mengubah isi amount_payable di tabel reduction, tidak mengubah langkah di story ini.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penerimaan hasil konfirmasi dari PLUS yang ada; input stage, perhitungan dari stage, dan tampilan reduced amount tidak ada di OCMS. Minta URA/tim konfirmasi apakah fungsi ini dibangun di PLUS (di luar enam repo).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menandai jumlah stage untuk reduction pada notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Fnotice.d.ts:536; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan input jumlah stage di UI maupun field di API. Satu-satunya jejak adalah deklarasi type TStageReductionType (\"custom-dollar\" | \"custom-precentage\") di ocmsadminui/src/utils/models/Fnotice.d.ts:536 yang tidak dipakai komponen mana pun (grep di ocmsadminui/src hanya 1 hit). ReductionRequest hanya punya noticeNo, amountReduced, amountPayable, tanggal, reason, officer, source, remarks (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82), tidak ada jumlah stage. Kalau stage diindikasikan di PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghitung reduced composition amount dari jumlah stage",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:82",
+      "fit": "Beda dari flow",
+      "detail": "OCMS tidak menghitung reduced amount sendiri. Nilai amountReduced dan amountPayable sudah jadi dari PLUS (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37, :43). OCMS hanya memvalidasi: amountReduced harus lebih kecil dari amount payable saat ini (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:179) dan amountPayable harus sama dengan current - amountReduced (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195), kalau beda ditolak (INCONSISTENT_AMOUNTS). Tidak ada rumus per stage atau persen. Eligibility stage/rule code (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:56-67) hanya menentukan boleh atau tidak, bukan nominal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan reduced composition amount kepada officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:173-181; ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:244-247",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada tampilan reduced amount untuk diverifikasi. Satu-satunya label 'Reduced Amount' ada di ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx: blok di baris 173-181 sudah di-comment dan field di baris 244-247 memakai source \"UNKNOWN\" (tidak terhubung ke data), jadi tidak pernah menampilkan nilai. Tidak ada layar preview sebelum konfirmasi di ocmsadminui; layar di PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memverifikasi dan mengonfirmasi reduction composition amount",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83",
+      "fit": "Sebagian",
+      "detail": "Konfirmasi tidak terjadi di staff portal OCMS. OCMS hanya menerima hasil konfirmasi lewat POST /plus-apply-reduction dari PLUS (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29-59), lalu menjalankan applyReduction (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:113). Layar verify/confirm di PLUS tidak ada di enam repo: cannot verify from repo. Endpoint dikecualikan dari JwtFilter dan authorization interceptor (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83); proteksinya bergantung pada APIM, cannot verify from repo."
+    }
+  ]
+}

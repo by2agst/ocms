@@ -1,0 +1,29 @@
+{
+  "story": "OCMS39.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/Meta/System.ts (menu title 'Special Suffixes' only), App.tsx (/system routes without special-suffixes); ocmsadminapi crud/ocmsizdb/OcmsVipVehicle (generic CRUD on ocms_vip_vehicle), workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils}; ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils (similar copy). ocmsadminapi/ocmsadminprivateapi: no 'special suffix' entity or endpoint; thirdpartyapi, ocmseserviceapi, ocmseserviceui: no related code",
+  "note": "The story asks the Officer to configure special vehicle suffixes and related information (country, address) in OCMS. The code has no such feature: ocmsadminui only has a title/path constant 'Special Suffixes' (System.ts:12,46,123-126) but no Route in App.tsx and no page in pages/System, so the officer cannot open it. The backend has no entity, table or endpoint for suffix, country or address. Diplomat suffixes (CC, CD, TC, TE) and MID/MINDEF are written directly (hardcoded) in SpecialVehUtils.java:100-117, so changing them needs a code change and deployment. The only data that can change without deployment is the VIP list (ocms_vip_vehicle: vehicle_no, description, status) through the generic CRUD /v1/vipvehicle, with no UI; ticket OCMS-SR-2026-051 shows its content is patched with a database script. That is a plate number list, not suffixes, and has no country/address. The sheet status 'Demo paid' is not supported by code for the core of the story. No authorization mapping for /v1/vipvehicle was found in api-authorization.properties; access behaviour cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only vehicle classification at notice creation and a database-driven VIP list exist; the special suffix configuration page with country/address is not built. Ask URA/the team where the 'Demo' was shown, or mark as a gap",
+  "steps": [
+    {
+      "step": "Officer opens the Special Suffixes configuration page in the staff portal",
+      "detail": "System.ts only defines the path '/system/special-suffixes' and the title 'Special Suffixes' (System.ts:12,123-126), but the <Route path=\"system\"> block in App.tsx:375-503 only contains parameter, standardcode, computer-rule-code, suspension-reason and schedule-public-holiday. There is no page component in pages/System (grep 'special-suffix' and 'SPECIAL_SUFFIXES' only hits Meta/System.ts and the type Fsystemadmin.d.ts:17). The path opens no page."
+    },
+    {
+      "step": "Officer adds or changes a special vehicle suffix",
+      "detail": "There is no form, list or hook for suffixes in ocmsadminui, and no suffix entity/controller in ocmsadminapi or ocmsadminprivateapi (grep suffix, specialsuffix, special_suffix, VehicleSuffix: only variable names and the LTA library). The add/change suffix function does not exist."
+    },
+    {
+      "step": "Officer maintains related suffix information (country, address)",
+      "detail": "No country or address field for special vehicles exists in any entity in ocmsadminapi/ocmsadminprivateapi. The closest entity OcmsVipVehicle only has vehicle_no, description, status (OcmsVipVehicle.java:37-52). Grep for country/address in the UI System pages finds no suffix-related form."
+    },
+    {
+      "step": "The configuration change is saved to the database through the API",
+      "detail": "Only the generic BaseController CRUD for ocms_vip_vehicle at /v1/vipvehicle (OcmsVipVehicleController.java:8-9) can store a special vehicle list, containing plate number, description, status. That is not suffix/country/address data as in the story, and no UI calls it (grep vipvehicle in ocmsadminui only hits a cron trigger in Fapi.d.ts:116). The /v1/vipvehicle mapping is not in api-authorization.properties; access rights cannot verify from repo. Ticket OCMS-SR-2026-051: VIP records were patched with a DB script, not through a UI."
+    },
+    {
+      "step": "The configuration change is used straight away when classifying the vehicle at notice creation",
+      "detail": "checkVehregistration calls isDip (suffix CC/CD/TC/TE, SpecialVehUtils.java:100-107) and isMid (MID/MINDEF, :113-117) with values written in code, so the officer cannot change them; only isVip reads the ocms_vip_vehicle table (:125-130), so VIP list changes apply without deployment. CreateNoticeServiceImpl.java:1023-1033 forces type 'I' when the number contains MID/MINDEF before the helper is called. The same copy exists in ocmsadminprivateapi (SpecialVehUtils.java:114-143). Only part of the path is configurable."
+    }
+  ]
+}

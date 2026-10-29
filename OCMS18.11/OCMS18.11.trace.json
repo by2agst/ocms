@@ -1,0 +1,46 @@
+{
+  "story": "OCMS18.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/PS/form/PSForm.tsx (konfirmasi, POST staff-apply-suspension, prompt hasil, re-read notice), utils/api/index.ts (CRUD menelan error). ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-apply-suspension) dan helpers/PermanentSuspensionHelper, SuspensionBaseHelper. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story 1 point (status 'Demo paid (50% of 75%)'). Staff portal memang menampilkan modal 'Permanent Suspension Applied Successfully to N Notices.' dan tabel gagal per notice. Celahnya: prompt sukses dihitung dari results yang bisa kosong. Bila request gagal di level HTTP/network, CRUD hanya mengisi response.error dan PSForm tidak memeriksanya, sehingga UI tetap menampilkan 'Applied Successfully to 0 Notices' tanpa error. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim sebagian: alur prompt sukses/gagal ada, tetapi false-success saat request error perlu diperbaiki sebelum diklaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer submit permanent suspension di staff portal dan server mengembalikan hasil per notice (success + message)",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:149-159; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:213-237; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1106-1118",
+      "fit": "Sesuai",
+      "detail": "Setelah konfirmasi (PSForm.tsx:83-90), onAPI memanggil POST staff-apply-suspension (PSForm.tsx:149). Controller memproses tiap notice lewat PermanentSuspensionHelper.processPS (SuspensionProcessingController.java:213-237) yang mengembalikan {noticeNo, srNo, success, message}; sukses dibalas 'PS Success' (PermanentSuspensionHelper.java:150). Envelope selalu appCode OCMS-2000 'Update Success.' dan kegagalan ada per notice di results[] (SuspensionProcessingController.java:1106-1118). Ada risiko: updateDatabase menangkap Exception dan hanya mengembalikan error response (SuspensionBaseHelper.java:493-496), jadi bila insert suspended_notice gagal setelah VON diupdate, transaksi tidak rollback karena tidak ada exception yang keluar [Medium confidence, perlu diverifikasi di runtime]."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Portal menampilkan prompt sukses bila permanent suspension berhasil diterapkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:211-219; ocmsadminui/src/pages/PS/form/PSForm.tsx:149-153; ocmsadminui/src/utils/api/index.ts:204-214",
+      "fit": "Sebagian",
+      "detail": "PSForm.tsx:211-219 menampilkan modal 'Permanent Suspension Applied Successfully to {success.length} Notices.' bila failed.length == 0. Tetapi results diambil dari res.result?.data.results ?? [] (PSForm.tsx:151) tanpa memeriksa res.error. CRUD menelan error HTTP/network dan hanya mengisi response.error (utils/api/index.ts:204-214), jadi saat request gagal (mis. 500, timeout, 401 non-session) success dan failed sama-sama kosong dan UI tetap menampilkan prompt sukses 'to 0 Notices' dengan isError=false. Untuk jalur normal prompt benar."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang gagal ditampilkan beserta alasannya, tidak dihitung sebagai sukses",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:104-110; ocmsadminui/src/pages/PS/form/PSForm.tsx:153-159; ocmsadminui/src/pages/PS/form/PSForm.tsx:213-216",
+      "fit": "Sesuai",
+      "detail": "Item dengan success=false dimasukkan ke daftar failed beserta message server (PSForm.tsx:153-159); notice PS-FP/PRA yang ditolak di sisi UI juga masuk failed dengan pesan 'Not allowed to apply new PS code to paid Notice(s).' (PSForm.tsx:104-110). Prompt menjadi error: '{n} out of {total} Notices Failed to Applied Permanent Suspension. Please see the details error each notices in table.' (PSForm.tsx:213-216). Berlaku untuk kegagalan bisnis per notice, bukan untuk kegagalan request (lihat langkah 2)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data notice terbaru dibaca ulang sehingga officer melihat bahwa suspension benar-benar tersimpan di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:162-182",
+      "fit": "Sesuai",
+      "detail": "Untuk notice yang sukses, PSForm memanggil validoffencenoticelist dengan noticeNo[$in] dan mengganti data notice di tabel hasil dengan data terbaru dari database (PSForm.tsx:162-182), jadi suspension type/reason yang tampil adalah yang tersimpan, bukan hanya respons POST."
+    }
+  ]
+}

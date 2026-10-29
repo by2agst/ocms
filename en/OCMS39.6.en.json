@@ -1,0 +1,29 @@
+{
+  "story": "OCMS39.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/System/{list/StandardCodeList,form/StandardCodeForm}.tsx + App.tsx route /system/standardcode + context/OptionsContext.tsx (referenceCode VEHICLE_REG_TYPE); ocmsadminapi crud/ocmsizdb/standardcode/StandardCodeController (+auth/interceptor/OcmsAuthorizationInterceptor, api-authorization.properties OCMS_SYSTEM_STANDARDCODE); hardcoded consumers: workflows/notice_creation/core/helpers/NoticeProcessingHelper, ocmsadminprivateapi framework/workflows/adminfee/helpers/AdminFeeHelper. ocmseserviceapi, ocmseserviceui, thirdpartyapi: do not use this table (only S/F constants in thirdpartyapi AxsConstants)",
+  "note": "Story status: Fully paid. Requirement text is given. There is no dedicated vehicle registration type page; officers use the generic Standard Code page (category VEHICLE_REG_TYPE) to add new types and change the description or Active/Defunct status, with server-side authorization (function OCMS_SYSTEM_STANDARDCODE). The weakness is that the meaning of the types (S, F, V, D, I, X) is hardcoded in notice creation, the admin fee cron and UI validation, so configuration only changes the choice list, not behaviour. A new category cannot be created from the UI (the dropdown only lists existing referenceCodes). The VEHICLE_REG_TYPE data rows in the DB: cannot verify from repo. No maintenance ticket changes this assessment.",
+  "recommendation": "Claim partially: maintaining the type list (add, change description/status) works through the Standard Code page. Tell URA that local/foreign behaviour is still hardcoded and there is no dedicated page; confirm the VEHICLE_REG_TYPE rows in the DB",
+  "steps": [
+    {
+      "step": "Officer opens a System Admin configuration page to see the vehicle registration types (local, foreign)",
+      "detail": "There is no dedicated vehicle registration type page: the VEHICLE_TYPE meta in System.ts:67 has a null path and App.tsx has no Route for it. Only the generic Standard Code page exists (route /system/standardcode, App.tsx:402-424); it shows all categories, filters by referenceCode (StandardCodeList.tsx:83) and calls POST /standardcodelist (StandardCodeController.java:85). The category the UI uses for vehicle types is referenceCode VEHICLE_REG_TYPE (OptionsContext.tsx:380); whether the VEHICLE_REG_TYPE data rows (S, F, V, D, I, X etc.) exist in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Officer adds a new vehicle registration type (code, description, status)",
+      "detail": "The Standard Code create form sends POST /standardcode with referenceCode, code, description, codeStatus (StandardCodeForm.tsx:64-71); the controller saves through service.save (StandardCodeController.java:52-83). Duplicates are checked through POST /standardcodeexists (StandardCodeController.java:139). Note: the Reference Code dropdown lists only referenceCodes that already exist in the DB (StandardCodeController.java:176-205), so a new category cannot be created from the UI. Authorization: function OCMS_SYSTEM_STANDARDCODE (api-authorization.properties:169-170) is enforced on the server by OcmsAuthorizationInterceptor (WebConfig.java:78-91, OcmsAuthorizationInterceptor.java:57-74), not only in the UI."
+    },
+    {
+      "step": "Officer changes the description or status (Active/Defunct) of an existing vehicle registration type",
+      "detail": "Edit calls POST /standardcodepatch/{referenceCode}/{code} (StandardCodeForm.tsx:73-88). The controller accepts only description and codeStatus (PATCH_ALLOWED_FIELDS, StandardCodeController.java:94-107); code and referenceCode cannot change (readonly in the form StandardCodeForm.tsx:141; @NonEditable in StandardCode.java:35,43). Status A/D is set by an Active/Defunct toggle (StandardCodeForm.tsx:175-184). There is no delete endpoint; deactivating means status D."
+    },
+    {
+      "step": "The change shows up in the vehicle type choices on the staff portal notice forms",
+      "detail": "The vehicle type dropdown on staff forms loads POST /standardcodelist with referenceCode VEHICLE_REG_TYPE and codeStatus A (OptionsContext.tsx:344-358, 379-381), so a new type appears and a Defunct type disappears when options are reloaded. Only the staff portal reads this table; ocmseserviceapi and ocmseserviceui do not use VEHICLE_REG_TYPE (grep found nothing)."
+    },
+    {
+      "step": "Notice processing (local vs foreign vehicle) follows the configured types",
+      "detail": "Type codes are hardcoded in many places: V/S/D decide the first stage (NoticeProcessingHelper.java:924-927), X decides next stage DN1 (NoticeProcessingHelper.java:950-953), F drives the foreign admin fee query (AdminFeeHelper.java:166), S decides the vehicle number format in the UI (ValidVehicle.ts:54), and constants S/F sit in AxsConstants.java:62-63. The server does not validate vehicleRegistrationType against the table (NoticeValidationHelper.java:160-170 only checks it is filled). So changing a description or status changes the choice list, but adding a new type or changing what local/foreign means still needs a code change."
+    }
+  ]
+}

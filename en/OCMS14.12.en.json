@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Report/{index.tsx,lists/ReportListRIP.tsx,component/ReportSlot.tsx} (RIP Hirer/Driver Furnished Report screen), ocmsadminapi workflows/reports/system/rip/{RipReportController,RipReportServiceImpl} (PS-RP2 + deceased hirer/driver), api-authorization.properties. No LTA/DOS call and no outstanding-notice-count criteria in this report. ocmsadminprivateapi: LtaUploadHelper (scheduled LTA enquiry, not triggered from this report)",
+  "note": "The story asks for a 'Generate Report' button that identifies vehicle numbers of notices of individuals with a given life status using pre-defined criteria (e.g. an ID with N outstanding notices) and then fetches the latest vehicle ownership data from DOS. What exists is only the 'RIP Hirer/Driver Furnished Report' screen (reports/rip/furnished-driver-hirer): a list of PS-RP2 notices in a suspension date range, filtered to deceased hirer/driver offenders that have a furnished address. That report is a different report (furnished address), has no outstanding-count criteria and does not call LTA/DOS. demo_remark 'No RIP report'. DOS = DataHive/LTA cannot be confirmed from the repo. Ticket: OCMS-DF-2026-149 (closed, report export moved to the backend)",
+  "recommendation": "Do not claim in full. Only a different RIP report screen can be reused; the pre-defined criteria and the DOS ownership fetch do not exist",
+  "steps": [
+    {
+      "step": "The officer clicks the Generate Report button on the screen",
+      "detail": "The RIP report screen exists (index.tsx:85-88) with Search and Export buttons (ReportSlot.tsx:149-151) that call reports/rip/furnished-driver-hirer (ReportListRIP.tsx:74). There is no button labelled Generate Report and this screen belongs to the 'RIP Hirer/Driver Furnished' report, not the deceased-vehicle + ownership report in the story (a generic page, not the one the story names). Authorization via OCMS_REPORT_RIP in api-authorization.properties:123-124."
+    },
+    {
+      "step": "OCMS identifies the vehicle numbers of notices of deceased individuals",
+      "detail": "RipReportServiceImpl fetches PS-RP2 notices in the suspension date range (RipReportServiceImpl.java:256-262), then keeps only rows whose offender is a hirer/driver (not owner) with life_status 'D' (:299-312). vehicleNo is part of the output (:486-487). PS-RIP notices (DoD after the offence) and deceased owners are left out because of the REASON_RP2 and H/D filters (:37-41). Rows without a furnished address are dropped."
+    },
+    {
+      "step": "Selection uses pre-defined criteria, e.g. an ID with a number of outstanding notices",
+      "detail": "The only filter is the suspension date range (default 2000-01-01 to today, RipReportServiceImpl.java:233-251, :256-262). There is no count of outstanding notices per ID or a configurable threshold; grep for 'outstanding', threshold and notice count in workflows/reports and ltareport finds no such criteria."
+    },
+    {
+      "step": "OCMS fetches the latest vehicle ownership data from DOS for the identified vehicles",
+      "detail": "RipReportServiceImpl only uses four database repositories (RipReportServiceImpl.java:51-54); there is no LTA/DOS call, HTTP client or enquiry file. The existing ownership enquiry is the LTA Upload cron that selects stage-ROV notices of type O/E on a schedule (LtaUploadHelper.java:88, :211-213); it is not triggered by, and does not receive a vehicle list from, the RIP report. A 'DOS Reports' screen exists (ReportListDOS.tsx:82-94, Query Type 'Vehicle Ownership') and calls the dosvaultrecords resource (Fapi.d.ts:218), but there is no dosvaultrecords controller in ocmsadminapi, ocmsadminprivateapi or thirdpartyapi, no OCMS_REPORT_DOS mapping in api-authorization.properties, and that screen does not take the RIP report result as input. DOS = DataHive/LTA cannot be confirmed from the repo."
+    }
+  ]
+}

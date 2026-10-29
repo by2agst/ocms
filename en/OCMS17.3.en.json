@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,page/upload/{Upload,UploadResult,UploadErrorList},context/NoticeSearchUploadContext,list/NoticeValidList}, components/{SheetUpload,form/FileInput}, context/SheetContext, utils/validation/Format/ValidFile, utils/data/SheetData, utils/validation/NoticeSearch/ValidNoticeSearchUpload; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (POST /validoffencenoticelist). Other repos not relevant",
+  "note": "Status in stories.json: Fully paid, 5 points. The upload feature exists and shows the uploaded notices on screen, but the format is XLSX, not CSV as in the story: the accepted format list is only .xlsx (ValidFile.ts:154, CSV commented out) and FileInput rejects other files; ticket OCMS-DF-2026-116 also describes an XLSX upload in production. The template has 4 columns (Notice No., Summon No., Vehicle No., ID No.); the Summon No. column is validated but not used in the query. One thing to watch: a row containing only a Summon No. produces a query with no notice/vehicle/ID filter, so the server may return all offender notices (limit 999); this was not run at runtime. The help text says max 10 MB while the value in code is 2 MB.",
+  "recommendation": "Claim with a caveat: the upload works but the format is XLSX, not CSV. Ask URA to confirm that XLSX is accepted in place of CSV; also check rows that contain only a Summon No.",
+  "steps": [
+    {
+      "step": "Officer can open an upload page for the notice list as an alternative to searching",
+      "detail": "The 'XLSX File Upload' button on the Search Notices card (NoticeSearchForm.tsx:180-183) opens the .../upload route (App.tsx:107-118), which renders SheetUpload (Upload.tsx:59-68). It is available in All and Outstanding mode, each with its own template."
+    },
+    {
+      "step": "The list of notice numbers is uploaded as a CSV file",
+      "detail": "Only xlsx is accepted: FileTypeFormat.Sheet = [FileExt.xlsx] with CSV and xls commented out (ValidFile.ts:154), the help text says 'only .xlsx' (SheetUpload.tsx:206) and FileInput filters files by that list (FileInput.tsx:148-154). CSV-reading code still exists in SheetContext.tsx:183-193 but cannot be reached because a .csv file is rejected first. Ticket OCMS-DF-2026-116 (Closed, Prod deployed) also describes an XLSX upload in production. Differs from the story, which says CSV."
+    },
+    {
+      "step": "OCMS reads the file and checks the template and its content",
+      "detail": "After the file is chosen, SheetContext reads the rows, compares the column count and header labels with the template (Notice No., Summon No., Vehicle No., ID No.; SheetData.ts:531-536), rejects a file with no data rows and keeps the non-empty rows (SheetContext.tsx:196-247). The 2 MB size limit (ValidFile.ts:167-170) differs from the help text '10 MB' (SheetUpload.tsx:206)."
+    },
+    {
+      "step": "Each notice number in the file is looked up in the notice data",
+      "detail": "Each row is validated (format of noticeNo, summon_no, idNo; ValidNoticeSearchUpload.ts:8-13, called at NoticeSearchUploadContext.tsx:88-93) and then sent to POST validoffencenoticelist with noticeNo/vehicleNo/idNo and offenderIndicator=Y (NoticeSearchUploadContext.tsx:106-121; controller OcmsValidOffenceNoticeController.java:55-76). A row that is not found gets the error 'Record is not found' (:134-135). One thing to watch: summon_no is validated but not put into the query (:106-112); a row containing only a Summon No. sends a query with only offenderIndicator=Y and $limit 999 (constant.ts:305), which may return many notices. Not tested at runtime. The Outstanding path uses the same query without an outstanding filter."
+    },
+    {
+      "step": "OCMS shows the uploaded notices on screen",
+      "detail": "After onSearch finishes, Upload.tsx:64-67 navigates to the result page; UploadResult.tsx:64-76 renders NoticeValidList (notice, stage, vehicle, suspension, payment columns etc.; NoticeValidList.tsx:23-70) for the found rows and UploadErrorList for the others."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS41.24",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. The reject flow with an email option exists in the staff portal: Decision Status Reject, the 'Send Email/SMS' checkbox, the Reply tab, then the email is sent and recorded after the Rejected status is saved. Two things are not proven: a notice 'routed to me' (there is no per-officer assignment; every pending item shows in the Furnished List) and template text that invites a re-furnish (the template text is in the database, not in the repo). The option checkbox is shared by email and SMS. Maintenance ticket: OCMS-DF-2026-136 (Closed, Prod deployed) the Reply template dropdown for Furnished Hirer/Driver was empty because the ALLOWED_TEMPLATES map lacked entries; the map now contains Reject entries. Real SMTP delivery: cannot verify from repo (email.enableSmtp=true in application.properties:133).",
+  "recommendation": "Claim with a caveat: the email option on reject works. Ask URA/the team to confirm the FURNISH_EMAIL_* reject templates are loaded in PRD and whether per-officer routing is required.",
+  "steps": [
+    {
+      "step": "The OIC opens the details of the notice that needs review",
+      "detail": "The Furnished List loads furnishapplicationlist with a default Pending status filter (FurnishSummaryList.tsx:57-61); clicking the notice number opens the Update page with the notice, the submitter particulars, the furnished particulars, supporting documents and history (FurnishSummaryList.tsx:93-102; DecisionForm.tsx:132-420). The story says the notice is 'routed to me': there is no per-officer assignment (grep assignedTo/routedTo/assignee in the furnish dashboard, the OcmsFurnishApplication entity and the Furnish pages is empty); every pending item shows for users with the OCMS_FURNISHED_LIST right (api-authorization.properties:86-87)."
+    },
+    {
+      "step": "The OIC judges the particulars cannot be approved and chooses the Reject decision",
+      "detail": "The Decision Status dropdown only holds Approve (A) and Reject (R) and is required (DecisionForm.tsx:110-123, 438-449). Reject opens the dialog 'Do you wish to proceed with the rejection?' (ActionNotice.tsx:190-193), then rejectFurnish calls POST manual-review/reject (useFurnishAPI.ts:92-116), and rejectSubmission sets status 'R' with the OIC remarks verbatim (ManualReviewService.java:453-471)."
+    },
+    {
+      "step": "OCMS provides an option to choose to send an email notification",
+      "detail": "The 'Send Email/SMS' checkbox is in the OIC Review panel for both Approve and Reject (DecisionForm.tsx:471-481). When ticked, the Reply tab appears (Form.tsx:88-90, 240-247) with a Message Mode of Email/SMS (ReplyComposeForm.tsx:88-108). The option is shared by email and SMS while the story only names email; it is optional, not mandatory."
+    },
+    {
+      "step": "The OIC selects the owner/hirer as recipient and the email address is filled in",
+      "detail": "The Recipients dropdown (Owner/Hirer/Driver from the OFFENDER_INDICATOR standard code, OptionsContext.tsx:450-453) fills emailTo: Owner from ownerEmailAddr, Hirer/Driver from furnishEmailAddr when it matches the submitted indicator (ComposeEditor.tsx:211-267). The Reject template map covers the Owner, Hirer and Driver recipients (SelectTemplate.tsx:47-58). The contents of the standard code table (values O/H/D): cannot verify from repo."
+    },
+    {
+      "step": "The email is sent and recorded after the rejection is saved",
+      "detail": "After rejectFurnish succeeds, composeFurnish calls POST manual-review/send-email for each email (useNoticeSubmit.tsx:197-216; useFurnishAPI.ts:178-190). The controller validates recipient, subject and body (ManualReviewController.java:320-336), then sendAndRecordEmail sends and saves a record with status S/E (FurnishNotificationService.java:50-90). EmailService refuses to send when email.enableSmtp=false (EmailService.java:40-43); the value is true in application.properties:133 with no prod override. The real SMTP server: cannot verify from repo. Order: the Rejected status is saved first; if the email fails the status stays Rejected and only a failure message appears (useNoticeSubmit.tsx:218-220)."
+    },
+    {
+      "step": "The email content asks the owner/hirer to re-furnish with more information or documentary proof",
+      "detail": "The Reject templates for the Owner include FURNISH_EMAIL_DOCS_REQUIRED, FURNISH_EMAIL_MULTIPLE_HIRERS, FURNISH_EMAIL_RENTAL_DISCREPANCY, FURNISH_EMAIL_GENERAL, FURNISH_EMAIL_HST_ADD (SelectTemplate.tsx:47-58). The names match the story intent, but the template text is stored in the database (template store table) and is not in the repo, so whether the content asks for a re-furnish with documentary proof: cannot verify from repo. The OIC can also type free text. Ticket OCMS-DF-2026-136 (Closed, Prod deployed): the Reply template dropdown for Furnished Hirer/Driver was once empty because of the template map configuration."
+    }
+  ]
+}

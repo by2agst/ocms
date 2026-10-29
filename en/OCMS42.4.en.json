@@ -1,0 +1,21 @@
+{
+  "story": "OCMS42.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: staff/cron/agency side, not used by the steps of this story (only the Intranet-to-eVON sync cron feeds the data, not traced)",
+  "note": "Status 'Fully paid'. The message \"No furnishable notice(s) found for '<name>'\" appears when there is no furnishable notice. The 'not a vehicle owner/hirer' variant is not distinguished (same message). Edge case: every backend and UI exception is swallowed into an empty list, so a DB/PII error or an unsynced eVON (OCMS-DF-2026-067, OCMS-DF-2026-077, Closed, Prod deployed) shows up as 'no notices'.",
+  "recommendation": "Claimable for the 'no furnishable notice' message. The 'not owner/hirer' variant is recorded as Sebagian; URA should know errors are shown as an empty list.",
+  "steps": [
+    {
+      "step": "The system looks up furnishable notices under the logged-in ID and the result is empty",
+      "detail": "The ID comes from the JWT session (FurnishApplicationListController.java:80-83). When there are no offender records (FurnishApplicationListServiceImpl.java:87-90), every notice is removed by the Pending filter (114-117), or none exists in eVON (123-126), the service returns an empty result and the controller replies 'There are no furnishable notices found.' (FurnishApplicationListController.java:106-110; ValidationMessages.java:30). Note: every exception is also swallowed into an empty result (FurnishApplicationListServiceImpl.java:72-75; UI API.ts:589-591), so a DB or PII decryption error looks the same as 'no notices' (see the OCMS42.5 demo remark). Tickets OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed, Prod deployed): an unsynced eVON made the empty message appear even though notices existed."
+    },
+    {
+      "step": "The page shows a message that no furnishable notices were found",
+      "detail": "EmptyStatus: when totalEligible = 0 the box \"No furnishable notice(s) found for '<name>'\" appears (user name, or company name for Corppass) (FurnishableNotices.ts:63-81). The table has no checkbox when there are no notices (54-60) and the 'Proceed to furnish' button stays disabled (191-194). The UI builds the text itself from totalEligible; the backend text is not used."
+    },
+    {
+      "step": "The page shows a message that the user is not a vehicle owner/hirer",
+      "detail": "There is no separate 'not a vehicle owner/hirer' message. A user without offender records (FurnishApplicationListServiceImpl.java:84-90) and a user whose notices are all non-furnishable both see the text 'No furnishable notice(s) found' (FurnishableNotices.ts:63-81); the latter also gets the red non-furnishable box (120-137). The story says 'or', so one generic message covers part of it, but the 'not a vehicle owner/hirer' variant is not distinguished."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.24",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, generateMessages, prepareTemplateData, sendBatchSms, saveSendStatus), utilities/smsutility/SmsUtil (sendBatchSmsSimple, sendBatchSms), application-prod.properties, application.properties, cron-schedules-prod.properties. Repo lain: tidak ada code khusus story ini.",
+  "note": "Story minta SMS ke setiap individu owner unik yang berisi NOPO outstanding dan merujuk ke letter ke-3. Code: combineNotices menggabungkan notice per penerima (I_<idNo>) + stage + tanggal jatuh tempo menjadi satu record dengan daftar combinedNotices, lalu sendBatchSms mengirim lewat Postman2/APIM dalam batch maks 1000. Tiga hal menurunkan klaim: (1) job eNotification mati di prod (cron-schedules-prod.properties:236, tiket OCMS-DF-2026-180 menunggu cron aktif); (2) walau job dinyalakan, SMS tetap tidak keluar karena sms.enable=false di application-prod.properties:87 dan sms.allowedSources tidak diisi di prod (hanya di UAT/dev), sedangkan SmsUtil memblok batch bila sumber ENOTIFICATION tidak ada di allowlist (SmsUtil.java:401-410); (3) unik per penerima hanya per kombinasi stage + due date, jadi pemilik dengan due date berbeda bisa menerima lebih dari satu SMS. Teks template RR3_SMS_INDIVIDUAL(_COMBINED) ada di database (ocms_template_store), tidak ada di repo: apakah teks merujuk letter ke-3: cannot verify from repo. Gateway Postman2: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Logic gabung notice dan kirim SMS batch ada, tetapi job eNotification mati dan SMS dimatikan di prod. Minta konfirmasi URA soal konfigurasi prod dan teks template RR3 sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Individu owner unik diidentifikasi dan notice outstanding mereka digabung per penerima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:269-281; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "combineNotices mengelompokkan record dengan kunci penerima 'I_<idNo>' + stage + paymentDueDate; notice yang sama kunci digabung (combinedNotices dipisah '.', amountPayable dijumlah) sehingga satu penerima mendapat satu record (NotificationSmsEmailHelper.java:2151-2210, kunci di :2230-2246; dipanggil NotificationSmsEmailJob.java:191). Company (id_type B) dilewati dari batch SMS (:269-281). Keunikan hanya per stage + due date, bukan per batch job, dan berada di job yang mati di prod (cron-schedules-prod.properties:236). Mobile number dari DataHive: lihat OCMS11.23 (refresh mati di prod)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi SMS memuat daftar NOPO outstanding dan merujuk ke letter reminder ke-3",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-310; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-476",
+      "fit": "Sebagian",
+      "detail": "generateMessages memilih template bernama <stage>_SMS_INDIVIDUAL[_COMBINED] (untuk RR3: RR3_SMS_INDIVIDUAL_COMBINED bila ada beberapa notice) dan mengisinya dengan combinedNotices, noticeCount, amountPayable, paymentDueDate, vehicleNo (NotificationSmsEmailHelper.java:274-310, :410-430, :459-476). Jadi daftar NOPO ikut. Teks template ada di ocms_template_store (DB), bukan di repo: apakah kalimatnya merujuk letter ke-3: cannot verify from repo. Bila template tidak ada, SMS dilewati dengan log error (:308)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS dikirim ke setiap individu owner dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289-291; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527-1530; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1611-1612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:401-410; ocmsadminprivateapi/src/main/resources/application-prod.properties:87",
+      "fit": "Sebagian",
+      "detail": "Job memanggil sendBatchSms bila notification.sms.enabled=true (application.properties:176) (NotificationSmsEmailJob.java:289-291); sendBatchSms memecah per 1000 dan memanggil smsUtil.sendBatchSmsSimple dengan sumber ENOTIFICATION (NotificationSmsEmailHelper.java:1527, :1611-1612). SmsUtil memblok bila sms.enable=false dan sumber tidak ada di sms.allowedSources (SmsUtil.java:401-410). Di prod sms.enable=false (application-prod.properties:87) dan sms.allowedSources tidak diisi (hanya UAT/dev), jadi SMS tidak terkirim di konfigurasi repo. Job juga mati (cron-schedules-prod.properties:236). Gateway Postman2/APIM dan hasil kirim: cannot verify from repo."
+    }
+  ]
+}

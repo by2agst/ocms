@@ -1,0 +1,41 @@
+{
+  "story": "OCMS4.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/create-notice, /repccsWebhook-create-notice), CreateNoticeServiceImpl.createNotice/processSingleNotice}, helpers/{NoticeValidationHelper, NoticeProcessingHelper, ValidationServices}, auth/interceptor/OcmsAuthorizationInterceptor, resources/api-authorization.properties. ocmsadminprivateapi workflows/repccs/notice_creation (webhook /repccsWebhook). ocmsadminui utils/constant.ts (SOURCE_MAP). No TDS, Tailgating, EPS or pend-EEPS code in the six repos",
+  "note": "Status in the sheet is 'Demo paid (50% of 75%)'. The notice creation pipeline (validation, offence rule, DBB, vehicle type, save) works as in OCMS4.1, but this story is about the TDS and EPS operators and the option to pend for an EEPS decision. No code mentions TDS/Tailgating/EPS; the only subsystem codes are 003=EEPS and 002=REPCCS in the UI, so the entry path of the TDS/EPS operators cannot be proven from the repo (probably REPCCS or create-notice, cannot verify from repo). The 'pend for EEPS decision' option does not exist: the notice is created immediately. Offence type E is taken from the sender. /v1/create-notice is not registered in api-authorization.properties.",
+  "recommendation": "Limit the claim to the notice creation pipeline. Do not claim TDS/EPS-specific intake or the EEPS pend option; ask URA which channel TDS/EPS use (REPCCS or create-notice) and how EEPS is called.",
+  "steps": [
+    {
+      "step": "OCMS receives payment evasion offence details from the TDS and EPS operators in real time",
+      "detail": "No name, route, flag or configuration for TDS/Tailgating/EPS exists in the six repos (grep for TDS, tailgat, EPS, EEPS only hits UI labels and comments). Only generic entry points exist: POST /v1/create-notice (CreateNoticeController.java:28-32) which processes synchronously, and the REPCCS webhook POST /ocms/v1/repccsWebhook in ocmsadminprivateapi with an APIM key (RepccsCreateNoticeController.java:39; CreateNoticeServiceImpl.java:110). Subsystem codes are only mapped in the UI: 003=EEPS, 002=REPCCS (constant.ts:98-104); TDS and EPS have no code. Whether the TDS/EPS operators come in through REPCCS or create-notice: cannot verify from repo (the SUB_SYSTEM_LABEL standard code rows live in the DB). One thing to watch out for: /v1/create-notice is not listed under any function in api-authorization.properties (only /v1/staff-create-notice, :28-31) and the interceptor matches the path with startsWith against the user's function paths (OcmsAuthorizationInterceptor.java:66-68), so a JWT caller will not get through unless its functionIds map that path; how operators authenticate: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the mandatory fields of the received offence",
+      "detail": "validateMandatoryFieldsForBatch requires compositionAmount, computerRuleCode, creDate, creUserId, noticeDateAndTime, offenceNoticeType, ppCode, ppName and vehicleCategory (NoticeValidationHelper.java:113-157); PLUS only (label 005) also requires vehicleNo and vehicleRegistrationType (:162-171). noticeNo is optional for labels 003-010, 020-021, 023 and 030-999 because OCMS generates the number (:84-103). Failed notices go to the failed list, the rest are still processed (CreateNoticeServiceImpl.java:499-531)."
+    },
+    {
+      "step": "OCMS checks the offence rule as part of the pre-defined criteria",
+      "detail": "getOffenseTypeFromRuleCode looks up computerRuleCode in the offence rule table and returns the offence type (O/E/U), stored in singleDtoMap as 'offenseType' (CreateNoticeServiceImpl.java:967-971; NoticeValidationHelper.java:315-346). The result is the gate for the DBB and AN checks. An unknown rule code throws RuntimeException so the notice fails and goes to the error collector (:347-349; CreateNoticeServiceImpl.java:972-980)."
+    },
+    {
+      "step": "OCMS checks the payment evasion (type E) offence history against existing notices",
+      "detail": "The duplicate check treats type E (payment evasion) differently from type O: date + hour + minute must match, while type O compares the date only (NoticeValidationHelper.java:462-475), and PS-ANS counts as duplicate for type O only (:503-506). The result is PS-DBB or TS-OLD (NoticeProcessingHelper.java:69-122). The AN check only runs for offence type O (CreateNoticeServiceImpl.java:1175-1178) so a type E notice never becomes an advisory notice. The DBB flow is the same as OCMS4.1."
+    },
+    {
+      "step": "OCMS prepares the notice by vehicle type (stage, payment flag, suspension)",
+      "detail": "OCMS decides the vehicle registration type: X for empty/N.A plates, I for MID/MINDEF, otherwise D/V/S/F through SpecialVehUtils.checkVehregistration (CreateNoticeServiceImpl.java:1007-1039; SpecialVehUtils.java:43-80). Processing stage and payment flag are then set per type: X -> payment N, composition 0, eservice E4 (NoticeProcessingHelper.java:390-411); S/V/D -> NPA then ROV, payment Y, E1 (:422-445); F -> stage NPA/ROV and PS-FOR; I -> military (CreateNoticeServiceImpl.java:1128-1151). Tickets OCMS-SR-2026-101 and OCMS-DF-2026-102 (wrong UPL defaults) are Closed/Prod deployed and the code now sets N/0/E4 for type X."
+    },
+    {
+      "step": "OCMS automatically creates the correct type of parking offence notice",
+      "detail": "Same as the offence type step of OCMS4.1: offenceNoticeType E comes from the payload and is only checked to be present (NoticeValidationHelper.java:140-143; NoticeRecordHelper.java:737), and is not compared with the offence type from the rule table (CreateNoticeServiceImpl.java:967-971). Only the REPCCS webhook path derives offenceNoticeType from the rule table (ValidationServices.java:165-188; ocmsadminprivateapi .../repccs/notice_creation/core/helpers/ValidationServices.java:215-218). No code marks a notice as 'payment evasion from TDS/EPS'."
+    },
+    {
+      "step": "Or the notice is pended to wait for a decision from EEPS",
+      "detail": "There is no 'pending EEPS' status, field or queue: every notice that passes validation is INSERTed into VON right away (CreateNoticeServiceImpl.java:1195). The decision/decisionDate/decisionOfficer fields in OffenceNoticeDto (OffenceNoticeDto.java:49-52) are unused and the VON entity fields are commented out (OcmsValidOffenceNotice.java:165-172). No outgoing call to EEPS exists in the six repos. The EEPS label (003) is even exempt from the noticeNo requirement and OCMS generates the number itself (NoticeValidationHelper.java:84-103), i.e. it is created immediately."
+    },
+    {
+      "step": "The created notice is saved and the result is returned to the sender",
+      "detail": "The VON + OND records are saved in the intranet database (NoticeRecordHelper.java:156, batch saveAllNoRetry :380) and eVON/eOND in the internet database (NoticeRecordHelper.java:222). If the batch save fails every notice in the batch is marked failed (CreateNoticeServiceImpl.java:811-830) and the response lists success/failed/duplicate (CreateNoticeServiceImpl.java:844-851); a consolidated error email is sent when there are errors (:848)."
+    }
+  ]
+}

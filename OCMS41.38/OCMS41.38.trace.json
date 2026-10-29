@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.38",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper (checkPriorSubmission/evaluatePriorSubmission),helpers/ValidationContext}. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplicationServiceImpl,OcmsFurnishApplicationRepository}, workflows/furnish/{helpers/FurnishPersistenceService,submission/FurnishSubmissionServiceImpl}. ocmsadminui pages/Notice/mode/update/UpdateForm.tsx, pages/Notice/context/NoticeContext.tsx",
+  "note": "Status 'Demo paid (50% of 75%)'. Ada dua mekanisme pengecekan prior submission yang tidak sama aturannya: (1) cron Furnish Processing, CHECK 6, menganggap submission lain apa pun pada notice yang sama sebagai 'prior' dan melempar ke manual review dengan alasan 'Prior submission under notice'; (2) endpoint furnishapplicationlist di ocmsadminapi menghitung flag resubmission Y/N pada saat dibaca, dengan syarat notice_no dan owner_id_no sama dan cre_date lebih awal. Tidak satu pun membatasi pada submission yang berstatus rejected. CHECK 6 adalah check terakhir, jadi kalau check 1-5 sudah gagal, alasan yang tersimpan adalah alasan pertama itu dan info prior submission tidak tercatat. Dua submission baru pada notice yang sama di satu siklus cron saling dianggap prior.",
+  "recommendation": "Diklaim sebagian: pengecekan prior submission ada, tetapi aturannya tidak dibatasi pada owner/hirer yang sama (cron) dan tidak dibatasi pada submission yang rejected",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah notice yang sama sudah pernah punya submission furnish sebelumnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:417-422",
+      "fit": "Sesuai",
+      "detail": "buildValidationContext mengambil semua furnish application untuk notice di batch (furnishService.findByNoticeNoIn, FurnishApprovalHelper.java:127); checkPriorSubmission membaca ctx.getPriorSubmissions(noticeNo) (FurnishApprovalHelper.java:417-422) dan dipanggil sebagai CHECK 6 (baris 218-219)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan dibatasi pada submission dari owner/hirer yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:426-436",
+      "fit": "Sebagian",
+      "detail": "Di cron, evaluatePriorSubmission hanya membuang record dengan txn_no yang sama; submission siapa pun pada notice itu dihitung prior (FurnishApprovalHelper.java:428-434). Yang memakai owner: flag resubmission di furnishapplicationlist, query findByNoticeNoAndOwnerIdNoAndCreDateBefore (OcmsFurnishApplicationRepository.java:39, OcmsFurnishApplicationServiceImpl.java:34-37). Dua aturan berbeda untuk hal yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Yang dihitung hanya submission sebelumnya yang berstatus rejected",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:428-431",
+      "fit": "Sebagian",
+      "detail": "Tidak ada filter status di CHECK 6 (FurnishApprovalHelper.java:428-431) maupun di flag resubmission (OcmsFurnishApplicationServiceImpl.java:35-37); prior yang masih Pending atau sudah Approved juga dihitung. Hasilnya melebar dari story (rejected pasti ikut terdeteksi, tetapi yang lain juga)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kalau ada prior, request tidak di-auto-approve dan menunggu review officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:432-435",
+      "fit": "Sesuai",
+      "detail": "evaluatePriorSubmission mengembalikan AutoApprovalResult.pending('Prior submission under notice') (FurnishApprovalHelper.java:432-435); FurnishProcessingService mengirimnya ke executeManualReview (FurnishProcessingService.java:171-176). Alasan ini tersimpan di reason_for_review dan remarks (FurnishApprovalHelper.java:530-531), tetapi hanya kalau check 1-5 lolos (FurnishApprovalHelper.java:150-176 dan 218-219)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS tahu bahwa request adalah resubmission (flag yang bisa dipakai UI)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController.java:87-99",
+      "fit": "Sesuai",
+      "detail": "furnishapplicationlist menambahkan field resubmission 'Y'/'N' pada tiap record lewat enrichWithResubmission (OcmsFurnishApplicationController.java:52-65, 87-99), dihitung saat dibaca. Jalur POST /furnish/submit juga punya isResubmission (FurnishSubmissionServiceImpl.java:68, FurnishPersistenceService.java:49-53) tetapi tidak ada caller di repo manapun."
+    }
+  ]
+}

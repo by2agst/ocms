@@ -1,0 +1,29 @@
+{
+  "story": "OCMS34.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/NoticeSearch (context/NoticeSearchUploadContext.tsx, page/upload/UploadResult.tsx, list/NoticeValidList.tsx), components/datagrid/column/index.tsx (payment_status, suspension_type, suspension_reason); ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (validoffencenoticelist), workflows/notice_creation/core/SuspensionProcessingController (plus-apply-suspension, inbound). No OCMS call to PLUS; no appeal date, appeal status or reply date field",
+  "note": "The story asks that after upload OCMS automatically checks in real time the payment status and the appeal in PLUS (date appealed, appeal status, appeal reply date) and shows the results on screen. The payment check is partial: as soon as the officer clicks proceed each row calls validoffencenoticelist (NoticeSearchUploadContext.tsx:118-122) and the Payment Status column is read from crsReasonOfSuspension (FP/PRA = FP, PP = Partially Paid, otherwise '-'; column/index.tsx:270-283); there is no payment date (export 'Payment Date' is always '-', SheetData.ts:596). The check against PLUS does not exist: OCMS has no outbound call to PLUS. The only appeal trace is the Suspension Type and Reason for Suspension (eprReasonOfSuspension) columns, which are filled when PLUS has earlier applied a suspension through the inbound endpoint plus-apply-suspension; an appeal received in PLUS that has not suspended the notice is not visible. Date appealed, appeal status and reply date do not exist (the Appeal type in model.ts:5 and the i18n key appeal_details are not used by any component; only 'Date of Suspension' in the export). Related PLUS suspension tickets: OCMS-DF-2026-070 and OCMS-DF-2026-075 (PS-APP not shown in Suspension Details, Closed/Prod deployed) show that appeal data in OCMS depends on suspensions from PLUS; they do not change the verdict but support Sebagian. The story status is blank, so the requirement is not given.",
+  "recommendation": "Claim partially. The live payment status check exists, but the appeal check against PLUS and the appeal date/status/reply date data do not. Only the suspension reason applied by PLUS is visible",
+  "steps": [
+    {
+      "step": "Setelah upload, OCMS menjalankan pengecekan otomatis real-time per baris",
+      "detail": "onProceed calls onSearch and then moves to the result page (Upload.tsx:64-67). onSearch calls validoffencenoticelist per row at that moment, with a cache for duplicate rows (NoticeSearchUploadContext.tsx:71-130), with no scheduled batch."
+    },
+    {
+      "step": "OCMS mengecek status pembayaran tiap notice",
+      "detail": "Payment Status is read live from the notice's crsReasonOfSuspension: FP/PRA show FP, PP shows Partially Paid, otherwise '-' (column/index.tsx:270-283). Unpaid notices show '-', there is no Unpaid label on screen. There is no payment date: the export column 'Payment Date' is always '-' (SheetData.ts:596). The crsReasonOfSuspension value is set by other payment processes; its correctness cannot verify from repo."
+    },
+    {
+      "step": "OCMS mengecek ke PLUS apakah ada appeal yang diterima untuk notice tersebut",
+      "detail": "There is no real-time call to PLUS. Only Suspension Type and Reason for Suspension from OCMS's own data are visible (column/index.tsx:242-260), filled if PLUS earlier applied a suspension through the inbound endpoint plus-apply-suspension (SuspensionProcessingController.java:485). An appeal in PLUS that has not suspended the notice is not visible. OCMS-DF-2026-070 and OCMS-DF-2026-075 (Closed): PS-APP not shown in Suspension Details; deployed to prod, current behaviour cannot verify from repo."
+    },
+    {
+      "step": "Hasil cek memuat tanggal appeal, status appeal, dan tanggal reply appeal",
+      "detail": "The upload result grid (NoticeValidList.tsx:41-69) has no date appealed, appeal status or reply date column. The Appeal type in utils/model.ts:5 and the i18n key appeal_details are not used by any component. 'Date of Suspension' in the export is not the appeal date."
+    },
+    {
+      "step": "Hasil pengecekan ditampilkan di layar untuk direview officer",
+      "detail": "The result page shows the notice grid (notice no, stage, suspension, payment status, amount payable) and the error list (UploadResult.tsx:64-76). It does not contain appeal data from PLUS, so the screen shows only part of the requested result. Same as the show-on-screen step in OCMS34.19."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl (TS-UNC, antrian adhoc_nro_temp); ocmsadminprivateapi MhaNricDataHelper + MhaNricDownloadHelper.storeUncHstResults (hanya MHA, type_of_address mha_reg), UnclaimedReportServiceImpl, AutoRevivalHelper, ToppanUploadHelper.resetLetterAddressAfterToppan, ToppanUploadJobsScheduler, ToppanUnifiedController, application-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code perbandingan alamat / resend",
+  "note": "Status stories: Requirement given - Gen flow. Story minta OCMS membandingkan alamat terdaftar tempat returned reminder dikirim dengan LTA mailing address milik ID yang sama, lalu mengirim ulang reminder ke alamat alternatif lewat file untuk vendor. Code hanya punya sisi 'returned reminder': TS-UNC diterapkan dan ID masuk antrian ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:387-418, 746-763), tetapi enquiry unclaimed hanya ke MHA (NRIC) atau DataHive (FIN/UEN); hasilnya disimpan sebagai type_of_address 'mha_reg' (MhaNricDownloadHelper.java:3223,3248), tidak ada query LTA dan tidak ada perbandingan dengan lta_mail. Pemilihan alamat surat di ToppanUploadHelper.java:466-518 memakai urutan mha_reg > lta_reg > lta_mail, jadi lta_mail hanya dipakai kalau dua alamat lain tidak ada, bukan sebagai alamat alternatif. Pembuatan file reminder untuk Toppan ada, tetapi pemanggilan harian dikomentari (ToppanUploadJobsScheduler.java:118) dan hanya jalan lewat POST /generate-letters; upload ke Toppan dimatikan di properties prod (sftp.upload.disabledServers=toppan). Nilai asli di server tidak bisa diverifikasi dari repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Bisa diklaim sebagian untuk fondasi (TS-UNC, antrian enquiry, auto revival, generator file Toppan). Perbandingan alamat terdaftar vs LTA mailing address dan keputusan kirim ulang ke alamat itu belum ada; minta konfirmasi URA apakah cukup dengan proses manual di luar sistem",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengidentifikasi bahwa alamat terdaftar tempat returned reminder dikirim berbeda dari LTA mailing address milik offender ID yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:442-447; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3223; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:110-160",
+      "fit": "Tidak ada code",
+      "detail": "Setelah submit-unclaimed, ID current offender masuk ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:746-763; PS notice sudah dikeluarkan lewat OCMS-DF-2026-133). Enquiry MHA hanya mengambil idType 'N' (MhaNricDataHelper.java:442-447) dan hasilnya ditulis ke ocms_temp_unc_hst_addr dengan type_of_address tetap 'mha_reg' (MhaNricDownloadHelper.java:3223,3248). Tidak ada query LTA untuk jalur UNC dan tidak ada kode yang membandingkan alamat itu dengan lta_mail. checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110) yang membaca tabel itu tidak punya pemanggil di repo, jadi laporan alamat UNC dari tabel tersebut tidak dibuat otomatis; cron harian Unclaimed Batch Data Report hanya membuat daftar notice TS-UNC (DailyReportJobsScheduler.java:100)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih LTA mailing address sebagai alamat alternatif untuk reminder yang dikirim ulang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:466-518; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2318-2321",
+      "fit": "Beda dari flow",
+      "detail": "Urutan prioritas alamat surat untuk NRIC/FIN/UEN adalah mha_reg > lta_reg > lta_mail (ToppanUploadHelper.java:466-518; urutan query :2318-2321). lta_mail baru terpilih bila mha_reg dan lta_reg sama-sama tidak ada, jadi reminder yang dikirim ulang ke ID yang punya mha_reg akan memakai alamat yang sama dengan yang dikembalikan, bukan LTA mailing address. Fallback ini juga tidak mengenal furnished_mail (lihat addendum: kemungkinan bug)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang ditangguhkan (TS-UNC) dilanjutkan kembali supaya reminder bisa dikirim ulang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:113-134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:644-650; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:397-398",
+      "fit": "Sebagian",
+      "detail": "Auto Revival mengambil semua TS yang due_date_of_revival-nya lewat (AutoRevivalHelper.java:113-134), termasuk TS-UNC, lalu mengosongkan status di VON (:644-650); job ini jalan di day-end (ToppanUploadJobsScheduler.java:119, cron.toppanupload.enabled=true di cron-schedules-prod.properties:62). Reviva terjadi karena tanggal jatuh tempo (default 30 hari dari submit, UnclaimedServiceImpl.java:397-398), bukan karena officer memutuskan kirim ulang ke alamat alternatif. Nilai schedule asli di server tidak bisa diverifikasi dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file PDF/data reminder untuk vendor cetak (Toppan)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34",
+      "fit": "Sebagian",
+      "detail": "Generator surat Toppan ada (ToppanUploadHelper memproses stage RD1/RD2/RR3/DN1/DN2/DR3 dan menulis file), tetapi pemanggilan toppanLettersGeneratorService.executeJob() di day-end job dikomentari (ToppanUploadJobsScheduler.java:118), jadi pembuatan file hanya jalan lewat trigger manual POST /generate-letters (ToppanUnifiedController.java:34). OCMS-DF-2026-192 (Ready to UAT) melaporkan trigger manual itu gagal di production dan stage tidak berubah. Surat dibuat dari alamat dengan letter_address='Y' (langkah 2), bukan dari alamat alternatif hasil perbandingan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dikirim ke vendor untuk dicetak dan dikirim pos ke alamat alternatif",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:405-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:79",
+      "fit": "Sebagian",
+      "detail": "Properti prod menyetel sftp.upload.disabledServers=toppan (application-prod.properties:86), jadi upload ke SFTP Toppan dimatikan menurut repo; pada kondisi ini confirmDeliveryAndAdvanceStage melewati gerbang konfirmasi pengiriman dan stage tetap maju tanpa file terkirim (ToppanUploadJob.java:419-426; OCMS-DF-2026-192). Nilai asli di server, serta pencetakan dan pos oleh vendor, cannot verify from repo. Alamat tujuan bukan alamat alternatif (langkah 2)."
+    }
+  ]
+}

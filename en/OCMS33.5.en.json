@@ -1,0 +1,25 @@
+{
+  "story": "OCMS33.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "No code for selecting warrant IDs, sending them to DOS, or receiving vehicle numbers. Close: ocmsadminprivateapi services/agencyFileExchange/AgencyFileExchangeServiceImpl (Warrant Description column left blank, 'Court module not ready for MVP1'), workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (stage-based warrant description for letters, not tagging), the CES Wanted Vehicle file (CesWantedVehicleServiceImpl + OcmsValidOffenceNoticeRepository.findCertisForeignVehicleNotices) which is based on PS/FOR vehicles, not warrant IDs",
+  "note": "Status blank (epic ERP2, 'Logic/flow not received'). No query was found for IDs with outstanding warrants by warrant processing stage and payment status; the Court/warrant module does not exist yet (AgencyFileExchangeServiceImpl.java:727 writes the Warrant Description column blank with the comment 'Court module not ready for MVP1'). There is no send to DOS nor receipt of the latest vehicle numbers per ID. The only daily file to enforcement is the CES Wanted Vehicle file (OCMS33.1), built from PS/FOR vehicles and not from warrant IDs, so the 'daily tagging file' step is Sebagian at most. DOS = DataHive/LTA cannot be confirmed from the repo. No relevant maintenance ticket.",
+  "recommendation": "Do not claim as done. There is no warrant ID selection, DOS integration or vehicle number receipt; only the vehicle-based daily CES file is similar. Ask URA to confirm the status of the Court/warrant module and DOS",
+  "steps": [
+    {
+      "step": "OCMS builds a daily list of IDs with outstanding warrants of arrest by warrant processing stage and payment status",
+      "detail": "No query or job selects IDs by warrant stage. grep warrant in ocmsadminprivateapi only finds Toppan letter description text (ToppanUploadHelper.getWarrantDescription, line 1265) and a Warrant Description column left blank because 'Court module not ready for MVP1' (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:727). No per-ID selection exists."
+    },
+    {
+      "step": "OCMS sends that ID list to DOS",
+      "detail": "Nothing is sent to DOS; the prod cron list (cron-schedules-prod.properties) has no such job and DOS does not exist as an integration (the only trace is the staff UI screen 'DOS Reports' with no controller, ocmsadminui/src/pages/Report/lists/ReportListDOS.tsx:82). DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "OCMS receives the latest vehicle numbers per ID from DOS",
+      "detail": "There is no DOS response receiver and no storage of vehicle numbers per tagged ID. The DataHive NRIC/FIN/UEN lookup (services/datahive) returns contact/identity data per notice, not a list of vehicles per ID, and the datahive flags are off in prod (cron-schedules-prod.properties:48-50). DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "OCMS generates the daily tagging file from the vehicle numbers received from DOS",
+      "detail": "A daily CES_WANTED_VEHICLES_*.DAT file already exists (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:198, ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:115-117), but its content comes from the PS/FOR vehicle query (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:313-322 via ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:53), not from warrant IDs or vehicle numbers received from DOS. The daily file generator exists; its data source differs from what the story names (consistent with the rule that a generic mechanism is Sebagian at best)."
+    }
+  ]
+}

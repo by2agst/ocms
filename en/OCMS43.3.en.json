@@ -1,0 +1,25 @@
+{
+  "story": "OCMS43.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: pages/NoticeSearch/form/NoticeSearchAllForm.tsx, pages/Notice/detail/PaymentDetails.tsx, pages/Notice/context/NoticeContext.tsx (CB_PAYMENT_DETAIL), pages/Payment/PaymentCash.tsx. ocmsadminapi: crud/ocmsizdb/OcmsWebTransactionDetail/{OcmsWebTransactionDetailController,OcmsWebTransactionDetail}, crud/BaseImplement, resources/api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not used.",
+  "note": "Story status: Fully paid (status_with_ura). Staff can see payment transaction details (receipt, date, channel, mode, amount, remarks, refund) in the Payment Details tab of the Notice page after searching a notice by notice number or vehicle number in Notice Search. Search by receipt number and by payment date has no screen: there is no receipt or payment date field in NoticeSearchAllForm or PaymentCash (search by notice no only). What exists is the generic POST /v1/webtxndetaillist endpoint with BaseImplement dynamic filters (receiptNo and paymentDateAndTime are entity columns, $gte/$lte operators exist), but no UI calls it with those criteria, so no screen can look up by receipt. Tickets OCMS-SR-2026-111 and OCMS-SR-2026-124 (fields in the Payment Details tab, Closed) only added/moved display fields. Access: webtxndetaillist is in roles OCMS_NOTICE_DETAIL and OCMS_PAYMENT_CASH (api-authorization.properties:36, 112); the real role check at runtime: cannot verify from repo.",
+  "recommendation": "Claim partially (see the Sebagian steps). Search by notice/vehicle number and the transaction detail view exist; search by receipt number and payment date has no screen, only the generic endpoint.",
+  "steps": [
+    {
+      "step": "Staff search paid notices using notice number or vehicle number",
+      "detail": "The Notice Search form has Notice No. (source notice_no, line 64), Vehicle No. (vehicle_no, line 81), and a Payment Status filter (line 308), so staff can find a notice and open its detail. The result is a list of notices, not of transactions; transaction detail is opened from the notice page (step 4). The PaymentCash page (PaymentCash.tsx:148-215) also searches by notice number only."
+    },
+    {
+      "step": "Staff search payment transactions using the receipt number",
+      "detail": "There is no receipt field in Notice Search (NoticeSearchAllForm.tsx has only notice_no, vehicle_no, and so on) or in PaymentCash; the word receipt in ocmsadminui only appears as a display column in PaymentDetails.tsx:66-67. On the API side, POST /v1/webtxndetaillist (controller line 35) uses getAll with dynamic filters (BaseImplement.java:236-245), and receiptNo is an entity column (OcmsWebTransactionDetail.java:26), so receiptNo can be filtered by a direct request. No UI calls it with this criterion; whether the filter really works for receiptNo has not been tested."
+    },
+    {
+      "step": "Staff search payment transactions using the payment date",
+      "detail": "Same as receipt: no screen has a payment date field. Notice Search only has Suspension Date From/To (NoticeSearchAllForm.tsx:234-265), which search the crs/epr suspension, not the transaction payment date. The /v1/webtxndetaillist endpoint can be filtered with paymentDateAndTime (OcmsWebTransactionDetail.java:66) and the $gte/$lte operators (BaseImplement.java:55-57) through a direct request only, with no UI caller."
+    },
+    {
+      "step": "Staff view the payment transaction details (receipt, date, channel, mode, amount) at any time",
+      "detail": "The Payment Details tab on the Notice page calls POST webtxndetaillist with offenceNoticeNo (NoticeContext.tsx:1137-1146) and shows Receipt Number, Transaction Date & Time, Payment Channel, Payment Mode, Amount Paid, Amount Payable, Remarks, and refund info (PaymentDetails.tsx:66-144). The endpoint is in role OCMS_NOTICE_DETAIL (api-authorization.properties:36). Tickets OCMS-SR-2026-111 and OCMS-SR-2026-124 (Closed) adjusted the source of the Payment Flag and ATOMS Flag fields."
+    }
+  ]
+}

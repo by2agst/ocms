@@ -1,0 +1,29 @@
+{
+  "story": "OCMS13.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, utilities/smsutility/SmsUtil, framework/schedulers/NotificationJobsScheduler, resources/{application-prod,cron-schedules-prod}.properties. ocmsadminapi crud/ocmsizdb/OcmsTemplateStore (template entity). No UPL-specific code; generic eNotification/reminder mechanism. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "The story asks for one SMS to each unique individual offender in a batch, listing all outstanding notices and referring to the 1st letter. The flow is the same as OCMS13.8: the eNotification cron (NotificationSmsEmailJob) for reminder stages including DN1. combineNotices merges notices with key id_no + stage + payment due date into one SMS (NotificationSmsEmailHelper.java:2151-2200), but that key means the same NRIC with different due dates still receives more than one SMS. The template name is built from the stage (DN1_SMS_INDIVIDUAL[_COMBINED], :459-473); the template text lives in ocms_template_store (DB), so whether it mentions the 1st letter cannot be verified from repo. Every step is Sebagian because its execution is switched off by config: cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false with no sms.allowedSources in prod (application-prod.properties:87; SmsUtil.java:402-408 refuses to send), and cron.enareminder.datahive=false (:48). Sibling OCMS9.5 rates the combining step as Sesuai; here it is lowered to Sebagian following the 'switched off by config' convention to avoid overclaiming. Ticket: OCMS-DF-2026-180. Postman SMS, Vault and 'DOS': cannot verify from repo.",
+  "recommendation": "Claim as Sebagian only. The grouping and SMS sending logic exists, but the cron, SMS and DataHive are switched off in the repo properties, and the template text is not in the repo. Confirm the server values, the DN1 template content, and align the rating with OCMS9.5",
+  "steps": [
+    {
+      "step": "The offender's mobile number has been obtained from 'DOS'",
+      "detail": "The number comes from the DataHive view V_DH_SNDGO_SINGPASSCONTACT_MASTER through refreshContactInfo (NotificationSmsEmailJob.java:185-188; NotificationSmsEmailHelper.java:2461-2477, :1448), but only when cron.enareminder.datahive=true; its value is false in cron-schedules-prod.properties:48, so the stored offender_tel_no is used. The word 'DOS' is not in the code: 'DOS = DataHive' cannot be confirmed from repo. Same fact and fit as step 2 of OCMS13.8."
+    },
+    {
+      "step": "OCMS identifies the unique individual offenders for the SMSes of each batch job",
+      "detail": "combineNotices is called after the ENA and reminder records are merged (NotificationSmsEmailJob.java:191) and groups by recipientKey (I_<id_no> for individuals) + nextProcessingStage + paymentDueDate (NotificationSmsEmailHelper.java:2151-2200, 2230-2252). So one NRIC with a different stage or due date still becomes more than one record and more than one SMS. It runs only when the job is enabled; cron.notification.enabled=false in cron-schedules-prod.properties:236."
+    },
+    {
+      "step": "The SMS lists all outstanding notices of that offender",
+      "detail": "With the same key, notice numbers are joined with a dot and amountPayable is summed (NotificationSmsEmailHelper.java:2180-2200); prepareTemplateData fills noticeCount and combinedNotices (:421-431) and determineTemplateName appends _COMBINED (:459-473). Only notices that pass the reminder query criteria (stage, due date, no suspension) are included, so 'all outstanding notices' holds only within that limit. The template text in ocms_template_store: cannot verify from repo. The job is switched off in prod (cron-schedules-prod.properties:236)."
+    },
+    {
+      "step": "The SMS refers to the 1st letter reminder/notification",
+      "detail": "The template is chosen from the notice stage (DN1_SMS_INDIVIDUAL[_COMBINED], NotificationSmsEmailHelper.java:459-473) and its text is loaded from the ocms_template_store table (entity OcmsTemplateStore.java). The template text is not in the repo, so whether the SMS mentions the 1st letter cannot be verified from repo. What is proven: the payment date in the SMS is last_processing_date + POS + PDD (NotificationSmsEmailHelper.java:1088-1090), the same rule as the date in the reminder-stage letters (OCMS-DF-2026-180 says reminder stages RD1..DR3 must match the due date in the letters)."
+    },
+    {
+      "step": "OCMS sends the batch SMS to the offender",
+      "detail": "The job sends through sendBatchSms when notification.sms.enabled is true (NotificationSmsEmailJob.java:289-291), which calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NotificationSmsEmailHelper.java:1611-1612). In prod sms.enable=false (application-prod.properties:87) with no sms.allowedSources, so SmsUtil returns status 'disabled' without sending (SmsUtil.java:402-408); cron.notification.enabled=false (cron-schedules-prod.properties:236). The value on the real server and receipt by Postman SMS: cannot verify from repo."
+    }
+  ]
+}

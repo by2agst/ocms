@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.21",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Address auto-populate dari postal code driver/hirer ada di ocmseserviceui: components/form/Address.ts (panggil OneMap langsung dari browser, dropdown alamat, isi block/street/building), dipakai pages/Furnish/Form/HDParticulars.ts untuk individu dan company. Tidak ada code di ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi untuk lookup alamat ini.",
+  "note": "Requirement diberikan dan status Fully paid. Kode melakukan lookup alamat ke OneMap saat 6 digit postal code diketik, menampilkan dropdown, lalu mengisi block, street name, dan building setelah user memilih satu alamat. Auto-populate belum sepenuhnya otomatis: user harus memilih dari daftar, dan hint field sendiri menyebut 'retrieve address from drop-down list' (Address.ts:299). Respons dan ketersediaan OneMap (layanan pihak ketiga), serta nilai URL OneMap per environment di luar file envConfig: cannot verify from repo.",
+  "recommendation": "Layak diklaim dengan catatan: auto-populate bekerja setelah user memilih alamat dari dropdown (bukan terisi sendiri). OneMap tidak bisa diverifikasi dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Section Driver's / Hirer's Particulars menyediakan field Postal Code (6 digit) beserta Block, Street Name, Building, Floor/Unit",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:104-115; ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:361; ocmseserviceui/src/components/form/Address.ts:294-310",
+      "fit": "Sesuai",
+      "detail": "HDParticulars merender komponen <address-fields> (HDParticulars.ts:361) dengan key hdPostal, hdBlock, hdStreet, hdBuilding, hdFloor, hdUnit (HDParticulars.ts:104-115). InitPostal memberi field postal panjang 6 digit dan hint 'Enter 6-digit postal code to retrieve address from drop-down list' (Address.ts:299, 308)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah 6 digit postal code diketik, page memanggil layanan alamat OneMap",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/components/form/Address.ts:138-150; ocmseserviceui/src/components/form/Address.ts:23-49; ocmseserviceui/src/components/form/Address.ts:309-311; ocmseserviceui/envConfig/.env.prod:14; ocmseserviceui/envConfig/.env.prod:45",
+      "fit": "Sesuai",
+      "detail": "handlePostalInput hanya mencari bila panjang input sudah 6 (Address.ts:140), dengan debounce 600 ms (Address.ts:309). APIGetONEMAP memanggil GET ke domain ONEMAP dengan searchVal = postal code (Address.ts:23-49). Domain dan path dari env: VITE_DOMAIN_ONEMAP=https://www.onemap.gov.sg/ dan VITE_ONEMAP_SEARCH=api/common/elastic/search (.env.prod:14, 45). Panggilan langsung dari browser ke OneMap, tidak lewat backend OCMS. Respons nyata OneMap dan ketersediaannya: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Page menampilkan alamat yang cocok dengan postal code, lalu user memilih satu alamat",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/components/form/Address.ts:153-176; ocmseserviceui/src/components/form/Address.ts:416-452; ocmseserviceui/src/components/form/Address.ts:450; ocmseserviceui/src/components/form/Address.ts:299",
+      "fit": "Sebagian",
+      "detail": "Hasil ditampilkan sebagai dropdown (Address.ts:416-452); alamat baru terisi setelah user klik atau menekan Enter pada satu opsi (Address.ts:267, handler mousedown di baris 444). handlePostalSearch hanya mengisi daftar hasil (Address.ts:167); tidak ada auto-select walau hanya ada satu hasil. Story meminta page auto-populate; di code ini semi-otomatis dan hint field sendiri menyebut 'drop-down list' (Address.ts:299). Bila OneMap tidak mengembalikan hasil, dropdown menulis 'Data not found' (Address.ts:450) dan user mengetik manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Block number dan street name (serta building) terisi otomatis dari alamat yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/components/form/Address.ts:267-292; ocmseserviceui/src/components/form/Address.ts:276-283; ocmseserviceui/src/components/form/TextInput.ts:137-142; ocmseserviceui/src/utils/map/MapFurnish.ts:29-34",
+      "fit": "Sesuai",
+      "detail": "selectAddress mengisi Street Name dengan ROAD_NAME, Block dengan BLK_NO, dan Building dengan BUILDING (kecuali 'NIL') lewat setValue (Address.ts:276-283), memotong nilai ke batas field 32/10/65 lewat CharLimit (Address.ts:281-283), lalu menghapus error field (Address.ts:285-287). setValue menulis ke formData dan sessionStorage (TextInput.ts:141-142), jadi nilai ikut dikirim sebagai furnishMailBlkNo/StreetName/BldgName/PostalCode (MapFurnish.ts:29-34). Edge case: street name lebih dari 32 karakter terpotong tanpa peringatan (Address.ts:281). Setelah memilih, muncul modal 'Please enter the Floor & Unit Number' karena floor/unit tidak diisi otomatis (Address.ts:289-291)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Auto-populate alamat berlaku sama untuk vehicle owner individu dan company",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:206-210; ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:361",
+      "fit": "Sesuai",
+      "detail": "Particulars.render selalu merender <hirer-driver-particulars> di bawah owner-particulars (individu) atau company-particulars (CorpPass) tanpa kondisi isCP (Particulars.ts:206-210), jadi komponen address-fields di HDParticulars (HDParticulars.ts:361) sama untuk keduanya. Catatan: address-fields untuk data owner/company justru dikomentari (OParticulars.ts:215, CompanyParticulars.ts:233), tidak relevan karena story hanya soal postal code driver."
+    }
+  ]
+}

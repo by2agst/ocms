@@ -1,0 +1,37 @@
+{
+  "story": "OCMS17.23",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper, helpers/SuspensionProcessingHelper}, crud/ocmsizdb/SuspendedNotice/SuspendedNoticeId, ocmsadminui pages/TS/form/TSForm.tsx. ocmsadminprivateapi utilities/suspension_helpers/{TemporaryRevivalHelper,RevivalBaseHelper}, framework/schedulers/ToppanUploadJobsScheduler",
+  "note": "The code allows several TS on one notice, from the staff portal and from PLUS. processTS does not reject a notice that is already TS; the only overlap check looks at PS (TemporarySuspensionHelper.java:158-179). Each TS is stored as its own ocms_suspended_notice row with a unique sr_no (primary key notice_no + date_of_suspension + sr_no), and auto revival only revives the TS that are due and keeps the rest. Ticket OCMS-DF-2026-027 (duplicate sr_no in a batch) is Closed/Prod deployed; the code now calls the sequence per notice (SuspensionProcessingController.java:997). Which TS type is allowed from which source comes from the ocms_suspension_reason table, whose contents cannot be verified from the repo.",
+  "recommendation": "Fully claimable for applying several TS and storing them separately.",
+  "steps": [
+    {
+      "step": "Staff can apply a TS from OCMS to a notice that already has a TS",
+      "detail": "TSForm.tsx:107 sends POST staff-apply-suspension; staffApplySuspension (SuspensionProcessingController.java:213) processes each notice via processNoticeList (line 231) with no 'already TS' check. The checking mode (SuspensionProcessingHelper.java:366-369) even answers 'success' for a TS on top of a TS."
+    },
+    {
+      "step": "PLUS can apply a TS to a notice that already has a TS",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) goes through processNoticeList (line 546) to tsHelper.processTS (line 1049), the same path as staff."
+    },
+    {
+      "step": "Eligibility rules do not reject a new TS on top of an existing TS",
+      "detail": "processTS only calls validateOverlap (TemporarySuspensionHelper.java:93), and validateOverlap only rejects when VON is PS and that PS does not allow TS (lines 158-179). A notice that is TS passes. The stage and already-paid checks (lines 80-90) apply the same to the first and later TS."
+    },
+    {
+      "step": "Different TS types (different reasons) can be applied, each with its own revival period",
+      "detail": "Each request carries its own reasonOfSuspension; the TS code is checked against the source via checkSourcePermissionFromDb (SuspensionBaseHelper.java:323-335, called from TemporarySuspensionHelper.java:73). calculateRevivalDate uses daysToRevive or the per-reason no_of_days_for_revival from ocms_suspension_reason, default 30 days (TemporarySuspensionHelper.java:182-214). No rule forbids two different reasons on one notice. The contents of ocms_suspension_reason cannot be verified from the repo."
+    },
+    {
+      "step": "Each TS is stored as its own suspension record with a unique sr_no",
+      "detail": "srNo is taken from the SUSPENDED_NOTICE_SEQ sequence for every notice (SuspensionProcessingController.java:997). insertSuspendedNotice saves one row per TS (SuspensionBaseHelper.java:443-466) and the key is noticeNo + dateOfSuspension + srNo (SuspendedNoticeId.java:16-18), so older TS rows are not overwritten. The duplicate sr_no bug in batches (OCMS-DF-2026-027) is closed; the sequence seed on the server cannot be verified from the repo."
+    },
+    {
+      "step": "VON and eVON reflect the latest TS applied",
+      "detail": "updateVON and updateEVON overwrite suspension_type and epr_reason_of_suspension with the new TS reason (TemporarySuspensionHelper.java:124, 127; SuspensionBaseHelper.java:340-346), while older rows stay in ocms_suspended_notice."
+    },
+    {
+      "step": "Auto revival only revives the TS that are due and keeps the other TS active",
+      "detail": "TemporaryRevivalHelper selects active TS whose due_date_of_revival is before tomorrow (TemporaryRevivalHelper.java:215-221), revives only those through updateDatabaseAfterRevivalAll (line 250), then VON is refilled from the remaining TS (RevivalBaseHelper.java:462). Auto Revival is an active job in executeDayEndJobs (ToppanUploadJobsScheduler.java:119); cron.toppanupload.enabled=true in prod."
+    }
+  ]
+}

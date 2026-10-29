@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.32",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/Furnish/hooks/useFurnishAPI.ts (rejectFurnish), src/pages/Notice/{hook/useNoticeSubmit.tsx,form/Form.tsx}, src/pages/Furnish/{form/DecisionForm.tsx,list/FurnishSummaryList.tsx}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, crud/BaseEntity, auth/filter/JwtFilter",
+  "note": "The reject path used by the UI is POST manual-review/reject. The service saves status 'R' and the OIC remarks, then BaseEntity @PreUpdate fills updUserId with the username from the JWT, so status and user ID are stored automatically. Two notes: (1) the email is not 'scheduled', the UI calls reject first and then send-email immediately as a separate call; (2) the user ID is shown only in the 'Updated By' field of the Update Decision tab, and that tab is hidden once the status is A or R (Form.tsx:230), while the summary list only shows status P. I found no other screen that shows status Rejected together with the user ID, so the 'visible when browsing' part is Sebagian. The JWT username value on the real server cannot be verified from the repo.",
+  "recommendation": "Status Rejected and the user ID are stored automatically, can be claimed. The 'shown when browsing' part is only Sebagian because the tab holding the Updated By field is hidden for status R",
+  "steps": [
+    {
+      "step": "When the OIC rejects the submission, the request status automatically becomes Rejected",
+      "detail": "rejectFurnish (useFurnishAPI.ts:92-107) POSTs to manual-review/reject with txnNo, reviewedBy and remarks; it is called from useNoticeSubmit.tsx:198-200 when decissionStatus = R. ManualReviewController.rejectSubmission (:257-280) hands over to ManualReviewService.rejectSubmission, which does setStatus('R') and furnishService.update (:466-470), then syncs to the PII DB (:471). The status changes with no extra manual step. The email is not scheduled: the UI calls send-email immediately after reject succeeds (useNoticeSubmit.tsx:214-217)."
+    },
+    {
+      "step": "The OIC's user ID is stored as the rejecting party",
+      "detail": "OcmsFurnishApplication extends BaseEntity (OcmsFurnishApplication.java:21). On update, @PreUpdate sets updUserId = the username from the request attribute set by JwtFilter (BaseEntity.java:105-109, 114-128; JwtFilter.java:146). The controller rejects a request without reviewedBy (ManualReviewController.java:270-274). Note: remarks are stored exactly as the OIC typed them (ManualReviewService.java:467-469); the user ID reaches remarks only when the OIC leaves remarks empty ('Rejected by <user>'). The JWT username value on the real server cannot be verified from the repo."
+    },
+    {
+      "step": "Rejected status and the OIC user ID are visible when users browse in OCMS",
+      "detail": "The Status field (label from FURNISH_STATUS) and 'Updated By' (updUserId) exist in DecisionForm.tsx:179-185 and :419. But the Update Decision tab that holds DecisionForm is not rendered when the status is A or R (Form.tsx:92-96, 230), and FurnishSummaryList only fetches status P (:60). I found no other screen showing status Rejected together with the user ID, so only Sebagian."
+    }
+  ]
+}

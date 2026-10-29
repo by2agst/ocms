@@ -1,0 +1,25 @@
+{
+  "story": "OCMS15.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/CPS/page/CPSSearch.tsx (formSearchToParams, Datagrid), utils/validation/CPS/ValidCPSSearch.ts + NoticeSearch/Valid.ts (format), components/datagrid/template/template2/Form.tsx (error modal), components/datagrid/table/TableBody.tsx (default empty text), pages/CPS/form/CPSForm.tsx (validate result modal); ocmsadminapi OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices (counts ineligible), ChangeOfProcessingController.validateChangeProcessingStage, EligibilityService}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The story asks for an error message when the search value is invalid (wrong notice number, already paid, cancelled, etc.) or when no applicable notice is found. What exists: error messages for a wrong notice no/vehicle no format and for an incomplete criteria combination. For notices that are paid, NPA, court or under PS (including cancelled), the API counts them in summary.ineligible but the UI never reads that summary (no use of summary/ineligible in pages/CPS or components/datagrid), so those notices vanish silently without a reason. An empty result only shows the default text 'No records to display' in the grid, not an error message. Per-notice reason messages only appear in the next step (validate) for notices that were already selected. The ID No format is not validated in the CPS UI. How the UI handles a 400/500 response from the API was not traced (cannot verify). Maintenance tickets: none touches this search messaging.",
+  "recommendation": "Claim partially (Evidence 50%): format and combination messages exist, but there is no reason message for paid/cancelled/court/PS notices and an empty result is only default text. A dedicated UI error message using summary.ineligible is needed",
+  "steps": [
+    {
+      "step": "An invalid search value (wrong notice no or vehicle no format, incomplete criteria) shows an error message",
+      "detail": "ValidCPSSearch attaches the NoticeNo validator (message 'Invalid notice no.', translation.json:988-991) and VehicleNo ('Number does not match the local vehicle number format', Valid.ts:38). When Search is pressed, a failing validate() or formSearchToParams is shown in a ModalAlert (template2/Form.tsx:80-96); formSearchToParams also throws 'Please enter another field...' or 'Please enter Current Processing Stage field...' (CPSSearch.tsx:270-290). The ID No format is not validated here."
+    },
+    {
+      "step": "A notice that is paid, cancelled or otherwise not applicable gives an error message with the reason",
+      "detail": "The API drops paid, NPA, non-eligible stage and active PS notices (cancelled is a PS) and only counts them in summary.ineligible (Service:376-441). The UI does not read that summary: the Datagrid only takes data[] (CPSSearch.tsx:333-364) and a grep for summary/ineligible in pages/CPS and components/datagrid finds nothing. The notice simply disappears, with no error message or reason."
+    },
+    {
+      "step": "If no applicable notice is found, OCMS shows a message",
+      "detail": "The grid uses the default empty text 'No records to display' (TableBody.tsx:19) because CPSSearch only sets label.title (CPSSearch.tsx:341-343). There is a notification, but it is not an error message and it does not tell 'wrong value' from 'no applicable notice'. The API response stays 200 with empty data (Controller:254-259)."
+    },
+    {
+      "step": "Selected notices that may not be changed are rejected with a reason per notice",
+      "detail": "On Proceed to CPS the UI calls POST change-processing-stage/validate and shows a modal '<n> notice(s) cannot be changed' with noticeNo and message, e.g. 'Notice is at court stage' or 'Notice has permanent suspension (PS-xxx)' (CPSForm.tsx:113-145; EligibilityService:86-98). The reason messages exist, but they appear after the notices were selected, not in the search result as the story asks."
+    }
+  ]
+}

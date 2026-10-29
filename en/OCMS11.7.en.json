@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: ToppanLettersGeneratorJob + ToppanUploadJob + ToppanUploadHelper (stage RD1, Toppan file, stage update), OcmsValidOffenceNoticeRepository (selection query), AgencyFileExchangeServiceImpl (fixed-width file format), ComcryptUploadProcessor + SftpUtil (SFTP delivery to Toppan, blocked by config), application-{dev,uat,prod}.properties and cron-schedules-prod.properties. Other repos: no relevant code",
+  "note": "Status in stories.json: Demo paid (50% of 75%). The 00:15 Toppan Upload cron (enabled in prod) runs the RD1 stage: selects notices, fills the letter_address='Y' address, builds a fixed-width data file (header + 719-character detail lines; NRIC blanked), puts it in Azure Blob and asks COMCRYPT to encrypt it for the Toppan SFTP. The core of the story (file reaches the vendor) is blocked by config: sftp.upload.disabledServers=toppan in dev, uat and prod (application-prod.properties:86). While the block is active the delivery gate is bypassed and the notice stage still advances to RD2 although the file was not delivered (ToppanUploadJob.java:424-446), so the notice status can say the letter was sent when it was not; OCMS-DF-2026-192 (Ready to UAT, not in prod) is the related fix. Only the data-file format exists for RD1; PDFs are only generated for the Advisory Notice (ANL). The Toppan, COMCRYPT and SFTP services: cannot verify from repo; property values in Azure: cannot verify from repo. Vault permission: cannot verify from repo.",
+  "recommendation": "Partial claim: RD1 file generation and stage update exist, SFTP delivery to the vendor is blocked by config and the stage still advances while blocked",
+  "steps": [
+    {
+      "step": "A daily job generates and sends the 1st letter reminder (RD1) file to the vendor",
+      "detail": "The Toppan Upload cron runs at 00:15 and is enabled in prod (cron-schedules-prod.properties:61-62). ToppanLettersGeneratorJob loops over all ToppanStage values (RD1, RD2, RR3, DN1, DN2, DR3, ANL) in order (ToppanLettersGeneratorJob.java:151-166; enum ToppanStage.java:25-31), RD1 = Reminder 1. Delivery to the vendor is judged in step 6. Double check: the 00:15 schedule (process_dayend_jobs) exists and is enabled, but the call to toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs (line 119) is commented out, so letter generation only runs through the manual trigger POST /toppan/generate-letters. Rated Partial."
+    },
+    {
+      "step": "OCMS selects the notices entitled to the 1st letter reminder",
+      "detail": "The findToppanNoticesForStage query: next_processing_stage = 'RD1', next_processing_date <= today, suspension_type IS NULL, offender_indicator 'Y', not an Advisory Notice (OcmsValidOffenceNoticeRepository.java:608-612), called from ToppanUploadHelper.java:1887 through ToppanUploadJob.java:245-249. Foreign vehicles (vehicle_registration_type F) without PS-FOR are dropped and given PS-FOR (ToppanUploadHelper.java:1935-1965)."
+    },
+    {
+      "step": "The letter address is taken from the owner's latest particulars (letter_address) and notices without an address are skipped",
+      "detail": "Notices are enriched with addresses by priority (Step 3c, ToppanUploadHelper.java:2020-2023), notices without a deliverable address are dropped (Step 4 F-17, 2026-2050), then only letter_address = 'Y' continues (filterByLetterAddress, ToppanUploadHelper.java:2372-2400; called at ToppanUploadJob.java:266). The particulars themselves come from the MHA/LTA updates (see OCMS11.6)."
+    },
+    {
+      "step": "OCMS builds the data file (PDF/data format) with the letter details for the vendor to print",
+      "detail": "File name URA-DPT-RD1-D1-<timestamp> (ToppanUploadJob.java:278-281); content built by createToppanRequestFileContent: header 'H' + date/time, fixed-width 719-character 'D' detail lines with letter date, notice no, name, address, vehicle no, place and rule infringed, etc., sorted by postal code, NRIC deliberately blanked (AgencyFileExchangeServiceImpl.java:564-603, 648-700). For RD1 only a data file is produced; PDFs are only generated for ANL (ToppanUploadJob.java:323-340), so the vendor prints from the data file, matching the story's 'PDF/data file' option."
+    },
+    {
+      "step": "The file is stored in Azure Blob and encrypted through COMCRYPT for sending to the vendor",
+      "detail": "The original file is uploaded to Azure Blob (uploadToBlob, ToppanUploadJob.java:311-316), then comcryptTokenHelper.requestToken asks for encryption (346-353); the COMCRYPT callback places the encrypted file on the SFTP. The COMCRYPT service and its output: cannot verify from repo."
+    },
+    {
+      "step": "The file is sent to the vendor (Toppan) through SFTP",
+      "detail": "The sending code exists (COMCRYPT callback -> SFTP), but sftp.upload.disabledServers=toppan in prod, uat and dev (application-prod.properties:86; application-uat.properties:77; application-dev.properties:77). SftpUtil.isServerUploadDisabled (SftpUtil.java:111-113) makes ComcryptUploadProcessor throw SftpDisabledException and keep the operation record (ComcryptUploadProcessor.java:206-209), so the RD1 file does not reach Toppan while the property is set. The property comments cite OCMS-DF-2026-170; OCMS-DF-2026-192 (Ready to UAT) describes the stage not advancing while the block is active. Whether the block is lifted in Azure prod: cannot verify from repo."
+    },
+    {
+      "step": "After delivery the notice moves to the next stage (RD2) and is recorded as sent a letter",
+      "detail": "After delivery is confirmed, updateProcessingStage sets last stage RD1, next stage RD2 + duration days, amount_payable, and admin fee 0 at non-RR3/DR3 stages (ToppanUploadHelper.java:1366-1421; OCMS-DF-2026-170 fix), and records the tracking table and letter_address (235-330). Partial because the delivery gate is bypassed while SFTP is blocked (ToppanUploadJob.java:424-446): the stage still advances to RD2 and the notice counts as sent a letter although the file was not delivered. A notice can lose its 1st letter without a resend; OCMS-DF-2026-192 (Ready to UAT) still awaits business confirmation on this behaviour."
+    }
+  ]
+}

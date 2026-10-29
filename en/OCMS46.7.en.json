@@ -1,0 +1,25 @@
+{
+ "story": "OCMS46.7",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "No email trigger from a refund advice to Cumulus. Closest code: PaymentExceptionReportJob + PaymentExceptionReportHelper (ocmsadminprivateapi) sending a daily report with REFUND records to the recipient list in application-prod.properties.",
+ "note": "Status Removed. Not claimed. There is no Cumulus interface, so no email is triggered by a refund advice sent to Cumulus. Similar: the daily Payment Exception Report (cron.dailyreport at 08:00) emails a URA recipient list with REFUND records. Whether those recipients are Finance officers cannot be verified from the repo. In prod email.enableSmtp=false but the source PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources, so sending still proceeds; the value on the real server cannot be verified from the repo. Tickets: OCMS-SR-2026-112 (Closed, Refund ID column and refund flagging in the Exception report), OCMS-SR-2026-157 (Closed, merged into another ticket).",
+ "recommendation": "Not claimed (Removed)",
+ "steps": [
+  {
+   "step": "Refund advice is interfaced to Cumulus",
+   "detail": "No code interfaces a refund advice to Cumulus (grep cumulus gives zero hits in all repos, same as OCMS46.6 step 1). The trigger event named in the story does not exist."
+  },
+  {
+   "step": "A daily email goes out, not one per refund advice",
+   "detail": "The email is sent by a daily job (EmailService.sendEmail at line 216; cron.dailyreport.schedule=0 0 8 * * ? and enabled=true in cron-schedules-prod.properties:255-256), not triggered per refund advice. Payment Exception Report is the first job in cron.dailyreport (line 262). The email carries the refund records of the day, not a notification about a refund advice sent to Cumulus."
+  },
+  {
+   "step": "Email carries refund details",
+   "detail": "The Excel attachment has columns Refund Date/Time, Refund ID, Refund Reason (header lines 527-529), plus Receipt No, Notice No, Amount Paid; REFUND records are read from ocms_refund_notice (lines 123-141, tagged exception_type REFUND at line 167). refund_amount is not in the header, and there are no refund advice details from Cumulus (status/bank)."
+  },
+  {
+   "step": "Email goes to URA Finance officers",
+   "detail": "Recipients = email.report.paymentreport.exception.recipients (application-prod.properties:78, read in PaymentExceptionReportJob.java:55-56), 9 ura.gov.sg addresses with no role label. Whether these are URA Finance officers cannot be verified from the repo. email.enableSmtp=false (line 80) but PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources (line 81) and the job sets that source (PaymentExceptionReportJob.java:204), so sending proceeds; the value on the real server cannot be verified from the repo."
+  }
+ ]
+}

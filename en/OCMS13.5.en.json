@@ -1,0 +1,25 @@
+{
+  "story": "OCMS13.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx, pages/NoticeUPL/{List/EndorseList,List/NoticeEndorseList,Form/EndorseForm,Form/ModalForm,Hooks/useEndorsement}, pages/Notice/form/Form.tsx, utils/mapping/NoticeUPL.ts, utils/config/env.ts, envConfig/.env.*. The approvalinbox and workflow endpoints: not found in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi",
+  "note": "Status 'Demo paid (50% of 75%)'. The story asks that the work item (with offence information and history) is routed to the 2OIC so the 2OIC can review and endorse/reject. The UI has a /upl/endorsement page, a decision-detail modal and an endorse form (Decision Y/N + remark), but: the endorsement list is only loaded when isAPIFound (VITE_ENV STAGING or LOCAL), while the DEV/UAT/PRO builds use DEV/UAT/PRO, so the list is not rendered in deployed builds (EndorseList.tsx:37,50-53,81); submit calls the 'workflow' resource (command UPL_APPROVAL), which does not exist in the six repos; there is no 2OIC role in the UI or the server ('2OIC' appears in no repo, api-authorization.properties has no UPL mapping); and the offender history is not shown because its tab is commented out. Routing to the 2OIC does not exist because the work item gets allocated_to = its creator (same as OCMS13.4 step 5). Ticket OCMS-SR-2026-193 (Ready to UAT): 'UPL processing logic has not been implemented in OCMS'. The API host the UI calls and any backend outside the six repos: cannot verify from repo. A rejection returned to the officer (OCMS13.6) and the update after endorsement (OCMS13.7) are not part of this story.",
+  "recommendation": "Do not claim as done. The endorsement UI exists but does not work in deployed builds and has no backend; routing to the 2OIC and a 2OIC role restriction do not exist. Ask the team to confirm the workflow/approvalinbox backend and show an endorsement stored in the database",
+  "steps": [
+    {
+      "step": "The work item (with offence information and history) is routed to the 2OIC",
+      "detail": "The UI creates the work item with allocated_to = the logged-in user (hard-coded, NoticeUPL.ts:194), not the 2OIC; there is no '2OIC' role or concept in the six repos, no backend receiving the work item (useEndorsement.tsx:119-121), and the offender history is not mounted on any page (the UPL History tab is commented out, Form.tsx:346-350). Same fact as OCMS13.4 step 5, so the same fit."
+    },
+    {
+      "step": "The 2OIC sees the list of decisions awaiting endorsement",
+      "detail": "The route /upl/endorsement exists (App.tsx:85). But the notice list is only loaded after a GET on the approvalinbox resource, and that only when isAPIFound (= STAGING or LOCAL, env.ts:11) (EndorseList.tsx:36-37, 50-53); the notices state stays null and the list is not rendered (EndorseList.tsx:81) in the DEV/UAT/PRO builds (VITE_ENV=DEV/UAT/PRO, envConfig/.env.*). The approvalinbox backend is not in the six repos. The execution of this step is switched off by a build flag, hence Sebagian (addendum convention); whether a STAGING build with another backend exists: cannot verify from repo."
+    },
+    {
+      "step": "The 2OIC reviews the decision together with the offence information and history",
+      "detail": "The endorse modal shows the decision details: compoundable, target stage, rule code, composition amount, date, officer and remark (DecisionRequestDetail, ModalForm.tsx:54-125) and the notice row from the list (brief offence information). The offender's offence history (UPLHistory) is not shown because its tab is commented out (Form.tsx:346-350), and the decision data comes from approvalinbox, which has no backend (OCMS13.4 step 4). Sebagian."
+    },
+    {
+      "step": "The 2OIC endorses or rejects the decision",
+      "detail": "EndorseForm offers Decision Y/N and a remark (EndorseForm.tsx:44-56). Submit POSTs to the 'workflow' resource with command UPL_APPROVAL (useEndorsement.tsx:155-157, MapPostUPLEndorseDecision NoticeUPL.ts:104-127), then on Y changes the stage to DN1/CPC and calls court-process/process-cpc (useEndorsement.tsx:188-226). There is no workflow, approvalinbox or court-process/process-cpc endpoint in the six repos (only /change-processing-stage exists, which this UI does not call), and there is no 2OIC role restriction in the UI or the server. The form exists but its result is not processed; Sebagian."
+    }
+  ]
+}

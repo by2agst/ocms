@@ -1,0 +1,21 @@
+{
+  "story": "OCMS44.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Payment/PaymentCash.tsx + utils/mapping/Payment/Cash.ts (single-notice display on the Update Manual Payment page), pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx + hook/useBatchOperation.ts (separate outstanding list). ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentUpdateController}. No code in the other repos.",
+  "note": "Status 'Fully paid' in the sheet. The payment page shows one notice (Notice No., Vehicle No., Amount Paid prefilled from amountPayable) and does not filter for outstanding: an already paid notice still appears with an alert and a locked form (PaymentCash.tsx:236-243, 277-284). The real outstanding list (suspension type filter, offenderIndicator Y, amount payable column, checkboxes) lives on the Search Outstanding Notices page, but its checkboxes feed batch operations (suspend, revive, furnish) and CSV export, not payment recording. Two edge cases: (1) a notice that is not found still opens the form with an Update button (PaymentCash.tsx:157-174, 236-243, 397) and the server answers a generic 500 error (PaymentUpdateController.java:52-60); (2) the Summons No./NTAC No. field is always empty because it is mapped to an empty string (Cash.ts:18). No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially: single-notice details and amount payable show on the payment page. The outstanding list and multi-notice selection for payment are not connected; fix the notice-not-found edge case.",
+  "steps": [
+    {
+      "step": "OCMS displays the notice found by the search with its details and amount payable",
+      "detail": "After Search the page shows Notice No., Vehicle No. and fills Amount Paid with amountPayable (PaymentCash.tsx:290-339; Cash.ts:19-21). Only one notice per search ($limit 1, PaymentCash.tsx:50-63). Gap: if the notice is not found, data is null but the form still appears with an Update button (PaymentCash.tsx:157-174, 236-243, 397); the next POST fails with 'Notice not found' in the service and the controller returns a generic 500 (PaymentUpdateServiceImpl.java:147-152; PaymentUpdateController.java:52-60). Summons No./NTAC No. is always empty (Cash.ts:18)."
+    },
+    {
+      "step": "Only notices that are still outstanding are displayed",
+      "detail": "The payment page does not filter: a PS-FP/PS-PRA or TS-PP notice still appears, with a 'has been paid' alert and locked fields (PaymentCash.tsx:236-243, 277-284). Minor bug: the TS-PP check that loads payment data compares eprDateOfSuspension (a date field) with 'PP' (PaymentCash.tsx:117, 169) while the disabled flag uses eprReasonOfSuspension (PaymentCash.tsx:241). The real outstanding filter is in the Search Outstanding Notices list: suspension type empty/TS, or PS with certain reasons, offenderIndicator Y, amount payable column (NoticeSearchOutstandingList.tsx:105-124, 137-139, 178), but that is a page separate from the payment flow."
+    },
+    {
+      "step": "Officer selects notice(s) from the results to record payment",
+      "detail": "On the payment page 'select' means typing one Notice No. and pressing Search; there is no multi-notice selection (PaymentCash.tsx:148-214). The outstanding list has checkboxes (NoticeSearchOutstandingList.tsx:145-152), but their actions are batch operations: staff-check-suspension-eligibility, staff-revive-eligibility, furnish-redirect-check (useBatchOperation.ts:137, 239, 303) and CSV export; no action leads to /payment/cash (grep 'payment' in pages/NoticeSearch: 0 hits)."
+    }
+  ]
+}

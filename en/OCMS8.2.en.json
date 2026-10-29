@@ -1,0 +1,33 @@
+{
+  "story": "OCMS8.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: schedulers/MhaDownloadJobsScheduler, datahiveuenfin/{jobs/DataHiveUenFinJob,helpers/DataHiveUenFinHelper,services/DataHiveUenFinService}, services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, agencies/mha/upload/helpers/MhaNricDataHelper (letter address reset), cron-schedules-{prod,uat}.properties. Staff UI and other repos: no separate trigger",
+  "note": "Status 'Fully paid'. 'DOS' in the story is read as the government data source reached through DataHive: the UEN is sent to the ACRA views (V_DH_ACRA_FIRMINFO_R for registered and _D for deregistered); the entity name goes into the company_detail table and owner_driver.name, and the address is stored as an mha_reg record. Two things differ from the story text: the UEN is only sent for company notices due at a reminder stage (not every company every day), and the schedule is Mon-Sat 3 times a day, skipping public holidays. Most important: cron-schedules-prod.properties:52 sets cron.mhadownload.uenfin.enabled=false, so this job does not run in PROD at this commit (UAT is true). Something the story does not ask for but exists: company notices that are not found, deregistered or have a blank address are automatically put on TS-ACR (logged in orphans). No maintenance ticket names this job (OCMS-DF-2026-137 is only about UEN format validation, Closed). DataHive view names in PROD: cannot verify from repo.",
+  "recommendation": "Claim partially. The logic that receives and stores entity name and address from DataHive/ACRA is complete, but the job is switched off in PROD and only processes due notices. Ask URA whether 'daily for all companies' is intended, and when the PROD flag will be switched on.",
+  "steps": [
+    {
+      "step": "OCMS selects the company notices (ID type B / UEN) that need follow-up",
+      "detail": "The query selects id_type B (and F), offender Y, stage RD1/RD2/RR3/DN1/DN2/DR3, next_processing_date <= today, suspension_type NULL, not in ocms_nro_temp and not HST (DataHiveUenFinService.java:221-246). Adhoc UNC/HST records of type B also come in from ocms_adhoc_nro_temp (lines 325-327). So the UEN is only sent for company notices due at a reminder stage, not for every company every day as the story text says."
+    },
+    {
+      "step": "The process runs every day",
+      "detail": "Scheduler cron.mhadownload.schedule = '0 30 11,16,23 ? * MON-SAT' (cron-schedules-prod.properties:119-120), public holidays are skipped (MhaDownloadJobsScheduler.java:67-69). The 'DH UEN and FIN' job runs after the MHA job only when uenFinEnabled is true (lines 101-107). In PROD cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52), UAT is true (cron-schedules-uat.properties:52). So it does not run in PROD at all, and Sundays and public holidays are skipped by design."
+    },
+    {
+      "step": "OCMS sends the UEN to DOS (DataHive/ACRA)",
+      "detail": "batchProcessUenRecords calls batchRetrieveUENData (DataHiveUenFinService.java:1031). The UENs are sent as an IN query (batch 1000) to the views V_DH_ACRA_FIRMINFO_R and V_DH_ACRA_FIRMINFO_D (DataHiveUENBatchService.java:48-49, 392-410). Partial because: the DataHive view names in PROD are not yet verified according to the comment at cron-schedules-prod.properties:51, and the DataHive connection cannot be proven from the repo (cannot verify from repo). Note: the UEN list is built by string concatenation (lines 393-395), not parameters."
+    },
+    {
+      "step": "OCMS receives the latest entity name and address from DOS",
+      "detail": "The view rows are read into CompanyInfo: ENTITY_NAME, ENTITY_TYPE, status, registration/deregistration dates and ADDRESS_ONE_* (block, level, unit, street, building, postal) (DataHiveUENBatchService.java:397-402). Registered/deregistered is told apart by the SOURCE column R/D and recorded in uenStatusMap (DataHiveUenFinService.java:1040-1044). When the company is not found, storing stops and TS-ACR is applied (lines 1366-1370)."
+    },
+    {
+      "step": "OCMS updates the company entity name on the notice record",
+      "detail": "updateCompanyDetails creates or patches the company_detail row per (uen, noticeNo) with entityName, status, type and dates (DataHiveUenFinService.java:1380, 1600-1631). updateCompanyName patches owner_driver.name for noticeNo + idNo + offenderIndicator Y (lines 1410, 1798-1812). It runs before the empty-name check (lines 1422-1425), so a returned name is stored."
+    },
+    {
+      "step": "OCMS updates the company address on the notice record",
+      "detail": "updateCompanyAddress reads block, level, unit, street, building and postal from DataHive, then updateCompanyAddressWithNullSupport inserts or updates the owner_driver_addr record of type mha_reg for that notice and owner/driver indicator, including overwriting with NULL when DataHive is blank, and sets letter_address Y when none exists (DataHiveUenFinService.java:1633-1710, 1723-1790). A blank address or blank street/block is flagged TS-ACR (lines 1386-1397). The old letter address is reset before processing (DataHiveUenFinJob.java:219)."
+    }
+  ]
+}

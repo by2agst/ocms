@@ -1,0 +1,55 @@
+{
+  "story": "OCMS13.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (exclusion list), framework/workflows/agencies/mha/{upload/helpers/MhaNricDataHelper,upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, framework/workflows/datahiveuenfin/services/DataHiveUenFinService, framework/workflows/agencies/toppan/upload/{models/ToppanStage,jobs/ToppanUploadJob}, framework/schedulers/ToppanUploadJobsScheduler, resources/{application-prod,cron-schedules-prod}.properties. Tidak ada code khusus UPL; mekanisme MHA/DataHive dan Toppan generik. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status 'Demo paid (50% of 75%)'. Demo remark: Vault perlu jalan karena notice butuh info kendaraan/owner dan permission Vault diberikan ke App Service api. Story minta: setelah e-reminder terkirim atau offender opt-out, OCMS mengecek dan meng-update particulars (Epic OCMS8) agar surat ke-2 bisa dikirim. Di code tidak ada penghubung e-reminder atau opt-out ke pengecekan particulars; keduanya berjalan sendiri-sendiri berdasarkan next_processing_stage dan next_processing_date. Pengecekan MHA mengambil notice dengan next_processing_stage RD1..DR3 (termasuk DN2) yang jatuh tempo besok, sehingga notice UPL ikut diperiksa sebelum surat DN2. Cakupan sama dengan OCMS8.1/8.3/8.4: NRIC lewat MHA, FIN dan UEN lewat DataHive (job mati di prod, cron.mhadownload.uenfin.enabled=false), passport tidak punya jalur. Tiket: OCMS-DF-2026-183 (Pending Closure, MHA tidak bisa memproses beberapa file enquiry yang menumpuk), OCMS-DF-2026-125 dan -133 (Closed; remark: MHA cron belum dinyalakan di Production saat itu), OCMS-DF-2026-192 (Ready to UAT, block Toppan). Nilai server asli, koneksi MHA/SFTP/COMCRYPT dan Vault: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Pemilihan notice NRIC ke MHA sebelum DN2 sesuai; FIN/UEN/passport dan pengiriman surat ke-2 tidak penuh. Konfirmasi dengan URA/tim apakah jalur MHA/DataHive generik cukup sebagai pengganti rantai e-reminder lalu cek particulars lalu surat ke-2 di story",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "E-reminder sudah terkirim atau offender terdeteksi opt-out dari pengingat elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1217; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Opt-out dicek lewat tabel ocms_enotification_exclusion_list: loadAllExcludedIds memuat semua ID (NotificationSmsEmailHelper.java:1207-1217) dan record yang ID-nya ada di daftar dilewati (NotificationSmsEmailJob.java:194-232). loadAllExcludedIds mengembalikan set kosong bila query gagal, sehingga pengecekan gagal terbuka (fail-open). Tidak ada code yang memakai hasil 'e-reminder terkirim' atau 'opt-out' untuk melepas notice ke langkah berikutnya; stage maju berdasarkan next_processing_date. Job dimatikan di prod (cron.notification.enabled=false, cron-schedules-prod.properties:236)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice pemegang NRIC lokal yang akan menerima surat ke-2 untuk dicek ke MHA/ICA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:186-199; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "MhaNricDataHelper memilih ocms_valid_offence_notice dengan nextProcessingStage IN (RD1, RD2, RR3, DN1, DN2, DR3) dan nextProcessingDate <= besok (MhaNricDataHelper.java:186-199), suspension NULL atau TS-HST/UNC, lalu owner/driver offender_indicator Y dan idType N (:345-346). Karena DN2 ada di daftar, notice UPL yang akan menerima surat ke-2 ikut diperiksa sehari sebelumnya. Job upload MHA enabled=true di prod (cron-schedules-prod.properties:105-106). Fit sama dengan langkah 1 OCMS8.3. Catatan: remark OCMS-DF-2026-125/-133 (Juni) menyebut MHA cron belum dinyalakan di Production; nilai server sekarang cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender ber-ID FIN, UEN atau foreign passport juga dicek particulars-nya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "FIN dan UEN dipilih job DataHive dengan id_type IN ('F','B') (DataHiveUenFinService.java:239), tetapi job itu hanya jalan bila cron.mhadownload.uenfin.enabled=true dan di prod false (cron-schedules-prod.properties:52). Passport (idType P) tidak punya query atau view sama sekali; pemilihan MHA hanya idType N (MhaNricDataHelper.java:346), jadi bagian passport Tidak ada code. Fit sama dengan OCMS8.3 dan OCMS8.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim ID ke MHA dan meng-update particulars offender (nama, tanggal lahir, alamat, life status)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:217; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:729; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:854-858",
+      "fit": "Sebagian",
+      "detail": "MhaNricUploadJob membaca data notice (MhaNricUploadJob.java:156), membuat file enquiry dan menaruhnya di blob (:217) untuk dienkripsi COMCRYPT dan dikirim ke SFTP MHA. Hasilnya diproses MhaNricDownloadHelper: name dan lifeStatus ditulis ke owner/driver (MhaNricDownloadHelper.java:729, 854-858) beserta alamat mha_reg dan DOB/DoD. Sebagian karena OCMS-DF-2026-183 (Pending Closure) melaporkan MHA tidak bisa memproses beberapa file enquiry yang menumpuk di SFTP /mhanro/input, dan koneksi SFTP/COMCRYPT/MHA: cannot verify from repo. Fit sama dengan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice siap menerima surat pengingat/pemberitahuan ke-2 (stage DN2)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:22; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:419-433",
+      "fit": "Sebagian",
+      "detail": "Stage DN1 menunjuk DN2 sebagai stage berikutnya dengan jeda 14 hari (ToppanStage.java:22), jadi notice masuk antrean surat ke-2 setelah surat DN1. Pembuatan surat sendiri hanya lewat trigger manual karena pemanggilan generate di scheduler di-comment (ToppanUploadJobsScheduler.java:118), dan sftp.upload.disabledServers=toppan membuat stage tetap maju tanpa konfirmasi pengiriman (ToppanUploadJob.java:419-433; OCMS-DF-2026-192). Pengiriman surat ke-2 adalah cakupan OCMS13.11."
+    }
+  ]
+}

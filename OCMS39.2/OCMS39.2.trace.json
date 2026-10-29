@@ -1,0 +1,64 @@
+{
+  "story": "OCMS39.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload (ToppanStage, ToppanLettersGeneratorJob), framework/schedulers/{ToppanUploadJobsScheduler,NotificationJobsScheduler}, framework/controllers/ToppanUnifiedController, framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper,jobs/NotificationSmsEmailJob}, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi crud/ocmsizdb/enotificationexclusion, api-authorization.properties. ocmsadminui pages/ENotifExclusion, pages/Cron/list/CronList.tsx, App.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Story minta officer bisa enable/disable pengiriman letter reminder dan electronic reminder per notice type. Status sheet 'Fully paid' tidak didukung code untuk bagian konfigurasinya. Mekanisme kirimnya ada (Toppan untuk RD1..DR3, SMS/email untuk ENA dan RD1..DR3), tetapi tidak ada switch enable/disable yang bisa diatur officer dan tidak ada filter notice type: satu-satunya saklar adalah properties deployment (cron.toppanupload.enabled, cron.notification.enabled, sms.enable, email.enableSmtp, sftp.upload.disabledServers), yang berlaku global dan butuh deploy/ubah konfigurasi server. Yang ada di portal hanya (a) halaman Cron dengan tombol Run now, bukan saklar, dan (b) E-Notification Exclusion per ID No (bukan per notice type, stage, atau channel). Di properties prod: cron.notification.enabled=false, sms.enable=false, email.enableSmtp=false, sftp.upload.disabledServers=toppan, dan pemanggilan executeJob() Toppan di scheduler day-end di-comment, jadi di repo semua pengiriman reminder bersifat non-aktif atau manual. Nilai server asli cannot verify from repo. Exclusion list fail-open: kalau pembacaan gagal, daftar kosong dan semua orang dikirimi.",
+  "recommendation": "Jangan klaim bagian konfigurasi enable/disable per notice type. Yang bisa ditunjukkan hanya mekanisme kirim, tombol manual di halaman Cron, dan exclusion list per ID. Minta URA/tim konfirmasi apakah saklar lewat properties dan exclusion list per ID diterima untuk story ini, atau tandai sebagai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Letter reminder (RD1, RD2, RR3, DN1, DN2, DR3) dibuat dan dikirim ke Toppan",
+      "repo": "ocmsadminprivateapi, ocmsadminui",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:151-156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-25; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminui/src/pages/Cron/list/CronList.tsx:45; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Job generator memproses semua stage di enum ToppanStage (RD1, RD2, RR3, DN1, DN2, DR3, ANL; ToppanLettersGeneratorJob.java:151-156, ToppanStage.java:19-25). Tetapi pemanggilan toppanLettersGeneratorService.executeJob() di executeDayEndJobs di-comment (ToppanUploadJobsScheduler.java:118), jadi letter hanya dibuat lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34), yang di portal staff muncul sebagai tombol 'Toppan Generate Letters' di halaman Cron (CronList.tsx:45). Di prod sftp.upload.disabledServers=toppan (application-prod.properties:86), jadi upload ke Toppan dimatikan dan delivery gate dilewati (OCMS-DF-2026-192, Ready to UAT). Nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa enable/disable pengiriman letter reminder dari portal",
+      "repo": "ocmsadminprivateapi, ocmsadminui",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:59-60; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:112; ocmsadminui/src/pages/Cron/list/CronList.tsx:41-67",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada saklar yang bisa diubah officer. Satu-satunya flag adalah properties deployment cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62), berlaku global untuk seluruh job day-end dan bukan per stage atau notice type. Property toppan.unified.process.all.stages (ToppanLettersGeneratorJob.java:59-60) hanya muncul di ringkasan job (ToppanLettersGeneratorJob.java:112), tidak memfilter stage. Halaman Cron di staff portal hanya berisi tombol trigger (CronList.tsx:41-67), tanpa toggle enable/disable. Tidak ada endpoint atau tabel pengaturan untuk ini di ocmsadminapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman letter reminder bisa diatur per notice type",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:151-156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1974-2002",
+      "fit": "Tidak ada code",
+      "detail": "Loop letter selalu atas semua ToppanStage tanpa parameter atau filter notice type (ToppanLettersGeneratorJob.java:151-156). Penyaringan notice di ToppanUploadHelper memakai stage, vehicle type (foreign, military, diplomatic; ToppanUploadHelper.java:1974-2002) dan ketersediaan alamat, bukan offence_notice_type (grep offence_notice_type di ToppanUploadHelper.java kosong). Tidak ada tabel atau parameter yang menyimpan flag kirim per notice type."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Electronic reminder (SMS dan email) dikirim untuk stage ENA dan RD1 sampai DR3",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:992-1000; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:313-316; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:30-31; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:49-54; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:234-236; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminprivateapi/src/main/resources/application-prod.properties:87",
+      "fit": "Sebagian",
+      "detail": "Query ENA (NotificationSmsEmailHelper.java:992-1000) dan query reminder untuk stage RD1, RD2, RR3, DN1, DN2, DR3 (NotificationSmsEmailHelper.java:1076-1114) memilih notice yang jatuh tempo untuk dikirimi SMS/email. Tetapi kanal EMAIL dilewati untuk stage DN1, DN2, DR3 karena tidak ada template (NotificationSmsEmailHelper.java:313-316). Di prod cron.notification.enabled=false (cron-schedules-prod.properties:234-236; dicek di NotificationJobsScheduler.java:49-54), sms.enable=false (application-prod.properties:87) dan email.enableSmtp=false (application-prod.properties:80), jadi di repo pengiriman nonaktif. Job hanya bisa jalan lewat tombol 'ENA Reminder' di halaman Cron (CronList.tsx:47). Nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa mengecualikan penerima dari electronic reminder lewat exclusion list",
+      "repo": "ocmsadminui, ocmsadminapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminui/src/App.tsx:302-309; ocmsadminui/src/pages/ENotifExclusion/form/ExclusionForm.tsx:144-162; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:87; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:166; ocmsadminapi/src/main/resources/api-authorization.properties:156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-228; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1216",
+      "fit": "Sebagian",
+      "detail": "Halaman E-Notification Exclusion (App.tsx:302-309) menyimpan ID No dan remarks (ExclusionForm.tsx:144-162) lewat endpoint enotificationexclusion (create, list, patch, delete; EnotificationExclusionController.java:50,87,102,166; fungsi OCMS_ENOTIF_EXCLUSION di api-authorization.properties:156). Job notifikasi memuat daftar itu dan melewati penerima yang ada di dalamnya; untuk ENA, penerima yang di-opt-out dipindah ke jalur surat RD1 (NotificationSmsEmailJob.java:194, 226-228). Batasannya: pengecualian per orang (ID No), bukan per notice type, stage, atau channel, jadi bukan 'enable/disable per notice type'. loadAllExcludedIds mengembalikan set kosong kalau query gagal (NotificationSmsEmailHelper.java:1207-1216), sehingga kegagalan baca berarti semua orang tetap dikirimi (fail-open). Karena cron notifikasi mati di prod, efeknya di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman electronic reminder bisa di-enable atau disable per notice type",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1061; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:30-31",
+      "fit": "Tidak ada code",
+      "detail": "Query pemilihan penerima memakai daftar stage yang di-hardcode (NotificationSmsEmailHelper.java:1114) dan filter vehicle_registration_type NOT IN ('I','D','V') (NotificationSmsEmailHelper.java:1061, 1151), bukan notice type. Satu-satunya saklar adalah cron.notification.enabled di properties (NotificationJobsScheduler.java:30-31), global untuk semua notice type. Tidak ada tabel atau parameter flag per notice type."
+    }
+  ]
+}

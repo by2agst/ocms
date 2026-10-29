@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (outstanding count per ID) and StaffFurnishService; ocmsadminprivateapi toppan/upload/helpers/ToppanUploadHelper (letter per stage, MID/DIP PS-ed at RR3/DR3, PDF only for AN letter), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, resources/application-prod.properties; ocmsadminui pages/Report/lists/ReportListReminder and api-authorization.properties. No per-entity letter or threshold code in the six repos.",
+  "note": "The story asks OCMS to find entities with a set number of outstanding notices (predefined conditions), produce PDF reminder letters for those notices, and let the officer download/print them for postage. What exists is Toppan letter generation per notice per stage (not per entity, not PDF except the AN letter), with the day-end cron not calling the letter generator and Toppan upload blocked in prod. There is no per-entity count, no threshold, no DIP/MID PDF letter. Derived fact: in prod sftp.upload.disabledServers=toppan (real server value: cannot verify from repo). No ticket is specific to this feature; OCMS-DF-2026-192 only concerns the generic Toppan letter trigger. Story status: Requirement given - Gen flow.",
+  "recommendation": "Do not claim as done. Per-entity reminder letters (threshold, PDF, download) are not in the code; only the generic Toppan per-notice letters exist. Confirm scope with URA.",
+  "steps": [
+    {
+      "step": "DIP/MID notices are already automatically temporarily suspended under a specific suspension code and period (result of OCMS14.5)",
+      "detail": "There is no temporary suspension for DIP/MID. At the Toppan RR3/DR3 stage, vehicles with vehicleRegistrationType I (Military) or D (Diplomatic) are removed from the letter run (ToppanUploadHelper.java:1979-1993), then applyPsSuspensionForMidDipVehicles calls psHelper.processPS (PermanentSuspensionHelper) with code PS-MID or PS-DIP (ToppanUploadHelper.java:749-777, called at :2014). That is a permanent suspension with no period or duration parameter. MID/DIP are also treated as PS reasons (SuspensionProcessingHelper.java:111-113). Same fact as OCMS14.5 (sibling story)."
+    },
+    {
+      "step": "OCMS identifies entities with a set number of outstanding notices across all their vehicles",
+      "detail": "The only outstanding count is countOutstandingNoticesByIdNo for a single ID (OcmsValidOffenceNoticeRepository.java:220-229), used by the officer furnish search (StaffFurnishService.java:742-760). No job sweeps all entities, sums notices across vehicles or compares with a threshold. Same fact as OCMS14.6."
+    },
+    {
+      "step": "Notices are selected by predefined conditions (suspension status, suspension code, suspension type)",
+      "detail": "The outstanding count query only uses (v.suspension_type != 'PS' OR v.suspension_type IS NULL) (OcmsValidOffenceNoticeRepository.java:202, :227); there is no DIP/MID suspension code filter or active-suspension status filter. Same as OCMS14.6."
+    },
+    {
+      "step": "OCMS generates reminder letters for the notices outstanding under that entity",
+      "detail": "There are no per-entity letters. Toppan reminder/demand letters are produced per notice by stage (RD1, RD2, RR3, DN1, DN2, DR3), and for MID/DIP at RR3/DR3 the letter is skipped and the notice is PS-ed (ToppanUploadHelper.java:1979-2014). The day-end cron does not call the letter generator (ToppanUploadJobsScheduler.java:118 is commented out); only the manual trigger POST /toppan/generate-letters exists (ToppanUnifiedController.java:34-41). In prod, Toppan uploads are blocked (sftp.upload.disabledServers=toppan, application-prod.properties:86); the real server value: cannot verify from repo."
+    },
+    {
+      "step": "The reminder letters are generated in PDF format",
+      "detail": "The only PDF generator on the letter path is AnLetterPdfService for the Advisory Notice Letter (ToppanUploadHelper.java:371, generateAnLetterPdf). No PDF code was found for DIP/MID reminder letters or a combined per-entity letter; the file format of other RD/DN stages is not proven here."
+    },
+    {
+      "step": "The officer downloads or prints the letters for postage",
+      "detail": "A Reminder Letter Reports tab lists Toppan result files (toppan-report/search) with a Download button (ReportListReminder.tsx:42-60, :73-88), but it is a generic mechanism, not DIP/MID entity letters. The OCMS_REPORT_REMINDER mapping only grants /v1/toppan-report/search and /v1/standardcodelist without /v1/download/blob (api-authorization.properties:144-145). Because entity letters do not exist, nothing is downloaded for this story."
+    }
+  ]
+}

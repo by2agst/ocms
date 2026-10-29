@@ -1,0 +1,46 @@
+{
+  "story": "OCMS17.21",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST plus-apply-suspension), helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper}. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada pengiriman pesan terpisah ke PLUS",
+  "note": "Story minta OCMS memberi tahu PLUS bahwa temporary suspension berhasil. Code melakukannya sebagai response HTTP sinkron dari POST /plus-apply-suspension: tiap notice dibalas {noticeNo, srNo, success:true, message:'TS Success', appCode:'OCMS-2000'}. Tidak ada callback atau webhook keluar ke PLUS di enam repo (grep plus/callback/notify tidak menemukan client PLUS). Tampilan pesan di layar PLUS ada di sistem PLUS, cannot verify from repo. Proteksi endpoint plus-* bergantung pada APIM (JwtFilter melewati JWT), cannot verify from repo. Tiket OCMS-DF-2026-027 (sr_no duplikat saat batch) Closed/Prod deployed; code sekarang memanggil sequence per notice sehingga srNo dalam pesan unik.",
+  "recommendation": "Bisa diklaim: pesan sukses dikembalikan ke PLUS lewat response API. Tampilan di PLUS tidak bisa dibuktikan dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request temporary suspension dan OCMS memvalidasi field wajib",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:519; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:531",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) menolak request tanpa noticeNo, suspensionType, reasonOfSuspension, daysToRevive, atau officerAuthorisingSuspension dengan OCMS-4000 (mis. baris 519) dan memaksa suspensionSource = PLUS (baris 531). JwtFilter melewati JWT untuk endpoint plus-*, jadi autentikasi bergantung pada APIM, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan TS: update VON, eVON, dan insert ocms_suspended_notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:127; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:131; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-348",
+      "fit": "Sesuai",
+      "detail": "TemporarySuspensionHelper.processTS memanggil updateVON (TemporarySuspensionHelper.java:124; SuspensionBaseHelper.java:340-348 mengisi suspension_type, epr_reason, tanggal, due_date_of_revival), updateEVON (baris 127), lalu insertSuspendedNotice (baris 131). Hasil sukses baru dikembalikan setelah ketiganya jalan; exception di blok itu menghasilkan OCMS-4007."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyusun pesan sukses per notice (noticeNo, srNo, 'TS Success', appCode OCMS-2000)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:541-548; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1192",
+      "fit": "Sesuai",
+      "detail": "processTS mengembalikan createSuccessResponse(noticeNo, srNo, 'TS Success') (TemporarySuspensionHelper.java:140; SuspensionBaseHelper.java:541-548: noticeNo, srNo, success=true, message). addAppCodeToResults menambah appCode OCMS-2000 untuk hasil sukses (SuspensionProcessingController.java:1186-1192). srNo diambil dari sequence per notice (baris 997), jadi tidak duplikat dalam satu batch (OCMS-DF-2026-027, Closed/Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan itu ke PLUS sebagai response request, supaya user PLUS tahu suspension berhasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-555",
+      "fit": "Sesuai",
+      "detail": "plusApplySuspension memanggil processNoticeList (baris 546), menambah appCode (baris 553), lalu ResponseEntity.ok(results) (baris 555): daftar hasil per notice dikirim kembali ke PLUS dalam HTTP 200. Notice yang gagal punya success=false dan appCode OCMS-4000, jadi PLUS tidak menerima pesan sukses palsu. Tidak ada push terpisah ke PLUS di repo mana pun. Pesan dibentuk sebelum commit @Transactional controller; kegagalan commit setelah itu tidak bisa dipastikan dari repo. Penampilan pesan ke user PLUS ada di sistem PLUS, cannot verify from repo."
+    }
+  ]
+}

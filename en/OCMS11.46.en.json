@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.46",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, utils/map/MapFurnish.ts, pages/Furnish/Form/HDQuests.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishSubmissionServiceImpl,FurnishValidationServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository, crud/beans/SystemConstant. ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, schedulers/SyncInternetIntranetJobsScheduler, agencies/toppan/upload/{ToppanStage,ToppanLettersGeneratorJob,ToppanUploadJob}, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, thirdpartyapi: not used for this flow. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "note": "Status sheet: 'Built - Has gap', demo_remark: Internet PII encryption - cannot fetch offender particulars. The furnish flow exists end to end: the e-service validates furnishable notices (stages ROV, ENA, RD1, RD2), stores the application in the Internet PII DB, the SyncInternetIntranet cron (enabled in prod) pulls it and runs auto-approval or manual review, then the driver becomes the offender and the notice moves to stage DN1 (a furnished hirer goes to RD1). Stage RR3 and later cannot be furnished. Gaps proven from the repo: the hirer notice lookup depends on DecryptByKey on the PII DB (the gap named in demo_remark; cannot verify from repo), Appendix B of Annex 1A is not in the repo, and the DN1 letter to the driver is not delivered to Toppan because SFTP upload is blocked in application-prod.properties:86 while the stage still advances (OCMS-DF-2026-192, Ready to UAT). Tickets OCMS-DF-2026-170 (closed) and OCMS-DF-2026-024 (closed) touch the stage change and the address after furnish.",
+  "recommendation": "Claim partially. The furnish flow up to the driver becoming the offender and entering stage DN1 exists in code. Ask URA for proof that the PII lookup on the Internet DB works in PRD, and for Appendix B, before claiming in full.",
+  "steps": [
+    {
+      "step": "Hirer opens the Furnish Driver's Particulars e-service and looks up their outstanding NOPOs",
+      "detail": "The furnish-particulars route exists in ocmseserviceui (route.ts:37-41). In the API, findFurnishableNoticeNos returns notices with offender_indicator='Y' and owner_driver_indicator <> 'D', so a hirer (H) or owner (O) qualifies but a driver does not (EocmsOffenceNoticeOwnerDriverRepository.java:71-80, used in FurnishValidationServiceImpl.java:260-262). The query reads id_no through DecryptByKey on the PII DB; the symmetric key is opened in EocmsOffenceNoticeOwnerDriverServiceImpl.java:43-46. The demo_remark of this story says exactly 'Internet PII encryption - cannot fetch offender particulars'. Whether the key, certificate and permission are correct in Azure: cannot verify from repo, so Sebagian."
+    },
+    {
+      "step": "Furnishing is only open at the pre-defined processing stages (ROV, ENA, 1st reminder RD1, 2nd reminder RD2)",
+      "detail": "isProcessingStageEligible accepts a notice when last_processing_stage is in ELIGIBLE_STAGES = ROV, ENA, RD1, RD2, or (fallback) next_processing_stage is in RD1, RD2 (FurnishValidationServiceImpl.java:175-183; SystemConstant.java:112-113). In getIneligibilityReason any other stage is rejected with FURNISH_NOTICE_STAGE_INELIGIBLE (lines 210-213). This matches the story examples (1st and 2nd reminder). Suspended notices (crs_reason), PS-DIP/MID/FOR/RIP/RP2 and UPL are also rejected (lines 189-208)."
+    },
+    {
+      "step": "Hirer fills in the driver's particulars and submits; the application is stored as pending",
+      "detail": "The UI maps the answer to Q1 'Was the person the driver...' to ownerDriverIndicator: Yes becomes D (driver), No becomes H (hirer) (MapFurnish.ts:43, 111; HDQuests.ts:36). POST /v1/furnishapplication runs the validation, then submitFurnishApplication creates one txn_no per notice, moves the supporting documents and saves an EocmsFurnishApplication with the owner_driver_indicator from the request and status pending in the PII DB (FurnishSubmissionController.java:66; FurnishSubmissionServiceImpl.java:43-134, 187, 210)."
+    },
+    {
+      "step": "The submission is brought to the staff system and checked automatically; failures go to manual officer review",
+      "detail": "The SyncInternetIntranet scheduler runs FurnishProcessingJob (SyncInternetIntranetJobsScheduler.java:57-67); cron.syncintranetinternet.enabled=true in prod (cron-schedules-prod.properties:305-306). FurnishProcessingService calls executeApproval when all checks pass, or executeManualReview with a reason when not (FurnishProcessingService.java:169-174). Six checks: active permanent suspension, HST ID, FIN/passport, notice still furnishable (LPS|NPS pairs in SystemConstant.java:237-244), existing offender, and prior submission (FurnishApprovalHelper.java:183-225, 319-337)."
+    },
+    {
+      "step": "The furnished driver becomes the current offender on the NOPO and the hirer stops being the offender",
+      "detail": "executeApproval calls addFurnishedOffender (adds an ocms_offence_notice_owner_driver row for the furnished person, including the address through processFurnishedAddress) and changeProcessingStage; switchOffenderIndicator lowers the old offender indicator from Y to N in the Intranet and Internet DB (FurnishApprovalHelper.java:445-466, 542-641, 713-745). Ticket OCMS-DF-2026-024 (closed, prod) concerned the previous driver's mha_reg address after a furnish overwrite; the current code is not re-proven here."
+    },
+    {
+      "step": "The notice enters the driver follow-up track (stage DN1) following the automated workflow in Appendix B of Annex 1A",
+      "detail": "changeProcessingStage: when the furnished party's indicator is D, last/next_processing_stage becomes DN1 (H becomes RD1), the previous stage is saved, the admin fee is zeroed and amount_payable is reset to composition_amount, next_processing_date = max(notice_date + 7 days, tomorrow), then the Internet VON is synced (FurnishApprovalHelper.java:644-662, 668-710). Appendix B of Annex 1A is not in the repo, so whether the 7-day rule and stage order match that document: cannot verify from repo. Ticket OCMS-DF-2026-170 (closed, prod) was a wrong $15 admin fee on DN1->DN1 and RD1->RD1 transitions, patched at lines 668-675."
+    },
+    {
+      "step": "The driver receives the next follow-up (DN1 letter through the print vendor) per the workflow",
+      "detail": "The DN1 stage exists in ToppanStage (ToppanStage.java:22) and is processed by the Toppan cron (ToppanLettersGeneratorJob.java:151); notices are picked by next_processing_stage=DN1 with offender_indicator='Y' and no suspension (OcmsValidOffenceNoticeRepository.java:608-612), so the driver is the addressee. But application-prod.properties:86 blocks SFTP upload to Toppan (sftp.upload.disabledServers=toppan), and the stage still advances because the gate is bypassed (ToppanUploadJob.java:424-430). Same fit as OCMS11.50 (delivery to the vendor). Ticket OCMS-DF-2026-192 (Ready to UAT) covers this. The real state on the server: cannot verify from repo."
+    }
+  ]
+}

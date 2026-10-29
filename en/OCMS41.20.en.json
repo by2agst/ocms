@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.20",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/{FurnishSyncHelper,FurnishNotificationService}. ocmsadminprivateapi framework/schedulers/SyncInternetIntranetJobsScheduler (cron.syncinternetintranet.enabled=true, Internet to Intranet direction). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not read for the eService side (cannot verify from repo)",
+  "note": "Status in stories.json: Demo paid (50% of 75%); the demo remark asks for the cron to be enabled and the Internet-Intranet sync so the notice shows in eService for payment. The automatic particulars update runs on confirm. What does not match the story: there is no scheduling of the sending, messages go out immediately. On the remark: the manual approval path writes eVON and ONOD to the Internet DB straight from the request (FurnishSyncHelper), not through a cron; the Internet-Intranet cron is enabled in PRD (cron-schedules-prod.properties:306) but runs FurnishProcessing and CronSyncTxnData for the Internet to Intranet direction. The sync from the request is a soft failure (errors are only logged), and the furnished_mail address rows are not synced from this path. The real display in eService cannot be verified from the repo.",
+  "recommendation": "Claim in part: the automatic update and the success prompt. Do not claim scheduled sending. Prepare evidence of the notice showing in eService after approve because the repo cannot prove it",
+  "steps": [
+    {
+      "step": "After confirmation, OCMS schedules the SMS/email for sending",
+      "detail": "There is no scheduling: after a successful approve the UI calls send-email/send-sms straight away (useNoticeSubmit.tsx:198-216) and the backend sends synchronously through emailService.sendEmail (FurnishNotificationService.java:61) or smsUtil.sendBatchSmsSimple (line 182), then records status S/E. There is no queue table, schedule field or job that sends the officer reply (grep \"schedul\" is empty in the furnish UI and API folders). Same fact as OCMS41.17 step 2."
+    },
+    {
+      "step": "OCMS auto-updates the hirer/driver particulars for the notice",
+      "detail": "On confirm approve-hirer/approve-driver replaces the active offender (old indicator to N, old address rows of that role deleted, new ONOD with ID, name, email, phone, furnished_mail address), sets stage RD1/DN1, recalculates amount_payable and marks the furnish application Approved (ManualReviewService.java:362-366, 749-817, 880-928). Same fact as OCMS41.17 step 3."
+    },
+    {
+      "step": "The update reaches the eService side so the notice can be paid (per the demo remark)",
+      "detail": "changeProcessingStage calls syncVonToInternet (ManualReviewService.java:927) which writes last/next stage, amount_payable and is_sync=Y to eVON (FurnishSyncHelper.java:178-206); the new ONOD is synced to PII through syncOnodToPii (FurnishSyncHelper.java:57-81), both from the request, not a cron. Both syncs are soft failures: errors are only logged and a missing eVON is skipped (lines 184-187, 199-202), so the Internet DB can lag without a visible failure. The furnished_mail address rows are not synced from this path. The Internet-Intranet cron is enabled in PRD (cron-schedules-prod.properties:306) but runs FurnishProcessing and CronSyncTxnData for the Internet to Intranet direction. Context OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed): eVON once lagged because is_sync was not set on another path. The notice display in eService (ocmseserviceapi/ocmseserviceui) was not traced; cannot verify from repo."
+    },
+    {
+      "step": "OCMS prompts that the particulars update succeeded",
+      "detail": "When approve succeeds the alert modal shows \"Furnished particulars has been saved as the Current Driver/Hirer.\" (useNoticeSubmit.tsx:210-212, 223-225; shown in ActionNotice.tsx:254-272). When it fails the message carries the reason (useNoticeSubmit.tsx:204-207)."
+    },
+    {
+      "step": "OCMS prompts that the sending of the SMS/email has been scheduled",
+      "detail": "A prompt about the sending result exists, but its text is \"the email/SMS has been sent to the recipient\" (useNoticeSubmit.tsx:225) or \"Email/SMS was not successfully sent\" (line 220), not \"scheduled\", because sending is not scheduled. No sending prompt appears when the checkbox is ticked but compose_list is empty (lines 215-216)."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.21",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'Demo paid (50% of 75%)'. Story minta prompt untuk pengiriman dan update yang dijadwalkan. Fitur penjadwalan tidak ada: update particulars dan pengiriman SMS/email berjalan seketika saat OIC mengonfirmasi, jadi prompt di layar hanya melaporkan hasil eksekusi langsung. Prompt sukses dan gagal untuk update ada dan jelas; prompt hasil kirim hanya teks umum. Perlu verifikasi [Low confidence]: ManualReviewService.approveSubmission mengubah status ke 'A' (baris 363-366) sebelum addFurnishedOffender (376) dan changeProcessingStage (379), lalu menangkap semua exception dan mengembalikan failure tanpa rethrow (434-437); apakah perubahan awal ikut rollback tidak bisa dipastikan dari repo. Pengiriman email nyata lewat SMTP cannot verify from repo; email.enableSmtp=true di ocmsadminapi/src/main/resources/application.properties:133 dan tidak ada override di application-prod.properties. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim sebagian: prompt sukses dan gagal untuk update particulars ada, tetapi pengiriman terjadwal tidak dibangun dan prompt hasil kirim tidak memberi detail. Konfirmasi ke URA apakah eksekusi langsung diterima sebagai pengganti penjadwalan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC mengonfirmasi keputusan di dialog Submit, lalu sistem menjalankan update particulars dan pengiriman SMS/email (story: dijadwalkan)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:189-210; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:313-317; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:191-216; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:494-503",
+      "fit": "Beda dari flow",
+      "detail": "Dialog konfirmasi 'Do you wish to proceed ...' (ActionNotice.tsx:189-210) memanggil onSaveSubmit saat OK (ActionNotice.tsx:313-317), yang langsung memanggil approveFurnish/rejectFurnish lalu composeFurnish dalam satu rangkaian (useNoticeSubmit.tsx:198-216). Tidak ada tanggal/jam kirim atau job terjadwal: ManualReviewService.sendEmail langsung memanggil notificationService.sendAndRecordEmail (ManualReviewService.java:503), dan grep 'schedul' di furnish/manualreview, approval, rejection, halaman Furnish dan hook Notice ocmsadminui tidak menemukan apa pun. Story minta pengiriman dan update dijadwalkan; code mengeksekusi saat itu juga."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan prompt di layar bahwa update particulars berhasil",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:209-212; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:260-275",
+      "fit": "Sesuai",
+      "detail": "Jika approve/reject berhasil, onSaveSubmit membuka ModalAlert non-error (isError false) berisi 'Furnished particulars has been saved as the Current Hirer/Driver.' atau 'Furnish rejected successfully.' (useNoticeSubmit.tsx:210-212; ActionNotice.tsx:260-267). Setelah OIC menutup, halaman reload (ActionNotice.tsx:268-272) sehingga status terbaru terbaca. Prompt melaporkan hasil eksekusi langsung, bukan hasil jadwal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan prompt hasil pengiriman SMS/email",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:214-230; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:118-200; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-90",
+      "fit": "Sebagian",
+      "detail": "Jika ada compose_list, composeFurnish dipanggil dan pesan sukses ditambah '... email/SMS has been sent to the recipient' (useNoticeSubmit.tsx:223-225). Jika sebagian atau semua gagal, UI hanya menulis 'Email/SMS was not successfully sent to the recipient(s).' (useNoticeSubmit.tsx:218-220): daftar error per penerima yang dikumpulkan composeFurnish (useFurnishAPI.ts:193-197) tidak ditampilkan, jadi OIC tidak tahu penerima mana yang gagal atau kenapa. Prompt ini juga bukan status 'jadwal terkirim' seperti di story. Hasil kirim server dicatat di email notification records dengan status S/E (FurnishNotificationService.java:50-90) tetapi tidak ditampilkan di prompt."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan prompt error jika update particulars gagal, dan email/SMS tidak dikirim",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:202-207; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:243-245; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:276-285; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:197-201",
+      "fit": "Sesuai",
+      "detail": "Jika endpoint approve mengembalikan error (mis. 422 dari approveSubmission, ManualReviewController.java:197-201), useNoticeSubmit menulis 'Furnished particulars could not be saved as the Current <Hirer/Driver> due to <error>. Email/SMS was not sent.' dan composeFurnish tidak dipanggil (useNoticeSubmit.tsx:202-207). onSaveSubmit melempar error itu dan membuka ModalAlert isError (ActionNotice.tsx:243-245, 276-285)."
+    }
+  ]
+}

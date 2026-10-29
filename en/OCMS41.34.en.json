@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.34",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/manualreview/services/ManualReviewService (rejectSubmission, no suspension), workflows/furnish/helpers/FurnishPersistenceService (21-day TS-PDP at submission). ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (TS-PDP when a submission enters manual review), autorevival/helpers/AutoRevivalHelper (re-apply TS-PDP only if a pending furnish exists)",
+  "note": "The story status is User Story Removed, not claimed. Reject (ManualReviewService.rejectSubmission) only changes the status to R and syncs to the PII DB; there is no suspension call at the reject point and no configurable 'X days' for the waiting period. The existing TS-PDP suspension is created when a submission arrives (not at reject): 21 days in FurnishPersistenceService for the adminapi path, and through tsHelper.processTS with the default duration on the cron path. When that TS-PDP expires, the revival cron re-applies it only if a pending furnish exists; for status R it is not re-applied, so the notice can advance while the owner has not furnished again. That is the opposite of the story intent. Per the Removed rule, a step that has code is at most Sebagian.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "OIC rejects and the email asking the owner/hirer for more information is sent",
+      "detail": "Reject saves status R (ManualReviewService.java:466-471). The email goes out through a separate send-email call after reject succeeds, immediately and not scheduled (useNoticeSubmit.tsx:214-217). Sebagian because of the Removed rule and because the email is not scheduled."
+    },
+    {
+      "step": "OCMS automatically suspends the notice under a specific suspension code at reject",
+      "detail": "rejectSubmission calls no tsHelper/suspension at all (ManualReviewService.java:453-479). FurnishRejectionServiceImpl.handleRejection (:38-111) does not either. TS-PDP is created only when a submission arrives: FurnishPersistenceService.applyTsPdpSuspension (:287-312) and FurnishApprovalHelper.executeManualReview/createTsPdpSuspension (FurnishApprovalHelper.java:499-536, 751-783), so it is not triggered by reject."
+    },
+    {
+      "step": "The suspension lasts X days (configurable) while waiting for the owner/hirer's information",
+      "detail": "There is no duration for a waiting period after reject. The existing TS-PDP duration is set at submission: hardcoded plusDays(21) in FurnishPersistenceService.java:291, or the tsHelper.processTS default with daysToRevive null (FurnishApprovalHelper.java:760-768). There is no property or parameter for an X-day period at reject (grep over the adminapi/adminprivateapi properties found none)."
+    },
+    {
+      "step": "The notice does not advance while the owner/hirer has not furnished again",
+      "detail": "When TS-PDP falls due, the revival cron re-applies TS-PDP only if a pending furnish record exists (AutoRevivalHelper.java:1005-1013; adminapi version :262-289 logs 'approved/rejected - TS-PDP not re-applied'). After R there is no more protection, so the notice can advance. This is the opposite of the story intent. Related ticket OCMS-DF-2026-032 (fix for re-applying TS-PDP on pending furnish)."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS44.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Payment/PaymentCash.tsx (cash recording; printReceipt block commented out); ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateController,PaymentUpdateServiceImpl} (receipt_no, PS-FP suspension). The PDF receipt generator exists only in ocmseserviceapi workflows/receipt/{ReceiptController,ReceiptServiceImplement} and ocmseserviceui pages/Payment/PaymentResult.ts for the offender. ocmsadminprivateapi, thirdpartyapi: no slip code",
+  "note": "Status User Story Removed (3 points): the verdict stays Removed even though similar code exists. Cash payment recording and PS-FP suspension already exist in the staff portal, but the core feature of the story (the officer generating and printing/downloading a payment acknowledgement slip) does not exist: the printReceipt call in PaymentCash.tsx:127-139 is entirely commented out and there is no matching endpoint in ocmsadminapi. The existing PDF receipt belongs to the offender portal for online payments. No relevant maintenance ticket was found for this slip. Singpass/gateway/DB-only rows: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "The Fines Payment Processing Officer records a non e-payment (cash/counter) in OCMS",
+      "detail": "The Payment Cash page in the staff portal sends POST updatePayment (PaymentCash.tsx:98) to PaymentUpdateController (line 40). The recording feature exists, but the story status is Removed, so a step that has code is counted as Sebagian only. Which roles may use the page: not checked on the server in this trace."
+    },
+    {
+      "step": "OCMS permanently suspends the notice as paid (PS-FP or PS-PRA) and stores the receipt",
+      "detail": "createWebTransactionDetail creates receipt_no through TransactionIdGenerator (line 160) and sets sender = OCMS (line 174). Full payment calls createSuspendedNotice with reason FP (lines 299-308); partial payment and overpayment have their own branches. The branch is correct, but a Removed story is Sebagian at most."
+    },
+    {
+      "step": "The officer asks OCMS to generate a payment acknowledgement letter/slip for the paid notice",
+      "detail": "After updatePayment succeeds, onSuccess only fetches the notice and payment data and shows them on screen (lines 108-125). The STEP 2 block that calls the printReceipt endpoint and saveAs is fully commented out (lines 127-139). There is no button, route or endpoint to generate a slip in the staff portal; grep for printReceipt, acknowledg, receipt in ocmsadminui, ocmsadminapi, ocmsadminprivateapi found no slip generator."
+    },
+    {
+      "step": "The slip shows notice number, vehicle number, amount paid, date of payment, payment mode and receipt number",
+      "detail": "The PDF receipt generator exists only in the offender portal: ReceiptServiceImplement builds transactionDate, receiptNo, paymentMethod, noticeNo, vehicleNo, offenceDate, amount (lines 97-121) through POST /v1/printslip (ReceiptController.java:38). It is a generic mechanism for online payments, not the slip the Fines Payment Processing Officer asked for. Whether staff transactions (sender OCMS) exist in the internet database: cannot verify from repo. JwtFilter lets printslip through without JWT (JwtFilter.java:136)."
+    },
+    {
+      "step": "The officer prints/downloads the slip for the offender",
+      "detail": "Slip download in the staff portal exists only as commented-out code (PaymentCash.tsx:139, saveAs receipt zip). The active PrintSlip function is in ocmseserviceui (PaymentResult.ts:122-138) for the offender after an online payment, not for the officer."
+    }
+  ]
+}

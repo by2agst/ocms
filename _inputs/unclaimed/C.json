@@ -1,0 +1,278 @@
+{
+ "cluster": "C",
+ "candidates": [
+  {
+   "id": "batch-update-mailing-address",
+   "title": "Batch Update of Mailing Address (staff screen)",
+   "kind": "new",
+   "related_story": null,
+   "related_note": null,
+   "user_story": "As a Notice Processing Officer who needs to correct the contact and mailing address of an offender who is the current offender on many outstanding notices, I want to search all outstanding notices by the offender ID and update the offender particulars and mailing address on the selected notices in one action, so that letters for all those notices go to the right address without editing notice by notice.",
+   "acceptance": [
+    "Menu entry 'Batch Update Mailing Address' opens the page /batch-update-odh",
+    "Search by offender ID returns only outstanding notices where that ID is the current offender (offender_indicator = 'Y'), excluding PS-FP and PS-PRA, and excluding other permanent suspensions except DIP, FOR, MID, RIP, RP2; the list is paginated",
+    "Officer picks notices, enters offender particulars (name, ID, phone, email) and address (postal code, block, street, floor, unit, building) and confirms",
+    "The same details are written to every selected notice; the processing stage is not changed",
+    "Officer can choose to also set the mailing address as the letter address (setAsLetterAddress)",
+    "Result lists success and failure per notice"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/data/LinkData.tsx:329-337", "what": "Menu entry 'Batch Update Mailing Address' pointing to MetaBatchUpdateODH path"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/data/LinkData.tsx:387", "what": "menu.push(LinkBatchUpdateODH) in the main menu"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/App.tsx:241-244", "what": "Route batch-update-odh renders BatchUpdateODH.UpdateBatchODHPage"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/BatchUpdateODH/form/SearchForm.tsx:28", "what": "UI calls staff-furnish/search-by-id"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:235-238", "what": "UI builds body and calls staff-furnish/batch-update-address"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:276", "what": "POST /v1/staff-furnish/batch-update-address"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:330", "what": "POST /v1/staff-furnish/search-by-id"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:681-715", "what": "batchUpdateAddress loops over the notices and calls staffUpdateOffenderAndAddress, stage not modified (comment at line 709)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:743", "what": "searchOutstandingNoticesByIdNo with the outstanding / not-permanently-suspended filters (Javadoc lines 725-737)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:90", "what": "Both endpoints are listed in the authorization mapping, so staff roles can call them"}
+   ],
+   "works": "yes",
+   "works_basis": "Complete chain found: menu entry -> route -> UI call -> controller -> service -> DB update, and the endpoints are in api-authorization.properties. No environment flag found that switches it off. Which role sees the menu entry depends on LinkData(allowedUrls) at runtime; cannot verify from repo. No test was run.",
+   "ura_requested": "no (no flow deck exists in repo); maintenance tickets do not mention it either",
+   "points": 8,
+   "points_basis": "Estimate only. Same size class as Batch Furnish OCMS41.50 (5) plus OCMS41.51 (5) taken together, but this screen reuses the furnish update code, so 8 instead of 10. MGG and URA decide.",
+   "demo_steps": [
+    "Log in to the staff portal with a role that has the menu entry and open 'Batch Update Mailing Address'",
+    "Search an ID that is the current offender on 2 or more outstanding notices",
+    "Select the notices, change the address and confirm",
+    "Open each notice and check the mailing address and the unchanged processing stage"
+   ],
+   "risks": [
+    "Existing orphans #150 and #210 already list this screen. They note it is only 'similar' to OCMS22.12/22.13 (address amend in the court-application work item) and OCMS41.50/41.51 (Batch Furnish, which overwrites the offender and resets the stage). URA may say it belongs to the furnish epic.",
+    "URA never requested it in any document we hold, so it is a weaker claim.",
+    "The menu label says 'Mailing Address' but the form also overwrites offender name, ID and contact; URA could read this as a Batch Furnish duplicate."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "redirect-offender-to-existing-record",
+   "title": "Redirect current offender to an existing Owner/Hirer/Driver record on the notice",
+   "kind": "extension",
+   "related_story": "OCMS41.46",
+   "related_note": "OCMS41.44-41.47 (all Demo paid) cover: check existing particulars, prompt them on screen, record/update particulars, confirm overwrite. None of them says that the officer can switch the current offender to another record that already exists on the notice (without keying new particulars), or that the stage, amount payable and admin fee are reset when this happens. That switch is the added scope.",
+   "user_story": "As a Notice Processing Officer who finds that the person who should be followed up is already recorded on the notice as owner, hirer or driver, I want to redirect the notice to that existing record with one confirmation, so that the notice restarts the correct reminder flow against that person without re-keying the particulars.",
+   "acceptance": [
+    "On the Owner, Hirer and Driver forms a Redirect button and a confirmation modal are shown when the particulars already exist but that person is not the current offender",
+    "On confirm the system finds the target record by notice number, owner/driver indicator and ID number, sets the old offender_indicator to 'N' and the target to 'Y'",
+    "UEN (ID type B or U) is refused as Driver",
+    "The processing stage is changed to the first stage of the new party (RD1 for owner/hirer, DN1 for driver), amount payable is recalculated from the composition amount and administration fee is set to 0",
+    "TS-HST is re-evaluated: revived if the old offender was in the HST list and the new one is not"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/form/OwnerForm.tsx:438", "what": "RedirectBtn and RedirectConfirm modal exposed on the owner form (same on HirerForm.tsx:467 and DriverForm.tsx:453)"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:422", "what": "UI posts to staff-furnish/staff-redirect"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:146", "what": "POST /v1/staff-furnish/staff-redirect"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:320", "what": "staffRedirect (Javadoc steps lines 304-318)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:374", "what": "target offender_indicator set to 'Y'"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:404-415", "what": "new stage, amount payable recalculation, administration fee set to zero"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:442-443", "what": "TS-HST revive when old offender was HST and new one is not"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:79", "what": "staff-redirect is in the authorization mapping"}
+   ],
+   "works": "yes",
+   "works_basis": "Chain UI button -> useODH call -> controller -> service -> DB update is complete and the endpoint is authorized. Tickets OCMS-DF-2026-092 and OCMS-DF-2026-093 (both Closed) fixed the HST part of this flow, which shows it was used in UAT. Not run by us.",
+   "ura_requested": "no (no flow deck exists in repo). Tickets OCMS-DF-2026-092/093 report on the HST side effect of this flow but do not request the redirect itself.",
+   "points": 5,
+   "points_basis": "Estimate only. Compared with OCMS41.46 (3) for record/update particulars plus the stage and amount reset logic, which is more than a single update story; 5 matches Batch Furnish OCMS41.50. MGG and URA decide.",
+   "demo_steps": [
+    "Open a furnishable notice that has both an owner and a hirer record, where the owner is current",
+    "On the hirer tab enter the ID of the existing hirer; the Redirect button appears",
+    "Click Redirect and confirm",
+    "Check that the hirer is now current, the stage is RD1 and the admin fee is 0"
+   ],
+   "risks": [
+    "URA may argue redirect is the 'overwrite / update' step of OCMS41.46-41.47 in another form. Existing orphan #209 and #73 already list it as 'related, not stated in story'.",
+    "Stage reset and amount rules are business rules we cannot compare with a URA requirement because no flow deck exists."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "cas-inbound-court-notice-interface",
+   "title": "CAS inbound interface: push court notice updates and read payment status",
+   "kind": "extension",
+   "related_story": "OCMS27.23",
+   "related_note": "OCMS27.23 (status blank) is about receiving warrant execution details (new court mention date, updated stages). The existing trace already credits only 'Sebagian' for this endpoint because the payload carries no warrant or mention-date data. The added scope is the general CAS interface: a batch push that overwrites stage, suspension, amount payable and payment-acceptance flag on court notices, and a batch read of payment status for CAS.",
+   "user_story": "As a Court Processing Officer who works in the Court Administration System (CAS) for notices already in court, I want CAS to push stage, suspension, amount payable and payment-acceptance changes into OCMS and to read the current payment status of court notices from OCMS, so that OCMS and CAS show the same state and payment is only accepted when allowed.",
+   "acceptance": [
+    "POST /v1/casUpdateCourtNotices accepts up to 500 notices; larger payloads are refused with a payload-too-large code",
+    "Each accepted notice has stage, suspension, amount_payable and payment_acceptance_allowed updated in the intranet VON and, when it exists, the internet eVON",
+    "A notice that is already paid (payment status FP) is rejected with the message 'Notice already Paid'",
+    "POST /v1/casGetPaymentStatus returns, per notice, suspension type, CRS/EPR reasons, payment status, amount payable, amount paid and payment acceptance flag, or a not-found code",
+    "Concurrent CAS calls are limited by a throttler that returns HTTP 429"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:42", "what": "POST /v1/casGetPaymentStatus with throttle check"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101", "what": "POST /v1/casUpdateCourtNotices with throttle and 500-notice limit"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:185", "what": "getPaymentStatus reads VON and returns payment fields"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:246", "what": "updateCourtNotices"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:336-341", "what": "paid notices are rejected with 'Notice already Paid'"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:379-381", "what": "multi-row UPDATE per chunk (OCMS-DEV-2026-129 performance work)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:183-184", "what": "both CAS paths skip the JWT filter"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:84-85", "what": "both CAS paths are excluded from the authorization interceptor"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/application-prod.properties:55", "what": "ocms.cas.key.validation.enabled=false"}
+   ],
+   "works": "partly",
+   "works_basis": "The code path is complete for both endpoints. But the property ocms.cas.key.validation.enabled=false in prod (and dev) and a grep of the Java source finds no code that reads ocms.cas.key.validation, so the subscription-key check is not done in this repo. Whether CAS really calls these endpoints in UAT/prod, and whether APIM protects them, cannot be verified from the repo. Maintenance tickets that mention CAS (OCMS-SR-2026-164, OCMS-SR-2026-179) are data patches, not calls to this interface.",
+   "ura_requested": "no (no flow deck exists in repo). Ticket OCMS-SR-2026-179 (On Hold) reports payment_acceptance_allowed stuck blank on court-stage notices, which is related data but not a request for this interface.",
+   "points": 8,
+   "points_basis": "Estimate only. Two endpoints with batch validation, throttling and a multi-row update to two databases; similar in size to OCMS22.23 (8, generate and interface court files). MGG and URA decide.",
+   "demo_steps": [
+    "Call casGetPaymentStatus in UAT with 2 known notice numbers and 1 unknown one and check the three results",
+    "Call casUpdateCourtNotices for an unpaid court notice and check stage and amount_payable in VON and eVON",
+    "Call it again for a paid (FP) notice and check the 'Notice already Paid' result"
+   ],
+   "risks": [
+    "Orphan numbers #149, #153, #155, #162, #175, #243, #246 already list the same endpoints; the trace of OCMS27.23 already credits part of casUpdateCourtNotices as 'Sebagian'. This must not be claimed twice.",
+    "The endpoints skip JwtFilter and the authorization interceptor and the key check is off in prod properties: anyone who reaches the URL could change stage and amount payable if APIM does not protect it. URA may treat this as a defect, not a feature.",
+    "No evidence in the repo of an actual caller (CAS is external).",
+    "plus-get-court-case-info and plus-payment-activation in the same controller are not part of this candidate; they belong to the PLUS court-payment story OCMS48.2."
+   ],
+   "confidence": "Low"
+  },
+  {
+   "id": "rip-hirer-driver-furnished-report",
+   "title": "RIP Hirer/Driver Furnished report (screen, Excel export and daily e-mail to OIC)",
+   "kind": "new",
+   "related_story": null,
+   "related_note": null,
+   "user_story": "As a Special Notice Processing Officer who follows up notices suspended for deceased offenders (PS-RP2), I want a report of the notices where the current offender is a furnished hirer or driver, available on screen, as Excel and e-mailed to the OIC every morning, so that the OIC can follow up on those notices.",
+   "acceptance": [
+    "Report tab 'RIP' in the staff portal Report page, shown only when the user has the REPORT_RIP function",
+    "Screen search through POST /v1/reports/rip/furnished-driver-hirer and Excel download through POST /v1/reports/rip/export",
+    "The daily job selects notices suspended under PS-RP2 whose offender is a hirer or driver and builds an Excel file 'OCMS_RIP_Hirer_Driver_Report_<date>.xlsx' with a summary sheet and a data sheet",
+    "The file is e-mailed to the recipients in email.report.recipients; a 'no data' mail and a failure mail are also sent",
+    "The job runs inside the Combined Daily Report at 08:00 (cron.dailyreport.enabled=true)"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:59-63", "what": "RIP tab guarded by hasFunction(FUNCTION_ID.REPORT_RIP) renders ReportListRIP"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Report/lists/ReportListRIP.tsx:51", "what": "export call to reports/rip/export (screen list at line 74)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportController.java:29", "what": "POST /v1/reports/rip/furnished-driver-hirer (export at line 66)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:124", "what": "/v1/reports/rip is in the authorization mapping"},
+    {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/RipHirerDriverReportJob.java:22-30", "what": "Job class for the PS-RP2 hirer/driver report, e-mail with Excel attachment (file name at line 101)"},
+    {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/RipHirerDriverReportHelper.java:39-45", "what": "Fetch of PS-RP2 hirer/driver records; Excel generation from line 98"},
+    {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:256", "what": "cron.dailyreport.enabled=true; job 3 is 'RIP Hirer/Driver Report' at line 264; schedule 0 0 8 * * ? at line 255"},
+    {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/application-prod.properties:57", "what": "email.report.recipients (three URA addresses)"}
+   ],
+   "works": "yes",
+   "works_basis": "Daily report job is enabled in prod, uat and dev cron properties, recipients are set in prod, and screen, export and authorization mapping all exist. Real SMTP delivery and the role that holds REPORT_RIP cannot be verified from the repo.",
+   "ura_requested": "no (no flow deck exists in repo). Ticket OCMS-DF-2026-149 (Closed) moved all Report module Excel exports to backend generation, which shows the report screens were in use, but it does not name the RIP report.",
+   "points": 5,
+   "points_basis": "Estimate only. Same size as the VIP daily report stories OCMS14.23 / 14.25 (3 each) plus the on-screen report and Excel export, so 5, equal to OCMS14.16 (letters plus summary report). MGG and URA decide.",
+   "demo_steps": [
+    "Open Report > RIP, search a date range and download the Excel",
+    "In UAT check the OIC mailbox at 08:00 for 'OCMS_RIP_Hirer_Driver_Report_<date>.xlsx'"
+   ],
+   "risks": [
+    "Orphans #88, #89 and #93 already list this report and suggest it might belong to OCMS14.x (RIP stories 14.10-14.16 are in 'Requirement given - Gen flow'). OCMS14.10-14.14 do not mention a hirer/driver furnished report; OCMS14.12-14.14 are about DOS ownership. URA could say it belongs to the Epic 14 RIP flow.",
+    "Not requested in any document we hold."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "cps-report-download-and-error-mail",
+   "title": "Change Processing Stage result report (download after save, report list tab) and error e-mail",
+   "kind": "extension",
+   "related_story": "OCMS15.11",
+   "related_note": "OCMS15.1-15.11 (all Demo paid) cover search, validation, summary and confirm of the stage change and the stage change itself. None of them mentions a report of the changes made, a place to download it later, or an error e-mail. The report, report-list tab and error e-mail are added scope.",
+   "user_story": "As a Notice Processing Officer who has changed the processing stage of notices in bulk, I want to download a report of the changes made and open past reports by date, and I want the support team to be e-mailed when some notices failed or gave a warning, so that I can keep a record and failed notices are noticed.",
+   "acceptance": [
+    "After a batch with at least one success, the system builds an Excel report of all stage changes of the day and returns a download link valid 24 hours; if report generation fails the batch still succeeds",
+    "POST /v1/change-processing-stage/reports lists reports for a date range (maximum 90 days) and POST /v1/change-processing-stage/report/{reportId} downloads one",
+    "Report tab 'CPS' in the Report page (function REPORT_CPS) shows the list and downloads",
+    "If any notice failed or gave a warning, an error e-mail with the batch result is sent asynchronously to email.error.recipients"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:142-160", "what": "Report generated after a successful batch, link valid 24 hours"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:163-185", "what": "Error notification e-mail when failed or warning count is above 0"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ReportGenerationService.java:61", "what": "generateChangeStageReport builds the Excel"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:285", "what": "POST /v1/change-processing-stage/reports (90-day limit); download at line 422"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/CPS/form/CPSForm.tsx:189", "what": "UI downloads the report after save via change-processing-stage/report"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Report/lists/ReportListCPS.tsx:126", "what": "CPS report list uses change-processing-stage/reports (tab guarded at ReportList.tsx:115 by FUNCTION_ID.REPORT_CPS)"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/application-prod.properties:49", "what": "email.error.recipients (MGG and URA addresses); SMTP host at line 29"}
+   ],
+   "works": "yes",
+   "works_basis": "Report generation, list, download and the Report tab are all wired from UI to API. Ticket OCMS-DF-2026-095 (Closed) fixed wrong offender data on the CPS report, so the report was in use. E-mail delivery depends on the SMTP and recipients configured per environment: cannot verify from repo.",
+   "ura_requested": "ticket: OCMS-DF-2026-095 (a defect on the CPS report content, Closed). It shows URA used the report, not that URA asked for it.",
+   "points": 3,
+   "points_basis": "Estimate only. Same size as the daily report stories OCMS14.23 / 14.25 (3 each). The error e-mail is internal support and is a weak part of the claim. MGG and URA decide.",
+   "demo_steps": [
+    "Change the stage of 2 notices on the Change Processing Stage page and confirm; check that the Excel downloads",
+    "Open Report > CPS, pick today's date and download the report again",
+    "Include one invalid notice in a batch and check that the error e-mail arrives (UAT mailbox)"
+   ],
+   "risks": [
+    "Orphans #104, #105 and #109 already list the report and the e-mail; #72 lists the staff CPS page itself, which is covered by the paid OCMS15.1-15.11.",
+    "URA could argue the report is part of 'confirm to save' in OCMS15.10 or the summary in OCMS15.9.",
+    "The error e-mail goes to developer and support addresses; it is not a user-facing feature.",
+    "Bug to be aware of: the report built after the PLUS stage change covers all of today's changes, not only the PLUS ones (ChangeOfProcessingService.java:1395-1421); this is not claimed here."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "unclaimed-submit-result-report",
+   "title": "Unclaimed Reminder submit result report (Excel with status per notice)",
+   "kind": "extension",
+   "related_story": "OCMS20.1",
+   "related_note": "OCMS20.1 (Demo paid) covers temporarily suspending notices under the unclaimed suspension code. OCMS20.20 and OCMS20.27 describe summary reports on ICA/DOS address checks, which is another report. A result report of the submit action itself, with per-notice status and a 24-hour download link, is not in any story text.",
+   "user_story": "As a Notice Processing Officer who has submitted unclaimed reminders, I want an Excel report of the submit result with the status of each notice and the suspension applied, so that I can see which notices were processed and which failed.",
+   "acceptance": [
+    "POST /v1/submit-unclaimed applies TS-UNC and then generates an Excel report with the per-notice processing result",
+    "The response carries the report path and an expiry time 24 hours ahead",
+    "The submit page downloads the report automatically when report.url is returned",
+    "POST /v1/submit-unclaimed/report/{reportId} downloads the report"
+   ],
+   "evidence": [
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:157-161", "what": "Report generated with the processing results"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:186-189", "what": "Response carries url and expiresAt (+24 hours); download endpoint at line 217"},
+    {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedReportService.java:53", "what": "generateUnclaimedReminderReport(records, processingResults, userId)"},
+    {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx:171", "what": "downloadReport function; called when report.url exists (lines 259-262)"}
+   ],
+   "works": "yes",
+   "works_basis": "UI submit page, API and report service are wired. Several tickets on the unclaimed screens (OCMS-DF-2026-085/086/089/090/127, all Closed) show it was tested in UAT. Not run by us.",
+   "ura_requested": "no (no flow deck exists in repo). The tickets above are defects on the screen, not requests for the report.",
+   "points": 2,
+   "points_basis": "Estimate only. Small, similar to OCMS20.4 / OCMS20.5 (2 each) or the CPS-style report in the candidate above. MGG and URA decide.",
+   "demo_steps": [
+    "Open Unclaimed Reminders, check a notice list, submit",
+    "Check that an Excel file downloads with one row per notice and a status column"
+   ],
+   "risks": [
+    "Orphan #134 already lists this report as 'not in story text'.",
+    "Small value; URA may see it as part of the submit action in OCMS20.1.",
+    "The Excel content columns were not compared with any URA template."
+   ],
+   "confidence": "Medium"
+  }
+ ],
+ "not_claimable": [
+  {"item": "REPCCS violation image/video link (POST repccs-violation-media-link, hook useRepccsMediaLink)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/repccsmedia/RepccsMediaLinkController.java:45; ocmsadminui/src/pages/Notice/hook/useRepccsMediaLink.tsx:52", "reason": "other: already inside OCMS6.1 (Fully paid, 'view/download photographic or video evidence'); the existing OCMS6.1 trace already lists the repccsmedia package"},
+  {"item": "Create notice from EHT via SFTP (/v1/ehtsftp-create-notice, ura.sftp.ehtnopo.path)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:97-101; application.properties:128", "reason": "dead: no caller in the six repos and no Java code reads the SFTP path; real-time EHT is OCMS3.2 (Fully paid)"},
+  {"item": "Old REPCCS webhook copy /v1/repccsWebhook-create-notice in ocmsadminapi (no JWT, no key check)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:46-47; JwtFilter.java:181; WebConfig.java:87", "reason": "leftover of removed story (OCMS1.1 / OCMS1.2 are 'User Story Removed'); also a security exposure"},
+  {"item": "Report 'Notices Created by Enforcement Systems' (CES and REPCCS) with Excel export", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementController.java:24-36; ocmsadminui/src/pages/Report/lists/ReportListNoticeFE.tsx:74", "reason": "leftover of removed story (OCMS1.3 removed) and same purpose as OCMS3.3 (Demo paid, summary report of notices from frontend enforcement systems); ticket OCMS-DF-2026-005 only fixed its counts"},
+  {"item": "Report 'Notices Created in Backend' (PLUS / OCMS), export per offence type", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportController.java:21-40; ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx", "reason": "other: same purpose as OCMS4.5 ('daily summary reports on the list of notices created', status blank, not billed). The on-demand screen is a delivery difference, not a new feature; claiming it separately would double-claim 4.5. Orphans #12 and #19 list it."},
+  {"item": "PLUS read endpoints (plus-offence-notice-detail, plus-offence-notice-owner-driver, plus-driver-notice, plus-suspended-notice, plus-offence-attachment)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/noticedetail/NoticeDetailControllerPlus.java:39", "reason": "other: inside OCMS6.7 (Demo paid, other systems such as PLUS browse parking offence information); skip JwtFilter by the plus-* prefix, ticket OCMS-SR-2026-053 changed one of them"},
+  {"item": "PLUS read endpoints plus-refund-notice-list and plus-web-txn-detail-list", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusDataRetrievalController.java:70", "reason": "other: part of the PLUS read interface under OCMS6.7 / OCMS18.22 (refund information to PLUS); cannot be separated from them; Javadoc mentions a refundStatus filter but the entity has no status column"},
+  {"item": "PLUS court reduction POST /v1/plus-apply-reduction-court (only changes amount_payable, no TS-RED)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:71-105", "reason": "other: a branch of OCMS16.11-16.15 (Fully paid, PLUS requests reduction, OCMS validates, reduces, replies). A plus-revert-reduction-court endpoint was not found in ocmsadminapi controllers (only the apply endpoint at line 71); orphans #110, #113, #115, #116, #161 list it"},
+  {"item": "Revert amount_payable when TS-RED is revived", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:860-915", "reason": "other: business rule added by tickets OCMS-DF-2026-028 / OCMS-DF-2026-072 (defect fixes), no screen of its own"},
+  {"item": "PLUS-only stage rule for TS-RED (allowed up to CSD/CSR/COS) and TS stacking rule (latest reason, farthest due date)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:196-205; TemporarySuspensionHelper.java:68-70", "reason": "other: business rules inside OCMS17.x suspension handling, from defect tickets OCMS-DF-2026-025 and OCMS-DF-2026-184 (the latter still Pending UAT); no feature a reviewer can see"},
+  {"item": "PS-over-PS auto revive of the old permanent suspension", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:245-305", "reason": "other: inside OCMS18.10 and OCMS18.20 (both paid, 'auto-revive any existing permanent suspension and apply the new code')"},
+  {"item": "Automatic refund record when a paid notice gets PS-APP/CAN/CFA/VST or when manual payment is double / over (DBP, OVP)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:321-380; workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:98-116; crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:42", "reason": "other: refund advice creation is the subject of OCMS18.12, OCMS19.13 and OCMS46.1 (status 'No requirement', not billed); not a new feature"},
+  {"item": "PS-ANS revival resets an_flag to N", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:206-240", "reason": "other: rule inside the PS revival stories OCMS19.16-19.20; ticket OCMS-DF-2026-114"},
+  {"item": "ReviveProcessingHelper (old duplicate revive logic with refund creation)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/revivenotice/helpers/ReviveProcessingHelper.java:26-60", "reason": "dead: import and autowire are commented out in SuspendedNoticeController"},
+  {"item": "AutoSuspensionHelper.triggerAcrSuspension, triggerClvSuspension, triggerDbbSuspension", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/AutoSuspensionHelper.java:62-67, 103, 309-316", "reason": "dead: no caller found in ocmsadminapi"},
+  {"item": "CRUD /v1/vipvehicle on ocms_vip_vehicle", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicleController.java:8-9", "reason": "generated CRUD: no UI screen and no entry in api-authorization.properties; the table is filled by a cron job and patched by DB script (ticket OCMS-SR-2026-051)"},
+  {"item": "Parameter history (ocms_parameter_history, /v1/parameterhistory)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameterhistory/ParameterHistoryController.java:9-14", "reason": "generated CRUD: nothing writes to the table and there is no UI page"},
+  {"item": "updateVonStage(von, stage) overload and NEXT_STAGE / STAGEDAYS validation in Change of Processing Stage", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1089-1091", "reason": "dead: no caller, both live paths use manual mode"},
+  {"item": "Staff Change Processing Stage page and PLUS change-stage endpoints (/plus-change-processing-stage, /plus-apply-change-stage)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:47, 496; workflows/notice_management/stage/changestage/ChangeStageController.java:18-55", "reason": "other: already in OCMS15.1-15.11 (Demo paid) and OCMS15.12-15.15 (PLUS requests); two PLUS mechanisms exist but both fall in those stories"},
+  {"item": "Sync of CPS fields to eVON (syncCpsFieldsToInternetDb) and the automatic report after a PLUS stage change", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1191-1230, 1395-1421", "reason": "other: internal data sync with soft failure (left to the batch sync cron); the PLUS-triggered report is folded into the CPS report candidate and is a known oddity (covers all of today's changes)"},
+  {"item": "CAS/PLUS court endpoints plus-get-court-case-info and plus-payment-activation", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:167, 220", "reason": "other: PLUS enable/disable of court payment is OCMS48.2 ('receive requests to enable/disable payment for court notices from PLUS')"},
+  {"item": "Officer furnish endpoints /furnish/officer/{list,detail,approve,reject}, /furnish/submit, /furnish/officer/manual/* (second implementations)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dashboard/FurnishDashboardController.java:18-33; furnish/approval/FurnishApprovalController.java:23-38; furnish/rejection/FurnishRejectionController.java:24-43; furnish/manual/ManualFurnishController.java:24-25", "reason": "dead: no caller in ocmsadminui, ocmseserviceui, ocmseserviceapi or thirdpartyapi; the UI uses manual-review/* and furnishapplicationlist; not in api-authorization.properties so staff would get 403; rejection resend is a TODO stub (FurnishRejectionServiceImpl.java:153-158)"},
+  {"item": "Resubmission flag and 'Resubmission' badge on furnish list and review screen", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController.java:87-100; ocmsadminui/src/pages/Notice/mode/update/UpdateForm.tsx:193", "reason": "other: same idea as OCMS41.38 / OCMS41.39 (Demo paid, check prior submission and mark the request as resubmission); too small to separate"},
+  {"item": "Auto TS-HST on furnish approval or staff furnish, and TS-HST revive when the HST offender is replaced", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/approval/FurnishApprovalServiceImpl.java:98-109, 169-191; stafffurnish/services/StaffFurnishService.java:272-283", "reason": "other: side effect of furnish; already referenced as one path of OCMS20.19; fixes came from tickets OCMS-DF-2026-092 / 093"},
+  {"item": "HST ad hoc reports GET /v1/hst/reports/hirer-driver-furnished and /alternative-address", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/hst/HstReportController.java:41-118", "reason": "not reachable: no caller in ocmsadminui (grep empty) and they return JSON, not a file; the HST daily and monthly reports are separate cron jobs"},
+  {"item": "PLUS direct edit of owner/driver and address (POST /plus-update-offence-notice-owner-driver)", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:39-43", "reason": "other: PLUS update of particulars is OCMS41.58; this variant skips furnishable check and username, which is closer to a gap than a feature; no caller verifiable"},
+  {"item": "Unclaimed reminder queues current offender in ocms_adhoc_nro_temp for MHA/DataHive batch", "source": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:676", "reason": "other: internal queue table feeding the existing ICA/DOS check stories, no visible result of its own"}
+ ],
+ "notes": "All 71 seed leads were checked: they collapse into 6 candidates, the rest are in not_claimable. Many seed lines are the same feature seen by different agents (for example batch update address #150/#210, CAS #149/#153/#155/#162/#175/#243/#246, PLUS court reduction #110/#113/#115/#116, CPS #72/#102/#104/#105/#109, RIP #88/#89/#93, resubmission #198), so the parent should not add the orphan counts and the candidates together. Candidate strength order: Batch Update Mailing Address, RIP report, Redirect offender; CAS interface is Low confidence because of the security exposure and no proof of a caller. Status caveats: OCMS27.23, OCMS4.5 and OCMS46.x have a blank or 'No requirement' status in stories.json, so URA may still treat them as unbilled scope that includes my items. No flow deck or workbook exists, so ura_requested is 'no' everywhere; maintenance tickets only show URA used or fixed some of these features. Line numbers were read with grep -n and sed on the six repos on main; nothing was run or built. Role/menu visibility (LinkData allowedUrls, FUNCTION_ID.REPORT_RIP / REPORT_CPS) is decided at runtime and cannot be verified from the repo."
+}

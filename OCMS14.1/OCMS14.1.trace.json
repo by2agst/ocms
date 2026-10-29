@@ -1,0 +1,82 @@
+{
+  "story": "OCMS14.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils,helpers/NoticeProcessingHelper} (klasifikasi vehicle_registration_type D/I/V/S/F + PS-FOR + proses MID), crud/ocmsizdb/OcmsVipVehicle, agencies/lta/download/helpers (jalur Diplomat ke RD1), agencies/mha/download/helpers/MhaNricDownloadHelper (PS-RIP/RP2), datahiveuenfin/DataHiveUenFinService (death status FIN), application.properties (ocms.vehicle.*). ocmsadminapi workflows/notice_creation/core/helpers/SpecialVehUtils (salinan hardcoded). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini.",
+  "note": "Story status Demo paid (50% of 75%), demo_remark: MID OK, FOR OK, RIP NOT OK (no Vault), DIP OK, VIP NOT BUILT. Remark itu klaim, bukan bukti: di code, RIP dan VIP ada (lihat step 4 dan 6). Klasifikasi tipe kendaraan memang jalan saat notice dibuat, tetapi kondisinya (suffix DIP, marker MID) dibaca dari application.properties, bukan parameter table yang dikelola officer dan bukan feed FOMS seperti yang ditulis story; kata FOMS tidak muncul di enam repo, jadi FOMS = CAS cannot be confirmed from repo. Salinan di ocmsadminapi memakai aturan yang sama tetapi hardcoded, jadi dua tempat bisa berbeda. Jalur Diplomat setelah LTA memakai diplomaticFlag dari file LTA, bukan hasil klasifikasi nomor. Nilai properties di server nyata dan isi file LTA/MHA/CAS cannot verify from repo. Story menulis Stored Procedure; di repo tidak ditemukan stored procedure, logikanya Java.",
+  "recommendation": "Klaim sebagian. Logika identifikasi DIP/MID/FOR jalan di code, tetapi sumber aturan (properties, bukan parameter table/FOMS) dan jalur DIP lewat flag LTA berbeda dari teks story. Jangan klaim Sesuai penuh sebelum URA menerima properties sebagai pengganti parameter table.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan vehicle registration type tiap notice dari nomor kendaraan saat notice dibuat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:57-106; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:701-714",
+      "fit": "Sesuai",
+      "detail": "checkVehregistration berjalan berurutan: tipe F dari sumber, nomor kosong atau N.A jadi X, isDip jadi D, isMid jadi I, isVip jadi V, validasi LTA jadi S, sisanya F (SpecialVehUtils.java:57-106). processSingleNotice memanggilnya dan menyimpan hasilnya ke dto (CreateNoticeServiceImpl.java:707,714); nomor yang mengandung MID atau MINDEF dipaksa jadi I lebih dulu (:701-703). Parameter sourceProvidedType selalu null (:707) sehingga tipe F dari sumber tidak pernah dipakai. Salinan ocmsadminapi (create notice staff/CES) memakai aturan sama tetapi hardcoded (SpecialVehUtils.java:100-118 di ocmsadminapi; CreateNoticeServiceImpl.java:1027-1032), jadi bisa drift dari versi properties."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kendaraan diplomat (DIP) dikenali dari prefix dan suffix pada nomor kendaraan yang sudah ditetapkan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:114-121; ocmsadminprivateapi/src/main/resources/application.properties:119-120; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SpecialVehUtils.java:100-106",
+      "fit": "Sebagian",
+      "detail": "Aturan jalan: nomor harus diawali prefix S dan diakhiri CC, CD, TC atau TE (SpecialVehUtils.java:114-121). Tetapi nilainya dibaca dari application.properties (ocms.vehicle.diplomat.prefix dan suffixes, application.properties:119-120; tidak ada override di application-prod.properties), bukan parameter table yang dikelola officer dan bukan feed FOMS seperti teks story; mengubah daftar butuh deploy ulang. Tidak ada daftar nomor kendaraan DIP, hanya pola. Di ocmsadminapi pola yang sama hardcoded regex (SpecialVehUtils.java:100-106). Nilai properties server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kendaraan militer (MID) dikenali dari prefix atau suffix MID atau MINDEF pada nomor kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:128-131; ocmsadminprivateapi/src/main/resources/application.properties:122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:701-703",
+      "fit": "Sebagian",
+      "detail": "isMid cocok jika nomor diawali atau diakhiri salah satu marker MID atau MINDEF (SpecialVehUtils.java:128-131); marker dibaca dari ocms.vehicle.mid.markers (application.properties:122) dan CreateNoticeServiceImpl.java:701-703 bahkan memakai contains MID atau MINDEF yang lebih longgar sebelum isMid dipanggil. Sama dengan step DIP: sumbernya properties, bukan parameter table atau FOMS, jadi fit-nya sama (Sebagian). Di ocmsadminapi hardcoded (SpecialVehUtils.java:113-118 di ocmsadminapi)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kendaraan VIP dikenali dari daftar nomor kendaraan yang tersimpan di tabel",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:138-149; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicleServiceImpl.java:79-90; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:336-337; ocmsadminprivateapi/src/main/resources/application-prod.properties:112; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:706",
+      "fit": "Sebagian",
+      "detail": "isVip mencari nomor di tabel ocms_vip_vehicle dan hanya menghitung status A (SpecialVehUtils.java:138-149; OcmsVipVehicleServiceImpl.java:79-90). Tabel diisi cron CAS Refresh harian 02:00 (cron.casvipvehicle.enabled=true, cron-schedules-prod.properties:336-337) dari CAS getVIPVehicles (application-prod.properties:112). Story menulis FOMS; FOMS = CAS cannot be confirmed from repo. Jika query error, isVip mengembalikan false (fail-open, SpecialVehUtils.java:144-147), sehingga VIP bisa lolos sebagai S. Pemberian TS-CLV di Toppan tidak memakai tabel tetapi regex nomor diawali V (ToppanUploadHelper.java:706). Tiket OCMS-SR-2026-051 (Closed): isi tabel pernah dipatch lewat script DB. Remark demo VIP NOT BUILT tidak cocok dengan code: fitur VIP ada, hanya sumbernya belum terbukti sama dengan FOMS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kendaraan asing (FOR) dikenali dan notice langsung diberi suspension FOR",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:460-490; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:578-579; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:797-799; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:867-873",
+      "fit": "Sesuai",
+      "detail": "Nomor yang tidak lolos D, I, V dan validasi LTA jatuh ke tipe F (SpecialVehUtils.java:105-106). Untuk tipe F, setForeignVehicleSettings mengisi PS-FOR di dto (NoticeProcessingHelper.java:482-484), notice dibuat, lalu createForeignVehicleSuspension menyimpan baris suspended_notice dengan reason FOR (CreateNoticeServiceImpl.java:797-799,867-873; NoticeProcessingHelper.java:578-579). Jika notice duplikat (DBB), PS-FOR dilewati (CreateNoticeServiceImpl.java:801-810). Dipakai juga sebagai indikator pada admin fee 90 hari (di luar story ini, lihat orphans)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice atas ID yang sudah meninggal (life status) dikenali dan diberi suspension RIP",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:872-874; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:953-966; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1017-1021; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3310-3317; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sebagian",
+      "detail": "Jalur NRIC: hasil MHA dengan lifeStatus D dan Date of Death terisi dipakai; DoD pada atau setelah tanggal offence memberi PS-RIP, sebelum offence memberi PS-RP2 (MhaNricDownloadHelper.java:872-874,953-966,1017-1021). Cron MHA download enabled=true (cron-schedules-prod.properties:119-120). Jalur FIN via DataHive juga ada (DataHiveUenFinService.java:3310-3317) tetapi job-nya dimatikan di prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52; dicek di MhaDownloadJobsScheduler.java:43,104). Jadi hanya sebagian ID yang tercakup. Remark demo RIP NOT OK, no Vault: code tidak memakai Vault, sumbernya MHA/DataHive. Isi file MHA nyata dan nilai server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kendaraan militer (MID) langsung diproses ke reminder dengan pemilik dan alamat MINDEF terisi otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:609-615; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:727-765; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:252-265; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:812-813; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:912-914",
+      "fit": "Sesuai",
+      "detail": "Untuk tipe I, processMilitaryVehicle mengisi last stage NPA dan next stage RD1 (NoticeProcessingHelper.java:609-615; dipanggil CreateNoticeServiceImpl.java:812-813), lalu populateAddressForMilitary membuat baris owner MINDEF dan alamat mha_reg dari konstanta (NoticeProcessingHelper.java:727-765; SystemConstant.java:252-265; dipanggil CreateNoticeServiceImpl.java:912-914). Nilai ID dan alamat hardcoded di SystemConstant; kecocokan dengan data resmi MINDEF cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kendaraan diplomat (DIP) diproses ke tahap reminder setelah teridentifikasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:438-441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:418-425; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:254-258; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:101-109; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:511-552; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sebagian",
+      "detail": "Notice D dibuat lewat jalur V/S/D: last NPA, next ROV (NoticeProcessingHelper.java:438-441). Setelah LTA result, diplomaticFlag Y membuat record dianggap Diplomat dan stage di-set ROV lalu next RD1 (LtaDownloadHelper.java:418-425; LtaProcessingOrchestrator.java:101-109; LtaProcessingStageManager.java:511-552). Cron LTA download enabled=true (cron-schedules-prod.properties:148-149). Celahnya: keputusan Diplomat di tahap LTA memakai flag dari file LTA (LtaBatchCode0Processor.java:254-258), bukan hasil klasifikasi nomor S..CC dari step DIP, sehingga notice D-by-prefix yang flag LTA-nya N masuk jalur standard. Tiket OCMS-DF-2026-052 (Closed, Prod deployed): stage Diplomat pernah salah jadi ENA bukan RD1 karena bug cache; sudah diperbaiki. Isi file LTA nyata cannot verify from repo."
+    }
+  ]
+}

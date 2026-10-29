@@ -1,0 +1,46 @@
+{
+  "story": "OCMS24.13",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "Tidak ada flow deck OCMS; langkah diambil dari teks story. Status sheet kosong; demo_remark: 'Check with Rafif if function is ready' (klaim, bukan bukti).",
+  "code_summary": "Mekanisme yang mirip ada di job eNotification (ocmsadminprivateapi, NotificationSmsEmailHelper.queryRecordsForReminder): ambang X hari dibaca dari ocms_parameter ENOTEDAYS per kode stage, notice dipilih bila due date (last_processing_date + POS + PDD) jatuh dalam X hari, lalu SMS/email dikirim. Tapi hanya untuk stage parking RD1, RD2, RR3, DN1, DN2, DR3, bukan batch court summons, due date court (ocms_court_case.court_payment_due_date) tidak dipakai, dan cek 'belum bayar' hanya implisit lewat stage dan suspension_type. Di prod cron.notification.enabled=false.",
+  "note": "Status sheet kosong dan demo_remark berisi catatan 'Check with Rafif'; ditelusuri normal. Mekanisme eNotification parking dipakai sebagai pembanding: paling tinggi Sebagian karena bukan batch court summons. Tiket OCMS-DF-2026-180 (due date ENA salah, Closed, menunggu cron eNotification diaktifkan) dipakai sebagai petunjuk bahwa cron belum aktif; ini bukan bukti nilai server asli.",
+  "recommendation": "Sebagian: mekanisme X hari sebelum due date untuk reminder parking ada, tapi tidak untuk batch court summons. Perlu pengembangan untuk court (due date court dan stage court).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah hari X dapat diatur lewat parameter yang dikelola di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1170-1175",
+      "fit": "Sebagian",
+      "detail": "getParameterValueForEna membaca ocms_parameter dengan parameter_id = 'ENOTEDAYS' dan code = stage (NotificationSmsEmailHelper.java:1170-1175); query reminder juga join ke ENOTEDAYS per last_processing_stage (:1107-1109, :1118). Jadi X memang parameter di database, tapi baris yang dipakai adalah kode stage parking, bukan court. Isi baris parameter cannot verify from repo (DB-only)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih batch court summons yang payment due date-nya jatuh dalam X hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1114-1118",
+      "fit": "Tidak ada code",
+      "detail": "Query hanya mengambil von.last_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3') dengan due date = last_processing_date + POS + PDD <= hari ini + ENOTEDAYS (NotificationSmsEmailHelper.java:1114-1118). Tidak ada stage court, tidak ada batch court summons, dan court_payment_due_date di ocms_court_case tidak dipakai di sini; kolom itu hanya dibaca findNoticeNosDue untuk cutoff payment acceptance (OcmsCourtCaseRepository.java:16-19, PaymentAcceptanceCutoffServiceImpl.java:55) dan diisi dari CAS (CasIntegrationServiceImpl.java:805-821). Perhitungan due date eNotification pernah salah (OCMS-DF-2026-180, ENA 13 hari bukan 7)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah pembayaran sudah dibuat sebelum due date",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1119-1129",
+      "fit": "Sebagian",
+      "detail": "Tidak ada cek pembayaran eksplisit. Notice yang sudah dibayar dikeluarkan secara implisit: query hanya mengambil notice dengan suspension_type IS NULL atau TS-HST (NotificationSmsEmailHelper.java:1119-1129) pada stage reminder; nama kolom paid/FP tidak dibaca. Bahwa notice lunas pasti memiliki suspension_type atau stage lain cannot verify from repo. Berlaku untuk reminder parking, bukan court summons."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pengecekan menentukan apakah SMS/email dikirim ke defendant",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162",
+      "fit": "Sebagian",
+      "detail": "Job mengambil record ENA dan reminder (NotificationSmsEmailJob.java:161-162), menggabungkan, lalu hanya yang lolos filter query dan exclusion yang masuk ke sendBatchSms (:289-291). Pola 'cek lalu kirim' ada, tapi untuk reminder parking. Cron ini cron.notification.enabled=false di prod (cron-schedules-prod.properties:236; nilai server asli cannot verify from repo), jadi di konfigurasi repo tidak berjalan (OCMS-DF-2026-180: menunggu cron eNotification diaktifkan)."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS27.25",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Mekanisme refresh kontak dan kirim SMS ada di NotificationSmsEmailJob/Helper (DataHive refreshContactInfo, normalizeMobile, sendSms), tetapi hanya untuk stage reminder/demand (RD1..DR3), tidak terhubung ke alur warrant, dan di prod dimatikan (cron.notification.enabled=false, sms.enable=false, cron.enareminder.datahive=false). Pengecekan 'tidak settled X hari' (OCMS27.24) tidak ada.",
+  "note": "Status story kosong (requirement tidak diberikan / status blank); ditrace normal. Rujukan 'Epic no. OCMS9' dibaca sebagai epic notifikasi SMS/email; pemetaan nomor epic itu ke code cannot be verified from repo (hanya comment OCMS 10 untuk AN letter yang ditemukan). Step 1 diberi fit sama dengan OCMS27.24 step 3 (fakta yang sama). Tidak ada maintenance ticket relevan.",
+  "recommendation": "Klaim terbatas (Sebagian) untuk mekanisme kontak dan SMS yang dipakai ulang; tidak terhubung ke warrant dan dimatikan di prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS sudah memastikan warrant notice yang executed belum settled X hari sebelum court mention date baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:336",
+      "fit": "Tidak ada code",
+      "detail": "Pengecekan itu tidak ada (sama dengan OCMS27.24 step 3): tidak ada perbandingan settled date dengan mention date; hanya penolakan notice FULL_PAYMENT tanpa tanggal di CasIntegrationServiceImpl.java:336."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek nomor mobile yang ter-update sesuai aturan Epic OCMS9",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2477; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2736-2742",
+      "fit": "Sebagian",
+      "detail": "refreshContactInfo (NotificationSmsEmailHelper.java:2461) mengambil kontak terbaru dari DataHive bila flag aktif, menolak nomor kurang dari 8 digit sebagai Invalid mobile format (:2736-2742), dan menormalkan nomor dengan mobileCode (normalizeMobile :2053); company (idType B) tidak dapat SMS (:2470). Tetapi flag cron.enareminder.datahive=false di semua env (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48) sehingga cabang DataHive dilewati dan memakai kontak yang sudah ada (:2468-2477). Fungsi ini hanya dipanggil untuk record stage reminder/demand, tidak dari alur warrant. Pemetaan 'Epic OCMS9' cannot be verified from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim SMS notifikasi ke defendant",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:509-526; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:38-39",
+      "fit": "Sebagian",
+      "detail": "sendSms (NotificationSmsEmailHelper.java:509-526) mengirim lewat SmsUtil dengan template dari ocms_template_store, tetapi dipicu hanya oleh NotificationSmsEmailJob untuk stage RD1/RD2/RR3/DN1/DN2/DR3 (:1114), bukan notice warrant yang executed. Di prod sms.enable=false (ocmsadminprivateapi/src/main/resources/application-prod.properties:87; SmsUtil.java:38-39) dan cron.notification.enabled=false (cron-schedules-prod.properties:236); nilai server asli cannot be verified from repo. Template SMS warrant di DB cannot be verified from repo."
+    }
+  ]
+}

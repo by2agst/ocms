@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.31",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/Notice/{form/Form.tsx,hook/ActionNotice.tsx,hook/useNoticeSubmit.tsx}, src/pages/Furnish/{form/DecisionForm.tsx,form/ReplyComposeForm.tsx,form/ComposeList.tsx}. No backend code for cancel: cancelling is purely UI, before any API call",
+  "note": "Cancel in the staff portal is a UI behaviour: Save opens the confirmation modal 'Do you wish to proceed with the rejection?', and Cancel only closes the modal without calling any API (the reject and email calls happen only after OK). The form state (decision, remarks, the email/SMS list in compose_list) is not reset, so the OIC returns to the same screen with everything still keyed in. The Approve/Reject decision can be changed and submitted again. Small gaps: there is no summary screen for the scheduled email (stories 41.27/41.28 are outside this chunk), the confirmation is a plain yes/no modal. A composed email/SMS cannot be edited in place, only Preview or Remove and then composed again. Browser behaviour was not run, it was read from source.",
+  "recommendation": "Can be claimed for the most part: cancel returns to the form with data intact and the decision can be changed. Note two gaps: no email summary screen, and an email/SMS can only be removed and composed again, not edited directly",
+  "steps": [
+    {
+      "step": "OIC picks the Reject decision, fills remarks, ticks Send Email/SMS and composes the email/SMS",
+      "detail": "The OIC Review tab in DecisionForm has a Decision Status dropdown (Approve/Reject, DecisionForm.tsx:438-449), a Remarks textarea (:468) and a Send Email/SMS checkbox (:472-480). The checkbox shows the Reply tab (Form.tsx:88-90, 240-246). ReplyComposeForm adds each email/SMS to form.compose_list (ReplyComposeForm.tsx:80-86). All input is held in the form state."
+    },
+    {
+      "step": "OIC presses Save and a confirmation appears before the reject runs",
+      "detail": "onConfirmation('SUBMIT') (ActionNotice.tsx:415) fills the modal with 'Do you wish to proceed with the rejection?' when decissionStatus = R (:189-194) and shows it (:205-210). No API is called at this point. It is a plain yes/no modal, not an email summary screen (see the note, and stories 41.27/41.28)."
+    },
+    {
+      "step": "OIC cancels: the screen returns to the form with everything that was typed",
+      "detail": "Cancel/closing the modal only calls setModalCom(show:false) (ActionNotice.tsx:386). onComModalOk, which calls onSaveSubmit -> Notice.Submit -> rejectFurnish/composeFurnish, runs only from OK (:313-317, :240-243). With no reload or form reset, decision, remarks, sendEmailSms and compose_list stay in place. Reject and email have not been sent. Read from source, not run in a browser."
+    },
+    {
+      "step": "OIC can change the decision (approve or reject) before submitting again",
+      "detail": "The Decision Status dropdown stays editable while the status is not A/R (DecisionForm.tsx:435, 438-449). Switching from Approve to Reject clears a leftover approveAs (:74-81). Submitting again goes through the same confirmation modal (ActionNotice.tsx:189-199) and then rejectFurnish or approveFurnish (useNoticeSubmit.tsx:198-200)."
+    },
+    {
+      "step": "OIC can change the SMS/email content already composed",
+      "detail": "The compose list (ComposeList.tsx:58-70) only has Preview and Remove buttons. There is no in-place edit. To change a message: Remove the entry (:22-30) and compose it again through ReplyComposeForm (:65-86). The end result is reachable but in two steps, so Sebagian."
+    }
+  ]
+}

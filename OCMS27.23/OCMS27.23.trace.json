@@ -1,0 +1,46 @@
+{
+  "story": "OCMS27.23",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Hanya endpoint inbound CAS POST /v1/casUpdateCourtNotices yang bisa menerima update processing stage/suspension untuk notice court dan menyimpannya ke VON intranet dan eVON internet. Payload tidak membawa data warrant execution atau court mention date, dan tidak ada status warrant executed. Kredit hanya Sebagian untuk penerimaan dan update stage.",
+  "note": "Status story kosong (requirement tidak diberikan / status blank); ditrace normal. Endpoint CAS dikreditkan hanya untuk step penerimaan detail dan update processing stage karena field lastProcessingStage/nextProcessingStage memang ada di payload; bahwa CAS mengirim data warrant execution lewat endpoint ini cannot be verified from repo. Tidak ada maintenance ticket relevan (OCMS-DEV-2026-129 hanya muncul di comment code soal performa batch, bukan di maintenance_tickets.csv).",
+  "recommendation": "Klaim terbatas (Sebagian): penerimaan update stage court dari CAS. Court mention date baru dan status warrant executed tidak ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima detail warrant execution dari pihak luar (court/CAS) dalam batch",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-105; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:125-135",
+      "fit": "Sebagian",
+      "detail": "POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101) menerima batch maks 500 notice (:125), ada throttle konkurensi (:109). Payload CasUpdateNoticeItem (dto/CasUpdateNoticeItem.java:25-73) hanya berisi noticeNo, suspensionType, processing stage/date, atomsFlag, amountPayable, paymentAcceptanceAllowed, EPR suspension; tidak ada field warrant atau execution. Sebagian karena ini kanal inbound umum untuk notice court; bahwa CAS mengirim warrant execution lewat sini cannot be verified from repo. Proteksi akses (APIM) tidak terlihat di repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan menyimpan court mention date baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:28-57",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada field mention date di payload (CasUpdateNoticeItem.java:25-73), di kolom UPDATE (CasIntegrationServiceImpl.java:96-117), maupun di entity court case (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:27-31 hanya court_payment_due_date dan reason). mention_date hanya ada di type UI (ocmsadminui/src/utils/models/Icourtcase.d.ts:25, Iwarrantofarrest.d.ts:9) tanpa backend. Kolom DB di luar entity cannot be verified from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memproses detail dan meng-update processing stage notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:103-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:372-393",
+      "fit": "Sebagian",
+      "detail": "updateCourtNotices (CasIntegrationServiceImpl.java:246) mem-fetch VON intranet dan eVON internet paralel (:291-299), menolak notice tidak ada atau sudah Paid (:336), memvalidasi format tanggal yyyyMMddHHmmssSSS (:595-601), lalu satu UPDATE multi-row meng-set last/prev/next_processing_stage dan tanggalnya (INTRANET_SET_CLAUSE :103-117; eVON :144-153, :384-393). Mekanisme update stage berfungsi, tetapi tidak ada aturan khusus warrant (mis. stage warrant CWM/CTW/COW/CWW/CWT, SystemConstant.java:94-97, tidak dicek) sehingga Sebagian. Sumber data yang dikirim CAS cannot be verified from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat mengetahui bahwa warrant of arrest sudah executed",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Iwarrantofarrest.d.ts:1-12; ocmsadminapi/src/main/resources/api-authorization.properties:23",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada status atau field warrant executed di backend. UI memanggil endpoint warrantofarrest (ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:68-78) dan type memiliki outcome_of_warrant (ocmsadminui/src/utils/models/Iwarrantofarrest.d.ts:7), tetapi /v1/warrantofarrest hanya terdaftar di ocmsadminapi/src/main/resources/api-authorization.properties:23 tanpa controller/entity di ocmsadminapi atau ocmsadminprivateapi; cannot verify from repo apakah backend lain ada. Update stage dari CAS tidak diberi arti 'warrant executed' di code."
+    }
+  ]
+}

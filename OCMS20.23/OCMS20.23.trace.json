@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Tidak ada code pengecekan appeal PLUS. Yang ada di dekatnya: ocmsadminapi HstManagementServiceImpl (apply-hst, prasyarat), ocmsadminapi workflows/furnish/plusintegration/PlusIntegrationController (PLUS memanggil OCMS untuk furnish/redirect), ocmsadminprivateapi DailyReportJobsScheduler (HST Report Generator dari data MHA/DataHive)",
+  "note": "Story berstatus 'Requirement given - Gen flow'. Siblingnya OCMS20.14-20.17 berstatus 'No requirement' (fitur yang sama). Tidak ditemukan satu pun job, client, DTO, atau tabel yang menarik appeal dari PLUS atau menyimpan alamat appeal, setelah mencoba keyword appeal, plus, alternative address, appeal address, work item, dashboard di ocmsadminapi, ocmsadminprivateapi (src saja), thirdpartyapi, ocmsadminui. Integrasi PLUS di repo berarah sebaliknya (PLUS memanggil endpoint plus-furnish*/plus-redirect), dan JwtFilter melewati JWT untuk endpoint plus-* sehingga perlindungannya bergantung pada APIM yang tidak terlihat di repo. Satu-satunya langkah yang ada adalah prasyarat (indicator dipasang). Laporan ad-hoc alternative-address di ocmsadminapi memakai aplikasi furnish, bukan appeal, dan tidak diklaim. Tidak ada tiket pemeliharaan yang relevan.",
+  "recommendation": "Jangan klaim (selain prasyarat). Fitur pengecekan harian appeal PLUS dan work item belum dibangun; minta URA/tim konfirmasi apakah dibangun di repo lain atau tandai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Special indicator (TS-HST) sudah dipasang ke semua outstanding notice di bawah offender ID",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:307-322; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:326-342; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:492-500",
+      "fit": "Sesuai",
+      "detail": "Mapping 'special indicator' ke HST (row ocms_hst + suspension TS-HST) adalah kesimpulan dari komentar OCMS 20 di code, bukan dari story. applyHstSuspension (POST /v1/apply-hst) membuat row ocms_hst (HstManagementServiceImpl.java:307-322), mencari semua notice offender_indicator='Y' berdasarkan ID (:326-327), lalu apply TS-HST per notice lewat tsHelper.processTS (:492-500) dan melewati notice yang punya PS aktif (:338-340). Ini aksi staf (cakupan utama OCMS20.18); di sini hanya prasyarat. Tiket OCMS-DF-2026-094 (Closed) pernah melaporkan PS notice ikut kena TS-HST; code saat ini melewati PS aktif."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menjalankan pengecekan harian atas appeal baru di PLUS untuk ID ber-indicator",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:99; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:185",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada job yang menarik data appeal dari PLUS. Satu-satunya job harian HST adalah HST Report Generator 08:00 (DailyReportJobsScheduler.java:99; cron-schedules-prod.properties:255-256) yang membaca hasil MHA/DataHive, bukan PLUS. Integrasi PLUS di repo adalah PLUS memanggil OCMS untuk furnish/redirect (PlusIntegrationController.java:65, :136, :185), bukan OCMS menarik appeal. Dicoba keyword appeal, plus, alternative address, appeal address, work item di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmsadminui: tidak ada pencocokan yang relevan (cron stale ocmsadminprivateapi/cronservice/ tidak dihitung)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil detail appeal baru dari PLUS (termasuk alamat yang ditulis di appeal)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:185",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang menerima atau menyimpan alamat dari appeal PLUS. Endpoint plus-* di ocmsadminapi hanya menangani furnish dan redirect (PlusIntegrationController.java:65, :136, :185). Tidak ada client, DTO, atau tabel untuk 'appeal address' di enam repo. Catatan: JwtFilter melewati JWT untuk endpoint plus-* dan perlindungannya bergantung pada APIM yang tidak terlihat di repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan alamat di appeal dengan registered address",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:471-472",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pembandingan alamat appeal vs registered address. Satu-satunya pembandingan alamat di area HST adalah alamat MHA/DataHive vs alamat di ocms_hst pada laporan (HstReportHelper.java:471-472), bukan alamat appeal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item untuk di-route ke dashboard petugas bila alamat berbeda",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/constant.ts:300-303; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:336-346",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada work item untuk perbedaan alamat appeal. Dashboard.tsx tidak punya konsep work item HST; satu-satunya work item di staff UI adalah 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). Email 'Monthly HST Work Items Report' (HstReportServiceImpl.java:336-346) berisi angka agregat dari hasil MHA/DataHive, bukan dari appeal."
+    }
+  ]
+}

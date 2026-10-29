@@ -1,0 +1,29 @@
+{
+  "story": "OCMS9.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob (doExecute), helpers/NotificationSmsEmailHelper (queryRecordsForReminder, loadAllExcludedIds, isExcludedWithPreloaded, patchNextStageToRd1NextDay)}, framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor.planStandardVehicle, LtaBusinessRulesChecker.isOffenderInExclusionList, LtaDownloadHelper}, crud/ocmsizdb/OcmsEnotificationExclusionList; properties cron-schedules-{dev,uat,prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved in the check",
+  "note": "The exclusion list check exists in two places and both read ocms_enotification_exclusion_list with an exact id_no match: (1) the eNotification cron (NotificationSmsEmailJob), which loads the whole list once and drops matching IDs before the SMS batch is prepared, and (2) the LTA download when a notice is about to enter ENA, before the contact lookup. A matching ID is moved to RD1 (letter track) for ENA or skipped for reminders. One thing to watch: if reading the list fails (DB error), loadAllExcludedIds returns an empty set and LtaBusinessRulesChecker returns false, so processing continues as if nobody is excluded (fail-open) and an opted-out ID can receive an SMS. In the repo property files cron.notification.enabled=false in dev, uat and prod (OCMS-DF-2026-180 says the eNotification cron is still waiting for activation), so path (1) only runs if the environment value differs: cannot verify from repo. The LTA path (2) is enabled in prod. Demo remark (test notice 441000910H in DEV): cannot verify from repo.",
+  "recommendation": "Claim: the exclusion check is proven in code. Note that the eNotification cron is disabled in the repo properties and a failed list read falls to fail-open",
+  "steps": [
+    {
+      "step": "The system loads the list of excluded IDs from ocms_enotification_exclusion_list",
+      "detail": "doExecute calls loadAllExcludedIds once before processing (NotificationSmsEmailJob.java:193-195); it runs SELECT id_no FROM ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1207-1214). If the query fails the method returns an empty set (:1213-1214) so processing continues with no exclusion (fail-open). Double check: loadAllExcludedIds() (NotificationSmsEmailHelper) catches the exception and returns an empty set, so if reading the table fails the job continues with no exclusion (fail-open); the list is also applied only after refreshContactInfo ran for every record (NotificationSmsEmailJob.java:186-190)."
+    },
+    {
+      "step": "The offender's ID is matched against the exclusion list",
+      "detail": "For each record the idNo is compared with the preloaded set via isExcludedWithPreloaded (NotificationSmsEmailJob.java:203-207,226; NotificationSmsEmailHelper.java:1225-1227), which is an exact string contains(). The reminder query also filters onod.id_no NOT IN (SELECT id_no FROM ocms_enotification_exclusion_list) directly in SQL (NotificationSmsEmailHelper.java:1131-1134)."
+    },
+    {
+      "step": "ID is on the list: electronic notification is not processed; ENA is redirected to RD1 (letter), reminders are skipped",
+      "detail": "On a match the record is dropped from eligibleRecords so it enters neither the SMS batch nor the email (NotificationSmsEmailJob.java:226-232, continue). For stage ENA, patchNextStageToRd1NextDay sets the notice to last=ROV, next=RD1, next date tomorrow and is_sync=N (NotificationSmsEmailHelper.java:1237-1263)."
+    },
+    {
+      "step": "ID is not on the list: processing continues to the passport check, contact validation and sending",
+      "detail": "A record that passes enters eligibleRecords (NotificationSmsEmailJob.java:245-247), is checked for passport (:234-243), contact-validated, and then enters smsRecords for the SMS batch (:252-285)."
+    },
+    {
+      "step": "The same check runs when a notice is about to enter ENA in the LTA download, before the contact lookup",
+      "detail": "planStandardVehicle calls isOffenderInExclusionList (LtaBatchCode0Processor.java:685-691); on a match the notice goes straight to planStageToRD1 and the contact lookup (:706) is not run. The check uses the preloaded set (LtaBusinessRulesChecker.java:194-208; preload called at LtaDownloadHelper.java:255) with a per-ID count as fallback. On error the method returns false (fail-open)."
+    }
+  ]
+}

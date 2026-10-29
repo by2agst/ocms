@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.3",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: sisi staff/cron/agency, tidak dipakai langkah story ini (hanya cron sync Intranet ke eVON yang memberi data, tidak ditelusuri)",
+  "note": "Status 'Fully paid'. Klasifikasi notice non-furnishable dan kotak pesan 'cannot be furnished' ada, tetapi detail per notice (notice number, tanggal, car park, offence, amount, due date) tidak ditampilkan: backend hanya mengirim notice Eligible dan UI hanya menampilkan jumlah. Opsi bayar adalah tombol/link ke halaman Payment umum yang butuh login dan pencarian sendiri (Sebagian, sama seperti halaman bersama di story lain). Notice yang tidak boleh dibayar (PRA, payment_acceptance_allowed N) disembunyikan sepenuhnya. Tidak ada tiket maintenance yang mengubah verdict ini.",
+  "recommendation": "Jangan klaim penuh. Detail notice non-furnishable belum ditampilkan; opsi bayar hanya mengarah ke halaman Payment umum. Minta konfirmasi URA apakah hitungan + link bayar cukup.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem menandai notice outstanding milik ID yang tidak bisa di-furnish",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:84-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:92-100; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:146-150; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:192; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:199-203; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:206; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:211; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:108-113; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:119-121",
+      "fit": "Sesuai",
+      "detail": "Notice milik ID (offender_indicator='Y') ditandai 'Not Eligible' bila user berperan sebagai driver (owner_driver_indicator 'D', FurnishApplicationListServiceImpl.java:97, 146-147), bila crs_reason_of_suspension tidak null (FurnishValidationServiceImpl.java:192), bila PS dengan reason DIP/MID/FOR/RIP/RP2 (199-203; SystemConstant.java:108-110), bila tipe UPL 'U' (206), atau bila stage bukan ROV/ENA/RD1/RD2 (211; SystemConstant.java:112-113). Controller menghitung totalNotEligible (FurnishApplicationListController.java:119-121)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman memberi tahu customer bahwa ada notice outstanding lain yang tidak bisa di-furnish",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:120-137; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:131-137",
+      "fit": "Sesuai",
+      "detail": "NonFurnishableInfo menampilkan kotak 'There are N other outstanding notice(s) that cannot be furnished. Please proceed to pay.' bila totalNotEligible > 0 (FurnishableNotices.ts:120-137), dengan angka dari respons (FurnishApplicationListController.java:131-137)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan detail tiap notice non-furnishable: notice number, tanggal dan jam offence, car park, offence committed, amount payable, due date",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:123-128; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:135-137; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:120-137; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:53-58; ocmseserviceui/src/pages/Furnish/API.ts:94-111",
+      "fit": "Beda dari flow",
+      "detail": "Yang tampil hanya jumlah (FurnishableNotices.ts:131-132). Controller mengirim ke UI hanya notice berstatus 'Eligible' (FurnishApplicationListController.java:124-128, 137); notice 'Not Eligible' hanya dihitung. Tidak ada tabel atau baris untuk notice non-furnishable, jadi nomor notice, tanggal, car park dan amount-nya tidak ditampilkan. Offence committed dan due date juga tidak pernah dikirim backend (API.ts:94-111 membaca computerRuleCodeDescription/paymentDueDate yang tidak diisi DTO; lihat langkah 42.5)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer memilih opsi untuk membayar notice tersebut",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:203-208; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:132; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:224-229; ocmseserviceui/src/hooks/Auth.ts:32-33; ocmseserviceui/src/route/route.ts:17-19; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:341-350",
+      "fit": "Sebagian",
+      "detail": "Tombol 'Make payment' (selalu dirender, juga saat tidak ada notice non-furnishable, FurnishableNotices.ts:224-229) dan link 'proceed to pay' (132) hanya membuka halaman /payment di tab baru (203-208). Halaman Payment adalah fitur terpisah dengan login Singpass/Corppass sendiri memakai app id PAYMENT (Auth.ts:32-33; PaymentSearch.ts:341-350; route.ts:17-19) dan pencarian notice sendiri; ID atau notice dari halaman furnish tidak dibawa. Halaman bersama yang bukan khusus story ini dinilai Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Opsi bayar hanya untuk notice yang boleh dibayar (if allowed)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:128-131; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:105-118",
+      "fit": "Sebagian",
+      "detail": "Notice dengan epr_reason_of_suspension 'PRA' atau payment_acceptance_allowed 'N' dibuang dari hasil (FurnishApplicationListServiceImpl.java:128-131). Kondisi 'boleh bayar' memang ditegakkan, tetapi dengan menyembunyikan notice itu: tidak tampil dan tidak ikut terhitung di totalNotEligible, bukan ditampilkan tanpa opsi bayar. Query eVON juga membuang notice dengan crs_reason_of_suspension terisi atau an_flag 'Y' (EocmsValidOffenceNoticeRepository.java:105-118). Apakah halaman Payment menegakkan aturan yang sama cannot verify dari alur furnish."
+    }
+  ]
+}

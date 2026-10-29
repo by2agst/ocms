@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.64",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: furnish_processing/{FurnishProcessingService,FurnishApprovalHelper,FurnishSyncHelper} (auto-approval, changeProcessingStage), schedulers/SyncInternetIntranetJobsScheduler, SystemConstant.FurnishStage, toppan/upload/ToppanUploadHelper, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, notification_sms_email/NotificationSmsEmailHelper. ocmsadminapi: furnish/manualreview/ManualReviewService and furnish/stafffurnish/StaffFurnishService (stage RD1/DN1 by staff). Appendices A and B of Annex 1: not in the repo",
+  "note": "Story status: Requirement given - Gen flow. The automatic stage revert exists in the furnish path: after the furnished particulars are recorded, a hirer is moved back to RD1 and a driver to DN1 with a new NPD, only when 6 checks pass (otherwise the submission goes to manual review with TS-PDP). This path is triggered by a furnish submission, not by a particulars update from MHA/LTA. Sending the reminder is incomplete: Toppan letters only run through a manual trigger, and the Toppan upload, SMS and SMTP email are switched off in the prod config. Conformity of the conditions with Appendices A and B: cannot verify from repo. Tickets: OCMS-DF-2026-170 (admin fee carried over on revert, Closed), OCMS-DF-2026-067 and OCMS-DF-2026-077 (is_sync gap, Closed), OCMS-DF-2026-192 (manual letter generation failed, not yet UAT).",
+  "recommendation": "Claim recording of particulars, the stage revert and its conditions; the reminder and the eService display are only partial. Confirm with URA that Pre-Notice/1st reminder = DN1/RD1 and request Appendices A and B to match the 6 conditions",
+  "steps": [
+    {
+      "step": "The hirer/driver particulars are successfully recorded or updated in OCMS",
+      "detail": "FurnishProcessingService copies furnish submissions from Internet to Intranet and then processes them (FurnishProcessingService.java:43-62). On auto-approval, addFurnishedOffender flips the old offender to N, creates the new ONOD on Intranet and Internet, and a furnished_mail row with letter_address=Y (FurnishApprovalHelper.java:542-586, :627-634). The job is run by SyncInternetIntranetJobsScheduler (SyncInternetIntranetJobsScheduler.java:67) every 10 minutes, enabled=true in prod (cron-schedules-prod.properties:305-306, :312). The real server value cannot be verified from the repo."
+    },
+    {
+      "step": "The notice is automatically reverted to the Pre-Notice or 1st reminder against the hirer/driver",
+      "detail": "changeProcessingStage: a hirer becomes RD1 and a driver DN1; last and next processing stage are set equal, the previous stage is kept, NPD = max(notice date + 7 days, tomorrow) (FurnishApprovalHelper.java:644-684). The admin fee is zeroed so it does not carry over (OCMS-DF-2026-170, Closed). The staff paths do the same (ManualReviewService.java:888-912, StaffFurnishService.java:70-71, :921-931). Mapping 'Pre-Notice or 1st reminder' to DN1/RD1 is an interpretation of the code; cannot verify from repo against Annex 1."
+    },
+    {
+      "step": "The revert only happens based on pre-defined conditions",
+      "detail": "Auto-approval only runs when 6 checks pass: no active PS, the furnished ID is not HST, the ID type is not FIN/passport, the notice is at a furnishable stage pair, no hirer/driver exists in that role and the submitter is still the current offender, and no prior submission exists (FurnishApprovalHelper.java:136-180; stage pairs in SystemConstant.java:237-244). On failure the submission becomes Pending and the notice gets TS-PDP for manual review (FurnishApprovalHelper.java:500-530). The story does not list the conditions; conformity with Appendices A and B: cannot verify from repo."
+    },
+    {
+      "step": "The stage change is available in eService through the Internet-Intranet sync",
+      "detail": "The auto-approval path writes stage, NPD and amount_payable directly to the eocms VON (FurnishApprovalHelper.java:691-703), so it does not depend on the sync. The staff path (ManualReviewService.java:896-912) only changes the Intranet VON and no copy to Internet is visible; it depends on SyncIntranetInternetService (every 10 minutes, enabled=true in prod, cron-schedules-prod.properties:291-292), while the staff code does not set is_sync='N' explicitly. OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed) fixed a similar case in the LTA path; audit of other paths cannot be verified from the repo. The real eService display: cannot verify from repo."
+    },
+    {
+      "step": "Reminders are sent to the hirer/driver according to the automated processing workflows in Appendices A and B of Annex 1",
+      "detail": "Notices at RD1/DN1 with a due NPD are processed by Toppan, but the call to toppanLettersGeneratorService.executeJob() in the 00:15 schedule is commented out (ToppanUploadJobsScheduler.java:118); letters are generated through POST /toppan/generate-letters (ToppanUnifiedController.java:34). Prod config: sftp.upload.disabledServers=toppan (application-prod.properties:86), sms.enable=false (:87), email.enableSmtp=false (:80); the notification job also skips email for driver stages without a template (NotificationSmsEmailHelper.java:316). The real server values cannot be verified from the repo. OCMS-DF-2026-192 (manual letter generation failed in production) is still Ready to UAT. Content of Appendices A and B: cannot verify from repo."
+    }
+  ]
+}

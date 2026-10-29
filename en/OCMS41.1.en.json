@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/{schedulers/SyncIntranetInternetJobsScheduler, workflows/syncintranetinternet/SyncIntranetInternetService}, agencies/lta/upload/helpers/LtaUploadHelper; ocmseserviceapi workflows/furnish/{FurnishApplicationListController, FurnishApplicationListServiceImpl, FurnishValidationServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver, crud/ocmsezdb/eocmsvalidoffencenotice, auth/filter/JwtFilter; ocmseserviceui pages/Furnish/{Furnish, API, NoticesTable/*}, route/route.ts; ocmsadminapi workflows/furnish/helpers/FurnishabilityChecker (comparison only). ocmsadminui, thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%); demo: enable the cron, then Internet-Intranet sync. The code proves the flow: the Intranet-to-Internet cron (every 10 minutes in prod) copies VON to eVON and ONOD to eONOD, then the eService API matches the ID from the login session and returns only Eligible notices. What differs from the story wording: the pre-defined conditions are not applied when 'sending' (the sync copies every VON) but when the list is read in the eService API; the stage list differs between eService (ROV/ENA/RD1/RD2), the staff check (NPA to CPC) and the cron stage pairs, and the per-notice-type condition list from the specification is not in the repo. Tickets used: OCMS-DF-2026-067 and OCMS-DF-2026-077 (notices missing because the LTA Upload cron did not set is_sync to 'N'; both Closed, Prod deployed, and LtaUploadHelper.java:217 now sets is_sync='N'; other paths that change stage were not audited here), OCMS-DF-2026-168 (context: payment columns are not overwritten by the sync). Singpass/Corppass login, real server property values and the condition specification: cannot verify from repo.",
+  "recommendation": "Claim with caveats. The sync and the eService display are proven; ask URA to confirm the per-notice-type condition list (stage, status) because three places in the code use different stage lists, and to confirm the Intranet-to-Internet cron is enabled on the prod server",
+  "steps": [
+    {
+      "step": "The Intranet-to-Internet cron runs periodically and picks up VON/ONOD rows with is_sync = 'N'",
+      "detail": "SyncIntranetInternetJobsScheduler is scheduled every 10 minutes in prod (cron-schedules-prod.properties:291-292, enabled=true; SyncIntranetInternetJobsScheduler.java:39,46). syncIntranetToInternet() runs only when payment.sync.enabled=true (SyncIntranetInternetService.java:101; application-prod.properties:100) and then reads VON rows with is_sync='N' (:130). The property value on the real server: cannot verify from repo. Earlier defect OCMS-DF-2026-067/077: the LTA Upload cron moved the stage from NPA to ROV without setting is_sync='N', so the notices did not show in eService; the UPDATE in LtaUploadHelper.java:217 now sets is_sync='N' (tickets Closed, Prod deployed). Other paths that change stage without that flag were not audited (cannot verify from repo)."
+    },
+    {
+      "step": "Notice data (VON) is copied to eVON in the Internet DB including processing stage and suspension",
+      "detail": "executeEvonMerge() runs a MERGE into ocmsezmgr.eocms_valid_offence_notice: the UPDATE branch copies last/next_processing_stage, epr_reason_of_suspension, offence_notice_type, an_flag, payment_acceptance_allowed; the INSERT branch creates a full new row (SyncIntranetInternetService.java:295-313). Payment columns (amount_paid, payment_status, suspension_type, crs_*) are deliberately not overwritten on UPDATE (comment OCMS-DF-2026-168, :272-293). After success, is_sync on Intranet is set to 'Y' (:430)."
+    },
+    {
+      "step": "Owner/hirer data (ONOD) is copied to eONOD in the PII DB so the ID can be matched at login",
+      "detail": "syncOffenceNoticeOwnerDriver() reads ONOD with is_sync='N' (SyncIntranetInternetService.java:440), MERGEs into ocmspiiezmgr.eocms_offence_notice_owner_driver (:563-570), then marks is_sync='Y' (:605). The eService API searches this table when it matches the login ID against the offender (step 5)."
+    },
+    {
+      "step": "The owner/hirer logs in to the Online Customer Portal and the identity (NRIC/UEN) is taken from the session",
+      "detail": "The Furnish page has its own login step (Furnish.ts:121-123). The eService API rejects requests without a Bearer token (JwtFilter.java:79) and fills userId/entityId from the session (:113-114); the controller uses the UEN when entityId is present, otherwise the NRIC (FurnishApplicationListController.java:81-83), so the FE does not send the ID itself. The Singpass/Corppass handshake: cannot verify from repo."
+    },
+    {
+      "step": "The portal finds notices whose offender is the logged-in ID (not a Driver)",
+      "detail": "findOffenderRecordsByIdNoAndIdType only takes eONOD rows with offender_indicator='Y' and a matching ID + id_type (EocmsOffenceNoticeOwnerDriverRepository.java:50-59, called at FurnishApplicationListServiceImpl.java:85). A notice counts as furnishable only when owner_driver_indicator is not 'D' (:97), and notices that still have a Pending application are dropped (:106)."
+    },
+    {
+      "step": "Pre-defined conditions per notice type (processing stage, notice status) are evaluated",
+      "detail": "The conditions live in the eService API when the list is read: a notice passes if crs_reason_of_suspension is null (FurnishValidationServiceImpl.java:192), it is not PS with reason RIP/MID/RP2/DIP/FOR (:201; SystemConstant.java:108-111), it is not UPL offence_notice_type 'U' (:206), and last_processing_stage is in ROV/ENA/RD1/RD2 or next_processing_stage is RD1/RD2 (:177-182,211; SystemConstant.java:112-113). The eVON query also drops an_flag 'Y' (EocmsValidOffenceNoticeRepository.java:109-118) and the service drops PRA or payment_acceptance_allowed 'N' (FurnishApplicationListServiceImpl.java:129-130). Partial because: (1) the conditions are applied at read time, not when the sync 'sends' (the sync copies every VON); (2) the stage list differs from the staff check NPA to CPC (FurnishabilityChecker.java:51-61) and from the auto-approval stage pairs in the cron (ocmsadminprivateapi SystemConstant.java:237-244); (3) only UPL and AN differentiate notice types, and the per-notice-type condition list from the specification is not in the repo (cannot verify from repo)."
+    },
+    {
+      "step": "Eligible notices are shown to the owner/hirer so they can submit particulars",
+      "detail": "The controller forwards only rows with status Eligible and counts totalEligible/totalNotEligible (FurnishApplicationListController.java:117-125). The UI calls APIGetFurnishNotices (Notices.ts:84; API.ts:564-575), fills the table (FurnishableNotices.ts:56) and shows 'No furnishable notice(s) found' when empty (FurnishableNotices.ts:74). The furnish-particulars route is in route.ts:38-40. Real-world impact: OCMS-DF-2026-067, users saw the empty message because eVON lagged at stage NPA (fixed through OCMS-DF-2026-077)."
+    }
+  ]
+}

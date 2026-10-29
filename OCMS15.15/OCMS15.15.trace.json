@@ -1,0 +1,46 @@
+{
+  "story": "OCMS15.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingController.plusChangeProcessingStage (catch PlusChangeStageException -> 422, Exception -> 500), ChangeOfProcessingService.processPlusChangeStage (pengumpulan error). Repo lain: tidak ada code",
+  "note": "Status story: Requirement given - Gen flow (tidak ada flow deck OCMS). Mekanisme balasan error ke PLUS ada (HTTP 422 dengan status FAILED, code, message). Yang tipis adalah kapan error itu muncul: hanya CFC dari source 005, notice tidak ada, dan duplikat (lihat OCMS15.13); kasus tidak-applicable lain tidak menghasilkan error. Ada juga celah konsistensi: tidak ada transaksi pembungkus untuk seluruh batch (processPlusChangeStage tanpa @Transactional; @Transactional di method protected yang dipanggil dari kelas yang sama tidak lewat proxy, jadi perlu dicek saat runtime, cannot verify from repo), sehingga notice yang berhasil sebelum notice gagal tetap tersimpan sementara PLUS menerima FAILED. Tidak ada tiket maintenance yang langsung mengenai balasan error ini.",
+  "recommendation": "Klaim mekanisme balasan error 422. Jangan klaim bahwa semua notice tidak-applicable menghasilkan error; dan celah batch sebagian-tersimpan perlu diklarifikasi dengan tim",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila notice tidak applicable, OCMS membalas PLUS dengan error terstruktur (status FAILED, code, message)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:516-526; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1607-1618",
+      "fit": "Sesuai",
+      "detail": "PlusChangeStageException ditangkap controller dan dibalas HTTP 422 {status:FAILED, code:<errorCode>, message} (ChangeOfProcessingController.java:516-526); kelas exception membawa errorCode (ChangeOfProcessingService.java:1607-1618). Error tak terduga dibalas 500 {status:ERROR, code:INTERNAL_ERROR} dengan pesan generik (ChangeOfProcessingController.java:527-536)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan error menyebut notice mana yang gagal dan alasannya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1360-1366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1376-1392",
+      "fit": "Sesuai",
+      "detail": "Tiap kegagalan ditulis 'Notice <no> failed: <code> - <message>' (ChangeOfProcessingService.java:1376-1384), duplikat 'Duplicate noticeNo in request' (:1361), lalu semua digabung dengan '; ' menjadi satu message PROCESSING_FAILED (:1389-1392). Aturan CFC source 005 dilempar lebih awal dengan code OCMS-4004 tanpa nama notice (:1302-1306)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Semua kondisi notice tidak-applicable menghasilkan error ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1302-1317; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1319-1321; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1476-1500",
+      "fit": "Sebagian",
+      "detail": "Hanya tiga kondisi yang berujung error: CFC dari source 005 (:1302-1306), notice tidak ada (:1470-1476), duplikat (:1360-1366). Kondisi lain (court stage, PS, stage map, peran) tidak dicek di jalur PLUS dan notice tetap diubah (lihat OCMS15.13), sedangkan offenceType U ke DN1/DN2/DR3/CPC dibalas SUCCESS (:1311-1317). Fit mengikuti OCMS15.13."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Satu request campuran: PLUS tahu persis notice mana yang berubah dan mana yang tidak",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1288; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1357-1392; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1458-1459",
+      "fit": "Sebagian",
+      "detail": "processPlusChangeStage tidak punya transaksi pembungkus dan memproses notice satu per satu (ChangeOfProcessingService.java:1288, 1357-1387); @Transactional hanya ada di method protected processPlusNoticeWithStageNewFlow (:1458-1459) yang dipanggil dari kelas yang sama, jadi tidak lewat proxy. Akibatnya notice yang berhasil sebelum yang gagal tampak tetap tersimpan, sementara PLUS menerima FAILED yang hanya mendaftar notice gagal (:1389-1392); notice sukses tidak disebut. Perilaku transaksi saat runtime cannot verify from repo."
+    }
+  ]
+}

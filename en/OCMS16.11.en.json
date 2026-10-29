@@ -1,0 +1,25 @@
+{
+  "story": "OCMS16.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController (POST /v1/plus-apply-reduction), dto/ReductionRequest, ReductionServiceImpl.handleReductionRequest, helpers/ReductionAuditService}; crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus; auth/filter/JwtFilter. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code that receives reductions from PLUS",
+  "note": "Receiving reduction requests from PLUS exists and is complete in ocmsadminapi: POST /v1/plus-apply-reduction (plus a court variant /v1/plus-apply-reduction-court) accepts the notice number, amountReduced, amountPayable, reduction and expiry dates, reason and officer, then goes straight to validation. Sheet status is 'Fully paid'. What the repo cannot prove is who is allowed to call the endpoint. JwtFilter skips JWT for every 'plus-' path and api-authorization.properties has no mapping for the reduction endpoint, so the protection (APIM/subscription key) cannot be verified from the repo. The real PLUS-side payload also cannot be verified from the repo. Maintenance ticket touching this path: OCMS-DF-2026-072 (closed, Prod deployed) changed the stored values, not the intake.",
+  "recommendation": "Can be claimed for request intake. Note that access to the endpoint depends on APIM outside the repo.",
+  "steps": [
+    {
+      "step": "PLUS can send a composition-amount reduction request to OCMS through a dedicated PLUS endpoint",
+      "detail": "POST /v1/plus-apply-reduction (ReductionController.java:29-32) accepts a ReductionRequest. suspensionSource is forced to 'PLUS': empty is filled with PLUS, any other value is rejected with 400 (ReductionController.java:36-57). Access: JwtFilter skips JWT for 'plus-' paths (JwtFilter.java:179) and there is no mapping in api-authorization.properties, so who may call it cannot be verified from the repo (depends on APIM)."
+    },
+    {
+      "step": "The request carries the notice number and the requested reduced amounts (amount reduced and amount payable after reduction)",
+      "detail": "ReductionRequest requires noticeNo, amountReduced (@Positive), amountPayable, dateOfReduction, expiryDateOfReduction, reasonOfReduction, authorisedOfficer, suspensionSource; remarks is optional (ReductionRequest.java:29-82). The real payload sent by PLUS cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS checks the mandatory fields and the request format before processing further",
+      "detail": "@Valid on the body (ReductionController.java:32) runs the @NotBlank/@NotNull/@Positive constraints (ReductionRequest.java:29-77); failures are caught by the MethodArgumentNotValidException handler and answered with 400 (ReductionController.java:192-210). The 'Missing data' vs 'Invalid format' distinction does not work, see OCMS16.13; the check itself exists."
+    },
+    {
+      "step": "A request that passes is handed to validation: the notice is looked up by notice number and compared with the requested amounts",
+      "detail": "ReductionController calls reductionService.handleReductionRequest (ReductionController.java:59); the service records a start audit and then calls findNoticeValidationStatus(noticeNo) against ocms_valid_offence_notice (ReductionServiceImpl.java:49,56-57; OcmsValidOffenceNoticeRepository.java:47-75). The audit is log output only; no audit row is written to the DB (ReductionAuditService)."
+    }
+  ]
+}

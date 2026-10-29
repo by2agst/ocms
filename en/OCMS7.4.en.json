@@ -1,0 +1,25 @@
+{
+  "story": "OCMS7.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload/helpers/LtaUploadHelper, download/helpers/{LtaBatchCode0Processor, LtaBatchTsRovProcessor}}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/autorevival/helpers/AutoRevivalHelper, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Status in the sheet: 'Fully paid'. The story names DOS (Department of Statistics), but the code and OCMS-DF-2026-194 (which cites the OCMS 7 functional document) use LTA VRLS as the vehicle owner data source. Whether DOS equals LTA cannot be confirmed from the repo (cannot verify from repo); all steps are judged on the code behaviour against LTA VRLS. The particulars are indeed updated when the agency finally returns them, but the TS-ROV revive is not triggered by data availability: the date-based Auto Revival job does it, and the notice only passes on the next cycle. Tickets used: OCMS-DF-2026-160, OCMS-SR-2026-182.",
+  "recommendation": "Claim the particulars update when data becomes available. The 'revive when data is available' and resume steps are partial (date-based revival, OCMS-DF-2026-160, OCMS-SR-2026-182); confirm with URA whether date-based revival is accepted.",
+  "steps": [
+    {
+      "step": "A notice under TS-ROV keeps having its vehicle number sent to the agency",
+      "detail": "Same as the OCMS7.3 resend step: TS-ROV sets next stage ROV (TSR:277-287) so the upload query selects it again (REPO:70-74), but the query does not read due_date_of_revival and the upload advances the stage again (UPHELP:175-179). Cadence is inconsistent per OCMS-DF-2026-160 (Pending Closure, Prod deployed)."
+    },
+    {
+      "step": "When particulars finally become available (error code 0), the owner data and address are updated",
+      "detail": "In processBatchCode0, the owner_driver, address and detail updates (planNoticeWithOwnerData) run before the suspension check (C0:169-176), so a notice still under TS-ROV still receives the owner and address data (C0:454-481, 549-558)."
+    },
+    {
+      "step": "The TS-ROV suspension is revived once the particulars are available",
+      "detail": "A successful response does not revive TS-ROV. planStandardVehicle actually stops (return false) when the notice is suspended and not TS-HST (C0:673-683). Revival happens only through the date-based Auto Revival job: TS with due_date_of_revival <= today (AREV:394-399), run daily in the 00:15 day-end cron (CRON:61-62, 76). So the revive happens on the due date, not when the data becomes available; the notice can be processed again only after one more send-receive cycle."
+    },
+    {
+      "step": "The notice resumes processing in OCMS (stage moves to ENA/RD1 with the owner in place)",
+      "detail": "After the revive and the next code 0 response, the notice is no longer suspended so it passes the exclusion list, passport and DataHive contact checks and the stage goes to ENA or RD1 (C0:685-700, 756-763). The flow exists but depends on one extra cycle, and the stage was already advanced at upload (UPHELP:208-222). OCMS-SR-2026-182 (Pending UAT) patches 1,367 notices stuck at ENA/RD1 without offender details; OCMS-DF-2026-160 records 894 notices leaving the loop without ownership."
+    }
+  ]
+}

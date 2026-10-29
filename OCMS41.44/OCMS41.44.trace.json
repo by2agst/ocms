@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.44",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/{context/NoticeContext, hook/useODH, form/HirerForm}, utils/mapping/Notice/NoticeOld. ocmsadminapi: endpoint offencenoticeownerdriverlist (CRUD) dipakai UI; ManualFurnishController GET .../check-existing + ManualFurnishValidationService.checkExistingParticulars ada tetapi tidak dipanggil UI dan tidak ada di mapping otorisasi",
+  "note": "Staff Portal tidak memakai endpoint check-existing. Saat halaman notice dibuka, NoticeContext mengambil semua baris owner_driver notice itu (offencenoticeownerdriverlist) dan memisahkannya per role O/H/D. Tombol Furnish Hirer/Driver lalu memeriksa apakah role yang sedang di-furnish sudah punya data; kalau ada, muncul dialog konfirmasi overwrite. Pengecekan hanya untuk role yang sama (furnish Driver tidak memperingatkan soal Hirer yang sudah ada). Endpoint backend ManualFurnishController GET /furnish/officer/manual/notice/{noticeNo}/check-existing mengembalikan semua role, tetapi tidak dipanggil UI, tidak ada di api-authorization.properties (interceptor menjawab 403 untuk path itu, WebConfig.java:80-90), dan filter alamatnya memakai addrType 'registered_mail' padahal kolom type_of_address berisi lta_reg/lta_mail/mha_reg/furnished_mail, sehingga alamat selalu null. Tiket OCMS-DF-2026-024 (Closed) menyebut alamat dikueri per notice_no + owner_driver_indicator.",
+  "recommendation": "Klaim sebagian. Deteksi particulars yang ada dan prompt overwrite jalan di UI; deteksi hanya per role, dan endpoint backend khusus tidak terhubung.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil particulars owner/hirer/driver yang tersimpan untuk notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/context/NoticeContext.tsx:362-392; ocmsadminapi/src/main/resources/api-authorization.properties:34-55",
+      "fit": "Sesuai",
+      "detail": "NoticeContext memanggil offencenoticeownerdriverlist dengan noticeNo lalu menyimpan baris indikator O, H, D, dan offender saat ini ke state (NoticeContext.tsx:362-392). Endpoint ini ada di mapping OCMS_NOTICE_EDIT dan OCMS_NOTICE_DETAIL (api-authorization.properties:34-55)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah particulars sudah ada untuk role yang di-furnish",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:74-79; ocmsadminui/src/pages/Notice/hook/useODH.tsx:470-471",
+      "fit": "Sebagian",
+      "detail": "existing = data.OWNER / DRIVER / HIRER sesuai tipe form, hasParticulars = Boolean(existing) (useODH.tsx:74-79, 470-471). Hanya role yang sedang dibuka yang dicek; ada atau tidaknya Hirer tidak mempengaruhi furnish Driver. Endpoint backend check-existing yang mengembalikan semua role tidak dipakai UI (ManualFurnishController.java:72-95)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi prompt bila particulars sudah ada",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:143-148; ocmsadminui/src/pages/Notice/hook/useODH.tsx:533-545",
+      "fit": "Sesuai",
+      "detail": "Setelah cek furnishable lolos, jika mode CREATE dan existing ada, setShowOverride(true) membuka ModalConfirm 'Existing {role} details will be overwritten. Do you want to proceed to furnish for notice no. ...?' dengan tombol Yes/No (useODH.tsx:143-148, 533-545)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars yang ada ditampilkan di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/context/NoticeContext.tsx:362-392; ocmsadminui/src/utils/mapping/Notice/NoticeOld.ts:392-394; ocmsadminui/src/pages/Notice/form/HirerForm.tsx:288-330",
+      "fit": "Sebagian",
+      "detail": "Data yang dimuat dipetakan ke field form (hirer_name, hirer_identity_no di NoticeOld.ts:392-394) dan tampil di tab Owner/Hirer/Driver (HirerForm.tsx:288-330) sebelum tombol ditekan. Dialog prompt sendiri tidak merinci isi particulars; hanya teks generik dan nomor notice."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.38",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): services/datahive/nricFinUenDataRetrieval/{service/DataHiveUENBatchService,dto/UENDataResult}; workflows/datahiveuenfin/services/DataHiveUenFinService (storeUenDataResult, updateShareholderInfo, uncalled updateBoardInfo, addRecordsToNroTemp); cron-schedules-prod.properties. Other repos: no RD1 vs RD2 decision code",
+  "note": "The story asks OCMS to receive the owner/partner/director particulars by offence date and appointment period, then decide whether the NOPO is reverted for the 1st reminder to the Director/Partner or the 2nd reminder to the Owner/Partner as hirer. What exists: the DataHive response (company, shareholder, board) is received and parsed. What is missing: selecting a person by offence date/appointment and the RD1 vs RD2 decision; after storing, the notice is only recorded in ocms_nro_temp (noticeNo only) and neither stage nor offender changes. Board data is deliberately not written to the DB (comment OCMS-DEV-2026-231; updateBoardInfo exists but its call is disabled at DataHiveUenFinService.java:1470-1477). The job is off in prod (cron-schedules-prod.properties:52). Fits are kept equal to sibling OCMS11.18. DataHive response content and vault: cannot verify from repo. Sheet status: Demo paid (50% of 75%). No relevant maintenance ticket.",
+  "recommendation": "Do not claim in full. Only receiving the DataHive response exists; selection by offence date/appointment, storing the person's data and the RD1 vs RD2 decision are missing. Ask URA to confirm whether it was built elsewhere or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives the response for the company hirer's UEN (found, de-registered, or not found)",
+      "detail": "batchRetrieveUENData merges company, shareholder and board results per UEN+notice pair (DataHiveUENBatchService.java:66-71, :128-215); storeUenDataResult handles errors, UEN not found (TS-ACR) and de-registered (DataHiveUenFinService.java:1346-1362). Reduced because the job is off in prod (cron-schedules-prod.properties:52) and the real response content: cannot verify from repo. Same fit as OCMS11.18 step 1."
+    },
+    {
+      "step": "The individual owner/partner/director particulars are received from the data source (ID, position, appointment and withdrawn dates)",
+      "detail": "The board response is parsed into BoardInfo with personIdNo, positionHeldCode, positionAppointmentDate, positionWithdrawnDate and referencePeriod (DataHiveUENBatchService.java:483-502, UENDataResult.java:88-101). There is no person name or address, and no owner/partner/director is selected by appointment period. The job is off in prod (cron-schedules-prod.properties:52). Same fit as OCMS11.39 dan OCMS11.40 langkah 1 (sibling)."
+    },
+    {
+      "step": "Only a person who held office on the offence date (appointment period) is selected",
+      "detail": "The board query is only WHERE ENTITY_UEN IN (...) with no date (DataHiveUENBatchService.java:432-442); UenNoticeData carries only uen and noticeNo, no offence date (UenNoticeData.java:15-27); and board data is only logged, not written to the DB because updateBoardInfo is commented out (DataHiveUenFinService.java:1470-1477, OCMS-DEV-2026-231). No code compares the offence date with positionAppointmentDate/positionWithdrawnDate; grep for appointment/director/partner across the six repos only finds DTO fields and the uncalled board update. Same as OCMS11.18 step 3 and OCMS11.37 step 5."
+    },
+    {
+      "step": "The particulars of the selected person are stored in OCMS",
+      "detail": "Shareholders are saved through updateShareholderInfo (DataHiveUenFinService.java:1440-1447), but a shareholder is not a director/partner by appointment period. Board data is only logged; updateBoardInfo exists (:1877-1900) but its call is commented out (:1470-1477, OCMS-DEV-2026-231), so board data is not stored. Only part of what the story needs is stored. Same fit as OCMS11.18 step 4."
+    },
+    {
+      "step": "OCMS decides: 1st reminder to the Director/Partner or 2nd reminder to the Owner/Partner as hirer",
+      "detail": "There is no decision branch. After storeUenDataResult finishes, the notice is only added to ocms_nro_temp with its noticeNo (DataHiveUenFinService.java:955-968, addRecordsToNroTemp :916-925) and the method returns true (:1479-1485) without changing next_processing_stage, offender or recipient. There is no RD1/RD2 reference in the UEN flow outside the selection query. Same as OCMS11.18 step 5."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS11.49",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findToppanNoticesForStage), framework/workflows/agencies/mha/{upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, framework/workflows/datahiveuenfin/services/DataHiveUenFinService, notification_sms_email/{NotificationSmsEmailJob,NotificationSmsEmailHelper} (opt-out), agencies/toppan/upload/{ToppanLettersGeneratorJob,ToppanUploadHelper}, cron-schedules-prod.properties. Repo lain: tidak ada code untuk langkah ini. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark soal Vault dan code split. Pengecekan particulars Epic 8 untuk driver memakai cron yang sama dengan owner, dan stage DN1/DN2 sudah masuk daftar pemilihan. Pengecekan MHA untuk driver ber-NRIC aktif di prod dan memperbarui alamat mha_reg, TS-NRO, dan PS. Tiga hal menurunkan klaim: (1) tidak ada rantai: e-reminder (nonaktif di prod) dan pengecekan MHA/DataHive adalah cron terpisah yang tidak saling menunggu; (2) driver ber-FIN lewat DataHive UEN/FIN yang dimatikan di prod (cron-schedules-prod.properties:52) dan passport tidak dicek; (3) tidak ada tiket maintenance spesifik untuk pengecekan ini. Respons MHA/DataHive, Vault, dan nilai server cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Pengecekan MHA untuk driver ber-NRIC dan penahanan notice bermasalah ada dan aktif, tetapi hubungan dengan e-reminder tidak berantai dan driver ber-FIN tidak dicek di prod. Minta konfirmasi URA soal konfigurasi PRD sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah reminder elektronik terkirim, atau driver tercatat opt out, OCMS lanjut ke pengecekan particulars driver",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:222-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1133; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:563-581; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Driver opt out memang dikecualikan dari reminder (NotificationSmsEmailJob.java:226-232; exclusion list juga di query, NotificationSmsEmailHelper.java:1133). Tetapi tidak ada rantai yang menunggu e-reminder atau opt-out sebelum pengecekan: eNotification (cron.notification.enabled=false di prod, cron-schedules-prod.properties:236) dan pemilihan notice untuk MHA (cron.mhaupload.enabled=true, baris 106) adalah dua cron terpisah, dan pemilihan MHA hanya melihat next_processing_stage dan next_processing_date (OcmsValidOffenceNoticeRepository.java:563-581), bukan status e-reminder. Fit sama dengan langkah serupa di OCMS11.16."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dengan driver ber-NRIC yang jatuh tempo 2nd letter (DN2) dipilih untuk pengecekan data terbaru ke MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:563-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:156; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106",
+      "fit": "Sesuai",
+      "detail": "findNoticesForMhaNricUpload memilih notice dengan next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), next_processing_date <= besok, tanpa suspension, id_type='N' (NRIC), offender_indicator='Y' (jadi driver bila driver offender saat ini), bukan HST dan belum ada di ocms_nro_temp (OcmsValidOffenceNoticeRepository.java:563-581). MhaNricUploadJob memakainya lewat queryMhaNricData (MhaNricUploadJob.java:156) dan cron MHA upload aktif di prod, Senin-Sabtu 09.00/14.00/21.00 (cron-schedules-prod.properties:105-106). Fit sama dengan langkah RR3 di OCMS11.16."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil MHA memperbarui alamat terbaru driver; alamat tidak valid atau driver meninggal ditandai suspension",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:725-790; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1182-1230; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1345-1358; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:120",
+      "fit": "Sesuai",
+      "detail": "MhaNricDownloadHelper.applyStatusUpdates mengisi particulars di ocms_offence_notice_owner_driver dan menulis/menimpa baris alamat mha_reg hanya pada baris yang masih offender saat ini dan hanya untuk notice di file batch (MhaNricDownloadHelper.java:725-790, 1345-1358; OCMS-DF-2026-134 dan OCMS-SR-2026-177 tertulis di komentar). Alamat invalid (Invalid Address Tag, street NA, postal 000000) memicu TS-NRO (baris 1182-1230), kematian memicu PS-RIP/PS-RP2. Cron download MHA aktif di prod (cron-schedules-prod.properties:120). Isi file respons MHA cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver dengan FIN (non-NRIC) dicek lewat DataHive sebelum 2nd letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:228-245; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:126-148",
+      "fit": "Sebagian",
+      "detail": "Query DataHive UEN/FIN memilih next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) dengan id_type F atau B dan offender_indicator='Y' (DataHiveUenFinService.java:228-245), jadi driver ber-FIN masuk. Tetapi job ini dimatikan di prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52, 'until DataHive view names are verified'), dan langkah DataHive NRIC enrichment di awal Toppan di-comment (ToppanLettersGeneratorJob.java:126-148). Passport tidak dicek sama sekali. Fit sama dengan OCMS11.16. Respons DataHive cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang kena suspension dari hasil pengecekan tidak ikut diproses untuk 2nd letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:583-612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887",
+      "fit": "Sesuai",
+      "detail": "Pemilihan letter Toppan per stage (findToppanNoticesForStage) mensyaratkan von.suspension_type IS NULL, offender_indicator='Y', dan next_processing_stage = stage (DN2) dengan tanggal <= hari ini (OcmsValidOffenceNoticeRepository.java:583-612; ToppanUploadHelper.java:1887), sehingga TS-NRO atau PS dari pengecekan MHA menahan notice dari letter DN2. Letter memakai alamat yang ditandai letter_address='Y' (filterByLetterAddress, ToppanUploadHelper.java:2372)."
+    }
+  ]
+}

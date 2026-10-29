@@ -1,0 +1,64 @@
+{
+  "story": "OCMS47.6",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper,jobs/DailyPaidReportJob,helpers/DailyPaidReportHelper}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsRefundNotices; ocmsadminapi crud/ocmsizdb/OcmsRefundNotice. ocmseserviceapi, ocmseserviceui, ocmsadminui, thirdpartyapi: tidak ada code refund reminder atau bank account",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak dari teks story. Story minta report otomatis atas refund yang belum diklaim (customer tidak memberi bank account valid setelah 2nd reminder) beserta jumlah reminder. Code tidak punya alur refund reminder, link bank account, status unclaimed, maupun jumlah reminder: tabel ocms_refund_notice hanya menyimpan data refund (ID, receipt, amount, reason, suspension) tanpa kolom bank/reminder/status. Yang ada hanya report harian generik (Payment Exception Report dan Daily Paid Report) yang mendaftar semua refund yang dibuat kemarin dan dikirim lewat email; ini mekanisme umum, bukan report refund unclaimed. Report 'Unclaimed Batch Data' di DailyReportJobsScheduler adalah untuk surat tak terkirim, bukan refund. Bukti pemakaian: OCMS-SR-2026-112/190 (kolom dan logika refund di exception report); OCMS-DF-2026-085..090/127 membahas Unclaimed reminder untuk surat, bukan refund. Penerima email 'Finance' dan nilai SMTP di server: cannot verify from repo.",
+  "recommendation": "Klaim hanya sebagian kecil: report refund harian generik sudah ada. Fitur inti (reminder ke-2, link bank account, status unclaimed, jumlah reminder) belum ada code; jangan diklaim selesai.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer menerima 2nd reminder berisi link untuk mengisi bank account details",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsRefundNotices/OcmsRefundNotices.java:27-58; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNotice.java:27-58",
+      "fit": "Tidak ada code",
+      "detail": "Tabel ocms_refund_notice hanya punya refund_notice_id, receipt_no, notice_no, pp_code, amount_paid/payable, suspension_type, EPR/CRS reason, refund_amount, refund_reason (OcmsRefundNotices.java:27-58); tidak ada kolom reminder, tanggal kirim, atau bank. grep refund/reminder/bank account di enam repo: tidak ada job atau letter refund reminder; grep 'refund' di ocmseserviceapi, ocmseserviceui, thirdpartyapi = 0 hasil."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Customer mengisi bank account yang valid lewat link dalam periode yang ditentukan",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:15-42",
+      "fit": "Tidak ada code",
+      "detail": "routes ocmseserviceui hanya payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). Tidak ada halaman, endpoint, atau tabel penerima bank account di ocmseserviceapi maupun ocmsadminapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan refund yang belum diklaim (bank account tidak ada/tidak valid setelah reminder ke-2 dan periode berlalu)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsRefundNotices/OcmsRefundNotices.java:27-58",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada status, flag, atau tanggal untuk refund unclaimed di entity (OcmsRefundNotices.java:27-58) maupun query report (PaymentExceptionReportHelper.java:123-141 hanya memfilter cre_date = tanggal report). Tidak ada job yang menghitung periode setelah reminder ke-2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis membuat report refund yang bisa diunduh",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:96; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:123-141; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:527-529; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:151",
+      "fit": "Sebagian",
+      "detail": "Daily Report Job jalan 08:00 dengan cron.dailyreport.enabled=true (cron-schedules-prod.properties:255-256) dan menjalankan Payment Exception Report (DailyReportJobsScheduler.java:96). Job membuat Excel (PaymentExceptionReportJob.java:151) yang memuat refund dari ocms_refund_notice dengan cre_date = kemarin (PaymentExceptionReportHelper.java:123-141; kolom Refund Date/Time, Refund ID, Refund Reason di :527-529). Ini daftar semua refund baru, bukan refund unclaimed, jadi Sebagian. Tiket OCMS-SR-2026-112 dan OCMS-SR-2026-190 membentuk kolom/logika refund ini; OCMS-SR-2026-157 (kolom tambahan) ditutup digabung ke 112."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat jumlah reminder yang sudah dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:527-529",
+      "fit": "Tidak ada code",
+      "detail": "Kolom Excel exception report: S/N, Transaction Date/Time, Exception Type, Notice No., PP Code, Receipt No., Transaction ID, Payment Channel, Amount Paid, CRS Reason, EPR Reason, Refund Date/Time, Refund ID, Refund Reason (PaymentExceptionReportHelper.java:527-529). Tidak ada kolom jumlah reminder; datanya juga tidak disimpan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengirim report ke Finance untuk ditindaklanjuti",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:201-213; ocmsadminprivateapi/src/main/resources/application-prod.properties:78; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-67",
+      "fit": "Sebagian",
+      "detail": "Report dikirim otomatis sebagai attachment .xlsx lewat email ke daftar email.report.paymentreport.exception.recipients (PaymentExceptionReportJob.java:201-213; application-prod.properties:78), berisi alamat @ura.gov.sg perorangan. Apakah penerimanya Finance: cannot verify from repo. email.enableSmtp=false (application-prod.properties:80) tetapi PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources (:81) sehingga EmailService tetap mengirim (EmailService.java:65-67); nilai di server asli cannot verify from repo. Pengiriman manual oleh officer ke Finance tidak ada di code."
+    }
+  ]
+}

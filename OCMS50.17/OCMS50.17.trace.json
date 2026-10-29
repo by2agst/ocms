@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts; ocmseserviceapi workflows/urapg/service/UraPaymentService, crud/beans/SystemConstant. Tidak ada code QR di enam repo",
+  "note": "Portal hanya memilihkan mode PayNow (kode PYNOW), membuat transaksi dan mengirim browser ke URL milik URA Payment Gateway. Pembuatan QR code dan masa berlakunya tidak ada di repo mana pun: tidak ada library QR (qrcode/zxing) di package.json maupun build.gradle, tidak ada kode yang menggambar atau menerima QR, dan tidak ada setting menit-berlaku. ura.payment.transaction.timeout=300 (application-prod.properties:35) tidak dibaca class Java mana pun; angka 300 detik yang dipakai code adalah ambang 'pembayaran sedang diproses' di ParkingFinesServiceImplement.java:34, bukan masa berlaku QR. Jadi QR dan X menit bisa jadi dibangun di sisi PG; itu cannot verify from repo. Satu-satunya yang terkait QR di portal adalah modal infographic panduan cara bayar PayNow (PaymentSearchResult.ts:496-520). Tiket maintenance relevan: tidak ada yang menyentuh QR.",
+  "recommendation": "Jangan klaim penuh. Klaim hanya pemilihan mode dan pembuatan transaksi PayNow. Pembuatan QR dan masa berlaku X menit harus dibuktikan dari sisi PG (di luar repo) atau ditandai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih PayNow di halaman pembayaran",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:633-640; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:496-520; ocmseserviceui/src/pages/Payment/API.ts:173-177",
+      "fit": "Sesuai",
+      "detail": "Radio PayNow ada (PaymentSearchResult.ts:633-640) dan dipetakan ke paymentMethod PYNOW (API.ts:176). Ikon info membuka modal panduan 'Make Payment using PayNow QR Code' berisi gambar infographic statis (baris 496-520); itu bukan QR code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem membuat transaksi PayNow dan meminta alamat halaman bayar ke URA Payment Gateway",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:90-105; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:144; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:224-246; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:284; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:286-288; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:18; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:24",
+      "fit": "Sebagian",
+      "detail": "PYNOW memakai prefix DICNOC (SystemConstant.java:18, 24; UraPaymentService.java:96-97). Transaksi dikirim ke PG storePG/v1 dan paymentUrl dikembalikan (baris 224-246). Penyimpanan record status I memakai kode yang sama dengan OCMS50.16, termasuk celah: gagal simpan hanya di-log (286-288). Respons PG berisi QR atau tidak: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah Pay Now, browser offender masuk ke halaman bayar PayNow",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentProcess.ts:76-92",
+      "fit": "Sebagian",
+      "detail": "Portal tidak punya halaman PayNow sendiri; tombol Pay Now hanya membuat form POST tersembunyi ke paymentUrl lalu submit() (PaymentProcess.ts:86-91). Isi halaman tujuan, termasuk apakah QR tampil di sana, milik PG: cannot verify from repo. Mekanisme redirect generik ini sama untuk ketiga mode, jadi paling tinggi Sebagian untuk story QR."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan QR code PayNow yang bisa di-scan atau di-upload dari aplikasi bank",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:496-520",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang membuat atau menggambar QR di enam repo: pencarian qrcode, qr_code, zxing, 'QR' di ocmseserviceui, ocmseserviceapi, thirdpartyapi, ocmsadminapi, ocmsadminprivateapi dan ocmsadminui hanya menemukan teks modal panduan (PaymentSearchResult.ts:502) dan gambar infographic (baris 514). package.json dan build.gradle tidak punya library QR. Tidak ada tombol download/upload gambar QR."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "QR code berlaku selama X menit",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:34; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:461-465; ocmseserviceapi/src/main/resources/application-prod.properties:35",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada setting atau logika masa berlaku QR. ura.payment.transaction.timeout=300 (application-prod.properties:35) tidak dibaca class Java mana pun (pencarian di src ocmseserviceapi dan ocmseserviceui). Angka 300 detik di code adalah PAYMENT_PROCESSING_THRESHOLD_SECONDS (ParkingFinesServiceImplement.java:34, 461-465) yang memblokir pembayaran ulang atas notice selama 5 menit setelah transaksi dimulai, bukan masa berlaku QR. Nilai X yang sebenarnya: cannot verify from repo."
+    }
+  ]
+}

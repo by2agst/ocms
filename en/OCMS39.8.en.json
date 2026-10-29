@@ -1,0 +1,37 @@
+{
+  "story": "OCMS39.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/System/{list/RuleCodeList,form/RuleCodeForm}.tsx + App.tsx route /system/computer-rule-code + pages/Notice/component/CompositionAmountInput.tsx + context/OptionsContext.tsx (RULE_CODE); ocmsadminapi crud/ocmsizdb/offencerulecode/{OffenceRuleCode,OffenceRuleCodeController,OffenceRuleCodeRepository} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_RULE_CODE), workflows/notice_creation/core/helpers/{NoticeRecordHelper,ValidationServices,ProcessREPCCSHelper}. ocmsadminprivateapi: only reads the description for vHub (VhubOffenceQueryRepository) and REPCCS; ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: Fully paid. Requirement text is given. The Offence Rule Code page is complete (list, create, edit) with vehicle category and effective dates, and authorization is enforced on the server (OCMS_SYSTEM_RULE_CODE). Three things fall short: the composition amount is part of the primary key so it cannot be edited in place (a new dated row is needed), automatic notices from EHT/REP/CES use the amount from the payload, not from the table (only rule no, description and offence type are read), and a history table exists but no code writes to it. The category codes C/H/M for car, motorcycle, heavy vehicle depend on DB rows: cannot verify from repo. No maintenance ticket changes this assessment.",
+  "recommendation": "Claim mostly: maintaining rule codes, descriptions and composition amount per vehicle category works. Tell URA that an amount change goes through a new dated row and that automatic notices keep the sender's amount",
+  "steps": [
+    {
+      "step": "Officer opens the Offence Rule Code page and sees rule codes, descriptions, vehicle categories and composition amounts",
+      "detail": "Route /system/computer-rule-code (App.tsx:427-449, titled 'Offence Rule Code' in System.ts) loads POST /offencerulecodelist (RuleCodeList.tsx:79-82, OffenceRuleCodeController.java:86-93) and shows rule code, rule no, description, vehicle category, composition amount and effective dates (RuleCodeList.tsx:243-270); results are sorted by vehicle category C, H, M, Y, U (RuleCodeList.tsx:70, 87). Authorization function OCMS_SYSTEM_RULE_CODE (api-authorization.properties:176-178) is enforced on the server by OcmsAuthorizationInterceptor. How the category codes (C, H, M) map to car, motorcycle, heavy vehicle depends on the VEHICLE_CATEGORY standard code rows in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Officer adds a new offence rule code per vehicle type with a description and composition amount",
+      "detail": "The create form sends POST /offencerulecode (RuleCodeForm.tsx:66-74) with computerRuleCode, offenceType, vehicleCategory (dropdown from standard code VEHICLE_CATEGORY, RuleCodeForm.tsx:162-170), complaintCode, ruleNo, description, compositionAmount, secondaryFineAmount, effectiveStartDate and effectiveEndDate (RuleCodeForm.tsx:112-342); entity OffenceRuleCode.java:30-65 stores them all. Duplicates are checked through /offencerulecodeexists (OffenceRuleCodeController.java:148-231). One rule code can have separate rows for each vehicle category and each composition amount because both are part of the primary key."
+    },
+    {
+      "step": "Officer changes the description of an existing offence rule code",
+      "detail": "Edit calls POST /offencerulecodepatch/{computerRuleCode}/{effectiveStartDate}/{vehicleCategory}/{compositionAmount} (RuleCodeForm.tsx:76-91). The controller only allows complaintCode, description, effectiveEndDate, offenceType, ruleNo, secondaryFineAmount (PATCH_ALLOWED_FIELDS, OffenceRuleCodeController.java:95-97); the description can be changed. A history table exists as an entity (OffenceRuleCodeHistory.java) but no code in the six repos writes to it; whether a DB trigger exists: cannot verify from repo."
+    },
+    {
+      "step": "Officer changes the composition amount of an existing rule code",
+      "detail": "The composition amount is part of the primary key (OffenceRuleCode.java:45-48), the field is readonly in edit (RuleCodeForm.tsx:248) and is not in PATCH_ALLOWED_FIELDS (OffenceRuleCodeController.java:95-97). Changing the amount means creating a new row with a new effective date and closing the old row through effectiveEndDate; there is no one-step 'change amount' action, the UI only validates that the rule code + vehicle category + start date combination does not exist yet (ValidRuleCode.ts:39, 63, 107); no overlapping date range check was found, while the notice query takes only TOP 1 (OffenceRuleCodeRepository.java:27, 40)."
+    },
+    {
+      "step": "The staff portal notice form uses the composition amount from the rule code for the offence type, vehicle category and rule code",
+      "detail": "CompositionAmountInput takes RULE_CODE from POST /offencerulecodelist (OptionsContext.tsx:475-495) and filters the rows whose offenceType, vehicleCategory and computerRuleCode match the form (CompositionAmountInput.tsx:59-74); with a single row the amount is filled in automatically (CompositionAmountInput.tsx:76-88). The field is readonly so staff can only pick an amount from the table (CompositionAmountInput.tsx:121-141). The RULE_CODE list is loaded in the browser, so a change shows only after the options are reloaded."
+    },
+    {
+      "step": "The configured rule no and offence description are used on new notices",
+      "detail": "When a notice is created, NoticeRecordHelper looks up the offence rule row in force today (effective_start_date <= now <= effective_end_date) by computerRuleCode, vehicleCategory and offenceNoticeType (NoticeRecordHelper.java:904-908, OffenceRuleCodeRepository.java:40-46) and stores ruleNo and description in ocms_offence_notice_detail (NoticeRecordHelper.java:916-917). ValidationServices uses the same table to determine the offence type (ValidationServices.java:175-180). Results are cached per day (NoticeRecordHelper.java:61-66), so a description change made the same day may only show tomorrow or after a restart."
+    },
+    {
+      "step": "The configured composition amount is used on notices created automatically from external sources",
+      "detail": "For automatic notices (EHT/REP/CES) the composition amount comes from the sender payload: eht.getCompositionAmount() (ValidationServices.java:114), FineAmount (ValidationServices.java:239-247) or ChargeAmount (ProcessREPCCSHelper.java:204-210), and is stored as is as composition_amount and amount_payable (NoticeRecordHelper.java:724-727). The ocms_offence_rule_code table is only read for offence type, rule no and description; the payload amount is never matched against the table. So changing the composition amount in the configuration does not change the amount of notices that arrive from external systems. The senders' amount policy (EHT, REP, CES): cannot verify from repo."
+    }
+  ]
+}

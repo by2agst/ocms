@@ -1,0 +1,33 @@
+{
+  "story": "OCMS42.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui hooks/Auth.ts, pages/Furnish/{Landing,Furnish,API,Summary,Form/CompanyParticulars,Form/Particulars}.ts, components/form/Contact.ts, utils/validation/Furnish/ValidCompany.ts; ocmseserviceapi workflows/spcp/{controller/UserInfoController,service/SpcpServiceImpl}, workflows/furnish/FurnishSubmissionController, application-prod.properties. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this story",
+  "note": "Story status 'Demo paid (50% of 75%)'; demo_remark 'Internet PII encryption - cannot fetch offender particulars'. That remark cannot be seen from code. From the code: for a company the backend does not call MyInfo Business but EDH (getEdhData) because MyInfo needs a Singpass context (UserInfoController.java:108-113). The UI uses only the company name from the result (API.ts:415-423); the UEN is not displayed (field commented out, the UEN comes from the session) and the contact number/email are not auto-filled, the user types them. The representative's name is filled from the CorpPass login data. Whether EDH on the URA gateway equals MyInfo Business: cannot verify from repo. If EDH returns no name, the (disabled) Company Name field stays empty and submit is blocked until the user presses Clear.",
+  "recommendation": "Claim partially: only the company name is filled automatically (from EDH, not a proven MyInfo Business call). Confirm with URA on EDH vs MyInfo Business, the UEN and the contact number",
+  "steps": [
+    {
+      "step": "The company representative logs in with Corppass on the Furnish page; the session carries the UEN and the transaction id",
+      "detail": "The Corppass button on Landing calls onFurnishCorppass(), which runs onCorppass(isBack, 'FURNISH') (Landing.ts:101, Auth.ts:174-176). Furnish.Auth stores user, isCP and the representative name from authResult.name (Furnish.ts:121-138). In the backend the UEN is taken from the session as entityId (FurnishSubmissionController:81-83). The Corppass handshake and the real session content: cannot verify from repo."
+    },
+    {
+      "step": "After notices are selected the page requests the company data automatically (a Retrieve MyInfo Business button also exists)",
+      "detail": "onSelected calls fetchAndApplyUserInfo() (Furnish.ts:439) with authType CP and the Furnish-specific CP appId (env.ts:66-69). The image button 'Retrieve MyInfo Business with Singpass' in the company form (CompanyParticulars.ts:202-206) calls the same function (:110-116)."
+    },
+    {
+      "step": "The company data is fetched from MyInfo Business",
+      "detail": "For authType CP the backend only calls spcpService.getEdhData(...) to /spcpDS/edh/getEdhData/v1 (UserInfoController:113, SpcpServiceImpl:122-143, application-prod.properties:62). The comment at :108-111 says MyInfo is not called for CorpPass because it needs a Singpass context. So no MyInfo Business call exists in the repo; the data comes from EDH (Entity Data Hub). Whether the URA gateway makes EDH equal to MyInfo Business: cannot verify from repo. A company data source exists, but it is not the one the story names."
+    },
+    {
+      "step": "The company name is filled automatically in the owner form",
+      "detail": "APIGetUserInfo reads edh.entityName or Co_Info_Registered.EntityName (API.ts:418) and applyUserInfoToFields fills cName (Furnish.ts:211); the field is locked with disabled=true (CompanyParticulars.ts:168). The representative's name is also filled from the CorpPass login name (Furnish.ts:212), not from the company data. If no name exists, API.ts:420 returns failure without a message, the field stays empty and validateCName blocks the submit (CompanyParticulars.ts:140-160) until the user presses Clear, which unlocks the field (:136)."
+    },
+    {
+      "step": "The company UEN is filled automatically and visible on the page",
+      "detail": "The cID/UEN field in the company form is commented out (CompanyParticulars.ts:227-231) and the review summary shows only Company Name, Representative, Mobile, Email (Summary.ts:82-108). The UEN is carried as user.uen_no into formData (Furnish.ts:100) and used by the backend from the session (FurnishSubmissionController:81-83), but it is not shown to the user and is not a MyInfo Business result. Same as the individual ID case in OCMS42.7."
+    },
+    {
+      "step": "The company contact number is filled automatically from MyInfo Business",
+      "detail": "For CP, APIGetUserInfo returns only companyName (API.ts:422); mobile and email in the response are not read. So applyUserInfoToFields calls setValue for cContactNo and cEmail with undefined (Furnish.ts:213-215), i.e. fills nothing. The company contact number and email must be typed by the user (ValidCompany.ts:32-48). No code fills the company contact number from an external source. Whether EDH returns a contact number: cannot verify from repo."
+    }
+  ]
+}

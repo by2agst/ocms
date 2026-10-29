@@ -1,0 +1,29 @@
+{
+  "story": "OCMS39.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/furnish/{FurnishValidationServiceImpl,FurnishApplicationListServiceImpl}, crud/beans/SystemConstant (Furnish.ELIGIBLE_STAGES); ocmsadminapi workflows/furnish/{helpers/FurnishabilityChecker,manual/helpers/ManualFurnishValidationService,stafffurnish/services/StaffFurnishService}; ocmsadminui utils/Meta/System.ts + App.tsx (Processing Stage entry without Route), crud/ocmsizdb/parameter/ParameterController. ocmsadminprivateapi, ocmseserviceui, thirdpartyapi: not used for the stage rule",
+  "note": "Story status: Fully paid. Requirement text is given. The system does set the stages at which hirer/driver particulars are accepted, but as Java constants, not as data an officer can change. The public portal accepts ROV, ENA, RD1, RD2 (fallback next stage RD1/RD2); the staff portal accepts NPA to CPC (11 stages) through two constant copies in ocmsadminapi, so there are three copies in two services. There is no configuration per notice type (only type U/UPL is rejected outright on the public portal) and no configuration page: the 'Processing Stage' menu entry in System.ts has no Route. The sheet status 'Fully paid' is not supported for the configuration part. Tickets OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed) show the portal depends on the stage in eVON after sync. The correct stage list according to URA: cannot verify from repo.",
+  "recommendation": "Claim only the stage enforcement (public and staff portals refuse furnishing outside the fixed stages). Do not claim officer configuration or per-notice-type settings; neither exists. Ask URA to confirm whether fixed stage lists are acceptable for this story and whether the public vs staff difference is intended",
+  "steps": [
+    {
+      "step": "The public portal (eService) accepts hirer/driver furnishing only for notices at stages set by the system",
+      "detail": "isProcessingStageEligible lets a notice through if last_processing_stage is in ELIGIBLE_STAGES (ROV, ENA, RD1, RD2; SystemConstant.java:112) or, as a fallback, next_processing_stage is RD1/RD2 (SystemConstant.java:113; FurnishValidationServiceImpl.java:174-184). Other stages are rejected with FURNISH_NOTICE_STAGE_INELIGIBLE (FurnishValidationServiceImpl.java:211-213) on submit (:237-242) and marked 'Not Eligible' in the notice list (FurnishApplicationListServiceImpl.java:146-148). The list is a Java constant, not data. The portal reads the stage from eVON (internet DB), so it depends on the sync from the intranet; OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed, Prod deployed) fixed ROV notices that did not show because is_sync was not set. Whether these four stages match what URA needs: cannot verify from repo (the story names no stages)."
+    },
+    {
+      "step": "The staff portal accepts hirer/driver furnish/redirect only for notices at stages set by the system",
+      "detail": "Staff use FurnishabilityChecker (StaffFurnishService.java:97), which rejects notices outside the fixed list NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC with code STAGE_NOT_FURNISHABLE (FurnishabilityChecker.java:51-61, 120-125, 178-184, including the batch version). ManualFurnishValidationService keeps a second copy of the same list (ManualFurnishValidationService.java:34-38, 58-62). The list is a Java constant and differs from the public portal (ROV, ENA, RD1, RD2); whether the difference is intended: cannot verify from repo."
+    },
+    {
+      "step": "The accepted stage list can differ for each notice type",
+      "detail": "The stage list is the same for all notice types. The only type-based rule is notice type U (UPL), which is rejected outright on the public portal (FurnishValidationServiceImpl.java:205-208), not a stage list per type. The staff check path does not look at the notice type at all (FurnishabilityChecker.java:100-125: PS, AN flag, then stage)."
+    },
+    {
+      "step": "Officer sets the stages that accept furnishing through a configuration page",
+      "detail": "A 'Processing Stage' menu entry exists in System.ts but its path is null (System.ts:66, 203-206) and App.tsx only registers parameter, standardcode, computer-rule-code, suspension-reason and schedule-public-holiday in the System block (App.tsx:375-500). No column, ocms_parameter parameter or Standard Code category stores the furnish stages; every reader uses a Java constant (steps 1-2). The generic Parameter page can store new rows (ParameterController.java:48-76), but no furnish code reads them."
+    },
+    {
+      "step": "A change of the accepted stages takes effect without a code change",
+      "detail": "The stage lists live in three Java constant copies across two services (one in ocmseserviceapi, two in ocmsadminapi: FurnishabilityChecker and ManualFurnishValidationService), so changing a stage means changing code and deploying all three; there is no data an officer can change."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS35.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/vhub/report/{jobs/VhubReportJob,helpers/VhubReportHelper}, agencies/{mha/report/jobs/MhaReportJob,lta/report/jobs/LtaReportJob}, resources/cron-schedules-prod.properties. ocmsadminapi workflows/reports/daily/{DailyReportController,DailyReportServiceImpl,dto/DailyReportRequestDto}, workflows/notice_management/filedownload/downloadfile/FileDownloadController, resources/api-authorization.properties. ocmsadminui pages/Report/{index.tsx,lists/ReportList.tsx,lists/ReportListVHUB.tsx,hook/useDownloadReport.ts}, pages/Dashboard/Dashboard.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not related",
+  "note": "The requirement is not given in the sheet (status 'No requirement'), so the steps come from the story text. The daily vHub report (sheets EBGFTW1, EBGFTW2, EBRACK1, EBRNTL) is created by the 07:30 cron and can be viewed and downloaded from the Report tab in the staff portal. But only vHub has a report for cases sent and records received; SPINE has none, and the MHA/LTA reports cover enquiry files and their tickets are still open (OCMS-DF-2026-178, 121, 074, all Ready to UAT). The vHub 'sent' figure cannot show failures (not sent is hard-coded 0) and the report runs only 10 minutes after the reply download, which is processed asynchronously. The staff portal Dashboard page is empty, so 'routed to dashboard' is realised as a tab in the Report menu. Who is mapped as OIC and real delivery in the environment: cannot verify from repo.",
+  "recommendation": "Claim is limited to the vHub report and the view/download function. Before treating it as complete, fix the 'not sent' figure, add a delay or rerun for the report after ACK/NTL are processed, and decide whether the OIC dashboard means the Dashboard page (currently empty).",
+  "steps": [
+    {
+      "step": "OCMS generates a summary report for the cases sent to vHub",
+      "detail": "Cron cron.vhubreport 0 30 7 * * ? enabled=true in prod (cron-schedules-prod.properties:180-181) produces vHub_Report_*.xlsx with sheet EBGFTW1: one row per notice (offence no, date, vehicle, type, amount, status O/S/C, payment date) and totals for Outstanding/Settled/Cancelled plus total amount (VhubReportHelper.java:169-231). Rows come from ocms_offence_vhub for that day (lines 67-71). Weaknesses: 'Total Number of Records sent' equals 'selected' (lines 219-220), 'not sent' and amount not sent are hard-coded '= 0' (lines 221, 225), and the error sheet EBGFTW2 is always empty (lines 236-250). Tracking rows are stored even though delivery is not certain (see OCMS35.2 step 3), so the report cannot show send failures. There is no vHub-specific ticket."
+    },
+    {
+      "step": "OCMS generates a summary report for the records received from vHub",
+      "detail": "The same report has sheet EBRACK1 (count of successful and error ACKs plus an error-code tally F01-R06/E99, VhubReportHelper.java:252-312) and EBRNTL (list of NTL vehicles from the latest NTL file of the day, lines 314-354). One thing to watch: the download job runs at 07:20 and only requests decryption, while ACK/NTL processing is done asynchronously by the COMCRYPT callback; the report runs at 07:30 (cron-schedules-prod.properties:171-172, 180-181) and is not repeated. If the callback has not finished, the ACK list is empty and the NTL file is not found, so the sheet is empty without any error (lines 138-165, 160-164). How often this happens in the environment: cannot verify from repo."
+    },
+    {
+      "step": "OCMS generates a summary report for the cases sent to SPINE and the records received",
+      "detail": "There is no SPINE interface (OCMS35.1), so there is no SPINE report. Grep for spine in the src of all six repos: 0 hits. The report functions in api-authorization.properties are only LTA, VHUB, MHA, ENOTIF, HIVE_CONTACT, REMINDER, CPS, PS and others (lines 115-152), without SPINE."
+    },
+    {
+      "step": "OCMS generates summary reports for the other agency interfaces (MHA, LTA)",
+      "detail": "MHA and LTA report jobs exist (MhaReportJob.java:50, LtaReportJob.java:33) and the staff portal has the report functions OCMS_REPORT_MHA and OCMS_REPORT_LTA (api-authorization.properties:129-136). But both report the enquiry files from OCMS to MHA/LTA, not provided datasets (OCMS35.3 does not exist). Open tickets say the report numbers are wrong: OCMS-DF-2026-178 (MHA daily summary zero and generated twice, Ready to UAT), OCMS-DF-2026-121 (LTA VRLS summary zeros, Ready to UAT), OCMS-DF-2026-074 (two LTA summary notifications, Ready to UAT). The fixes are not proven in prod."
+    },
+    {
+      "step": "The report is routed to the OIC's dashboard",
+      "detail": "The staff portal Dashboard page is empty: only a row div with no content (Dashboard.tsx:27-28). The vHub report shows as the tab 'vHub Daily Summary Reports' on the Report page, only for users with the function OCMS_REPORT_VHUB (ReportList.tsx:80-85; index.tsx:49-52; api-authorization.properties:132-133). So the report is available to the OIC through the Report menu, not through a dashboard. VhubReportJob sends no email or notification. Who is mapped as OIC (function assignment in the database): cannot verify from repo."
+    },
+    {
+      "step": "The OIC can view and download the report",
+      "detail": "The vHub tab calls daily-report/search with source VHUB and a date range (ReportListVHUB.tsx:48-56); the server lists the vhub blob folder and returns the name and size of vHub_Report_* files (DailyReportServiceImpl.java:179-180, 265-266). The Download button calls download/blob (ReportListVHUB.tsx:84-90; useDownloadReport.ts:22-37), which reads the file from blob for source VHUB (FileDownloadController.java:99, 114) and saves it as an xlsx file. There is only a file list and a download; no on-screen preview of the report content. Server authorization maps the function OCMS_REPORT_VHUB to /v1/daily-report/search and /v1/download/blob (api-authorization.properties:132-133)."
+    }
+  ]
+}

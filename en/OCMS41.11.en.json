@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/{list/FurnishSummaryList,form/SearchForm}, App.tsx route furnished-list, components/datagrid/{Datagrid,table/TableHeader}, hooks/useTable. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplication}, crud/BaseImplement, api-authorization.properties. ocmsadminprivateapi workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishSyncHelper}, cron-schedules-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant to the staff side",
+  "note": "Status in stories.json: Demo paid (50% of 75%); the requirement is given. This story was traced as the search and list of Furnished Hirer/Driver submissions in the staff portal (furnished-list page), because only that page has a submission date column and search by furnished/submitter ID. The general notice search (NoticeSearchAllList) has no submission date column. Search, list and click-through exist. Two gaps: the stage shown is a snapshot taken at submission, and sorting works only by clicking a column header (no default sort and no ID column). The demo remark says the Internet-Intranet sync cron must be on: the Furnish Processing job runs every 10 minutes with enabled=true in cron-schedules-prod.properties:305-306; the real server value cannot be verified from the repo.",
+  "recommendation": "Claim partially: search, the key columns and the click-through are proven. Do not claim a live 'current processing stage' or default sorting by submission date / ID until fixed",
+  "steps": [
+    {
+      "step": "Officer membuka halaman Furnished Hirer/Driver dan mencari dengan parameter standar",
+      "detail": "The 'Furnished Hirer/Driver' menu (path /furnished-list, LinkData.tsx:326, App.tsx:192-194) opens FurnishSummaryList. SearchForm has Notice No, Vehicle No, Furnished ID No, Submitter's ID No, Submission Date From/To and Status fields (SearchForm.tsx:45-97), converted into filters noticeNo/vehicleNo/furnishIdNo/ownerIdNo [$regex], status [$in], creDate [$gte]/[$lte] (SearchForm.tsx:203-221). The story does not define 'standard parameters', so this is judged against this form. API access goes through the OCMS_FURNISHED_LIST mapping (api-authorization.properties:86-87); role assignment to users cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS mengembalikan submission furnished yang cocok dari database intranet",
+      "detail": "POST /v1/furnishapplicationlist reads ocms_furnish_application through the generic CRUD service with the filters from the UI, then adds a resubmission flag (Y/N) per row (OcmsFurnishApplicationController.java:52-71, 87-100). New rows reach the intranet table through phase 1 of the Furnish Processing job (FurnishProcessingService.java:53-56), scheduled every 10 minutes with cron.syncinternetintranet.enabled=true (cron-schedules-prod.properties:305-306); the real server value cannot be verified from the repo. OCMS-DF-2026-067 and OCMS-DF-2026-077 (both Closed, Prod deployed) recorded is_sync not being set to 'N' so notices did not show in eService; that is the Internet side, not this staff search."
+    },
+    {
+      "step": "Daftar menampilkan notice number, vehicle number, submission date/time, dan current processing stage",
+      "detail": "Columns exist: Notice No (FurnishSummaryList.tsx:82), Vehicle No (:110), Current Processing Stage (:118, field lastProcessingStage), Submission Date & Time (:129, field creDate). Gap: The lastProcessingStage column of ocms_furnish_application is only copied from eocms_furnish_application during the sync (ocmsadminprivateapi/.../furnish_processing/helpers/FurnishSyncHelper.java:189). I found no code that updates this column after the notice moves to another stage; approval only changes the VON (ManualReviewService.java:904). So what is shown is the stage at submission, not the current stage."
+    },
+    {
+      "step": "Hasil diurutkan berdasarkan submission date/time dan/atau nomor ID owner/hirer",
+      "detail": "FurnishSummaryList does not pass sortBy (:66-76), so Datagrid uses the default source '' (Datagrid.tsx:226-229) and no $sort is sent (useTable.ts:111); the order depends on the database. The officer can sort by clicking a column header because sortable defaults to true (TableHeader.tsx:42,56), including Submission Date & Time. The list has no owner/hirer ID column (IDs are only search fields, SearchForm.tsx:84-93), so sorting by ID cannot be done from the UI. Per-column sort behaviour was read from the generic component, not run."
+    },
+    {
+      "step": "Officer meng-klik notice untuk melihat informasi lebih detail",
+      "detail": "Notice No is a link that opens #/notices/update/{noticeNo}/{txnNo} in a new tab (FurnishSummaryList.tsx:96-101; route App.tsx:152; PathNoticeUpdate Notice.ts:17-18). The detail screen content and documentary proof are assessed in OCMS41.13 and OCMS41.14."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS40.1",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari, folder pages/epic40 tidak ada), ocmsadminapi (tidak ada endpoint query ad-hoc; hanya trigger cron lta-enquiry), ocmsadminprivateapi workflows/agencies/lta/{upload,download} (batch ROV tiap 03:00/19:00 dan 05:00/21:00, controller manual LtaUploadController), ocmsadminui pages/Notice/detail/OwnerDetails.tsx (tampilan LTA address per notice)",
+  "note": "The story asks the officer to send a vehicle number + offence date to DOS and receive ownership info immediately. The story status in stories.json is blank (no requirement/status given), so it is traced normally. The ad-hoc screen (Epic40) cannot be reached: the route and menu are commented out and the epic40 folder does not exist. Only the batch ROV path exists: LTA Enquiry File Upload sends vehicle_no + notice_date_and_time via an SFTP file and LTA Process Result File stores the owner in ocms_offence_notice_owner_driver, shown per notice in Notice detail. That is not an ad-hoc per-officer query and it is not synchronous. OCMS-DF-2026-160 (Pending Closure) records 894 notices leaving the ROV loop without ownership. DOS is not implemented as an integration in the backend: DOS = DataHive/LTA cannot be confirmed from the repo; the LTA SFTP server and real property values cannot be verified from the repo.",
+  "recommendation": "Claim only as Sebagian: the ROV batch path sends the vehicle number + offence date and stores ownership, but the ad-hoc screen and per-officer query do not exist (route/menu commented out). Ask URA to confirm whether DOS = LTA/DataHive and whether the batch is enough for this story.",
+  "steps": [
+    {
+      "step": "Officer opens the ad-hoc query page in the staff portal",
+      "detail": "Path /search-vault (title 'Agencies Information') and a menu item 'Ad-hoc Vault Query' are defined (SearchVault.ts:1-12, LinkData.tsx:255-259), but the route in App.tsx:331 and the menu.push in LinkData.tsx:405 are commented out, as is the Epic40 import (App.tsx:54); the pages/epic40 folder does not exist in ocmsadminui. The page cannot be opened from the staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) is only a report list with no controller or authorization mapping, not a query form; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "Officer fills in the vehicle number and offence date, UI sends it to the API",
+      "detail": "The SearchVaultUEN/SearchVaultUIN form components only remain as commented-out imports (UPLOffender.tsx:11, ReportListDOS.tsx:25); the epic40 mapping and validation are commented out too (utils/mapping/index.ts:37, utils/validation/index.ts:43). ocmsadminapi has no endpoint that accepts a vehicle number + offence date for a single query; the only enquiry-like call is the parameterless batch trigger POST /lta-enquiry/trigger (CronProxyController.java:33-34), and ocmsadminapi has no proxy to /v1/datahive/query in ocmsadminprivateapi."
+    },
+    {
+      "step": "OCMS sends the vehicle number and offence date to DOS",
+      "detail": "Only the batch LTA Enquiry File Upload exists (cron.ltaupload.enabled=true in prod, schedule 03:00 and 19:00, cron-schedules-prod.properties:134-135). The batch selects all notices at stage ROV (LtaUploadHelper.java:88) and writes vehicleNo + noticeDateAndTime to the file (LtaUploadHelper.java:116-120). The manual trigger POST upload (LtaUploadController.java:41-45) takes no parameter. So it is not an ad-hoc per-officer query and it uses existing notices. sftp.upload.disabledServers=toppan only (application-prod.properties:86), LTA is not switched off. The destination 'DOS' = LTA/DataHive cannot be confirmed from the repo; the real server cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS receives the vehicle ownership info and shows it to the officer",
+      "detail": "LTA Process Result File (cron.ltadownload.enabled=true, 05:00 and 21:00, cron-schedules-prod.properties:148-149) updates ocms_offence_notice_owner_driver (LtaDatabaseOperations.java:120-167) and Notice detail shows 'LTA Registered Address' and 'LTA Mail Address' (OwnerDetails.tsx:186-191). The info appears per notice after the batch has run, not as a direct answer to an officer query. OCMS-DF-2026-160 (Pending Closure): 894 notices left the ROV loop without ownership and TS-ROV resend is inconsistent, so ownership is not always filled."
+    }
+  ]
+}

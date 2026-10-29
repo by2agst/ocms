@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.25",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. The template mechanism exists: the template dropdown is filtered by decision and recipient, the template is rendered from the database with notice data, the email subject and body can be freely edited (rich text, max 4000 characters), and the edited result is what is sent. The template text is stored in the database and is not in the repo, so whether all Reject templates are loaded in PRD: cannot verify from repo. Maintenance tickets: OCMS-DF-2026-136 (Closed, Prod deployed) the Reply template dropdown was empty because the ALLOWED_TEMPLATES map lacked entries; OCMS-DF-2026-004 (Closed) the FURNISH_EMAIL_OFFICER_DAILY template was not loaded in PRD, showing a FURNISH_ template once shipped without its database row. A template must be selected before an entry can be added to the send list (ValidFurnishForm.ts:31-36). Real SMTP delivery: cannot verify from repo.",
+  "recommendation": "Claim with a caveat: selecting a template, free editing and sending exist. Ask URA/the team to confirm the FURNISH_EMAIL_* Reject template rows are loaded in PRD (their content is not in the repo).",
+  "steps": [
+    {
+      "step": "The OIC picks Message Mode Email and a recipient",
+      "detail": "The Reply tab provides a Message Mode dropdown (Email/SMS, required) and, for Email, Recipients plus Email Template (ReplyComposeForm.tsx:88-108; ReplyEmail.tsx:42-47). Choosing Email clears the SMS fields and fills emailTo with the furnished email (ReplyComposeForm.tsx:100-104); choosing a recipient fills emailTo for Owner/Hirer/Driver (ComposeEditor.tsx:211-267)."
+    },
+    {
+      "step": "OCMS shows standard email templates for selection",
+      "detail": "The Email Template dropdown fetches templates from templatestorelist (templateName contains 'FURNISH_', type EMAIL; SelectTemplate.tsx:78-104) and filters them with the ALLOWED_TEMPLATES map by Decision Status and recipient (SelectTemplate.tsx:31-64, 110-117). For Reject + Owner there are 5 templates, Hirer 1, Driver 1. A template missing from the map never shows, which once caused an empty dropdown (OCMS-DF-2026-136, Closed, Prod deployed). The template rows live in the database and not in the repo (a grep for the template names in all six repos only finds SelectTemplate.tsx), so whether all Reject templates are loaded in PRD: cannot verify from repo; another FURNISH_ template was once not loaded in PRD (OCMS-DF-2026-004). A template must be selected before the entry can be added (SelectTemplate.tsx:224; ValidFurnishForm.ts:31-36)."
+    },
+    {
+      "step": "Selecting a template fills the email subject and body from the notice data",
+      "detail": "onSelectTemplate calls POST templatestore/render with templateName, noticeNo, txnNo, recipients (SelectTemplate.tsx:119-132, 163-174); the server loads the template, VON, ONOD and furnish application, replaces placeholders, then splits ---SUBJECT--- and ---BODY--- (OcmsTemplateStoreServiceImpl.java:62-102). The UI then replaces {{officerName}}, {{driverName}}, {{hirerName}}, {{ownerName}} (SelectTemplate.tsx:136-151) and fills subject and message (153-157). If rendering fails, an empty catch swallows the error with no message to the OIC (SelectTemplate.tsx:158-160)."
+    },
+    {
+      "step": "The OIC can amend the subject and body in a free-text field",
+      "detail": "The subject is a required TextInput and the email body is a rich-text EditorInput (heading, bold, link, table, list; max 4000 characters) that is not read-only and is filled from the template (ComposeEditor.tsx:306-351). An optional CC field exists (ComposeEditor.tsx:60-98). What is sent is the edited result: MapAPIFurnishCompose uses form.message as htmlBody (FurnishMap.ts:55-60), not the original template body."
+    },
+    {
+      "step": "The customised email goes into the send list and is then sent to the recipient",
+      "detail": "'Add to send list' validates the entry (ValidComposeEntry) and stores it in compose_list; the list supports Preview/Remove (ReplyComposeForm.tsx:57-86; ComposeList.tsx:58-70). On submit, each email is sent through POST manual-review/send-email with the edited subject and htmlBody (useFurnishAPI.ts:178-190; ManualReviewController.java:300-336, 368-383) and recorded in the email notification records (FurnishNotificationService.java:50-90). The endpoint supports attachments (ManualReviewController.java:338-367) but MapAPIFurnishCompose does not send them (FurnishMap.ts:55-60) and the attachment input in the editor is commented out (ComposeEditor.tsx:350), so the OIC cannot attach files from the portal; that is not a story requirement. Real SMTP delivery: cannot verify from repo."
+    }
+  ]
+}

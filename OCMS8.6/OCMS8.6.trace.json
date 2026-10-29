@@ -1,0 +1,55 @@
+{
+  "story": "OCMS8.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin/services/DataHiveUenFinService (storeFinDataResult, processPRSCGrantFlow, applyTSOLD, saveGrantDataToPass, createWorkItemForPRSC yang masih PLACEHOLDER), services/datahive/.../DataHiveFINBatchService (query status PR/SC), schedulers/MhaDownloadJobsScheduler + cron-schedules-*.properties (flag job DH UEN/FIN). ocmsadminui: utils/data/LinkData.tsx (menu Work Items dikomentari), utils/Meta/WorkItem.ts. ocmsadminapi: TemporaryRevivalHelper (revival generik). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status stories: 'Requirement given - Gen flow'. Yang ada di code: saat FIN dari DataHive terdeteksi sudah jadi PR/SC, cron memasang TS-OLD tanpa tanggal revival dan menyimpan previous FIN, NRIC baru, serta tanggal grant ke ocms_dh_mha_pass. Inti story ini, yaitu work item untuk inbox OIC, belum ada: createWorkItemForPRSC hanya menulis log '[PLACEHOLDER] ... feature not ready' (DataHiveUenFinService.java:2920-2924), tidak ada entity/repository/SQL untuk tabel work item di enam repo, dan menu Work Items di staff portal dikomentari (LinkData.tsx:396-398) tanpa halaman. Catatan demo URA 'Really no Vault or unsure about handling?' tidak mengubah temuan ini. Job DH UEN/FIN bernilai false di cron-schedules-prod.properties:52 (nilai deployed cannot verify from repo). Tidak ada maintenance ticket yang menyentuh work item atau TS-OLD konversi PR/SC.",
+  "recommendation": "Jangan klaim langkah work item, routing ke inbox, dan keputusan OIC. Yang bisa diklaim hanya deteksi konversi FIN ke PR/SC, penyimpanan data konversi, dan TS-OLD (Sebagian karena flag job di PROD false). Perlu entity work item, halaman inbox OIC, dan pengisian detail (previous FIN, NRIC baru, alamat, tanggal konversi)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice sudah disuspend sementara (TS-OLD) setelah FIN terdeteksi berubah status menjadi PR/SC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1504; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1579; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2808-2832; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "storeFinDataResult menandai prScConverted (DataHiveUenFinService.java:1504) dan memanggil processPRSCGrantFlow (:1579) yang memanggil applyTSOLD (:3256). applyTSOLD memasang TS-OLD lewat tsHelper.processTS dengan daysToRevive null, jadi tidak ada auto-revival (:2815-2821). Yang ditangani hanya konversi FIN ke PR/SC dari DataHive; perubahan status lain tidak punya jalur TS-OLD, dan bila kematian terdeteksi lebih dulu, grant flow dilewati (:1577-1578). Job DH UEN/FIN false di cron-schedules-prod.properties:52 (komentar di file: dimatikan sampai nama view DataHive diverifikasi); nilai di server cannot verify from repo. Sebagian karena cakupan dan flag PROD."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat detail konversi: nomor FIN sebelumnya, NRIC baru, dan tanggal konversi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2843-2879; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3252; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1557-1560",
+      "fit": "Sebagian",
+      "detail": "saveGrantDataToPass menyimpan previousFin, newNricNo, datePrGranted atau scGrantDate ke ocms_dh_mha_pass (DataHiveUenFinService.java:2855-2877). Data itu hanya masuk ke tabel pass, bukan ke sebuah work item yang bisa dibaca OIC. Alamat tidak ikut diperbarui untuk FIN yang sudah converted karena updateAddressForFIN dilewati (:1557-1560), jadi 'address' di story tidak terpenuhi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item berisi detail konversi tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2924; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3259; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINServiceImpl.java:213-214",
+      "fit": "Tidak ada code",
+      "detail": "createWorkItemForPRSC hanya menulis log '[PLACEHOLDER] Work item creation skipped ... feature not ready' (DataHiveUenFinService.java:2920-2924); javadoc-nya menyebut ocms_work_item, ocms_work_item_allocation, ocms_work_item_notices tetapi tidak ada entity, repository, atau SQL untuk tabel itu di enam repo (grep work_item, workitem, work item, inbox di semua repo). Jalur uji DataHiveFINServiceImpl hanya menambah string ke list generatedWorkItems tanpa menulis DB (:213-214). processPRSCGrantFlow tetap memanggilnya (:3259)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item dirutekan ke inbox OIC",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:396-398; ocmsadminui/src/utils/Meta/WorkItem.ts:1-12; ocmsadminui/src/pages/HST/HST.tsx:30",
+      "fit": "Tidak ada code",
+      "detail": "Menu 'Work Items' ada di LinkData.tsx tetapi baris menu.push(LinkWorkItem) dikomentari di bawah label '//! UNCONFIRMED' (LinkData.tsx:396-398). WorkItem.ts hanya berisi path dan title untuk breadcrumb (HST.tsx:30), tidak ada komponen halaman, route, endpoint, atau kode alokasi ke OIC. Satu-satunya pembuatan work item di UI adalah MapPostApprovalWorkItem untuk UPL (NoticeUPL.ts:171-196, work_ref 'UPL Endorsement'), bukan untuk perubahan status residential."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC memutuskan apakah akan tetap menindaklanjuti offender dengan status baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:42; ocmsadminapi/src/main/resources/api-authorization.properties:24; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2819",
+      "fit": "Sebagian",
+      "detail": "Karena TS-OLD dipasang tanpa tanggal revival (DataHiveUenFinService.java:2819), notice tetap tertahan sampai staf me-revive TS secara manual lewat fitur Revival generik di staff portal (TemporaryRevivalHelper.java:42; endpoint /v1/staff-revive-eligibility di api-authorization.properties:24). Fitur ini generik dan bukan yang disebut story: OIC tidak melihat work item, previous FIN, NRIC baru, atau tanggal konversi di layar keputusan. Sebagian paling tinggi untuk mekanisme generik."
+    }
+  ]
+}

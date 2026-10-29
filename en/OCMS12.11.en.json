@@ -1,0 +1,29 @@
+{
+  "story": "OCMS12.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/notification_sms_email (NotificationSmsEmailJob, NotificationSmsEmailHelper.queryRecordsForReminder), crud OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, workflows/agencies/mha/download/MhaNricDownloadJob (DataHive NRIC flag), workflows/agencies/toppan/upload (ToppanStage, ToppanUploadHelper, ToppanUploadJob, ToppanUploadHelper.resolveStageContext), cron-schedules-prod.properties, application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story",
+  "note": "1-point story: before the 3rd letter (RR3) to an individual owner, OCMS sends an electronic reminder, checks opt-out, runs the OCMS8-style particulars checks, then the notice moves to RR3. Code exists for each step in ocmsadminprivateapi, but parts are switched off by properties: cron.notification.enabled=false and cron.mhadownload.datahive=false in prod, and sftp.upload.disabledServers=toppan in every environment (upload to Toppan is blocked; ticket OCMS-DF-2026-192 still Ready to UAT). The MHA NRIC check (id_type N) is on in prod. The sheet status 'Demo paid' is not evidence; per-environment property values: cannot verify beyond the properties files written in the repo. The demo remark (Vault/ANS) was not verified.",
+  "recommendation": "Claim partially. Confirm with URA when the eNotification cron, DataHive NRIC enrichment and the Toppan upload are switched on in prod; until then the related steps do not run in prod.",
+  "steps": [
+    {
+      "step": "OCMS sends an electronic reminder (SMS/email) to the individual owner after the 2nd letter (stage RD2)",
+      "detail": "queryRecordsForReminder() selects notices whose last_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3') fall due inside the ENOTEDAYS window, with offender_indicator='Y' and no earlier SMS/email record for the same stage; template SMS_RD2 is picked for stage RD2 (resolveTemplateName), called from NotificationSmsEmailJob. But cron.notification.enabled=false in cron-schedules-prod.properties:236, so the eNotification scheduler does not run in prod, and ticket OCMS-DF-2026-180 waits for the eNotification cron to be activated. Real delivery (SMS/email gateway): cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks whether the individual owner opted out of electronic reminders",
+      "detail": "The reminder query excludes onod.id_no found in ocms_enotification_exclusion_list (NOT IN, line 1133), and the helper also has a per-id_no COUNT check (line 1191). So opt-out is respected: that ID gets no reminder and the notice still goes on to the letter. How an ID gets into the exclusion list (opt-out intake) was not traced for this story. As with step 1, this check only runs when the eNotification cron is on (cron.notification.enabled=false in prod, cron-schedules-prod.properties:236)."
+    },
+    {
+      "step": "OCMS checks and updates the individual owner's latest particulars as per OCMS8 (MHA NRIC; DataHive NRIC)",
+      "detail": "findNoticesForMhaNricUpload selects notices with next_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3'), next_processing_date <= tomorrow, suspension_type IS NULL, onod.id_type='N' (NRIC), offender_indicator='Y', not yet in ocms_nro_temp and not HST (VonRepository:556-581); cron.mhaupload.enabled=true in prod (PROD:106). MHA results are processed by MhaNricDownloadJob. The DataHive NRIC enrichment step in the same job only runs when cron.mhadownload.datahive=true (MhaNricDownloadJob:704-720), but it is false in prod (PROD:50, comment: wait for URA UAT). MHA file contents and DataHive: cannot verify from repo. OCMS8 itself is judged in the stories of that epic."
+    },
+    {
+      "step": "The notice moves to stage RR3 (3rd letter) after the 2nd letter is sent",
+      "detail": "ToppanStage has RD1->RD2->RR3->DN1 (lines 19-21). resolveStageContext() reads next_processing_stage from ocms_stage_map and falls back to the enum when empty (RD2 -> RR3) (TUH:1810-1822). So after stage RD2 is processed, the notice's next_processing_stage becomes RR3. The rows of ocms_stage_map in the DB: cannot verify from repo, but the enum fallback is enough to prove the default behaviour."
+    },
+    {
+      "step": "OCMS can send the 3rd reminder letter (RR3) to the individual owner",
+      "detail": "findToppanNoticesForStage('RR3') selects notices with next_processing_stage='RR3', next_processing_date <= today, suspension_type IS NULL and offender_indicator='Y' (VonRepository:583-614); cron.toppanupload.enabled=true (PROD:62). But sftp.upload.disabledServers=toppan in application-prod.properties:86 (also dev and uat), so the file is not uploaded to Toppan; confirmDeliveryAndAdvanceStage() bypasses the delivery gate so the stage still advances (TUJ:424-430), which moves the notice on without proof the letter was delivered. Ticket OCMS-DF-2026-192 (Ready to UAT, not Closed) records this. Real delivery to Toppan: cannot verify from repo."
+    }
+  ]
+}

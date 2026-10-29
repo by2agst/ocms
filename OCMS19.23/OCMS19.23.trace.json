@@ -1,0 +1,37 @@
+{
+  "story": "OCMS19.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, addAppCodeToResults),helpers/PermanentSuspensionHelper}. ocmsadminprivateapi: salinan plus-apply-suspension (framework/workflows/plus). Sisi PLUS tidak ada di repo",
+  "note": "Status di sheet: No requirement (requirement tidak diberikan). Alur sederhana dan ada di code: PLUS memanggil plus-apply-suspension, OCMS menerapkan PS atas notice yang belum dibayar, lalu mengembalikan 'PS Success' per notice. Pesan berupa response API sinkron, bukan notifikasi yang didorong ke PLUS. Demo remark (API PLUS tidak menarik data, dugaan koneksi DB putus) adalah masalah environment; cannot verify from repo. Tidak ada tiket maintenance yang relevan; APIM/auth dan sisi PLUS: cannot verify from repo.",
+  "recommendation": "Dapat diklaim untuk sisi OCMS: response sukses PS ke PLUS terbukti di code. Konfirmasi di environment bahwa masalah koneksi PLUS pada demo remark sudah selesai",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS meminta permanent suspension atas notice yang belum dibayar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-486; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:548-551",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension menerima daftar noticeNo, suspensionType PS, reasonOfSuspension, officerAuthorisingSuspension; field wajib dicek dan suspensionSource dipaksa PLUS (SuspensionProcessingController.java:485-546). Tiap notice diproses lewat processNoticeList (baris 548-551). Proteksi akses lewat APIM tidak terlihat di repo (JwtFilter melewati plus-*), cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan PS pada notice yang belum dibayar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:113-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-193",
+      "fit": "Sesuai",
+      "detail": "processPS memvalidasi source permission dan stage (PermanentSuspensionHelper.java:100-111), untuk notice tanpa crs_reason_of_suspension validatePaidNotice tidak membatasi kode (baris 180-193), lalu updateDatabase menulis suspended_notice dan VON/eVON (baris 139-144). Karena notice belum dibayar, createRefundRecord langsung return null (baris 324-326): tidak ada refund."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan sukses permanent suspension ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:150; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:553-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1199",
+      "fit": "Sesuai",
+      "detail": "Respons per notice {noticeNo, srNo, success: true, message \"PS Success\"} (PermanentSuspensionHelper.java:150), ditambah appCode OCMS-2000 (SuspensionProcessingController.java:1186-1199) dan dikembalikan HTTP 200 (baris 553-555). Ini response sinkron ke pemanggil. Demo remark menyebut API PLUS tidak menarik data dan dugaan koneksi DB putus: itu kondisi environment, cannot verify from repo; tidak ada tiket maintenance yang mengubah langkah ini."
+    }
+  ]
+}

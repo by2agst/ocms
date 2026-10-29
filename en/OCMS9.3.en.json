@@ -1,0 +1,29 @@
+{
+  "story": "OCMS9.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/App.tsx (route enotification/exclusion), pages/ENotifExclusion/{list/ExclusionList.tsx, form/ExclusionForm.tsx}, utils/data/LinkData.tsx; ocmsadminapi crud/ocmsizdb/enotificationexclusion/{EnotificationExclusionController, EnotificationExclusion}, crud/BaseImplement, api-authorization.properties; ocmsadminprivateapi crud/ocmsizdb/OcmsEnotificationExclusionList + NotificationSmsEmailHelper/LtaBusinessRulesChecker (list readers). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Staff can open the E-Notification Exclusion page, search, create a new entry and edit remarks. Delete: the POST enotificationexclusiondelete/{id} endpoint exists in ocmsadminapi, but the list page only has an Edit button and the delete resource is not in the UI resource type, so staff cannot delete an ID from the portal. Edit only changes remarks (id_no is readonly in the form and PATCH_ALLOWED_FIELDS only allows remarks), so changing an ID means delete then create (delete is not in the UI). Three things to watch: creating with an id_no that already exists calls save() on an entity with an assigned ID, which silently overwrites remarks (no duplicate check in the UI or API; the exists endpoint is available but the UI does not call it); the Update Date column in the list always shows '-' (ExclusionList.tsx:176); the ocmsadminapi entity limits id_no to 12 characters while the UI form allows 20 and the ocmsadminprivateapi entity says 20 (the real DB column length: cannot verify from repo). The ocms_enotification_exclusion_history table has an entity and a CRUD controller, but no code writes to it; a DB trigger: cannot verify from repo. Authorization: function OCMS_ENOTIF_EXCLUSION maps the prefix /v1/enotificationexclusion, so delete and exists are opened through startsWith. Ticket OCMS-SR-2026-039 (pen test, Closed) added PayloadSanitizer to create/patch.",
+  "recommendation": "Claim partially: create and edit remarks work, delete exists only through the API (no UI button), editing the ID is not available, and a duplicate create silently overwrites",
+  "steps": [
+    {
+      "step": "Staff opens the E-Notification Exclusion page, which lists and can search the IDs",
+      "detail": "The route enotification/exclusion loads ExclusionList (App.tsx:302) and is in the menu (LinkData.tsx:162-166). The datagrid calls the enotificationexclusionlist resource with search on idNo and remarks (ExclusionList.tsx:83-93,135-143) and shows ID, remarks, Create By/Date, Update By."
+    },
+    {
+      "step": "Staff creates a new ID entry with remarks",
+      "detail": "The Create button opens the form (ExclusionList.tsx:128-132) that POSTs to enotificationexclusion (ExclusionForm.tsx:76); the controller accepts only idNo and remarks (EnotificationExclusionController.java:45) and then calls service.save (:50-66). Because id_no is an assigned @Id without @Version (EnotificationExclusion.java:26-30), save() is a merge: an existing ID is not rejected but its remarks are silently overwritten, and the UI has no duplicate check. id_no length: form 20 (ExclusionForm.tsx:148), ocmsadminapi entity 12 (EnotificationExclusion.java:26)."
+    },
+    {
+      "step": "Staff edits an existing entry",
+      "detail": "The Edit button on each row opens a form with id_no readonly (ExclusionList.tsx:179-188; ExclusionForm.tsx:149). The patch endpoint only accepts remarks (PATCH_ALLOWED_FIELDS, EnotificationExclusionController.java:100-128), so only remarks can be edited; changing an ID is not possible (delete then create, and delete is not in the UI). The Update Date column in the list always shows '-' because onFormat returns a constant (ExclusionList.tsx:176)."
+    },
+    {
+      "step": "Staff deletes an ID from the list",
+      "detail": "The POST enotificationexclusiondelete/{id} endpoint exists and calls service.delete (EnotificationExclusionController.java:163-197; BaseImplement.java:221-229; opened by the prefix in api-authorization.properties:156). But the list page only has an Edit button (ExclusionList.tsx:179-188) and the delete resource is not in the UI resource type (Fapi.d.ts:273-275); nothing in ocmsadminui calls enotificationexclusiondelete. Staff cannot delete from the portal."
+    },
+    {
+      "step": "Changes to the list are used by the next eNotification run",
+      "detail": "ocmsadminprivateapi reads the same table, ocms_enotification_exclusion_list (OcmsEnotificationExclusionList.java:18-24), straight from the DB on every run: loadAllExcludedIds (NotificationSmsEmailHelper.java:1207-1214) and preloadExclusionList (LtaBusinessRulesChecker.java:53-62). There is no cache across runs, so create/edit/delete take effect on the next run."
+    }
+  ]
+}

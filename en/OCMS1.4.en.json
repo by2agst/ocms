@@ -1,0 +1,25 @@
+{
+  "story": "OCMS1.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/NoticeProcessingHelper (stage NPA/ROV on create). ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (ROV query), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'User Story Removed': the verdict stays Removed, not claimed. The owner check through LTA (ROV) exists, runs twice a day, and stores the result in ocms_offence_notice_owner_driver. But the order in the story (after admin fee and payment reference number) does not match: ROV runs right after the notice is created. Epic OCMS7 referred to by the story is not in the inputs, so 'as in OCMS7' cannot be checked. Tickets OCMS-DF-2026-160 and OCMS-SR-2026-182 show thousands of notices moved on without an owner ID. The LTA file content and partner SFTP: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed). The LTA owner check exists but is not triggered after the admin fee and payment reference number; notices can advance without an owner ID.",
+  "steps": [
+    {
+      "step": "The owner particulars check runs after the admin fee is imposed and the payment reference number is generated",
+      "detail": "A REPCCS notice is set to next_processing_stage ROV as soon as it is created (NoticeProcessingHelper.java:924-927), so the owner check runs right after creation, before any admin fee and without a payment reference number. The admin fee is imposed later (AdminFeeHelper only for foreign vehicle PS-FOR; ToppanUploadHelper.java:1390-1401 at RR3/DR3), and no payment reference number is created in any code (see OCMS1.3)."
+    },
+    {
+      "step": "OCMS selects notices awaiting the owner particulars check and sends the enquiry to LTA",
+      "detail": "The LTA Upload cron selects notices with next_processing_stage='ROV', date <= today, offence type O/E, not PS and not foreign vehicle (OcmsValidOffenceNoticeRepository.java:70-74), run twice a day (cron-schedules-prod.properties:134-135). Foreign vehicles are not checked (OCMS-DF-2026-118) and PS notices are excluded (OCMS-DF-2026-002). Delivery of the file to LTA over the partner SFTP cannot be verified from repo. The 'as in Epic OCMS7' check itself is not in the inputs; this is measured against this story text only."
+    },
+    {
+      "step": "The LTA result file is processed and the owner ID, name and ID type are saved on the notice",
+      "detail": "The LTA Download cron (cron.ltadownload.schedule=0 0 5,21 * * ? enabled=true, cron-schedules-prod.properties:148-149) processes the result file; planOffenceNoticeOwnerDriver creates or updates the owner row in ocms_offence_notice_owner_driver with idNo (sanitised), idType and name (LtaBatchCode0Processor.java:427-476). Only for LTA code 0 (found) results; the content of the partner LTA file cannot be verified from repo. Ticket OCMS-DF-2026-160 (Pending Closure) records notices losing ownership retrieval."
+    },
+    {
+      "step": "OCMS knows the IDs of the vehicle owners and can follow up with them",
+      "detail": "The notice advances to stage ENA/RD1 in LtaUploadHelper.java:200-216, that is when the file is sent to LTA, not after the result with the owner ID is received. As a result a notice can proceed without an owner ID: OCMS-DF-2026-160 records 894 notices at ENA/RD1 without ownership and OCMS-SR-2026-182 records 1,367 notices stuck at ENA/RD1 without offender (patch back to ROV, Pending UAT Verification). So 'OCMS knows the owner ID' is only true for notices whose result was saved successfully."
+    }
+  ]
+}

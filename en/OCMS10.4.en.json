@@ -1,0 +1,25 @@
+{
+  "story": "OCMS10.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (streamLtaUploadData, findAdvisoryNoticeLetters), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor,LtaIdTypeUtil,LtaSnowflakeProcessor}, cron-schedules-prod.properties. The LTA mechanism is generic (same for NOPO); there is no AN-specific branching in LTA. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Status 'Demo paid (50% of 75%)'. The story asks OCMS to use the owner-data checks from Epic OCMS7 for ANs. An AN notice is created with next stage ROV (types V/S/D) and is not PS at that time, so it enters the same LTA Upload query as a NOPO; the LTA result is processed by LTA Download, which updates ocms_offence_notice_owner_driver, maps the ID type (NRIC/FIN/Passport/UEN), then picks the route (passport or no contact goes to RD1, contact found goes to ENA). Because Epic OCMS7 is not traced in this chunk, conformance with the detailed Epic 7 rules is not verified here; only what the code does for an AN notice is judged. A search for AN-specific branching in the LTA folder found nothing (only the AN letter in the Toppan step). Small gap: the passport data query is only a placeholder. The LTA file contents and the LTA SFTP connection cannot verify from repo; the demo remark (Vault code split) cannot verify from repo. No maintenance ticket used. The stale cronservice/ folder is not used.",
+  "recommendation": "Claim with a caveat. The LTA owner-data check runs for AN notices through the generic Epic 7 mechanism; the shortfall is that the passport query is still a placeholder and the Epic 7 rules are not verified in this story. Cross-check against the OCMS7.x results.",
+  "steps": [
+    {
+      "step": "The AN notice (REPCCS or backend) enters the ROV queue and goes to LTA for the vehicle owner check",
+      "detail": "V/S/D notices are created with next stage ROV (NoticeProcessingHelper.java:440 in ocmsadminprivateapi workflows/repccs/notice_creation). The streamLtaUploadData query picks next_processing_stage='ROV', date <= today, offence_notice_type O/E, not PS, not a foreign vehicle (OcmsValidOffenceNoticeRepository.java:61-77); an AN is not PS-ANS at this point (PS-ANS is applied after the eAN is sent) so it is picked up, and there is no AN-specific filter. LtaUploadJob is scheduled at 03:00 and 19:00 with enabled=true in PROD (cron-schedules-prod.properties:134-135). The enquiry file contents and receipt by LTA cannot verify from repo."
+    },
+    {
+      "step": "The LTA result updates the owner's particulars (name, ID, address) on the notice",
+      "detail": "LTA Download (scheduled at 05:00 and 21:00, enabled=true in PROD, cron-schedules-prod.properties:148-149) calls planOffenceNoticeOwnerDriver (LtaBatchCode0Processor.java:303-306), which creates or updates the owner row in ocms_offence_notice_owner_driver with the sanitised id_no, id_type, name and passport place of issue (440-481) together with the address; an error during the update applies TS-ROV (308-). It is the same for all notices, with no AN branching. The LTA result file contents and the connection cannot verify from repo."
+    },
+    {
+      "step": "OCMS identifies the vehicle owner's ID type (NRIC, FIN, Passport, UEN)",
+      "detail": "LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms maps the LTA code to N (NRIC), F (FIN), P (passport, codes 2 and 3), B (UEN/business) (LtaIdTypeUtil.java:42-57; isPassportIdType at 122-124). LtaBatchCode0Processor uses it when saving the owner (456-458); an unknown code results in id_type '-' (1449-1465). The actual LTA codes in the response file cannot verify from repo."
+    },
+    {
+      "step": "OCMS decides the follow-up action from the owner's ID type",
+      "detail": "A passport owner (LTA code 2 or 3) goes straight to stage RD1 after queryPassportData (LtaBatchCode0Processor.java:693-698); other types continue to the contact lookup, contact found goes to ENA and none goes to RD1 (755-763). For an AN, RD1 with an_flag Y is later picked by findAdvisoryNoticeLetters as an AN letter (OcmsValidOffenceNoticeRepository.java:690-707). Gap: queryPassportData is only a placeholder with comments and no call to any system (LtaSnowflakeProcessor.java:208-229), so no real passport data check happens; there is no AN-specific branching in LTA, an AN uses the same path as a NOPO. Conformance with the Epic OCMS7 rules is not verified."
+    }
+  ]
+}

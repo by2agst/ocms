@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts, utils/option.ts, utils/models/Fpayment.d.ts (pilihan mode bayar eNETS, VISA/Mastercard, PayNow). ocmseserviceapi workflows/urapg/{controller/UraPaymentController,model/GenerateTransactionRequest,service/UraPaymentService}, crud/beans/SystemConstant (kode metode dan prefix transaksi), application-prod.properties (URL gateway). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code pilihan mode bayar portal",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark: Internet PII encryption (masalah environment). Halaman memberi tiga pilihan radio (eNETS, VISA atau Mastercard, PayNow) lewat PaymentMode() dan tombol 'Proceed to Payment' baru aktif setelah satu mode dipilih; pilihan dipetakan ke kode gateway JX/ENETC/PYNOW dan dicek server dengan @Pattern. Gap: SystemConstant.java:25 memberi komentar 'JX = Credit Card' sedangkan UI memetakan eNETS ke JX dan VISA/Mastercard ke ENETC (API.ts:173-177); komentar bukan bukti, tetapi arti kode di gateway: cannot verify from repo. Apakah ketiga mode benar-benar aktif di gateway production (URL ura.payment.gateway.* hanya ada di application-prod.properties:26-28, di atasnya ada komentar 'NOT CREATED YET'): cannot verify from repo. Tidak ada tiket maintenance yang menyentuh daftar mode bayar. OCMS-SR-2026-159 hanya menyebut eNETS, Credit Card, PayNow sebagai sumber pembayaran gateway.",
+  "recommendation": "Bisa diklaim untuk tampilan dan pemilihan mode bayar di portal. Arti kode JX/ENETC dan keaktifan tiap mode di gateway production perlu dikonfirmasi di luar repo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pilihan mode bayar: eNETS, VISA atau Mastercard, dan PayNow",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:589-650; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1028-1042; ocmseserviceui/src/utils/models/Fpayment.d.ts:4",
+      "fit": "Sesuai",
+      "detail": "PaymentMode() merender grup radio 'Select Payment Mode' dengan tiga opsi: ENETS (logo eNETS), MASTER_VISA (logo VISA dan Mastercard) dan PAYNOW (dengan ikon bantuan langkah PayNow) (baris 589-650). TPaymentMode dibatasi ke ketiganya (Fpayment.d.ts:4). Dipakai di alur user Singpass (InitPaymentSPCPUnpaid, baris 1040) dan alur pencarian biasa."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mode bayar hanya ditawarkan bila ada fine yang boleh dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:578-592",
+      "fit": "Sesuai",
+      "detail": "hasPayableItems (baris 578-587) harus true; bila tidak, PaymentMode() mengembalikan kosong (baris 590-592), jadi pilihan mode tidak tampil di halaman yang hanya berisi fines non-payable."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih mode yang disukai dan baru bisa lanjut setelah memilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:463-475; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:728-734; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:791-793",
+      "fit": "Sesuai",
+      "detail": "selectMode menyimpan pilihan ke formData dan paymentMode serta ke cache (baris 463-475). Tombol 'Proceed to Payment' disabled selama belum ada fine terpilih dan belum ada mode (baris 791-793); onClick juga menolak jalan bila mode atau pilihan kosong (baris 738-742)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mode yang dipilih diterjemahkan ke kode metode gateway dan divalidasi server",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:173-177; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/model/GenerateTransactionRequest.java:30-36; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:24-26",
+      "fit": "Sebagian",
+      "detail": "UI memetakan ENETS ke JX, MASTER_VISA ke ENETC dan PAYNOW ke PYNOW (API.ts:173-177); server menolak nilai selain JX|ENETC|PYNOW lewat @Pattern (GenerateTransactionRequest.java:35). Komentar SystemConstant.java:25 menyebut JX sebagai 'Credit Card', bertentangan dengan label UI eNETS untuk JX. Komentar bukan bukti; arti kode di gateway: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Transaksi dibuat dengan mode terpilih dan offender dilanjutkan ke pembayaran dengan mode itu",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentController.java:32-35; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:139-149; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:211; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:266",
+      "fit": "Sesuai",
+      "detail": "POST /v1/egeneratetransaction (UraPaymentController.java:32-35) memanggil generateTransaction yang membuat txnId dengan prefix sesuai mode (PYNOW = DICNOC, lainnya OC; SystemConstant.java:18-20), mengirim paymentMode ke gateway (UraPaymentService.java:211) dan menyimpan paymentMode di tiap baris transaksi (baris 266). Respons gateway dan halaman gateway: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman ringkasan menampilkan mode bayar yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentProcess.ts:97-106; ocmseserviceui/src/utils/option.ts:55-60",
+      "fit": "Sesuai",
+      "detail": "Summary menampilkan 'Payment by <label mode>' dari PaymentMode[mode].label (PaymentProcess.ts:97-106); labelnya eNETS, Credit Card (Visa/Mastercard) atau PayNow (option.ts:55-60)."
+    }
+  ]
+}

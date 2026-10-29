@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.26",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/form/Form.tsx (tab Reply), pages/Furnish/{form/DecisionForm,form/ReplyEmail,form/ReplyComposeForm,components/SelectTemplate}, pages/Notice/hook/useNoticeSubmit.tsx; ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, utilities/emailutility. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status: Demo paid (50% of 75%). The story asks the OIC to approve sending the email at a pre-scheduled date and time and to reject the update of the hirer/driver particulars. The reject part and the template/content selection exist and work in the staff portal. The schedule part is missing: there is no date/time input, parameter, database column or job that sends an email at a given time; the email is sent immediately when Submit is confirmed (POST manual-review/send-email). A second path, POST /v1/furnish/officer/reject (FurnishRejectionController, comment cites OCMS41.24-41.33), is not called by the UI and has no schedule either. Ticket OCMS-DF-2026-136 (Closed, Prod deployed) fixed the Reply template dropdown for Decision Status Reject; behaviour after the fix is read from main. Whether SMTP works on the real server cannot be verified from the repo.",
+  "recommendation": "Claim partially: reject, template selection and the email send list exist. Scheduled sending (date/time) has no code; ask URA to confirm whether scheduling is still required or immediate sending is acceptable",
+  "steps": [
+    {
+      "step": "OIC selects a standard email template or edits the email content for the rejected furnish request",
+      "detail": "The Reply tab appears once the Send Email/SMS checkbox is ticked (Form.tsx:87-90, 240-246). The template dropdown is limited per Decision Status; for Reject (R) it offers FURNISH_EMAIL_DOCS_REQUIRED, MULTIPLE_HIRERS, RENTAL_DISCREPANCY, GENERAL, HST_ADD, DRIVER, HIRER (SelectTemplate.tsx:48-63) and the content can be edited in ComposeEditor. Ticket OCMS-DF-2026-136 (Closed, Prod deployed) reported this dropdown being empty for Reject because the ALLOWED_TEMPLATES map lacked entries; main already has the R entries, so the fit is not lowered."
+    },
+    {
+      "step": "OIC chooses the Reject decision for the furnish request of the hirer/driver",
+      "detail": "The Decision Status dropdown only holds A (Approve) and R (Reject) (DecisionForm.tsx:110-113). Choosing R makes submit call rejectFurnish, not approveFurnish (useNoticeSubmit.tsx:193, 198-200)."
+    },
+    {
+      "step": "OIC approves sending the email (ticks Send Email/SMS and adds the email to the send list)",
+      "detail": "Approval to send is the Send Email/SMS checkbox (DecisionForm.tsx:472-480) followed by the Add to send list button that puts the entry in compose_list (ReplyEmail.tsx:42, ReplyComposeForm.tsx:57-86). It approves sending but is not tied to a date/time: the entries are sent as soon as Submit is confirmed (useNoticeSubmit.tsx:215-216), not at a scheduled time. The story speaks of approving a scheduled send, so the fit is Sebagian."
+    },
+    {
+      "step": "OIC sets the scheduled date and time for sending the email",
+      "detail": "There is no schedule field or parameter anywhere: EmailRequest only has from/to/subject/htmlContent/cc/attachments (EmailRequest.java:12-17), the OcmsEmailNotificationRecords table only stores date_sent (OcmsEmailNotificationRecords.java:50), and the email form UI has no date/time input (ReplyEmail.tsx:31-60). Grep for scheduled/schedule/sendAt/sendLater in ocmsadminui, ocmsadminapi, ocmsadminprivateapi: 0 relevant hits for furnish email."
+    },
+    {
+      "step": "OIC rejects the update of the furnished hirer/driver particulars",
+      "detail": "Submit with R calls POST manual-review/reject (useFurnishAPI.ts:104-107). ManualReviewService.rejectSubmission only changes the furnish application: status R, the OIC remarks, then sync to PII (ManualReviewService.java:466-471). The notice owner/driver table is not touched, so the particulars are not updated. Authorization: path /v1/manual-review is in the OCMS_NOTICE_CREATE mapping (api-authorization.properties:83); role restriction not checked further."
+    }
+  ]
+}

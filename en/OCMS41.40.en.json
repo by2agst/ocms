@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.40",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/services/FurnishProcessingService, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl. ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService,helpers/FurnishSyncHelper}. ocmseserviceapi workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl}, crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplicationRepository. ocmseserviceui pages/Furnish/{API.ts,NoticesTable/Notices.ts,NoticesTable/ApprovedNotices.ts}. ocmsadminui pages/Furnish/hooks/useFurnishAPI.ts. thirdpartyapi: no furnish logic",
+  "note": "Status 'Demo paid (50% of 75%)'. Approved status (auto and manual) is written to the Internet DB (eocms_furnish_application) and the Online Customer Portal reads the approved rows of the logged-in user (identity from the JWT). There is no 'send approved requests of the past X months' process: the approved row already exists in the Internet DB from the submission and only its status is updated. A time window exists on the portal side but is hardcoded to 3 months (minusMonths(3)) and measured from cre_date (submission date), not the approval date. There is no OCMS parameter for X (grep for parameter/months/retention in the furnish code of ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi: 0 hits). Singpass/Corppass login cannot be verified from the repo.",
+  "recommendation": "Claim partially: the Approved status reaches the portal and can be viewed after login; the X-months rule from an OCMS parameter does not exist (hardcoded 3 months from submission date)",
+  "steps": [
+    {
+      "step": "A request auto-approved by the system is passed to the portal side (Internet DB)",
+      "detail": "batchSyncStatusToInternet calls eFurnishService.batchUpdateStatus(approvedTxnNos, 'A', 'Auto Approved by SYSTEM', ...) (FurnishProcessingService.java:212-215), which UPDATEs eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:159-166); the Intranet status is set to 'A' through batchUpdateStatusApproved (FurnishProcessingService.java:184-187). The cron runs every 10 minutes (cron-schedules-prod.properties:305-306; real server value cannot be verified)."
+    },
+    {
+      "step": "A request approved manually by an officer is passed to the portal side",
+      "detail": "adminui calls manual-review/approve-hirer or approve-driver (useFurnishAPI.ts:209-214). ManualReviewService.approveSubmission sets status 'A', updates the Intranet, then furnishSyncHelper.syncFurnishApplicationToPii (ManualReviewService.java:363-366; FurnishSyncHelper.java:217), which writes the whole record to eocms_furnish_application. This sync happens at approval time with no age filter."
+    },
+    {
+      "step": "Only approved requests from the past X months are available on the portal",
+      "detail": "The portal filters approved rows with the cutoff threeMonthsAgo = now.minusMonths(3) (FurnishApplicationListServiceImpl.java:173, 180-181) and the query status = 'A' AND cre_date >= :approvedCutoff (EocmsFurnishApplicationRepository.java:102-103). A time window exists, but it is a hardcoded 3 months measured from cre_date (submission date), not the approval date; there is no age-limited 'send' process, since the sync happens per approval event (steps 1-2)."
+    },
+    {
+      "step": "The X-months value can be configured through a parameter maintained in OCMS",
+      "detail": "No parameter is read for X: the number 3 (and 6 for Pending) is written directly in FurnishApplicationListServiceImpl.java:172-173. Searched with parameter, months, retention, ocms_parameter in the furnish folders of ocmseserviceapi, ocmsadminapi and ocmsadminprivateapi and in the ocmseserviceapi properties; no relevant hit."
+    },
+    {
+      "step": "The owner/hirer who logs in to the portal can view their approved submissions",
+      "detail": "POST v1/furnishapplicationlist uses userId/entityId from the JWT session (FurnishApplicationListController.java:58-59, 81-83), not from the body, then passes status 'A' to FurnishApplicationListServiceImpl (lines 179-181). The UI calls status 'A' in Notices.ts:264, 273 and renders ApprovedNotices.ts. The Singpass/Corppass login that produces the JWT cannot be verified from the repo."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "story": "OCMS18.24",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}, crud/ocmsizdb/suspendednotice/{SuspendedNoticeController, SuspendedNoticeServiceImpl}, resources api-authorization.properties. ocmsadminui src/pages/Notice/detail/SuspensionDetail.tsx. The automatic PS path from cron (ocmsadminprivateapi utilities/suspension_helpers) is not traced for this story",
+  "note": "Status in stories.json: Fully paid. Every PS (from the staff portal and from PLUS) adds one new row to ocms_suspended_notice with date, OIC, reason, source and remarks; the old PS is not deleted but gets date_of_revival and revival_reason. Staff see it in the Suspension Details tab on the Notice page. Points to note: a PS with the same code that is already active does not add a row (except a paid notice with a refund code), an error while reviving the old PS is only logged, and the suspension remarks column is not shown in the UI list. Tickets OCMS-DF-2026-027 (duplicate sr_no), OCMS-DF-2026-070 and OCMS-DF-2026-075 (PS-APP not shown in Suspension Details) are all Closed / Prod deployed and their corrections are visible on main. Staff access rights to the list endpoint: cannot verify from repo (it is only seen registered in api-authorization.properties).",
+  "recommendation": "Can be claimed. The remarks column is not shown in the UI list and the automatic cron PS path is not traced for this story.",
+  "steps": [
+    {
+      "step": "Every permanent suspension (from OCMS or PLUS) is recorded as a new history row with OIC, date-time and reason",
+      "detail": "processPS calls updateDatabase (PermanentSuspensionHelper.java:139-141) -> insertSuspendedNotice which adds an ocms_suspended_notice row with notice_no, date_of_suspension (now), sr_no, suspension_source, suspension_type, reason_of_suspension, officer_authorising_suspension, due_date_of_revival, suspension_remarks, process_indicator (SuspensionBaseHelper.java:443-467). The staff path (POST /staff-apply-suspension, SuspensionProcessingController.java:213, :231-235) and the PLUS path (:546-550) both go through processNoticeList; process_indicator is Manual (:1036-1040). sr_no is created per notice from the sequence (:997); ticket OCMS-DF-2026-027 (duplicate sr_no, Closed, Prod deployed) looks corrected on main. The automatic cron PS path is not traced for this story."
+    },
+    {
+      "step": "Earlier suspension history is not deleted; the previous PS is only marked as revived",
+      "detail": "When the notice already has a PS with another code, reviveOldPS fills date_of_revival, revival_reason, officer_authorising_revival, revival_remarks on the active PS row and calls saveAll; the row is not deleted (PermanentSuspensionHelper.java:125-130, :245-305). The only delete method, SuspendedNoticeServiceImpl.deleteAllByNoticeNoNative (SuspendedNoticeServiceImpl.java:606-610), has no caller in ocmsadminapi or ocmsadminprivateapi. Edge case: a PS with the same code that is already active is answered with 'Success Notice already PS' without a new row, except a paid notice with a refund code (PermanentSuspensionHelper.java:78-97); an error in reviveOldPS is only logged and the new PS is still processed (:301-304)."
+    },
+    {
+      "step": "OCMS users can browse the suspension history of a notice in the staff portal",
+      "detail": "The Suspension Details tab on the Notice page loads a Datagrid on resource suspendednoticelist filtered by noticeNo (SuspensionDetail.tsx:92-96) and shows type, reason, dateOfSuspension, officerAuthorisingSuspension (:100-135), dueDateOfRevival, revivalReason, dateOfRevival, officerAuthorisingRevival (:137-170) and suspensionSource (:182-185), all rows including revived ones. The endpoint POST /suspendednoticelist (SuspendedNoticeController.java:55) is registered in api-authorization.properties:50. The suspension remarks column is not shown in the list. Access rights per role: cannot verify from repo. Tickets OCMS-DF-2026-070 and OCMS-DF-2026-075 (PS-APP not shown in Suspension Details, Closed, Prod deployed)."
+    }
+  ]
+}

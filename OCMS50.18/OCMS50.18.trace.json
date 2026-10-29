@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/urapg/{controller/UraPaymentCallbackRedirectController,service/EPaymentCallbackService}, crud/ocmsezdb/eocmswebtxndetail; ocmseserviceui route/route.ts, pages/Payment/{PaymentProcessing,Payment,PaymentResult,API}.ts. Repo lain: tidak ada code",
+  "note": "Alur status ada: PG memanggil callback success/failure, API memverifikasi ke checkPaymentStatus (jalur success), menyimpan status S atau E, lalu me-redirect browser ke /payment/processing?txnId=; halaman itu membaca status dari DB dan menampilkan 'Payment Successful' atau pesan gagal. Celah: (1) jalur failure tidak memverifikasi ke PG dan hanya cek 'sudah E' (EPaymentCallbackService.java:168-178, 207), jadi callback failure yang telat atau terulang dapat menimpa status S menjadi E; (2) halaman processing mengirim ke halaman gagal untuk status apa pun selain S, termasuk status I/P dan error baca data (PaymentProcessing.ts:57-65), sehingga offender yang sudah terpotong bisa melihat pesan gagal; (3) callbackCache dan retriedTransactions hanya di memori satu instance (EPaymentCallbackService.java:50-53). Pemanggil callback dan payload asli PG: cannot verify from repo. OCMS-SR-2026-186 (investigasi 7.843 transaksi mulai vs 81 selesai, status Ready to PRD) belum punya root cause di ticket, jadi keandalan alur ini di production belum terbukti. Nilai ocms.frontend.payment.status.url di server asli tidak bisa dipastikan dari repo (prod properties:72).",
+  "recommendation": "Klaim langkah tampil status sukses/gagal. Perbaiki atau konfirmasi dua risiko: failure callback yang bisa menimpa S, dan halaman processing yang menganggap semua non-S sebagai gagal. Minta hasil investigasi OCMS-SR-2026-186",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Payment Gateway memanggil callback success atau failure setelah offender selesai di website bank atau QR",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:73-80; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:91-98; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:64-137; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:160-213; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:233-263; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:48-59",
+      "fit": "Sebagian",
+      "detail": "Dua endpoint POST /v1/epayment/callback/success dan /failure menerima form atau JSON (UraPaymentCallbackRedirectController.java:73-98, 108-125). Jalur success memanggil checkPaymentStatus/v1 ke PG (EPaymentCallbackService.java:91, 233-263), retry sekali bila bukan PG200 (96-106), dan menandai S hanya bila ResponseCode ada di SUCCESS_RESPONSE_CODES dan paymentStatus = S (118-131, SystemConstant.java:48-59); selain itu status E (135). Celah: jalur failure memanggil verifikasi tetapi hasilnya tidak dipakai, selalu menulis E (EPaymentCallbackService.java:207-208) dan idempotency hanya cek 'sudah E' (168-178), jadi callback failure yang telat atau terulang untuk transaksi yang sudah S akan menimpa menjadi E. Siapa yang boleh memanggil endpoint ini dan payload asli PG: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengarahkan browser offender kembali ke portal dengan nomor transaksi",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:148-165; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:278-293; ocmseserviceapi/src/main/resources/application-prod.properties:72",
+      "fit": "Sesuai",
+      "detail": "Setelah callback diproses, controller me-redirect ke ocms.frontend.payment.status.url + txnId yang di-URL-encode (UraPaymentCallbackRedirectController.java:278-293). Nilai prod: https://parking.ura.gov.sg/car-parks-portal/ocms/payment/processing?txnId= (application-prod.properties:72). Bila callback error, tetap redirect dengan parameter &error= (157-164). Nilai di server asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman processing membaca status transaksi dari database lalu memilih halaman sukses atau gagal",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:22-35; ocmseserviceui/src/pages/Payment/PaymentProcessing.ts:32-67; ocmseserviceui/src/pages/Payment/API.ts:235-254",
+      "fit": "Sebagian",
+      "detail": "Route /payment/processing, /payment/success dan /payment/failure ada (route.ts:22-35). PaymentProcessing.ts memanggil APIPostWebTxnDetail(receiptNo) (baris 45), menyimpan hasil di sessionStorage (52) dan hanya status 'S' diarahkan ke /payment/success (57-58). Celah: status lain (I, P, E), data kosong, atau error jaringan semuanya diarahkan ke /payment/failure (60-65), jadi transaksi yang sebenarnya sukses tetapi gagal terbaca tampil sebagai gagal. Hasil bergantung pada sessionStorage yang sama di tab yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan 'Payment Successful' bila transaksi berhasil",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Payment.ts:187-200; ocmseserviceui/src/pages/Payment/Payment.ts:230-297; ocmseserviceui/src/pages/Payment/PaymentResult.ts:38-45; ocmseserviceui/src/pages/Payment/PaymentResult.ts:88-97",
+      "fit": "Sesuai",
+      "detail": "Payment.ts membaca path /success atau /failure (ResolveCallbackParams 187-200), mengambil data dari sessionStorage dan mengisi formData (HandleCallback 230-297); untuk success memanggil InitTransactionSuccess (PaymentResult.ts:38-45) yang menampilkan alert hijau 'Payment Successful - Your parking fine has been paid.' (88-97)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan bila transaksi tidak berhasil",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Payment.ts:289-294; ocmseserviceui/src/pages/Payment/PaymentResult.ts:47-72",
+      "fit": "Sesuai",
+      "detail": "Untuk status failure HandleCallback memanggil InitTransactionFailed (Payment.ts:289-294) yang menampilkan alert merah 'Error occured while processing payment.' dan nomor telepon URA (PaymentResult.ts:58-68, 226-248). Pesannya generik (tanpa nomor transaksi atau alasan) dan ada typo 'occured'; detail kegagalan dibahas di OCMS50.20."
+    }
+  ]
+}

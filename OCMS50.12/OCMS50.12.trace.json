@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts (NonPayment, InitNonPayment, link ke tab Notice Number). ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud/ocmsezdb/eocmsusermessage (teks pesan E7/E8/E9 ada di DB). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark: Internet PII encryption (masalah environment). Pencarian vehicle number yang tidak punya fine outstanding memberi pesan E9, dan user Singpass tanpa notice sama sekali memberi pesan E7; UI menampilkan pesan itu (atau teks fallback 'There is no outstanding parking offence as of dd-MMM-yyyy') bersama link 'check or pay' ke tab Notice Number. Gap: user Singpass yang hanya punya notice yang sudah dibayar tidak melihat pesan, tetapi tab 'paid' (PaymentSearch.ts:504-517); pencarian notice number untuk notice yang sudah dibayar menghasilkan E8 karena query membuang notice FP; error server atau exception ditampilkan sebagai pesan 'tidak ada outstanding' yang sama (ParkingFinesServiceImplement.java:235-238 dan 100-103, PaymentSearch.ts:535-538). Teks E7/E8/E9 ada di tabel eocms_user_message dan tidak ada seed di repo: cannot verify from repo. Tiket: OCMS-DF-2026-011 (AXS menampilkan pesan court padahal tidak ada notice outstanding saat cari vehicle number; Closed, Prod deployed) menyangkut channel AXS dan eService API, bukan UI portal ini, jadi tidak mengubah verdict.",
+  "recommendation": "Klaim terbatas: pesan 'tidak ada outstanding' dan link ke pencarian notice ada. Kasus user Singpass dengan notice yang semuanya sudah dibayar, dan notice sudah dibayar pada pencarian notice number, tidak menampilkan pesan itu",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cari lewat vehicle number yang tidak punya fine outstanding: API mengembalikan pesan 'tidak ada outstanding'",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:46-61; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:385-402",
+      "fit": "Sesuai",
+      "detail": "Query findAllByVehicleNoIn hanya mengambil notice dengan crs_reason_of_suspension IS NULL dan an_flag bukan Y (baris 46-61). Bila hasil kosong, handleVehicleNoSearch memanggil buildFormattedErrorResponse('E9') (baris 401). Teks E9 diambil dari DB (eocms_user_message) lewat getMessage; teksnya: cannot verify from repo. Ketika sebuah notice ada tapi tidak bisa dibayar (mis. court), hasilnya daftar dengan pesan per notice, bukan pesan 'tidak ada outstanding'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User Singpass tanpa fine outstanding mendapat pesan 'tidak ada outstanding'",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:312-317; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:324-338; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:504-517",
+      "fit": "Sebagian",
+      "detail": "Hanya bila user sama sekali tidak punya notice, API mengembalikan pesan E7 (baris 316). Bila user punya notice tetapi semuanya sudah dibayar, API mengembalikan data kosong dengan totalPaid > 0 dan UI membuka tab 'paid' (PaymentSearch.ts:504-515), bukan pesan 'tidak ada outstanding'; InitNonPayment hanya dipanggil bila totalPaid = 0 (baris 517). Teks E7 di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan bahwa tidak ada outstanding fee/fine",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:657-691; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1068-1075; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:535-538",
+      "fit": "Sesuai",
+      "detail": "NonPayment merender kotak info dengan pesan dari API (apiMessage) atau fallback 'There is no outstanding parking offence as of dd-MMM-yyyy. Please try again later.' (baris 671-679). Catatan: blok catch di PaymentSearch.ts:535-538 juga memanggil InitNonPayment, jadi kegagalan panggilan API tampil sebagai pesan yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menawarkan mengulang pencarian dengan notice number tertentu",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:657-667; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:669; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:327-333",
+      "fit": "Sesuai",
+      "detail": "Link 'check or pay' ('You may wish to check or pay for another Notice Number.') memanggil resetNoticeInputs, mengatur currentTab = 3 (tab Notice Number) dan stepper.show(1) kembali ke form pencarian (baris 662-666). Kasus user yang sedang login Singpass lalu memakai tab ini: perilaku sesi cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pencarian notice number menunjukkan status notice dengan lebih akurat",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-255; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:62-79",
+      "fit": "Sebagian",
+      "detail": "handleNoticeNoSearch memakai query findAllByNoticeNoIn (baris 62-79) yang hanya mengembalikan notice annulled (an_flag = Y) atau notice yang masih outstanding (crs_reason_of_suspension IS NULL). Notice yang sudah dibayar (FP) tidak dikembalikan, sehingga hasil kosong memberi pesan E8 (baris 250) dan bukan status 'sudah dibayar'. Untuk notice yang masih ada, pesan per notice (E1-E5 dst.) dibentuk di ParkingFinesServiceImplement.java:272-315. Teks E8 di DB: cannot verify from repo."
+    }
+  ]
+}

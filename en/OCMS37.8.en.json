@@ -1,0 +1,21 @@
+{
+  "story": "OCMS37.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: App.tsx (compose/message-sent routes commented out). ocmsadminprivateapi: utilities/smsutility/SmsUtil, emailutility/EmailService (generic utilities with no ad-hoc caller), notification_sms_email/jobs/NotificationSmsEmailJob (per-notice cron, off in prod). ocmsadminapi ManualReviewController (furnish send). No ad-hoc code in ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks that after the officer confirms, OCMS sends the SMSes/emails as entered so offenders receive the alerts. Sheet status: Fully paid, but main has no ad-hoc send code (the sheet claim is not supported by code; reviewer should re-check). There is no confirm button/preview screen (route commented out, App.tsx:257-269) and no ad-hoc endpoint in the staff API or private API. What exists is only (a) the generic SmsUtil.sendSms/EmailService.sendEmail utilities in ocmsadminprivateapi with no ad-hoc caller, (b) the eNotification cron (NotificationSmsEmailJob) that sends per notice stage ENA/RD/DN, not officer input, and in prod cron.notification.enabled=false (cron-schedules-prod.properties:236), and (c) the furnish send-email/send-sms in ManualReviewController with txnNo + noticeNo. Prod properties email.enableSmtp=false (application-prod.properties:80) and sms.enable=false (:87); the real server values cannot be verified from the repo. No relevant maintenance ticket; OCMS-DF-2026-180 concerns the ENA eNotification cron, not ad-hoc.",
+  "recommendation": "Do not claim as done. Ad-hoc SMS/email sending after officer confirmation does not exist in main even though the sheet marks it Fully paid",
+  "steps": [
+    {
+      "step": "Officer confirms sending of the ad-hoc messages",
+      "detail": "No send-confirmation button/screen. The compose-email, compose-sms and message-sent routes are commented out (App.tsx:257-269) and there is no ad-hoc endpoint in ocmsadminapi/ocmsadminprivateapi. grep adhoc/ad-hoc, test send, message-sent, compose-sms/compose-email, enotification-send in src of ocmsadminapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: only commented-out routes/menus (App.tsx:257-269, LinkData.tsx:143-155), path constants (utils/Meta/AdhocNotification.ts), HstAdHocReportService (HST report, not messages) and the 'adhoc' in DataHiveUenFinJob (NRO address, not SMS/email)."
+    },
+    {
+      "step": "The system sends the SMSes and emails to all recipients the officer listed",
+      "detail": "No send path from officer input. SmsUtil.sendSms (SmsUtil.java:308-317) and EmailService.sendEmail (EmailService.java:64) have no ad-hoc caller. NotificationSmsEmailJob sends per notice by processing stage, not an officer-supplied recipient list, and in prod cron.notification.enabled=false (cron-schedules-prod.properties:236), email.enableSmtp=false (application-prod.properties:80), sms.enable=false (:87); the real server values cannot be verified from the repo. The staff API send-email/send-sms (ManualReviewController.java:301, :402) belong to furnish."
+    },
+    {
+      "step": "Offenders receive the SMS or email alerts",
+      "detail": "Receipt by the offender depends on the external SMS gateway/SMTP and per-environment properties; cannot verify from repo. Since the ad-hoc send step does not exist, no ad-hoc flow produces an alert to the offender."
+    }
+  ]
+}

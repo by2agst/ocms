@@ -1,0 +1,398 @@
+{
+ "cluster": "E",
+ "candidates": [
+  {
+   "id": "eservice-turnstile-captcha",
+   "title": "Cloudflare Turnstile captcha on the public Check and Pay search (Vehicle Number and Notice Number tabs)",
+   "kind": "extension",
+   "related_story": "OCMS50.2",
+   "related_note": "OCMS50.2 (Demo paid) covers searching by vehicle number / notice number without Singpass. Its text says nothing about a captcha or bot check. This adds the captcha widget, the token verification endpoint and the gate on the Search Fines button.",
+   "user_story": "As URA, I want a captcha check before a member of the public can search fines by vehicle number or notice number without logging in, so that the search cannot be run by bots in bulk.",
+   "acceptance": [
+    "On the Vehicle Number and Notice Number tabs the Search Fines button stays disabled until the Turnstile widget returns a token",
+    "The UI posts the token to turnstile/v1/validate and the API checks it with Cloudflare siteverify",
+    "An invalid or missing token returns OCMS-4000 'Token not correct. Please try again.'",
+    "The captcha is not shown on the Singpass/ID tab",
+    "The validate endpoint is open without JWT so it works before login"
+   ],
+   "evidence": [
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentSearch.ts:157-158",
+     "what": "isCaptcha is set for tabs 2 and 3 until turnstileCompleted"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentSearch.ts:368",
+     "what": "search blocked when isCaptcha and no turnstileToken"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentSearch.ts:377-415",
+     "what": "InitCaptcha: sets sitekey, validateEndpoint turnstile/v1/validate, enables continue button on success"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentSearch.ts:609-617",
+     "what": "renders uds-captcha-turnstile and the Search Fines button only on tabs 2 and 3"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/components/CaptchaTurnstile.ts:93",
+     "what": "turnstile.render of the widget"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/security/turnstile/TurnstileValidationController.java:33",
+     "what": "POST turnstile/v1/validate, calls turnstileService.isTokenValid"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/security/turnstile/TurnstileService.java:98",
+     "what": "isTokenValid posts secret+token to Cloudflare siteverify (secret read at line 49)"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:132",
+     "what": "/turnstile/ path skips JwtFilter"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/resources/application-prod.properties:83",
+     "what": "turnstile.enabled=true (also uat:80, dev:89)"
+    }
+   ],
+   "works": "partly",
+   "works_basis": "Widget, gate and token check are all in code and enabled in dev/uat/prod properties. But the check only exists in the browser: /v1/parkingfines does not check the token (@RequireTurnstile, RequireTurnstile.java:14, is not used on any controller and the aspect at TurnstileValidationAspect.java:30 therefore never fires), so someone calling the API directly skips it. The real Cloudflare secret lives in Key Vault and cannot be verified from repo.",
+   "ura_requested": "no (no flow deck exists in repo)",
+   "points": 3,
+   "points_basis": "Estimate. Similar in size to OCMS50.2 (2) plus a backend verification endpoint, so 3, below OCMS50.17 QR code (5). MGG/URA decision.",
+   "demo_steps": [
+    "Open Check and Pay on the UAT eService, go to the Vehicle Number tab",
+    "Observe that Search Fines is disabled until the Turnstile widget completes",
+    "Complete the widget, enter a vehicle number and search",
+    "Switch to the Notice Number tab and repeat"
+   ],
+   "risks": [
+    "The captcha is a front-end gate only, backend /v1/parkingfines is not protected, so URA may say it does not really stop bots",
+    "Not requested in any story or ticket found; OCMS50.2 and OCMS50.7 traces already cite the captcha as part of the search page",
+    "May be seen as part of the normal build of the search page (OCMS50.2, Demo paid)"
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "eservice-wogaa-transaction-tracking",
+   "title": "WOGAA transaction tracking for the Pay Parking Offence Notice and Furnish Driver's Particulars e-services",
+   "kind": "new",
+   "related_story": null,
+   "related_note": null,
+   "user_story": "As URA, I want each e-service to report its started and completed transactions to the WOGAA platform, so that URA can see usage and completion rates of the Payment and Furnish services.",
+   "acceptance": [
+    "Payment: StartTS('PAYMENT') is called when the user clicks Pay Now",
+    "Payment: CompleteTS('PAYMENT') is called when the result page shows, for success and for failure",
+    "Furnish: StartTS('FURNISH') is called once per transaction when the user proceeds to Review",
+    "Furnish: CompleteTS('FURNISH') is called after submit, for success and for failure",
+    "Calls wait up to 5 seconds for the WOGAA script to load, and run only in UAT and PROD builds"
+   ],
+   "evidence": [
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/hooks/WOGAA.ts:40-107",
+     "what": "StartTS / CompleteTS wrappers around wogaaCustom.startTransactionalService / completeTransactionalService; only when isUAT or isPROD; waits for the script (WOGAA_WAIT_MS=5000)"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentProcess.ts:82",
+     "what": "StartTS('PAYMENT')"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentResult.ts:39",
+     "what": "CompleteTS('PAYMENT') (second call at :48)"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Furnish/Furnish.ts:471",
+     "what": "StartTS('FURNISH') once per transaction (wogaaStarted guard at :465)"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Furnish/Confirmation.ts:190",
+     "what": "CompleteTS('FURNISH') after successful submit (failure branch at :198)"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/utils/env.ts:115-118",
+     "what": "WOGAA ids per service and script URL read from env"
+    }
+   ],
+   "works": "cannot verify from repo",
+   "works_basis": "Call sites exist and are guarded correctly in code. Whether WOGAA actually records the transactions depends on the VITE_WOGAA_* env values and the WOGAA portal, which are outside the repo. Tickets show the Payment completion count looked far too low (7,843 started vs 81 completed in OCMS-SR-2026-186) and Furnish showed 0 (OCMS-DF-2026-191); both are 'Ready to PRD', so the fixes may not be live.",
+   "ura_requested": "ticket: OCMS-SR-2026-186 and OCMS-DF-2026-191 (they asked for the tracking to be investigated/fixed; no story asks for it)",
+   "points": 3,
+   "points_basis": "Estimate. Small front-end integration, comparable to OCMS42.28 (3) or OCMS50.18 (2). MGG/URA decision.",
+   "demo_steps": [
+    "In UAT, run a full payment up to the result page and a full furnish submission",
+    "Check the WOGAA dashboard for service ids parkingura-6270 (Payment) and parkingura-6271 (Furnish) (ids taken from ticket text, not verified in env files)"
+   ],
+   "risks": [
+    "Both tickets are defects/investigations under maintenance, so URA may treat this as a bug fix and not as new scope",
+    "Fix for Furnish is only 'Ready to PRD', not confirmed live",
+    "Result in WOGAA portal cannot be proven from the repo"
+   ],
+   "confidence": "Low"
+  },
+  {
+   "id": "eservice-furnish-self-furnish-check",
+   "title": "Block furnishing yourself as hirer/driver (validate-id check before Review)",
+   "kind": "extension",
+   "related_story": "OCMS42.22",
+   "related_note": "OCMS42.22 (Fully paid) covers prompts for an invalid NRIC/FIN and missing mandatory fields. It does not mention refusing an ID that equals the logged-in owner. This adds that rule, a session-based API check and the error message.",
+   "user_story": "As URA, I want the furnish page to refuse a hirer/driver ID that is the same as the logged-in owner, so that owners cannot furnish themselves as the hirer.",
+   "acceptance": [
+    "On Proceed to Review, when the hirer/driver ID type is UEN or answer Q1 is N, the UI calls POST v1/furnishapplication/validate-id",
+    "The API compares the entered ID with the session owner (UEN for Corppass, NRIC for Singpass), case-insensitive",
+    "On a match the ID field shows 'You cannot furnish yourself as the vehicle hirer.' and the user stays on the form",
+    "The result is cached in the UI for 30 seconds"
+   ],
+   "evidence": [
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Furnish/Form/Particulars.ts:130-144",
+     "what": "shouldCheckSelfFurnish (hdIDType=UEN or hdQ1=N), calls APIValidateFurnishId, sets error and stops"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Furnish/API.ts:459-480",
+     "what": "APIValidateFurnishId with 30s cache; returns match=false on any error"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/utils/validation/error.ts:21",
+     "what": "self_furnish message text"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:239-260",
+     "what": "POST /v1/furnishapplication/validate-id compares furnishIdNo with entityId/userId from the session"
+    }
+   ],
+   "works": "partly",
+   "works_basis": "Code path is complete from button to API. Weak points: the check only runs when ID type is UEN or Q1=N (not for every NRIC/FIN), the UI treats an API error as 'no match' (fails open), and I did not find the same rule re-checked in the submit endpoint (not fully searched).",
+   "ura_requested": "no (no flow deck exists in repo)",
+   "points": 2,
+   "points_basis": "Estimate. Same size as OCMS42.22 (2). MGG/URA decision.",
+   "demo_steps": [
+    "Log in to the UAT Furnish service with Singpass",
+    "Pick a notice, choose 'hirer/driver is someone else' (Q1=N) and enter your own NRIC as the hirer/driver ID",
+    "Click Proceed to Review and see the error message"
+   ],
+   "risks": [
+    "Condition is narrow (UEN or Q1=N), so URA may call it a validation detail inside OCMS42.22/42.23",
+    "Fails open on API error",
+    "Message text is also in HDQuests.ts:317, which suggests the rule was partly intended in other stories (not checked)"
+   ],
+   "confidence": "Low"
+  },
+  {
+   "id": "eservice-furnish-acknowledgement-email",
+   "title": "Acknowledgement email to the owner after a furnish submission",
+   "kind": "extension",
+   "related_story": "OCMS42.28",
+   "related_note": "OCMS42.28 (Fully paid) covers the on-screen acknowledgement page with a PDF summary. The OCMS42.26 trace also notes the email but no story text asks for it. This adds a consolidated email with transaction numbers and notice list, sent from a database template with retry.",
+   "user_story": "As a vehicle owner who has furnished hirer/driver particulars, I want to receive an email acknowledging my submission with the transaction numbers and notice numbers, so that I have a record outside the web page.",
+   "acceptance": [
+    "After a successful submit the API sends one email for all notices in the submission to the owner email, if filled in",
+    "The subject contains the transaction numbers and the body lists the notice numbers",
+    "Subject and body come from the template furnish_acknowledgement_email.html in the database",
+    "The send is asynchronous and retried up to 3 times (2s initial delay, max 30s) on mail errors",
+    "Nothing is sent when the owner email is empty"
+   ],
+   "evidence": [
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:190",
+     "what": "sendFurnishAcknowledgementEmail called after submitFurnishApplication"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishEmailService.java:107",
+     "what": "@Async + @Retryable method; skips when email empty; fills template; setTo at ~160, mailSender.send at :169"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishConstants.java:17",
+     "what": "template name furnish_acknowledgement_email.html"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/resources/application.properties:95-97",
+     "what": "email.retry.maxAttempts=3, initialDelayMs=2000, maxDelayMs=30000"
+    },
+    {
+     "repo": "ocmseserviceapi",
+     "file_line": "src/main/resources/application-prod.properties:88",
+     "what": "spring.mail.host=urasmtp.uraaz.gov.sg"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/utils/map/MapFurnish.ts:61",
+     "what": "UI sends ownerEmailAddr from the form"
+    }
+   ],
+   "works": "cannot verify from repo",
+   "works_basis": "Code is complete and has no feature flag. Whether the mail is delivered depends on the SMTP relay and on the template row existing in the database, neither of which is in the repo. Failures are only logged, not shown to the user.",
+   "ura_requested": "no (no flow deck exists in repo)",
+   "points": 3,
+   "points_basis": "Estimate. Similar to OCMS42.28 (3); smaller than OCMS41.16 email/SMS templates (5). MGG/URA decision.",
+   "demo_steps": [
+    "In UAT submit a furnish application with an owner email filled in",
+    "Check the inbox of that email for the acknowledgement with the txn numbers (needs a mailbox reviewer can read)"
+   ],
+   "risks": [
+    "The OCMS42.26 trace already mentions this email as supporting evidence of a Fully paid story",
+    "Email field on the form is optional, so many submissions send nothing",
+    "Delivery and template content cannot be proven from the repo"
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "eservice-warrant-terms-before-payment",
+   "title": "Terms and Conditions notice for fines at warrant stage before payment",
+   "kind": "new",
+   "related_story": null,
+   "related_note": null,
+   "user_story": "As URA, I want the payment page to show the Terms and Conditions for compounding offences with warrants of arrest when any selected fine is at warrant stage, so that the offender knows that payment does not cancel the warrant.",
+   "acceptance": [
+    "If any selected notice has last processing stage COW, CWW, CWM, CTW or CWT, Proceed to Payment opens the warrant version of the payment page",
+    "The page shows three numbered terms and the sentence 'By proceeding with payment, I acknowledge the above terms and conditions.'",
+    "Other fines open the normal payment page without the terms"
+   ],
+   "evidence": [
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentSearchResult.ts:770-778",
+     "what": "warrantStages check, calls process.InitPaymentWarrant()"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentProcess.ts:212-220",
+     "what": "InitPaymentWarrant renders summary, table and InfoWarrant"
+    },
+    {
+     "repo": "ocmseserviceui",
+     "file_line": "src/pages/Payment/PaymentProcess.ts:159-202",
+     "what": "InfoWarrant terms text; the acknowledgement checkbox call at :201 is commented out"
+    }
+   ],
+   "works": "partly",
+   "works_basis": "The terms are displayed, but the checkbox that was meant to force acknowledgement is commented out, so the Pay button is active without any acknowledgement.",
+   "ura_requested": "no (no flow deck exists in repo)",
+   "points": 2,
+   "points_basis": "Estimate. Static text plus a stage check, like OCMS50.12 (1) to OCMS50.20 (2). MGG/URA decision.",
+   "demo_steps": [
+    "In UAT find a vehicle or ID with a notice at COW/CWW stage",
+    "Select it on Check and Pay and click Proceed to Payment, see the terms"
+   ],
+   "risks": [
+    "The OCMS49.2 and OCMS49.5 traces (Clearance Slip, Built - Has gap) already cite this text as partial evidence, so it may be counted twice",
+    "Acknowledgement gate is switched off in code",
+    "Wording is legal text; no source in repo shows URA approved it"
+   ],
+   "confidence": "Low"
+  }
+ ],
+ "not_claimable": [
+  {
+   "item": "CES create-notice relay (thirdpartyapi CesCreateNoticeController and ocmsadminapi cesWebhook-create-notice)",
+   "source": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/cesTpApiARelay/CesCreateNoticeController.java:22",
+   "reason": "other: already traced as OCMS3.2 (receive notices from EHT, Fully paid)"
+  },
+  {
+   "item": "Notices Created in Backend report, PLUS variant (source 005)",
+   "source": "ocmsadminapi .../reports/system/noticecreated/NoticeCreatedReportServiceImpl.java:67-68",
+   "reason": "other: OCMS4.5 (daily summary of notices created from backend systems) covers the PLUS side; OCMS5.7 covers the OCMS side"
+  },
+  {
+   "item": "Bulk create notices by XLSX upload",
+   "source": "ocmsadminui src/pages/Notice/hook/useNoticeUploadSubmit.ts:147",
+   "reason": "other: OCMS5.4 (upload multiple offences, Fully paid) trace already describes the XLSX upload"
+  },
+  {
+   "item": "Bulk notice search by XLSX upload",
+   "source": "ocmsadminui src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx",
+   "reason": "other: OCMS17.3 / OCMS18.2 (upload list as alternative to searching, Fully paid)"
+  },
+  {
+   "item": "Batch operations from search result (Apply Operation)",
+   "source": "ocmsadminui src/pages/NoticeSearch/hook/useBatchOperation.ts",
+   "reason": "other: bulk TS / PS / reduction is OCMS17.5, OCMS18.5, OCMS16.4"
+  },
+  {
+   "item": "REP CCS violation image/video link",
+   "source": "ocmsadminapi .../retrieval/repccsmedia/RepccsMediaLinkController.java:45",
+   "reason": "other: already used as evidence of OCMS6.1 (Fully paid); would be a double claim"
+  },
+  {
+   "item": "CES attachment download cron with decode gate and blob self-heal",
+   "source": "ocmsadminprivateapi .../ces/CesDownloadAttachmentServiceImpl.java:223-324",
+   "reason": "other: already used as evidence of OCMS6.1 (Fully paid); origin is ticket OCMS-SR-2026-056 (a bug fix)"
+  },
+  {
+   "item": "HST ad-hoc reports alternative-address and hirer-driver-furnished",
+   "source": "ocmsadminapi .../reports/system/hst/HstReportController.java:41,81",
+   "reason": "not reachable: no caller in ocmsadminui (grep of hst/reports, alternative-address empty), no screen or menu; API only"
+  },
+  {
+   "item": "eNotification Manage Templates",
+   "source": "ocmsadminui src/pages/ManageTemplate/*",
+   "reason": "other: OCMS36.1-36.5 (Demo paid)"
+  },
+  {
+   "item": "E-Notification Exclusion list",
+   "source": "ocmsadminui src/pages/ENotifExclusion/*",
+   "reason": "other: OCMS9.3 (Demo paid)"
+  },
+  {
+   "item": "Single/batch email and SMS for furnish manual review replies",
+   "source": "ocmsadminapi .../furnish/manualreview/controllers/ManualReviewController.java:300,401",
+   "reason": "other: OCMS41.15-41.19 (Demo paid)"
+  },
+  {
+   "item": "Payment-in-progress guard (E10 within 300 s, E11 after, 'Processing Payment' status)",
+   "source": "ocmseserviceapi .../parkingfines/ParkingFinesServiceImplement.java:34,317-350,461-465; ocmseserviceui src/pages/Payment/Table/Column.ts:139-175",
+   "reason": "other: works, but already used as evidence in the traces of OCMS50.5, 50.6, 50.13, 50.20 and 43.1; origin is defect ticket OCMS-DF-2026-026. Four seed entries were this same feature. Parent may reconsider as an extension of OCMS50.20 but double claim risk is high"
+  },
+  {
+   "item": "Approved Submissions tab (approved furnish within 3 months)",
+   "source": "ocmseserviceui src/pages/Furnish/NoticesTable/Notices.ts:310-312",
+   "reason": "other: OCMS41.40 (send approved requests of past X months to the portal so the owner can view them, Demo paid); its trace already lists ApprovedNotices.ts"
+  },
+  {
+   "item": "Mandatory supporting documents for FIN/Passport and FIN/Passport always to manual review",
+   "source": "ocmseserviceapi .../furnish/FurnishRequestValidator.java:308-362; ocmsadminprivateapi .../FurnishApprovalHelper.java:296-310",
+   "reason": "other: OCMS42.9 and OCMS42.12 say supporting documents are mandatory for certain ID types (Demo paid)"
+  },
+  {
+   "item": "Paid tab and Download Receipt(s) for logged-in search",
+   "source": "ocmseserviceui src/pages/Payment/PaymentSearchResult.ts:798-830",
+   "reason": "other: OCMS50.9 (access receipts of notices paid in past X months after login) and OCMS50.19 (download receipt)"
+  },
+  {
+   "item": "WOGAA tracking listed twice more as seeds (Furnish and Payment)",
+   "source": "ocmseserviceui src/pages/Furnish/Confirmation.ts:190",
+   "reason": "other: grouped into one candidate eservice-wogaa-transaction-tracking"
+  },
+  {
+   "item": "SPCP bypass mode for dev",
+   "source": "ocmseserviceapi .../spcp/controller/SpcpController.java:69-139; application-dev.properties:46",
+   "reason": "diagnostic: test helper, only set in application-dev.properties"
+  },
+  {
+   "item": "@RequireTurnstile annotation and TurnstileValidationAspect",
+   "source": "ocmseserviceapi .../security/turnstile/RequireTurnstile.java:14",
+   "reason": "dead: annotation not used on any controller"
+  }
+ ],
+ "notes": "Of 27 seeds, only 5 survive as candidates (3 extension, 2 new: WOGAA and warrant terms). Most seeds were already covered by an existing story or already used as evidence in a Fully paid/Demo paid trace. All candidates are small (2-3 points, total 13) and weak: none was requested by URA in a story, and the strongest evidence are tickets that were handled as defects. Properties were read only for turnstile (dev/uat/prod enabled=true) and mail host; real server values cannot be verified. I read only part of the furnish submit path, so the claim that self-furnish is not re-checked at submit is not fully searched."
+}

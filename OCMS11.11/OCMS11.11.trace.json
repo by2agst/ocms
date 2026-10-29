@@ -1,0 +1,64 @@
+{
+  "story": "OCMS11.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (e-reminder setelah 1st letter dan exclusion list opt-out), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (pemilihan notice next stage RD2 untuk MHA dan untuk Toppan), agencies/mha/{upload/helpers/MhaNricDataHelper,download/helpers/MhaNricDownloadHelper} (update alamat mha_reg), datahiveuenfin/services/DataHiveUenFinService (FIN/UEN), agencies/toppan/upload/{models/ToppanStage,jobs/ToppanUploadJob} (stage RD1 menuju RD2), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code yang relevan untuk story ini",
+  "note": "Status di stories.json: Demo paid (50% of 75%), 1 point. Story minta: setelah e-reminder yang merujuk 1st letter terkirim (atau owner opt out), OCMS menjalankan pengecekan dan update particulars owner (Epic OCMS8) supaya 2nd letter (RD2) bisa dikirim. Di code ini bukan satu rantai: eNotification, MHA upload/download, DataHive UEN/FIN, dan Toppan adalah cron terpisah yang tidak saling menunggu. Notice RD2 dipilih MHA (owner NRIC) lewat OcmsValidOffenceNoticeRepository.java:565 dan alamat hasilnya disimpan sebagai mha_reg; Toppan memilih notice next stage RD2 (OcmsValidOffenceNoticeRepository.java:608-612) tanpa syarat bahwa e-reminder sudah terkirim. Yang menurunkan klaim: (1) cron eNotification mati di prod (cron-schedules-prod.properties:236) sehingga e-reminder setelah 1st letter hanya jalan lewat trigger manual; (2) refresh FIN/UEN lewat DataHive mati di prod (cron.mhadownload.uenfin.enabled=false, :52); (3) hasil MHA masih punya defect terbuka OCMS-DF-2026-183 (Pending Closure) dan jalur alamat pernah rusak di OCMS-DF-2026-130. Demo remark menyebut Vault; apakah Vault dipakai dan izin koneksinya: cannot verify from repo. Nilai property per environment di Azure: cannot verify from repo.",
+  "recommendation": "Klaim sebagian: pemilihan notice RD2, update alamat NRIC lewat MHA, dan opt-out ada; e-reminder setelah 1st letter dan refresh FIN/UEN mati di config prod, hasil MHA masih ada defect terbuka",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah 1st letter (RD1), OCMS mengirim electronic reminder yang merujuk 1st letter ke vehicle owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:170-177; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/CombinedSchedulerTriggerController.java:105-108",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih notice dengan last_processing_stage RD1 (juga RD2..DR3) yang tanggal jatuh temponya masuk jendela ENOTEDAYS dan belum punya record kirim di stage itu (NotificationSmsEmailHelper.java:1076-1162); NotificationSmsEmailJob memanggilnya di :161-162 dan memakai stage terakhir sebagai stage template (:170-177), jadi notice RD1 memakai template RD1. Sebagian karena cron.notification.enabled=false di prod (cron-schedules-prod.properties:236), job hanya jalan lewat POST notification-main/trigger (CombinedSchedulerTriggerController.java:105-108). Ticket OCMS-DF-2026-180 (remarks: 'Awaiting eNotification cron to activate') menegaskan cron belum aktif. Isi template RD1 di ocms_template_store (DB) dan nilai di Azure: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner yang opt out dari electronic reminder dikecualikan dari e-reminder dan notice-nya tetap lanjut di jalur surat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-241; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-612",
+      "fit": "Sesuai",
+      "detail": "Query reminder membuang id_no yang ada di ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1131-1134); job memuat exclusion list sekali (loadAllExcludedIds, :1207-1215) dan melewati record yang di-exclude sebelum SMS/email disiapkan (NotificationSmsEmailJob.java:226-241). Query pemilihan surat Toppan tidak membaca exclusion list maupun record e-reminder (OcmsValidOffenceNoticeRepository.java:608-612), jadi owner yang opt out tetap sampai ke 2nd letter. Isi exclusion list adalah data DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice yang sudah waktunya 2nd letter (next stage RD2) dengan owner ber-NRIC untuk dicek particulars-nya ke MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:559-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:81; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "findNoticesForMhaNricUpload memilih notice dengan next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), next_processing_date sampai besok, tidak disuspend, owner id_type 'N' (NRIC) dan offender_indicator 'Y', bukan HST (OcmsValidOffenceNoticeRepository.java:559-581). MhaNricDataHelper memanggilnya di :81. Cron MHA upload enabled di prod, jalan 09:00, 14:00, 21:00 Senin-Sabtu (cron-schedules-prod.properties:105-106). Tidak ada syarat bahwa e-reminder sudah terkirim; urutan terhadap e-reminder hanya jadwal. Respons MHA: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat terbaru dari hasil MHA disimpan sebagai particulars owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1345-1349; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1352-1356; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sebagian",
+      "detail": "MhaNricDownloadHelper menyimpan alamat baru dari file hasil MHA sebagai baris mha_reg: insert baris baru (:1345-1349) atau bulk UPDATE baris yang ada (:1352-1356); cron MHA download enabled di prod (cron-schedules-prod.properties:119-120). Sebagian karena OCMS-DF-2026-183 (Pending Closure, Prod deployed, Job ID ZUR120PC) melaporkan sistem gagal memproses dan meng-update data hasil MHA ke tabel backend, sehingga defect pada langkah ini belum ditutup; OCMS-DF-2026-130 (Closed: field alamat lama tidak dikosongkan) sudah diperbaiki di main. Isi file hasil MHA dan status di prod: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner non-NRIC (FIN/UEN) juga dicek particulars-nya lewat DataHive sebelum 2nd letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:217-248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:100-105; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50-52",
+      "fit": "Sebagian",
+      "detail": "DataHiveUenFinService memilih notice next stage RD1..DR3 (termasuk RD2) untuk owner FIN/UEN (DataHiveUenFinService.java:217-248) dan dijalankan sebagai job kedua setelah MHA download (MhaDownloadJobsScheduler.java:100-105). Sebagian karena cron.mhadownload.uenfin.enabled=false dan cron.mhadownload.datahive=false di prod (cron-schedules-prod.properties:50-52), jadi job dilewati; di UAT keduanya true. Particulars owner non-NRIC tidak diperbarui otomatis sebelum 2nd letter di konfigurasi prod repo. Nilai di Azure: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice siap untuk 2nd letter reminder (next stage RD2, jatuh tempo, tidak disuspend)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:596-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-20; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:444",
+      "fit": "Sesuai",
+      "detail": "Setelah 1st letter terkirim, ToppanUploadJob.confirmDeliveryAndAdvanceStage memanggil updateProcessingStage (ToppanUploadJob.java:444) yang mengisi next stage sesuai enum: RD1 menuju RD2 dengan durasi 14 hari (ToppanStage.java:19-20). findToppanNoticesForStage('RD2') lalu mengambil notice dengan next_processing_stage = 'RD2', next_processing_date <= hari ini, suspension_type IS NULL, offender_indicator 'Y', dan bukan Advisory Notice (OcmsValidOffenceNoticeRepository.java:596-614), dipanggil dari ToppanUploadJob.java:248. Pengiriman file ke vendor dinilai di OCMS11.12."
+    }
+  ]
+}

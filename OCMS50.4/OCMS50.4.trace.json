@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmseserviceui utils/validation/error.ts, utils/validation/Payment/ValidPayment.ts, pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud ocmsezdb eocmsusermessage. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait",
+  "note": "Pesan error untuk format salah ada di UI. Untuk notice yang tidak ditemukan, backend mengembalikan pesan E8 (teks diambil dari tabel eocms_user_message, isinya cannot verify from repo). Backend tidak membedakan tiga kondisi di story: notice settled (crs_reason FP), belum masuk database (belum ada di eocms_valid_offence_notice), dan tidak pernah ada, semuanya jatuh ke E8 yang sama; tidak ada cabang khusus settled atau pending upload untuk pencarian Notice Number. Bila hanya sebagian dari 5 nomor yang ketemu, nomor yang tidak ketemu dibuang diam-diam tanpa pesan. Error database juga ditelan dan tampil sebagai E8. Tiket OCMS-SR-2026-001 (AXS menampilkan notice payable sebagai not found karena message code migrasi null, Closed, Prod deployed) dan OCMS-DF-2026-017 dipakai sebagai petunjuk.",
+  "recommendation": "Klaim pesan format salah, pesan notice tidak ditemukan (E8), dan kemampuan mengulang pencarian. Jangan klaim pesan khusus settled dan pending-upload; minta URA memastikan teks E8 di tabel eocms_user_message dan apakah pesan terpisah masih diminta.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor dengan format salah ditolak di halaman dengan pesan error sebelum pencarian dikirim",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/error.ts:329-334; ocmseserviceui/src/utils/validation/Payment/ValidPayment.ts:31-60; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:232-290",
+      "fit": "Sesuai",
+      "detail": "Format('NOTICE') gagal memunculkan 'Please enter valid notice number.' (kolom kosong: 'Please enter notice number.') di bawah kolom, dan tombol Search Fines tetap disabled. Format yang valid tidak menjamin notice ada di database."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tidak ditemukan menampilkan pesan error beserta nomor yang dicari",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-251; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:59-67; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:69-104; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:657-690",
+      "fit": "Sesuai",
+      "detail": "Bila query tidak mengembalikan notice, handleNoticeNoSearch memanggil buildFormattedErrorResponse('E8') dengan placeholder $NOTICE_NUMBERS$ dan $CURRENT_DATE$; teks E8 dibaca dari eocms_user_message lewat getMessage (fallback DEFAULT_ERROR) dan UI menampilkannya lewat apiMessage di NonPayment. Isi teks E8 di database cannot verify from repo. Ada jebakan: checkNoticesList menangkap semua Exception lalu mengembalikan list kosong, jadi error database juga tampil sebagai E8 'tidak ditemukan'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah settled (dibayar) menampilkan pesan yang menyatakan statusnya",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:63-79; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-251; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:69-80",
+      "fit": "Sebagian",
+      "detail": "findAllByNoticeNoIn hanya mengembalikan notice dengan crs_reason_of_suspension IS NULL (atau an_flag Y), jadi notice yang sudah FP tidak ikut; jika itu satu-satunya nomor, hasilnya sama dengan nomor yang tidak ada, yaitu E8. Tidak ada cabang yang mengirim pesan 'sudah dibayar'. Mungkin teks E8 di database menyebut kedua kemungkinan; cannot verify from repo. Pencarian ID memang memisahkan tab Paid, tetapi itu bukan pencarian Notice Number."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang masih pending upload ke database menampilkan pesan yang menyatakan statusnya",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:63-79; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:75-78; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:246-251",
+      "fit": "Sebagian",
+      "detail": "Notice yang belum diupload ke eocms_valid_offence_notice tidak ada di query, hasilnya sama dengan nomor yang tidak ada: E8. Tidak ada flag atau status 'pending upload' yang dibaca di ocmseserviceapi. Tiket OCMS-SR-2026-001 menunjukkan notice yang masih payable pernah tampil 'not found' karena message code migrasi null (Closed, Prod deployed). Isi teks E8 cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika hanya sebagian dari nomor yang dimasukkan bermasalah, nomor yang bermasalah tetap mendapat pesan",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-266; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:75-98",
+      "fit": "Tidak ada code",
+      "detail": "E8 hanya dikirim bila seluruh hasil kosong (baris 247-251). Jika 2 dari 5 nomor ketemu, 3 nomor lain hilang dari hasil tanpa pesan apa pun; response tidak memuat daftar nomor yang tidak ditemukan. UI juga tidak membandingkan input dengan hasil."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender bisa mengulang pencarian dari halaman pesan error",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:657-690; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1068-1076; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:327-333",
+      "fit": "Sesuai",
+      "detail": "NonPayment menampilkan pesan dan tautan 'check or pay' yang memanggil resetNoticeInputs(), kembali ke tab Notice Number dan stepper step 1; tombol Back juga kembali ke form. Kolom dikembalikan ke 5 (tiket OCMS-DF-2026-017, Closed, Prod deployed)."
+    }
+  ]
+}

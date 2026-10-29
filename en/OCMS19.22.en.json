@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, addAppCodeToResults),helpers/PermanentSuspensionHelper (createRefundRecord, refundNoticeId in the response)}, crud/ocmsizdb/OcmsRefundNotice, OcmsWebTransactionDetail, workflows/furnish/plusintegration/controllers/PlusDataRetrievalController. ocmsadminprivateapi: copy of plus-apply-suspension (framework/workflows/plus, utilities/suspension_helpers/PermanentSuspensionHelper)",
+  "note": "Sheet status: No requirement (requirement not given). The story asks for a message to PLUS with three things: the PS succeeded, the refund advice was created, and the refund mode. Two of the three exist partly: the plus-apply-suspension response carries PS Success and (on the apply path) refundNoticeId + refundCreDate. The refund mode is not in the message. Interpretation: story 19.21 says 'revive', but the refund message exists only on the apply-PS path (APP/CAN/CFA/VST) on a paid notice; the revive path returns no refund information. Tickets used: OCMS-DF-2026-152 (open, refundNoticeId held the receipt number), OCMS-DF-2026-075 (closed, applying PS-APP on a paid notice). The demo remark about the PLUS API-DB connection: cannot verify from repo. APIM/auth and PLUS-side behaviour: cannot verify from repo.",
+  "recommendation": "Claim partially: the PS Success message and refundNoticeId exist on the apply path; the refund mode is missing and defect OCMS-DF-2026-152 is still open. Add the refund mode to the response before claiming in full",
+  "steps": [
+    {
+      "step": "PLUS requests a PS on a paid notice and OCMS processes it",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) processes the notice list through processNoticeList with source PLUS (lines 548-551). For a paid notice only APP, CAN, CFA, VST are allowed as PS (PermanentSuspensionHelper.java:180-190); anything else is rejected with OCMS-4003. Access to the endpoint depends on APIM (JwtFilter skips plus-*), cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends PLUS a message that the permanent suspension succeeded",
+      "detail": "Each notice gets one response item {noticeNo, srNo, success, message \"PS Success\"} (PermanentSuspensionHelper.java:150) and addAppCodeToResults adds appCode OCMS-2000 (SuspensionProcessingController.java:1186-1199); the list is returned as HTTP 200 (lines 553-555). This is a synchronous response to the caller, not a message pushed by OCMS to PLUS."
+    },
+    {
+      "step": "The message to PLUS states that the refund advice was created",
+      "detail": "On the apply path (not revival), when a refund is created the response gets refundNoticeId and refundCreDate (PermanentSuspensionHelper.java:146-157). createIfNotExists on main now returns the String refund_notice_id (OcmsRefundNoticeServiceImpl.java:41-80), but ticket OCMS-DF-2026-152 (status Ready to DEV, code status In SIT) reports the response carried the receipt number, so the fix is not proven deployed. The PS-FP/PRA revival path carries no refund field at all: the response is only \"PS Revival Success\" (PermanentRevivalHelper.java:255). There is also a copy of plus-apply-suspension in ocmsadminprivateapi that creates the refund but discards its id (PermanentSuspensionHelper.java:202-203 in ocmsadminprivateapi/.../suspension_helpers); which endpoint PLUS calls is not visible in the repo. If refund creation fails it is only logged and the response stays PS Success without refundNoticeId (PermanentSuspensionHelper.java:372-375)."
+    },
+    {
+      "step": "The message to PLUS states the refund mode (credit card, PayNow, etc.)",
+      "detail": "The PS response carries only refundNoticeId and refundCreDate (PermanentSuspensionHelper.java:154-155); there is no refund mode field. The ocms_refund_notice row has no mode column either (OcmsRefundNotice.java:28-58). The original payment mode exists in ocms_web_transaction_detail.payment_mode (OcmsWebTransactionDetail.java:48) and PLUS can fetch it with POST /plus-web-txn-detail-list (PlusDataRetrievalController.java:132-136), but that is a separate call, not part of the message, and it holds the original payment mode; the refund mode used by finance is not in the repo. Whether PLUS calls that endpoint: cannot verify from repo."
+    }
+  ]
+}

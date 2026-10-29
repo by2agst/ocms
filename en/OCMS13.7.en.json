@@ -1,0 +1,33 @@
+{
+  "story": "OCMS13.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/NoticeUPL/{Form/EndorseForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeProcessingHelper}, crud/ocmsizdb/{OcmsValidOffenceNotice,OcmsChangeOfProcessing/ChangeOfProcessingService}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, framework/workflows/agencies/toppan/upload/{jobs/ToppanUploadJob,helpers/ToppanUploadHelper,models/ToppanStage}, resources/{application-prod,cron-schedules-prod}.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "The story asks that, once the 2OIC endorses a compound, OCMS updates the decision and then sends the 1st letter (PDF/data file) to the vendor. Status 'Requirement given - Gen flow'; demo remark 'Ask Rafif if this function is ready'. The letter part uses the generic Toppan flow: stage DN1 ('Demand Notice 1') goes out as the UPL 1st letter. The decision part has no server code: the UI only posts the endorsement to /workflow and /approvalinbox, which have no controller (see OCMS13.6). The order in code differs from the story: a UPL notice (vehicle registration type X) is created straight away with next_processing_stage DN1 and composition $0 (NoticeProcessingHelper.java:400-409), so the DN1 letter is not gated by any decision or endorsement. The daily letter generation is commented out and runs only by manual trigger; SFTP upload to Toppan is blocked by config. Tickets used: OCMS-SR-2026-185 ('UPL processing logic has not been developed in OCMS'), OCMS-SR-2026-101 and OCMS-DF-2026-102 (UPL defaults: payment N, $0, E4), OCMS-SR-2026-113/-120/-189 and OCMS-DF-2026-128 (UPL composition amount patched by hand), OCMS-DF-2026-192 (Ready to UAT, generate letters fails because of the Toppan block). Vendor, SFTP and COMCRYPT: cannot verify from repo.",
+  "recommendation": "Claim only the DN1 letter sending as Sebagian. Updating the decision after endorsement does not exist, the stage order differs from the story, and the UPL compound amount is still patched by hand. Confirm with URA/the team whether the generic Toppan route is accepted in place of the UPL flow in the story",
+  "steps": [
+    {
+      "step": "The 2OIC endorses the compound decision (Decision Y)",
+      "detail": "The Endorse form with Decision 'Y - Yes' / 'N - No' exists (EndorseForm.tsx:43-60) but is reached only from the Endorsement list, which renders when isAPIFound is true (EndorseList.tsx:52,81; STAGING/LOCAL builds, env.ts:11), and its menu entry is commented out as UNCONFIRMED (LinkData.tsx:396-397). There is no 2OIC role restriction (NoticeUPL.ts:30-33 is a label only). Same fact and fit as step 2 of OCMS13.6."
+    },
+    {
+      "step": "OCMS updates the decision on the notice (decision, composition amount, officer, date)",
+      "detail": "The UI sends composition_amount, decision, decision_officer and decision_date through POST /workflow command UPL_APPROVAL (NoticeUPL.ts:115-125; useEndorsement.tsx:155-163). There is no handler in the six repos and the decision columns of the VON entity are commented out (OcmsValidOffenceNotice.java:165-175). UPL notice defaults: payment_acceptance_allowed N, composition_amount 0, eservice_message_code E4 (NoticeProcessingHelper.java:407-409; OCMS-SR-2026-101, OCMS-DF-2026-102). The real UPL amount is filled by manual data patches (OCMS-SR-2026-113, -120, -189; OCMS-DF-2026-128), and OCMS-SR-2026-185 says UPL processing logic 'has not been developed in OCMS'."
+    },
+    {
+      "step": "The notice moves to stage DN1 after endorsement",
+      "detail": "A UPL notice (vehicle registration type X) is created straight away with last_processing_stage NPA and next_processing_stage DN1, next_processing_date = now (NoticeProcessingHelper.java:400-405; called at CreateNoticeServiceImpl.java:1146-1147), without waiting for any decision or endorsement. The stage change from the UI (command CHANGE_STAGE to /workflow, useEndorsement.tsx:188-217) has no handler. On the PLUS stage-change path, offence type U to DN1/DN2/DR3/CPC is skipped (ChangeOfProcessingService.java:1312-1316). The order is the reverse of the story: DN1 is already set before any endorsement."
+    },
+    {
+      "step": "OCMS selects the notices that are ready for the 1st letter (stage DN1)",
+      "detail": "findToppanNoticesForStage selects notices with next_processing_stage = :stage, next_processing_date <= today, suspension_type NULL, offender_indicator Y and an_flag not Y (OcmsValidOffenceNoticeRepository.java:583-614), called per stage including DN1 (ToppanUploadHelper.java:1887; ToppanStage.java:22). There is no condition on decision, endorsement or offence type U, so a UPL notice is picked only because of its stage and date, not because it was endorsed."
+    },
+    {
+      "step": "OCMS generates the letter file (PDF/data) with the compound amount",
+      "detail": "The 00:15 day-end cron has enabled=true (cron-schedules-prod.properties:61-62) but the call toppanLettersGeneratorService.executeJob() is commented out (ToppanUploadJobsScheduler.java:118), so letters are produced only by the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34). The letter amount is composition_amount for stages other than RR3/DR3 (ToppanUploadHelper.java:2118-2125); a UPL notice is created with composition 0 (NoticeProcessingHelper.java:408), so a UPL DN1 letter carries $0 until the amount is patched by hand (OCMS-SR-2026-113, -120, -189; OCMS-DF-2026-128). The content of the PDF/data template: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the file to the vendor (Toppan) for printing and postage",
+      "detail": "application-prod.properties:86 sets sftp.upload.disabledServers=toppan, so the SFTP upload to Toppan is blocked by config. In that state confirmDeliveryAndAdvanceStage bypasses the delivery gate and the stage still advances without delivery (ToppanUploadJob.java:419-433). OCMS-DF-2026-192 (Ready to UAT) states this block applies to PRD, UAT and DEV and that the manual generation fails because of it. The value on the real server, SFTP/COMCRYPT and receipt by Toppan: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.17",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/HstManagementServiceImpl (reviveHst, updateMailingAddress); ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findToppanNoticesForStage, findLetterAddressForNotices), framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper,jobs/ToppanUploadJob}, application-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada tombol atau layar resend",
+  "note": "Status 'No requirement'. The story asks that, after the officer decides to resend, OCMS resends the reminder to the alternative address through PDF/data files to the print vendor. There is no dedicated 'resend' action. The existing path: Manual HST Revival writes the new address as furnished_mail with letter_address='Y' and lifts TS-HST (HstManagementServiceImpl.java:419-470, 572-617); the notice then joins the normal Toppan run (findToppanNoticesForStage reads suspension_type IS NULL and next_processing_date <= today; findLetterAddressForNotices reads letter_address='Y'). But (1) letter generation does not run automatically: the call toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler is commented out, so it only runs through POST /toppan/generate-letters; (2) the SFTP upload to Toppan is blocked by sftp.upload.disabledServers=toppan in application-prod.properties:86 (the real server value: cannot verify from repo; OCMS-DF-2026-192 discusses the impact). Printing and postage by the vendor: cannot verify from repo.",
+  "recommendation": "Do not claim in full (No requirement). The revival + Toppan run chain exists in code but there is no resend action, letter generation has to be triggered manually, and the Toppan upload is blocked in the prod properties. At most a partial claim.",
+  "steps": [
+    {
+      "step": "OCMS makes the alternative address the destination address of the reminder",
+      "detail": "reviveHst writes the address from the request as type_of_address='furnished_mail' with letter_address='Y' (HstManagementServiceImpl.java:572-617, line 607) and clears letter_address on the other addresses (630-649). This only happens through Manual HST Revival, which also deletes the HST record (line 466); there is no 'confirm resend' action and the address is typed by the officer, not taken from the appeal."
+    },
+    {
+      "step": "The notice goes back into the reminder queue after the suspension is lifted",
+      "detail": "reviveHstSuspension sets date_of_revival and revival_reason 'HAV' in suspended_notice (HstManagementServiceImpl.java:526-531) and clears suspension_type, epr_reason_of_suspension and due_date_of_revival on VON (540-550). next_processing_stage and next_processing_date are not changed, so the reminder goes out on the old schedule; a stage that is already past is not resent."
+    },
+    {
+      "step": "The Toppan run selects the notice and uses the letter_address='Y' address",
+      "detail": "Selection of the notice and address is right: findToppanNoticesForStage picks stage + next_processing_date <= today + suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611) and findLetterAddressForNotices reads the address with letter_address='Y' (654-662). But letter generation is not automatic: toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler is commented out (line 118), so it only runs through POST /toppan/generate-letters (ToppanUnifiedController.java:34-47)."
+    },
+    {
+      "step": "PDF/data files are produced and sent to the Toppan vendor for printing and postage",
+      "detail": "ToppanUploadJob.executeWithStage builds the files per stage and sends them. In the prod properties sftp.upload.disabledServers=toppan (application-prod.properties:86), so the upload to the Toppan SFTP is blocked; the real server value: cannot verify from repo. Per the verified facts, while the block is active the delivery gate is bypassed and the stage still advances without delivery (OCMS-DF-2026-192). After sending, resetLetterAddressAfterToppan returns letter_address to mha_reg/lta_reg/lta_mail without furnished_mail (ToppanUploadHelper.java:394-409), so the next stage goes back to the registered address. Printing and postage by the vendor: cannot verify from repo."
+    }
+  ]
+}

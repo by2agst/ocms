@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.1",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload,download} (LtaIdTypeUtil, LtaBatchCode0Processor, LtaProcessingOrchestrator, LtaSnowflakeProcessor, LtaProcessingStageManager), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.streamLtaUploadData, cron-schedules-prod.properties (ltaupload/ltadownload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Requirement diberikan di story text (status_with_ura: Demo paid 50% of 75%). Story minta OCMS melakukan pengecekan dan update data pemilik kendaraan sesuai Epic OCMS7 supaya ID type pemilik diketahui. Di code, ini dikerjakan cron LTA di ocmsadminprivateapi: LTA Upload kirim enquiry untuk notice di stage ROV (kendaraan non-Foreign), LTA Download menulis owner ke ocms_offence_notice_owner_driver, memetakan kode LTA ke ID type N/F/B/P, lalu mengarahkan notice ke ENA atau RD1. Dua catatan: (1) urutan di code berbeda dari narasi epic karena notice yang punya mobile/email masuk ENA (eNotification) dulu sebelum letter RD1; (2) tiket OCMS-DF-2026-160 (Pending Closure, Prod deployed) melaporkan 894 notice keluar dari loop ROV tanpa data owner, jadi langkah update owner dan routing diberi Sebagian karena status perbaikan tidak bisa dibuktikan dari repo. Dokumen Epic OCMS7 tidak ada di repo. Akses Vault/DataHive per environment: cannot verify from repo.",
+  "recommendation": "Klaim sebagian (50% of 75% demo). Pemetaan ID type dan enquiry LTA terbukti di code; minta konfirmasi bahwa OCMS-DF-2026-160 sudah ditutup dan akses DataHive/Vault aktif di environment target sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron LTA Upload mengirim enquiry kepemilikan untuk notice kendaraan lokal di stage ROV",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:61-77; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135",
+      "fit": "Sesuai",
+      "detail": "Query streamLtaUploadData mengambil notice dengan next_processing_stage = 'ROV', tanggal <= hari ini, offence_notice_type O/E, bukan PS, dan vehicle_registration_type != 'F' (Foreign dikeluarkan, sesuai OCMS-DF-2026-118). Cron ltaupload enabled=true di cron-schedules-prod.properties (03:00 dan 19:00). Isi file ke LTA dan koneksi SFTP LTA: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil LTA dibaca dan data pemilik (nama, ID, ID type) di-update ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:463; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:495-503; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:170",
+      "fit": "Sebagian",
+      "detail": "Code meng-update ocms_offence_notice_owner_driver dengan idNo, name, idType dan ltaEntityType dari record LTA (Orchestrator:495-503; jalur batch lewat planNoticeWithOwnerData, Code0Processor:170). Tapi tiket OCMS-DF-2026-160 (Pending Closure, Prod deployed) mencatat 894 notice yang sudah maju ke ENA/RD1 dengan last stage ROV tanpa data kepemilikan dan resend TS-ROV yang tidak konsisten; status perbaikan tidak bisa dibuktikan dari repo, jadi hanya Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi ID type pemilik (NRIC, FIN, Passport, UEN) dari kode LTA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-58; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:1449-1463",
+      "fit": "Sesuai",
+      "detail": "mapLtaOwnerIdTypeToOcms: kode 1 -> N, D -> F, 2/3 -> P, 4-9/A-C -> B. Jalur batch (Code0Processor:1449-1463) memberi '-' untuk kode tidak dikenal, sedangkan LtaDatabaseOperations.java:142 (jalur Diplomat/VIP) memakai default N dari LtaIdTypeUtil:56; ini beda kecil hanya untuk kode tak dikenal, kode yang valid terpetakan sama di kedua jalur."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice diarahkan ke follow-up sesuai ID type: passport/Diplomat/VIP ke RD1, NRIC/FIN/UEN cek kontak lalu ENA atau RD1",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:693-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:141-151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:101-127",
+      "fit": "Sebagian",
+      "detail": "Passport (kode 2/3) -> planStageToRD1; NRIC/FIN/UEN -> dataHiveContactService.lookupContact, lalu ada kontak -> planStageToENA, tidak ada -> RD1 (Code0Processor:693-763); Diplomat dan VIP langsung RD1 (Orchestrator:101-127; bug cache Diplomat sudah ditutup di OCMS-DF-2026-052). Hanya Sebagian karena (a) tiket OCMS-DF-2026-160 yang sama menyebut notice maju ke ENA/RD1 tanpa owner, (b) definisi 'follow-up yang tepat' ada di Epic OCMS7 yang tidak ada di repo, (c) notice dengan kontak masuk ENA dulu, bukan langsung letter. Akses DataHive/Vault di environment: cannot verify from repo."
+    }
+  ]
+}

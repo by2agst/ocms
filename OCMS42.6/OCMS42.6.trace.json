@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Furnish,API,NoticesTable/Notices,NoticesTable/FurnishableNotices,NoticesTable/SelectedNotices,Form/Particulars}.ts + components/Table.ts; ocmseserviceapi workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,FurnishSubmissionController,FurnishSubmissionServiceImpl}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status story 'Fully paid'. Seluruh alur pilih notice ada di Furnish e-Service: daftar notice eligible, checkbox, tombol Proceed to furnish, lalu notice terpilih tampil di langkah particulars dan dipakai backend. Celah utama: tabel memakai serverSide paging dan setData() mengosongkan pilihan, jadi pilihan tidak terbawa antar halaman. Tiket OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed, Prod deployed) memperbaiki daftar kosong akibat is_sync VON; code yang dibaca tidak menyimpan masalah itu, tetapi isi eVON di PRD cannot verify from repo.",
+  "recommendation": "Bisa diklaim, dengan catatan: pilihan notice hanya berlaku per halaman. Konfirmasi ke URA apakah pemilihan lintas halaman dibutuhkan",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah login, portal menampilkan daftar notice yang bisa di-furnish dalam tabel dengan checkbox",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:81-83; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:123-126; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:146-150; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:186-216; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:112; ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:84; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:142",
+      "fit": "Sesuai",
+      "detail": "Notices.ts:84 memanggil APIGetFurnishNotices() ke POST v1/furnishapplicationlist. ID diambil dari session JWT (Controller:81-83: UEN untuk CorpPass, NRIC/FIN untuk SingPass), bukan dari FE. Controller hanya mengembalikan notice berstatus 'Eligible' (:123-126), yaitu notice di himpunan furnishable DAN lolos getIneligibilityReason (ServiceImpl:146-148): crs_reason_of_suspension kosong, bukan PS dengan EPR DIP/MID/FOR/RIP/RP2, bukan tipe U, stage ROV/ENA/RD1/RD2 (FurnishValidationServiceImpl:186-216, SystemConstant:112). Tabel dirender dengan checkbox (FurnishableNotices.ts:142). Tiket OCMS-DF-2026-067 / OCMS-DF-2026-077 (Closed, Prod deployed): daftar sempat kosong karena cron LTA tidak set VON is_sync=N; perbaikan ada di tier lain dan tidak mengubah verdict. Isi eVON di PRD: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User memilih satu atau lebih notice dengan checkbox (pilih semua, kosongkan pilihan)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:142-170; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:181-189; ocmseserviceui/src/components/Table.ts:142-153; ocmseserviceui/src/components/Table.ts:195-207",
+      "fit": "Sebagian",
+      "detail": "Checkbox per baris, select all, dan tombol Clear ada (FurnishableNotices.ts:142, 156-160, 181-189); tombol Proceed hanya aktif kalau ada yang dipilih (:150-155). Tetapi tabel diset serverSide=true (:149) dan setiap ganti halaman memanggil onFetchNotices (:161-170) yang berujung Table.setData(); untuk serverSide setData() mengosongkan selected (Table.ts:150-153). Akibatnya pilihan tidak terbawa antar halaman: user yang notice-nya lebih dari satu halaman hanya bisa memilih yang ada di satu halaman per submission. Dropdown 'Items per page' hanya tampil di desktop (Table.ts:497-510); nilai pilihannya tidak diverifikasi. Story tidak menyebut paging, jadi Sebagian, bukan Beda."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Klik 'Proceed to furnish' membuka langkah Furnish Particulars dan notice terpilih tampil di sana",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:195-201; ocmseserviceui/src/pages/Furnish/Furnish.ts:432-440; ocmseserviceui/src/pages/Furnish/NoticesTable/SelectedNotices.ts:44-54; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:204",
+      "fit": "Sesuai",
+      "detail": "furnishBtn.onClick memanggil stepper.show(2), menyimpan data terpilih ke formData.notices lalu onSelected (FurnishableNotices.ts:195-201). Furnish.ts:432-438 menyimpan pilihan ke cache dan mengisi tabel 'Notice Details' di langkah particulars (SelectedNotices.ts:44-54, Particulars.ts:204) dan di langkah review. Langkah berikutnya (isi particulars) memakai pilihan ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars yang diisi berlaku untuk semua notice terpilih dan setiap notice divalidasi ulang",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:88-96; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:138-163; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:356-402; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:78-95",
+      "fit": "Sesuai",
+      "detail": "POST v1/furnishapplication menerima noticeNos (Controller:71-76), menolak duplikat (:88-96), lalu validateAllNoticesForSubmission memeriksa tiap notice: ada di eVON, eligible, user adalah offender, bukan driver, belum punya application berstatus P (ValidationServiceImpl:356-402). Satu notice gagal = seluruh submission ditolak (Controller:145-163). Jika lolos, satu txnNo dibuat per notice dan data yang sama (owner, driver/hirer, dokumen) disalin ke tiap notice (SubmissionServiceImpl:78-95). Jadi pilihan di UI benar-benar menentukan notice yang diproses."
+    }
+  ]
+}

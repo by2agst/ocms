@@ -1,0 +1,73 @@
+{
+  "story": "OCMS19.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-revive-suspension, mode checking=true, validateSingleRevival) dan helpers/RevivalBaseHelper (PLUS_ALLOWED_REVIVAL_CODES). Auth: auth/filter/JwtFilter, application-prod.properties. Repo lain: tidak ada code khusus story ini (PLUS adalah sistem eksternal, tidak ada di repo).",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak normal dari teks story. OCMS menerima request revival dari PLUS di POST /plus-revive-suspension; dengan query param checking=true endpoint hanya memvalidasi (dry-run) dan tidak mengubah data. Validasi yang ada: field wajib, kode revival hanya CSR/OTH, notice ada, tipe suspension cocok dengan VON, dan hanya 1 notice PS per request. Celah: (1) dry-run (validateSingleRevival) lebih tipis daripada mode execute: tidak cek kode revival terhadap tabel ocms_suspension_reason dan tidak cek srNo aktif, jadi dry-run bisa bilang 'eligible' padahal execute menolak. (2) Cek tipe suspension memakai VON.suspension_type (satu nilai), bukan baris aktif di ocms_suspended_notice. (3) Aturan blok TS-HST hanya ada di staff-revive-eligibility (SuspensionProcessingController.java:377-382), tidak dipakai di jalur PLUS. (4) Daftar CSR/OTH berasal dari komentar 'OCMS 19 specification'; spec-nya tidak diberikan. Proteksi endpoint: JwtFilter melewati plus-* dan ocms.plus.key.validation.enabled=false (nilai ini tidak dipakai code ocmsadminapi); proteksi lewat APIM tidak terlihat di repo, cannot verify from repo. Demo remark (koneksi API-DB PLUS drop) cannot verify from repo. Tidak ada maintenance ticket yang mengubah validasi PLUS ini.",
+  "recommendation": "Bisa diklaim untuk validasi inti (field wajib, kode CSR/OTH, notice ada, 1 PS per request). Catat celah dry-run vs execute dan blok TS-HST yang tidak ada di jalur PLUS; konfirmasi ke URA aturan TS-HST untuk PLUS dan proteksi APIM.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request revival (mode checking) ke OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:689-694",
+      "fit": "Sesuai",
+      "detail": "Endpoint POST /plus-revive-suspension menerima noticeNo[], caseNo, suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival, srNo opsional, dan query param checking (default false). JwtFilter melewati semua plus-* (auth/filter/JwtFilter.java:179) dan ocms.plus.key.validation.enabled=false (application-prod.properties:61) tanpa dipakai code; proteksi APIM cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi field wajib request",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:711-735",
+      "fit": "Sesuai",
+      "detail": "noticeNo, caseNo, revivalReason, revivalRemarks dan officerAuthorisingRevival wajib; kalau kosong jawaban HTTP 400 OCMS-4000. Remarks maks 200 karakter (:737-742). suspensionType tidak ikut dicek wajib (null memicu error generik di validasi, :944)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi alasan revival yang diizinkan untuk PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:922-928",
+      "fit": "Sesuai",
+      "detail": "Untuk sumber PLUS hanya kode CSR dan OTH yang lolos (RevivalBaseHelper.java:77-80); kode lain ditolak dengan pesan 'not allowed for PLUS. Allowed: CSR, OTH'. Daftar ini dari komentar spec OCMS 19 yang tidak diberikan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi notice yang diminta ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:930-934",
+      "fit": "Sesuai",
+      "detail": "Notice di-batch-load lewat findByNoticeNoIn lalu dicek per notice; tidak ditemukan -> eligible=false 'Invalid Notice Number'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi notice memang sedang tersuspend (TS/PS)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:936-939",
+      "fit": "Sebagian",
+      "detail": "Cek memakai VON.suspension_type yang hanya menyimpan satu nilai, bukan baris aktif di ocms_suspended_notice; notice yang punya TS dan PS aktif sekaligus bisa ditolak untuk tipe yang tidak tampil di VON. Aturan blok TS-HST hanya ada di staff-revive-eligibility (:377-382), tidak berlaku untuk PLUS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membatasi hanya 1 notice PS per request",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:743-749",
+      "fit": "Sesuai",
+      "detail": "Kalau suspensionType=PS dan jumlah noticeNo > 1 jawaban HTTP 400 OCMS-4000 'You can only revive one Notice with PS at a time.' (aturan sama dengan staff-revive-eligibility :402-410)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mode checking hanya memvalidasi, tidak mengubah data",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:769-773",
+      "fit": "Sebagian",
+      "detail": "checking=true memanggil validateRevivalList (tanpa menulis DB) dan hasil dikirim di :782. Tapi dry-run melewatkan cek yang ada di execute: kode revival terhadap tabel ocms_suspension_reason (RevivalBaseHelper.java:175-183) dan srNo aktif (TemporaryRevivalHelper.java:145-147), sehingga hasil 'eligible' tidak menjamin execute berhasil."
+    }
+  ]
+}

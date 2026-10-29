@@ -1,0 +1,33 @@
+{
+  "story": "OCMS7.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload/jobs/LtaUploadJob, upload/helpers/LtaUploadHelper, download/helpers/{LtaDownloadHelper,LtaResponseFileParser,LtaBatchCode0Processor,LtaIdTypeUtil}}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, cron-schedules-prod.properties (ltaupload, ltadownload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Story status in the sheet: 'Fully paid' (status_with_ura); the requirement text is clear. The story names DOS (Department of Statistics), but the code and OCMS-DF-2026-194 (which cites the OCMS 7 functional document) use LTA VRLS as the vehicle owner data source. Whether DOS equals LTA cannot be confirmed from the repo (cannot verify from repo); all steps are judged on the code behaviour against LTA VRLS. The upload-download flow runs as a cron in ocmsadminprivateapi with no screen for the Reminder Processing Officer. The query, file and particulars update match the story; what differs is the frequency (twice a day) and that the stage is advanced at upload before the reply arrives. Tickets used: OCMS-DF-2026-118, OCMS-DF-2026-160, OCMS-SR-2026-182, OCMS-DF-2026-194.",
+  "recommendation": "Claim the query, send-file and particulars/address update steps. Confirm the 'notice continues once particulars are in' step with URA first because the stage is advanced at upload (OCMS-DF-2026-160, OCMS-SR-2026-182). The agency name (DOS vs LTA) needs confirmation.",
+  "steps": [
+    {
+      "step": "A scheduled job picks the notices to enquire: stage ROV, type O/E, not PS, not a foreign vehicle",
+      "detail": "The LTA Upload cron is enabled in prod (cron.ltaupload.schedule=0 0 3,19 * * ?, enabled=true, CRON:134-135), so it runs twice a day, more often than the story's 'daily'. queryLtaUploadData calls streamLtaUploadData: next_processing_stage='ROV', next_processing_date <= today, offence_notice_type IN ('O','E'), suspension_type not 'PS', vehicle_registration_type != 'F' (REPO:70-74). The foreign vehicle exclusion matches OCMS-DF-2026-118 (Closed). Cron timezone and per-environment values cannot verify from repo."
+    },
+    {
+      "step": "Vehicle numbers are sent to the agency in a request file",
+      "detail": "LtaUploadJob.doExecute builds the request file from the query result (createRequestFileContent, UPJOB:186-188), uploads it to Azure Blob (UPJOB:211), then requests a COMCRYPT token (UPJOB:231-235). Encryption and the SFTP upload are done by the COMCRYPT callback outside this job; whether the agency receives the file cannot verify from repo (SFTP partner)."
+    },
+    {
+      "step": "OCMS receives and reads the agency result file (owner, address, error code)",
+      "detail": "The LTA Download cron is enabled in prod at 05:00 and 21:00 (CRON:148-149). LtaResponseFileParser reads the fixed-width records: ownerId/ownerName (PARSER:204-208), deregistrationDate and errorCode (PARSER:255-259). LtaDownloadHelper splits error code 1-4 records from error code 0 records (DLH:258-270). Fetching the file from SFTP and the COMCRYPT decryption cannot verify from repo."
+    },
+    {
+      "step": "Owner particulars (ID number, ID type, name) are updated on the notice",
+      "detail": "planOffenceNoticeOwnerDriver cleans the ownerId (sanitizeIdNumber), maps the LTA ownerIdType to the OCMS ID type (IDT:42-56), then inserts an owner_driver row if none exists or updates idNo, idType and name if it does (C0:454-481). A record without ownerId is skipped (C0:435-438)."
+    },
+    {
+      "step": "Owner addresses (registered and mailing) are updated on the notice",
+      "detail": "The registered address (street, floor, unit, building, postal code) is written as address type lta_reg (C0:549-558). The mailing address is written as lta_mail only when the mailing fields are filled (C0:601-628)."
+    },
+    {
+      "step": "The notice can be followed up with the owner once particulars are in (stage moves to ENA/RD1)",
+      "detail": "After a code 0 response the notice is advanced to ENA or RD1 (planStageToENA/planStageToRD1, C0:756-763). The catch is that the stage is already advanced at upload, before the agency reply arrives: updateProcessingStage sets next_processing_stage = RD1 (TS) or ENA (others) for every notice sent (UPHELP:175-179, 208-222). If the reply never comes or fails, the notice moves on without an owner. Maintenance evidence: OCMS-DF-2026-160 (Pending Closure, 894 notices at ENA/RD1 without ownership) and OCMS-SR-2026-182 (Pending UAT, 1,367 stuck notices without offender details)."
+    }
+  ]
+}

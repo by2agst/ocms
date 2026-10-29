@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.44",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, generateMessages, sendBatchSms), utilities/smsutility/SmsUtil, schedulers/NotificationJobsScheduler, application-prod.properties, cron-schedules-prod.properties. Other repos: no code specific to this story.",
+  "note": "Status in stories.json: Demo paid (50% of 75%); demo_remark mentions Vault and SMS permission for the App Service. The SMS flow for individuals after the 3rd letter (last stage RR3) exists: candidates come from the reminder query, notices of the same person are combined per stage and due date, template RR3_SMS_INDIVIDUAL (or _COMBINED), then sent in batches (max 1000) through APIM Postman2 with source ENOTIFICATION. Not active according to the repo: the eNotification scheduler is skipped (cron.notification.enabled=false in dev, UAT, prod; cron-schedules-prod.properties:236), and in prod sms.enable=false without sms.allowedSources (application-prod.properties:87) so SmsUtil refuses to send; OCMS-DF-2026-180 waits for the eNotification cron to be activated. The template text is in the DB (ocms_template_store), not in the repo. The hirer mobile comes from the furnish form because the DataHive refresh is inactive (cron.enareminder.datahive=false). Vault, SMS permission and per-environment values cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "recommendation": "Claim partially. The batch SMS code for the RR3 reminder exists, but the eNotification job and SMS sending are switched off in prod, and the template content is not proven from the repo. Ask URA to confirm the activation schedule and the template text.",
+  "steps": [
+    {
+      "step": "OCMS obtains the mobile number of the individual hirer from the data source (DOS)",
+      "detail": "The mobile refresh of individuals from DataHive Singpass (refreshIndividualContactInfo, NotificationSmsEmailHelper.java:2710-) is called from NotificationSmsEmailJob.java:183-188, but only runs when cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:2461-2485), and it is false in dev, UAT, prod (cron-schedules-prod.properties:48). The stored number is used instead, which for a hirer comes from the furnish form (FurnishApprovalHelper.java:554-558). Same assessment as OCMS11.43; DataHive = DOS cannot verify from repo."
+    },
+    {
+      "step": "OCMS identifies the unique individual hirers per batch and combines their outstanding NOPOs in one SMS",
+      "detail": "combineNotices combines notices by recipient key I_<id_no> + stage + due date, summing amount_payable and filling combinedNotices (NotificationSmsEmailHelper.java:2151-2182, 2205-2227; called from NotificationSmsEmailJob.java:191). Companies are excluded from the SMS batch (NotificationSmsEmailJob.java:270-277). Partial because the key includes the due date, so one hirer with notices of different due dates receives more than one SMS, and there is no phone-number dedup across different people. Same assessment as OCMS11.9."
+    },
+    {
+      "step": "Hirers without a valid mobile, who opted out, or who hold a passport are not sent an SMS",
+      "detail": "Records in ocms_enotification_exclusion_list or with a passport id_type are removed before the SMS batch is built (NotificationSmsEmailJob.java:222-241; the reminder query also drops the exclusion list, NotificationSmsEmailHelper.java:1131-1134). Records without phoneNo or with a contactError are skipped via validateContactInfo (NotificationSmsEmailJob.java:252-266; NotificationSmsEmailHelper.java:2259-2290). The exclusion list content is DB data: cannot verify from repo. Same assessment as OCMS11.9."
+    },
+    {
+      "step": "The SMS contains the outstanding NOPOs and refers to the 3rd letter reminder",
+      "detail": "For reminders, nextProcessingStage is set to the last stage (RR3) so the template chosen is RR3_SMS_INDIVIDUAL or RR3_SMS_INDIVIDUAL_COMBINED (NotificationSmsEmailHelper.java:459-476). The template data holds noticeNo, combinedNotices, noticeCount, amountPayable and a paymentDueDate calculated from the letter date + POS + PDD (NotificationSmsEmailHelper.java:410-437, 1076-1100). The template text is in ocms_template_store (DB) and is not seeded in the repo, so whether the message lists the outstanding NOPOs and refers to the 3rd letter cannot verify from repo; a missing template means the SMS is skipped with an error log (NotificationSmsEmailHelper.java:303-312)."
+    },
+    {
+      "step": "The SMS reminder is sent to the hirer in the batch job",
+      "detail": "The job sends through sendBatchSms: GSM-7 validation, batches of at most 1000, calling smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NotificationSmsEmailJob.java:287-292; NotificationSmsEmailHelper.java:1527-1625). But the scheduler is skipped when cron.notification.enabled=false (NotificationJobsScheduler.java:48-53), and the value is false in prod (cron-schedules-prod.properties:236). In prod sms.enable=false without sms.allowedSources (application-prod.properties:87), so SmsUtil.sendBatchSms returns status disabled (SmsUtil.java:396-410). SMS permission for the App Service and APIM cannot verify from repo."
+    }
+  ]
+}

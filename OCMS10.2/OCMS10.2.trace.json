@@ -1,0 +1,55 @@
+{
+  "story": "OCMS10.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core (RepccsCreateNoticeController, CreateNoticeServiceImpl, helpers/AdvisoryNoticeHelper, NoticeProcessingHelper, NoticeRecordHelper, ValidationServices, RepWebHookPayloadValidator) dan salinan di ocmsadminapi workflows/notice_creation/core (CreateNoticeController /repccsWebhook-create-notice, CreateNoticeServiceImpl, AdvisoryNoticeHelper). Alur AN sesudahnya: framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob. Tidak ada code konversi AN ke NOPO",
+  "note": "Status 'Demo paid (50% of 75%)'. Story minta OCMS mengecek AN manual buatan backend untuk kendaraan yang sama saat memproses AN REPCCS lalu mengonversinya ke NOPO. Code menerima webhook REPCCS (ocmsadminprivateapi /repccsWebhook dan salinan ocmsadminapi /repccsWebhook-create-notice), memvalidasi ANSFlag Y/N, lalu menjalankan cek kualifikasi AN (offence type O, vehicle type S/D/V/I, exemption rule, past offence 24 bulan). Tetapi tidak ada deteksi 'AN manual dari backend' dan tidak ada konversi AN ke NOPO: bila cek AN gagal, an_flag dari payload REPCCS tetap Y dan ikut ditulis saat INSERT; satu-satunya set an_flag N hanya untuk kendaraan yang sama dalam satu batch. Pencarian synonim (manual AN, existingAn, convert, AN_TO_NOPO, an_flag) di ocmsadminapi dan ocmsadminprivateapi/src tidak menemukan logika konversi. Dua tier punya logika hampir sama; tier mana yang dipanggil REPCCS lewat APIM cannot verify from repo. Appendix B of Annex 1A tidak ada di repo. Demo remark (Vault code split, permission Vault ke App Service) cannot verify from repo. Tidak ada maintenance ticket yang mengubah verdict. Folder ocmsadminprivateapi/cronservice/ stale, tidak dipakai.",
+  "recommendation": "Jangan klaim penuh. Yang ada: penerimaan AN REPCCS dan cek kualifikasi AN. Yang belum ada: deteksi AN manual backend untuk kendaraan yang sama dan konversi ke NOPO (code mempertahankan an_flag Y dari REPCCS). Minta URA mengonfirmasi aturan konversi dan menyediakan Appendix B of Annex 1A.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima AN yang diterbitkan REPCCS lewat webhook dan memvalidasinya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/RepccsCreateNoticeController.java:39-44; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:99-110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/RepWebHookPayloadValidator.java:169-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:46-50",
+      "fit": "Sesuai",
+      "detail": "POST /repccsWebhook (RepccsCreateNoticeController.java:39-44) memanggil processRepccsCreateNotice (CreateNoticeServiceImpl.java:99): simpan audit, cek subscription key (110), validasi field wajib termasuk ANSFlag harus Y atau N (RepWebHookPayloadValidator.java:169-175), cek notice duplikat (154), lalu processNoticeWithDtoMapping (168). Salinan ocmsadminapi: CreateNoticeController.java:46-50 -> CreateNoticeServiceImpl.java:186. Dua tier berisi logika hampir sama; endpoint mana yang dipasang di APIM/REPCCS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat memproses AN REPCCS, OCMS mengecek notice lain pada kendaraan yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/AdvisoryNoticeHelper.java:99-121; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/AdvisoryNoticeHelper.java:182-214; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:829-852; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RepWebHookPayloadValidator.java:206-211",
+      "fit": "Sebagian",
+      "detail": "Label subsystem REPCCS 006-010, 020-021, 023 (RepWebHookPayloadValidator.java:206-211 di ocmsadminapi) bernilai di bawah 030 sehingga bukan jalur EHT/CERTIS dan masuk cek AN di OCMS (CreateNoticeServiceImpl.java:829-852; salinan ocmsadminapi CreateNoticeServiceImpl.java:1160-1185). checkQualification mensyaratkan offence type O dan vehicle type S/D/V/I (AdvisoryNoticeHelper.java:99-106), lalu checkPastOffences mengambil semua notice dengan vehicle_no sama dalam 24 bulan (192-206) dan membuang notice yang sedang diproses (210-214). Ini lookup umum atas semua notice kendaraan, bukan pencarian khusus AN manual buatan backend: tidak ada filter an_flag, sumber notice (staff atau REPCCS), atau pembuat. Cek dilewati bila subsystem EHT/CERTIS (label 030-999)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mendeteksi ada AN manual buatan backend untuk kendaraan yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/AdvisoryNoticeHelper.java:238-255; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:398-407",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan code yang mencari notice dengan an_flag='Y' buatan staff untuk vehicle_no yang sama. Satu-satunya lookup adalah past-offence 24 bulan di langkah sebelumnya: kalau ada notice lama yang bukan PS dengan alasan ANS_PS_REASON hasilnya hanya 'tidak qualified' (AdvisoryNoticeHelper.java:238-255), bukan 'ketemu AN manual'. PS-ANS baru dipasang setelah eAN terkirim (NotificationSmsEmailJob.java:398-407), jadi AN manual yang belum terkirim tidak terlihat sebagai AN. Pencarian dengan synonim manual AN, existingAn, an_flag, AN_TO_NOPO, convert di ocmsadminapi dan ocmsadminprivateapi/src (tanpa folder stale cronservice/) tidak menemukan logika ini. Isi ANS_PS_REASON di ocms_standard_code cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika ada, OCMS mengonversi AN REPCCS menjadi NOPO",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:124-146; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeRecordHelper.java:591-598; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:837-841",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada konversi. Bila cek AN tidak qualified, setAnQualificationFlags tidak melakukan apa-apa (NoticeProcessingHelper.java:124-146, cabang else kosong), sementara an_flag dari ANSFlag REPCCS sudah masuk dto (ValidationServices.java:126). NoticeRecordHelper.applyPreSetAnFlags lalu menulis an_flag='Y' dan payment_acceptance_allowed NOT_ALLOWED saat INSERT (NoticeRecordHelper.java:591-598). Jadi AN REPCCS tetap AN walau OCMS menilai tidak qualified (bila payload ANSFlag=Y). Satu-satunya set an_flag='N' adalah cabang 'kendaraan sudah AN-qualified di batch yang sama' (CreateNoticeServiceImpl.java:837-841); tracker anQualifiedVehicles dibuat baru per request (432) dan webhook REPCCS mengirim satu notice per request, jadi cabang ini tidak menangkap AN manual yang sudah ada di DB. [Medium confidence: dibaca dari alur code, tidak dijalankan]. Salinan ocmsadminapi sama (CreateNoticeServiceImpl.java:1168-1170; NoticeRecordHelper.java:591-598)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice hasil konversi diproses sebagai NOPO menurut automated processing workflow Appendix B",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:819; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:423-441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:61-77",
+      "fit": "Sebagian",
+      "detail": "Notice non-AN dari REPCCS tipe V/S/D mengikuti alur otomatis normal: payment_acceptance_allowed Y, last stage NPA, next stage ROV (CreateNoticeServiceImpl.java:819; NoticeProcessingHelper.java:423-441), lalu diambil cron LTA Upload (OcmsValidOffenceNoticeRepository.java:61-77). Jalur ini ada dan umum, tetapi karena tidak ada konversi di langkah sebelumnya, tidak ada notice REPCCS yang masuk jalur NOPO akibat deteksi AN manual. Isi Appendix B of Annex 1A tidak ada di repo (cannot verify from repo)."
+    }
+  ]
+}

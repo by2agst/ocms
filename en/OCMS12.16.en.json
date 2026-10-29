@@ -1,0 +1,37 @@
+{
+  "story": "OCMS12.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/datahiveuenfin/services/DataHiveUenFinService (query RR3 + B notices, store company name/address, TS-ACR), framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService (ACRA R/D views + shareholder), framework/schedulers/MhaDownloadJobsScheduler (uenfin flag), framework/workflows/agencies/toppan/upload (RR3 letter reads name + letter_address). ocmsadminapi AutoSuspensionHelper.triggerAcrSuspension (no caller). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. There is no flow deck, so 'Sesuai' means the code follows the story text. The company name and address check from DataHive/ACRA by UEN is built and covers stage RR3 (same as OCMS8.2), but the job is switched off in PROD (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). The part specific to this story, DOS giving no individual director/partner, has no detection logic: the result is right only because no code moves the offender away from the company. Board data is not written to the DB (OCMS-DEV-2026-231). The RR3 letter to the company is covered in OCMS12.17. 'DOS' is read as DataHive (ACRA); the connection and the view names in PROD cannot be verified from repo.",
+  "recommendation": "Claim partially. The company name and address check exists and equals OCMS8.2, but the job is off in PROD and the case 'no individual director/partner' has no explicit decision in code. Enable the job (after the DataHive view names are verified) and demonstrate one RR3 company notice whose name/address is updated before the letter",
+  "steps": [
+    {
+      "step": "Company notices (ID type B) due at stage RR3 are selected for the DOS check",
+      "detail": "Query GET_NOTICES_FOR_DATAHIVE_SQL selects next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), next_processing_date <= today, suspension_type NULL, id_type IN (F, B), offender_indicator Y, not in ocms_nro_temp and not an HST ID (DU:235-246). So a company notice at stage RR3 is picked. There is no special filter for 'no individual candidate found': every company offender at that stage is checked."
+    },
+    {
+      "step": "The check runs automatically through a scheduled job",
+      "detail": "The MHA download scheduler runs at 11:30, 16:30, 23:30 Monday to Saturday (cron-schedules-prod.properties:119-120) and runs the 'DH UEN and FIN' job after the MHA job only when cron.mhadownload.uenfin.enabled=true (SCH:101-107). In PROD the value is false (cron-schedules-prod.properties:52, comment on line 51: wait until the DataHive view names are verified), also false in dev, and true only in UAT (cron-schedules-uat.properties:52). So from the repo this company check does not run at all in PROD. The value in the real environments cannot be verified from repo. Same fit as the 'runs every day' step in OCMS8.2."
+    },
+    {
+      "step": "OCMS sends the company UEN to DOS (DataHive/ACRA) for the latest data",
+      "detail": "batchProcessUenRecords calls batchRetrieveUENData (DU:1031). The UENs are sent as an IN query to views V_DH_ACRA_FIRMINFO_R and V_DH_ACRA_FIRMINFO_D, plus V_DH_ACRA_SHAREHOLDER_NGZ (UB:46-49, 392-404). Partial because the DataHive view names in PROD are not yet verified per the comment in cron-schedules-prod.properties:51 and the DataHive connection cannot be proven from the repo (cannot verify from repo). Same fit as OCMS8.2."
+    },
+    {
+      "step": "OCMS receives the company's latest name from DOS and updates the name on the notice record",
+      "detail": "The view result is read into CompanyInfo. storeUenDataResult calls updateCompanyDetails (DU:1380) then updateCompanyName (DU:1410), which patches owner_driver.name with ENTITY_NAME for noticeNo + idNo + offenderIndicator Y (DU:1798-1812). If the company is not found or is de-registered, TS-ACR is applied (DU:1366-1376, 1395-1399). Same fit as OCMS8.2."
+    },
+    {
+      "step": "OCMS receives the company's latest address from DOS and updates the address on the notice record",
+      "detail": "updateCompanyAddress reads ADDRESS_ONE_* (block, level, unit, street, building, postal) and creates or UPDATEs the owner_driver_addr row of type mha_reg for that notice and owner/driver indicator, including overwriting with NULL when DataHive is empty (DU:1633-1650, 1736-1790). If the three key fields are empty or street/block is empty, the address is still saved and TS-ACR is applied (DU:1383-1401). Same fit as OCMS8.2."
+    },
+    {
+      "step": "When DOS gives no individual owner/partner/director, the notice stays addressed to the company",
+      "detail": "No code detects 'no individual candidate' (withdrawal or the candidate being another business entity) and then picks a fallback. The outcome still equals what the story wants because no code moves the offender from the company to a director/partner: the company stays the offender and continues to the next reminder stage. Shareholder data from V_DH_ACRA_SHAREHOLDER_NGZ is only stored (DU:1442-1448) and board data is deliberately not written to the DB (DU:1469-1477, OCMS-DEV-2026-231). AutoSuspensionHelper.triggerAcrSuspension has a Javadoc 'director/shareholder cannot be identified' (ACR:62-67) but has no caller in ocmsadminapi. So the result is right by default, not by a decision in code."
+    },
+    {
+      "step": "The company's latest name and address are used on the 3rd letter reminder",
+      "detail": "The Toppan query for stage RR3 takes onod.name (REPO:595) and the address flagged letter_address Y (TH:2151-2160); AgencyFileExchangeServiceImpl puts the name in the file (AFE:661). So the name set by updateCompanyName is printed. But the DataHive address only gets letter_address Y when the notice has no other address already flagged letter_address Y (DU:1741-1760, 1770-1773); if one exists, the old address is still the one used for the letter. Together with the DataHive job being off in PROD (step 2), company data is not refreshed before the RR3 letter in PROD."
+    }
+  ]
+}

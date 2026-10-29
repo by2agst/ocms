@@ -1,0 +1,55 @@
+{
+  "story": "OCMS13.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui src/pages/NoticeUPL/{List/EndorseList,List/RequestList,Form/EndorseForm,Form/ModalForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, App.tsx (route upl), utils/data/LinkData.tsx, utils/config/env.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (kolom decision di-comment). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada controller workflow/approvalinbox/workitem",
+  "note": "Story minta: keputusan officer yang ditolak 2OIC dikembalikan sebagai work item ke officer itu untuk di-review ulang. Status 'Requirement given - Gen flow'; demo remark mencatat bug ('UPL notice not in decision request inbox'). Di ocmsadminui ada halaman UPL (route upl/decision-request dan upl/endorsement, App.tsx:84-85) dengan form Decision Y/N, tetapi menu-nya di-comment dengan tag UNCONFIRMED (LinkData.tsx:396-397), daftar Endorsement baru di-render bila isAPIFound (hanya build STAGING/LOCAL, env.ts:11), dan semua penyimpanan dikirim ke /workflow (command UPL_APPROVAL), /approvalinbox dan /workitem yang tidak punya controller di enam repo. Kolom decision di entity VON juga di-comment (OcmsValidOffenceNotice.java:165-175). Jadi tidak ada code server yang menyimpan penolakan atau memindahkan work item kembali ke officer. Tiket OCMS-SR-2026-185 menulis bahwa UPL processing logic 'has not been developed in OCMS'. Backend di luar enam repo, nilai VITE_ENV tiap environment: cannot verify from repo.",
+  "recommendation": "Jangan klaim penuh. Hanya form Decision Y/N dan layar Decision Request yang ada (tersembunyi dari menu); penyimpanan penolakan dan routing work item ke officer belum ada di repo. Minta URA/tim konfirmasi di repo mana endpoint /workflow UPL_APPROVAL, /approvalinbox dan /workitem dibangun, atau tandai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "2OIC membuka daftar UPL notice yang menunggu endorsement",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:85; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:52; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:57-58; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:81; ocmsadminui/src/utils/config/env.ts:11; ocmsadminui/src/utils/data/LinkData.tsx:396-397",
+      "fit": "Sebagian",
+      "detail": "Route upl/endorsement ada (App.tsx:85) dan filter-nya notice NPA bertipe U (EndorseList.tsx:57-58). Tetapi daftar hanya di-render bila state notices terisi (EndorseList.tsx:81) dan state itu hanya diisi bila isAPIFound (EndorseList.tsx:52); isAPIFound = build STAGING atau LOCAL (env.ts:11), jadi di build DEV/UAT/PRO daftar tidak tampil. Menu LinkUPL di-comment dengan tag UNCONFIRMED (LinkData.tsx:396-397). Nilai VITE_ENV per environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "2OIC menolak keputusan officer (Decision N dan remark)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/EndorseForm.tsx:43-60; ocmsadminui/src/utils/mapping/NoticeUPL.ts:30-33",
+      "fit": "Sebagian",
+      "detail": "Form Endorse punya pilihan Decision 'Y - Yes' / 'N - No' wajib diisi dan Remark (EndorseForm.tsx:43-60). Role admin/oic hanya dipakai untuk label created_by_label (NoticeUPL.ts:30-33), bukan pembatasan akses; tidak ada pengecekan bahwa pengguna adalah 2OIC, dan endpoint server yang memeriksa role tidak ada (lihat langkah 3). Form hanya bisa dicapai dari daftar pada langkah 1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan penolakan 2OIC pada notice (decision N, officer, tanggal, remark)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/utils/mapping/NoticeUPL.ts:115-125; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:155-163; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:167-178; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-175; ocmsadminapi/src/main/resources/api-authorization.properties:23",
+      "fit": "Tidak ada code",
+      "detail": "UI mengirim POST /workflow dengan command UPL_APPROVAL dan decision 'N' (NoticeUPL.ts:115-125; useEndorsement.tsx:155-163), lalu PATCH /approvalinbox hanya bila isAPIFound (useEndorsement.tsx:167-178). Tidak ada controller untuk workflow, approvalinbox atau workitem di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi maupun thirdpartyapi (grep Mapping nihil); /v1/workflow hanya muncul sebagai daftar akses di api-authorization.properties:23. Entity VON tidak memetakan kolom decision (di-comment, OcmsValidOffenceNotice.java:165-175). Tanpa handler, jawaban /workflow tidak berisi notice_no dan UI melempar error 'Request Failed' (useEndorsement.tsx:159-163). Handler di repo lain: cannot verify from repo. Tiket OCMS-SR-2026-185: UPL processing logic 'has not been developed in OCMS'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengarahkan kembali work item ke officer yang membuat keputusan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/NoticeUPL.ts:172-197; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:121; ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:36-40",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya pembuatan work item adalah MapPostApprovalWorkItem saat decision request dibuat (NoticeUPL.ts:172-197; useEndorsement.tsx:121), dengan allocated_to = user yang login saat itu. Jalur penolakan tidak membuat atau mengalihkan work item, dan /workitem tidak punya controller (lihat langkah 3). Daftar Decision Request memuat notice NPA bertipe U dengan decision != Y (RequestList.tsx:36-40), bukan inbox per officer; karena kolom decision tidak ada di entity VON, apakah notice yang ditolak muncul lagi di daftar itu tidak bisa dibuktikan dari repo. Demo remark ('UPL notice not in decision request inbox. Bug') sejalan dengan gap ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer me-review dan membuat keputusan baru lewat Decision Request",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:36-40; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:94-137; ocmsadminui/src/pages/NoticeUPL/Form/ModalForm.tsx:204",
+      "fit": "Sebagian",
+      "detail": "Layar Decision Request ada: tombol Propose membuka form 'UPL Decision Request Form' (RequestList.tsx; ModalForm.tsx:204) yang mengirim POST /approvalinbox (hanya bila isAPIFound) dan POST /workitem (useEndorsement.tsx:94-137). Endpoint itu tidak ada di enam repo dan menu UPL di-comment (LinkData.tsx:396-397), jadi di build non-STAGING officer tidak punya jalur kerja yang bisa disimpan. Fakta sama dengan decision request di story sibling (OCMS13.4)."
+    }
+  ]
+}

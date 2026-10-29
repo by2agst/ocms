@@ -1,0 +1,73 @@
+{
+  "story": "OCMS3.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/enforcement (EnforcementController /v1/enforcement-report dan /enforcement-report/export, EnforcementServiceImpl: query VON + audit, workbook Excel), auth api-authorization.properties [OCMS_REPORT_NOTICE_FE]. ocmsadminui pages/Report (lists/ReportList, lists/ReportListNoticeFE, component/ReportSlot, index), utils/mapping/Report/MapReportNoticeFE. ocmsadminprivateapi: cron-schedules-prod.properties (tidak ada cron report notice). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk story ini",
+  "note": "Status di sheet: 'Demo paid (50% of 75%)'; remark demo: fokus pada report dari notice yang dikirim lewat webhook REPCCS, bukan integrasi. Tidak ada flow deck OCMS, jadi 'Sesuai' berarti code melakukan apa yang tertulis di teks story. Yang ada adalah report on-demand 'Notices Created by Enforcement Systems' di Report staff portal: filter source dan tanggal, export Excel dengan Summary, sheet Success dan Error per offence type, dan detail notice. Yang tidak ada: pembuatan otomatis harian (tidak ada cron/job) dan routing ke dashboard OIC (hanya menu Report umum). Summary punya celah tally untuk penolakan REPCCS dengan offence type kosong. Tiket maintenance: OCMS-DF-2026-005 (summary tidak tally untuk CES, Closed/Prod deployed) dan OCMS-DF-2026-149 (export dipindah ke backend, Closed/Prod deployed); keduanya sudah di code main, tidak menurunkan fit sendiri, tetapi celah offence type kosong di langkah Summary tetap ada. Tidak bisa dibuktikan dari repo: role yang mendapat function OCMS_REPORT_NOTICE_FE, isi standard code untuk dropdown source, hasil export di environment.",
+  "recommendation": "Klaim sebagian: report Excel on-demand ada dan berfungsi, tetapi pembuatan otomatis harian dan routing ke dashboard OIC tidak ada. Konfirmasi dengan URA apakah report manual di menu Report sudah dianggap cukup. Perbaiki hitungan Total vs Failed untuk penolakan REPCCS dengan offence type kosong.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang diterima dari REPCCS dan EHT/CES tersimpan di OCMS sehingga bisa dilaporkan (notice berhasil di VON, penerimaan gagal di audit transaction)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:325-327; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:340-360; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:454-481; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:530-531",
+      "fit": "Sesuai",
+      "detail": "getEnforcementReport membaca notice berhasil dari VON berdasarkan creDate dan subsystem label (findEnforcementReport, EnforcementServiceImpl.java:325-327; status 0, :454-481) dan penerimaan gagal dari ocms_web_txn_audit serta eocms_web_txn_audit dengan status 1 (:340-360, 366-390), difilter per sender CES atau REP. Sumbernya sama dengan yang ditulis jalur penerimaan di OCMS3.1 dan OCMS3.2. Keterbatasan pada penolakan di dalam createNotice REPCCS yang tidak ditandai gagal sudah dicatat di OCMS3.1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC bisa membuat report untuk satu hari atau rentang tanggal tertentu, per sumber (REPCCS atau EHT/CES)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListNoticeFE.tsx:50-53; ocmsadminui/src/pages/Report/lists/ReportListNoticeFE.tsx:60-85; ocmsadminui/src/utils/mapping/Report/MapReportNoticeFE.ts:15-22; ocmsadminui/src/pages/Report/component/ReportSlot.tsx:104-113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:277-306",
+      "fit": "Sesuai",
+      "detail": "Layar Report 'Notices Created by Enforcement Systems' punya dropdown source, date range (default dari awal hari kemarin sampai sekarang, ReportListNoticeFE.tsx:50-53) dan tombol Search/Export. Source REPCCS dipetakan ke sender REP (prefix, mencakup REPCCS_ENC dan REPCCS_EHT, plus MEV_Vehicle) dan source CES ke sender CES (MapReportNoticeFE.ts:15-22, EnforcementServiceImpl.java:277-306); dropdown menyembunyikan REPCCS_ENC dan menamai REPCCS_EHT sebagai REPCCS (ReportSlot.tsx:104-113). Export hanya jalan untuk sumber REPCCS atau CES (ReportListNoticeFE.tsx:71). Isi tabel standard code untuk dropdown: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report dibuat otomatis setiap hari (daily) tanpa harus dibuat manual",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:258-268; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementController.java:36-38",
+      "fit": "Tidak ada code",
+      "detail": "Cron daily report di ocmsadminprivateapi hanya berisi Payment Exception, Daily Paid, RIP Hirer/Driver, HST, Unclaimed Batch Data, Furnish Daily Officer Notification dan Classified Vehicle (cron-schedules-prod.properties:258-268). Tidak ada cron, @Scheduled atau job lain yang membuat report notice dari enforcement system (di ocmsadminapi tidak ada @Scheduled). Report hanya dibuat saat pengguna menekan Export (EnforcementController.java:36-38). Sinonim yang dicari di dua layer: enforcement, notice created, summary report, frontend enforcement, REPCCS/CES report."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report berisi ringkasan: total diterima, total berhasil, total gagal, dan sheet per offence type",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:105-128; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:141-147; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:149-160; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:575; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:555-558",
+      "fit": "Sebagian",
+      "detail": "Workbook punya sheet Summary dengan tanggal dan jam generate, date range, Total Records Received, Total Successful dan Total Failed (EnforcementServiceImpl.java:141-147), lalu sheet Success_{O,E,U,A,T}_Offence dan Error_{O,E,U,A,T}_Offence (:149-160). Total diambil dari data.size() (:126), tetapi success dan failed hanya menghitung baris yang offence type-nya O/E/U/A/T; baris di luar itu dilewati (:118). Untuk baris gagal sumber REP, offence type dicari dari rule code (:575) dan tidak ada default; default 'O' hanya ada di cabang CES (:555-558). Penolakan karena offence code tidak valid (justru alasan gagal yang umum, RepWebHookPayloadValidator.java:447-476) jadi punya offence type kosong: dihitung di Total tetapi tidak ada di sheet Error dan tidak di Total Failed, sehingga Total tidak sama dengan Successful + Failed. Ini gejala yang sama dengan OCMS-DF-2026-005 (summary tidak tally, Closed/Prod deployed); perbaikan backend OCMS-DF-2026-149 (Closed/Prod deployed) sudah ada di code tetapi celah ini tersisa. Ringkasan per hari yang diminta story tidak dipisah per hari: satu angka untuk seluruh rentang tanggal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat detail tiap notice yang diterima (notice no, offence type, kendaraan, waktu offence, rule code, car park, amount, transaction ID, ANS flag)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:81-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:166-205; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:454-481",
+      "fit": "Sesuai",
+      "detail": "Header REPCCS: S/N, Source, Notice No., Offence Type, ANS Flag, Transaction ID, Date/Time Received, Vehicle No., Offence Date/Time, Computer Rule Code, PP Code, Composition Amount, Vehicle Category, Vehicle Registration Type, Operator/PW ID, Subsystem Label, OBU Label. Header EHT/CES mengganti tiga kolom terakhir dengan EHT ID, PO ID dan IU NUMBER (EnforcementServiceImpl.java:81-92). writeEnforcementSheet mengisi baris sesuai header itu (:166-205) dari data VON dan audit (:454-481). Nama field di report tidak diverifikasi terhadap format yang dimaksud OIC (tidak ada spesifikasi kolom di story)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report diarahkan ke dashboard OIC (tersedia di menu Report staff portal untuk pengguna dengan akses)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:50-57; ocmsadminui/src/pages/Report/index.tsx:21-24; ocmsadminui/src/utils/constant.ts:253; ocmsadminapi/src/main/resources/api-authorization.properties:118-121",
+      "fit": "Sebagian",
+      "detail": "Report muncul sebagai tab 'Notices Created by Enforcement Systems' di halaman Report staff portal bila pengguna punya function OCMS_REPORT_NOTICE_FE (ReportList.tsx:50-57, constant.ts:253, index.tsx:21-24). Server memetakan function itu ke endpoint terkait (api-authorization.properties:118-121). Tidak ada konsep dashboard OIC, tidak ada push, notifikasi atau email yang mengarahkan report ke OIC; OIC harus membuka menu dan menjalankan sendiri. Role mana yang diberi function itu (apakah OIC): cannot verify from repo, ada di data konfigurasi. Halaman Report adalah mekanisme umum untuk semua report, bukan dashboard OIC yang disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC bisa mengunduh report sebagai file Excel untuk melihat detail notice yang diterima",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementController.java:36-58; ocmsadminui/src/pages/Report/lists/ReportListNoticeFE.tsx:60-85; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/enforcement/EnforcementServiceImpl.java:95-103",
+      "fit": "Sesuai",
+      "detail": "POST /v1/enforcement-report/export membangun .xlsx dengan Apache POI untuk seluruh baris tanpa pagination (EnforcementServiceImpl.java:95-103) dan mengirimnya sebagai attachment ReportNoticeREPCCS.xlsx atau ReportNoticeEHT.xlsx (EnforcementController.java:36-58). UI memanggilnya dan menyimpan file dengan saveAs (ReportListNoticeFE.tsx:60-85). Sebelum OCMS-DF-2026-149 (Closed, Prod deployed) file dibuat di browser; sekarang di backend. Kemampuan unduh sendiri berfungsi; hasil download di environment: cannot verify from repo."
+    }
+  ]
+}

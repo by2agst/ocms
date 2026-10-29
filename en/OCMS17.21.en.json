@@ -1,0 +1,25 @@
+{
+  "story": "OCMS17.21",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST plus-apply-suspension), helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper}. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no separate message push to PLUS",
+  "note": "The story asks OCMS to tell PLUS that the temporary suspension succeeded. The code does this as the synchronous HTTP response of POST /plus-apply-suspension: each notice is answered with {noticeNo, srNo, success:true, message:'TS Success', appCode:'OCMS-2000'}. There is no outbound callback or webhook to PLUS in the six repos (grep for plus/callback/notify finds no PLUS client). How the message is shown on the PLUS screen lives in the PLUS system, cannot verify from repo. Protection of the plus-* endpoint depends on APIM (JwtFilter skips JWT), cannot verify from repo. Ticket OCMS-DF-2026-027 (duplicate sr_no in a batch) is Closed/Prod deployed; the code now calls the sequence per notice so the srNo in the message is unique.",
+  "recommendation": "Claimable: the success message is returned to PLUS in the API response. Display inside PLUS cannot be proven from the repo.",
+  "steps": [
+    {
+      "step": "PLUS sends a temporary suspension request and OCMS validates the mandatory fields",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) rejects a request without noticeNo, suspensionType, reasonOfSuspension, daysToRevive or officerAuthorisingSuspension with OCMS-4000 (e.g. line 519) and forces suspensionSource = PLUS (line 531). JwtFilter skips JWT for plus-* endpoints, so authentication depends on APIM, cannot verify from repo."
+    },
+    {
+      "step": "OCMS applies the TS: updates VON, eVON and inserts into ocms_suspended_notice",
+      "detail": "TemporarySuspensionHelper.processTS calls updateVON (TemporarySuspensionHelper.java:124; SuspensionBaseHelper.java:340-348 sets suspension_type, epr_reason, date, due_date_of_revival), updateEVON (line 127), then insertSuspendedNotice (line 131). The success result is only returned after all three run; an exception in that block yields OCMS-4007."
+    },
+    {
+      "step": "OCMS builds a success message per notice (noticeNo, srNo, 'TS Success', appCode OCMS-2000)",
+      "detail": "processTS returns createSuccessResponse(noticeNo, srNo, 'TS Success') (TemporarySuspensionHelper.java:140; SuspensionBaseHelper.java:541-548: noticeNo, srNo, success=true, message). addAppCodeToResults adds appCode OCMS-2000 for successful results (SuspensionProcessingController.java:1186-1192). srNo comes from a sequence call per notice (line 997), so it is not duplicated within a batch (OCMS-DF-2026-027, Closed/Prod deployed)."
+    },
+    {
+      "step": "OCMS sends that message to PLUS as the request response so the PLUS user knows the suspension succeeded",
+      "detail": "plusApplySuspension calls processNoticeList (line 546), adds appCode (line 553), then ResponseEntity.ok(results) (line 555): the per-notice result list is returned to PLUS in an HTTP 200. A failed notice has success=false and appCode OCMS-4000, so PLUS does not get a false success message. There is no separate push to PLUS in any repo. The message is built before the controller @Transactional commit; a commit failure after that cannot be confirmed from the repo. Showing the message to the PLUS user happens in the PLUS system, cannot verify from repo."
+    }
+  ]
+}

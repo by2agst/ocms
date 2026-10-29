@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/daily_reports/{jobs/ClassifiedVehicleReportJob,helpers/ClassifiedVehicleReportHelper,models/ClassifiedVehicleReportRecord}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAllTypeVNotices, findTypeVAmendedToS), utilities/emailutility/EmailService, cron-schedules-prod.properties, application-prod.properties. ocmsadminui pages/Dashboard/Dashboard.tsx, utils/mapping/Notice/Notice.ts. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk laporan ini",
+  "note": "Status 'Requirement given - Gen flow'. Laporan ada: job 7 'Classified Vehicle (VIP) Report' di combined daily report cron 08:00 (cron-schedules-prod.properties:255-256, 268; DailyReportJobsScheduler.java:102) menjalankan ClassifiedVehicleReportJob yang membuat Excel 3 sheet. Tiga hal tidak sesuai story. (1) Kolom: vehicle no, tanggal-waktu offence, kode offence, car park dan amount payable ada, tetapi nama owner dan nama furnished driver tidak ada (query hanya dari ocms_valid_offence_notice, tanpa join owner/driver atau furnish). (2) Cakupan: query mengambil semua notice tipe V tanpa filter tanggal (OcmsValidOffenceNoticeRepository.java:728), bukan hanya yang terbit hari itu. (3) Tujuan: laporan dikirim lewat email ke email.report.recipients, bukan ke dashboard OIC; Dashboard.tsx kosong (baris 21-32). Lebih lanjut, ClassifiedVehicleReportJob membuat EmailRequest tanpa source (ClassifiedVehicleReportJob.java:126-139), sedangkan application-prod.properties:80-81 menetapkan email.enableSmtp=false dengan allowlist yang tidak memuat laporan ini, sehingga EmailService.sendEmail mengembalikan false (EmailService.java:65-71), job berakhir FAILED dan email gagal pun ikut diblokir. Ini nilai dari file properties; nilai di server sebenarnya cannot verify from repo. Job yang gagal hanya di-log oleh runJob (DailyReportJobsScheduler.java:105-112). Tidak ada tiket maintenance yang relevan. Sheet 'Amended Notices (V to S)' dan ringkasan di luar teks story (dicatat di orphans).",
+  "recommendation": "Klaim sebagian saja: pembuatan laporan harian untuk tipe V sudah ada. Jangan klaim nama owner/furnished driver dan routing ke dashboard OIC. Jangan klaim pengiriman laporan sampai URA/tim memastikan email.enableSmtp dan allowlist di server (properties prod menunjukkan email diblokir).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Scheduler harian menjalankan job laporan Classified Vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:76-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:102; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:268; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:286-291",
+      "fit": "Sesuai",
+      "detail": "Combined Daily Report cron '0 0 8 * * ?' enabled=true (cron-schedules-prod.properties:255-256) memanggil executeDailyReportJobs; job 7 = dailyReportService.executeClassifiedVehicleReport() (DailyReportJobsScheduler.java:102, nama job di CRONP:268). ClassifiedVehicleReportJob.initialize mengisi reportDate dengan hari ini (baris 286-291). Kegagalan satu job hanya di-log oleh runJob. Nilai cron di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memilih notice yang diterbitkan untuk classified vehicle (tipe V)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:49; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:53; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:711-731; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:733-754",
+      "fit": "Sebagian",
+      "detail": "findAllTypeVNotices memilih notice dengan vehicle_registration_type = 'V' (OcmsValidOffenceNoticeRepository.java:728) tanpa filter tanggal, jadi isinya seluruh notice tipe V sepanjang waktu termasuk yang sudah Settled, bukan notice yang terbit hari itu; story tidak menyebut jendela waktu, jadi hanya Sebagian. Query kedua findTypeVAmendedToS (baris 733-754) menambah notice V yang diubah ke S setelah TS-CLV direvive, di luar teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat nomor kendaraan, tanggal-waktu offence, offence, car park dan amount payable",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:179-183; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:198-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:711-731; ocmsadminui/src/utils/mapping/Notice/Notice.ts:25-30; ocmsadminui/src/pages/Notice/detail/Overview.tsx:270-284",
+      "fit": "Sesuai",
+      "detail": "Sheet 'Type V Notices Detail' berkolom Vehicle No, Notice Date, Offence Code, Place of Offence, Composition Amount, Amount Payable, Payment Status, Suspension Type/Reason (ClassifiedVehicleReportHelper.java:179-183, 198-208). Notice Date = notice_date_and_time (query baris 714), yang di staff portal diisi dari offence date + offence time (Notice.ts:25-30, Overview.tsx:270-284). Offence hanya berupa computer_rule_code (baris 715), tanpa deskripsi; car park = pp_name (baris 721)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat nama owner dan nama furnished driver",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:179-183; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/models/ClassifiedVehicleReportRecord.java:24-60; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:711-731",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kolom nama owner maupun furnished driver: header sheet tidak memuatnya (ClassifiedVehicleReportHelper.java:179-183), model ClassifiedVehicleReportRecord tidak punya field-nya (ClassifiedVehicleReportRecord.java:24-60) dan query hanya membaca ocms_valid_offence_notice tanpa join ke tabel owner/driver atau furnish (OcmsValidOffenceNoticeRepository.java:711-731). grep 'owner', 'furnish', 'driver' di ketiga file Classified* tidak menemukan apa pun; pencarian di ocmsadminapi dan ocmsadminui juga tidak menemukan laporan classified lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghasilkan file laporan harian",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:89-126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:101-103; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:114",
+      "fit": "Sesuai",
+      "detail": "generateExcelReport membuat workbook 3 sheet: Summary, Type V Notices Detail dan Amended Notices (ClassifiedVehicleReportHelper.java:89-126); job menamai file OCMS_Classified_Vehicle_Report_yyyyMMdd.xlsx (ClassifiedVehicleReportJob.java:114). Bila tidak ada data, job mengirim email 'No Data' (baris 94-99)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diteruskan ke dashboard OIC untuk ditindaklanjuti",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:34-38; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:118-147; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-71; ocmsadminprivateapi/src/main/resources/application-prod.properties:57; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-32",
+      "fit": "Beda dari flow",
+      "detail": "Laporan dikirim sebagai attachment email ke email.report.recipients (ClassifiedVehicleReportJob.java:34-38, 126-139), bukan ke dashboard; Dashboard.tsx hanya menampilkan div kosong (baris 21-32) dan tidak ada route/endpoint laporan ini di ocmsadminui atau ocmsadminapi. Selain itu EmailRequest dibuat tanpa source, sedangkan application-prod.properties:80-81 mengatur email.enableSmtp=false dengan allowlist yang tidak memuat laporan ini, jadi EmailService.sendEmail mengembalikan false (EmailService.java:65-71), job berstatus FAILED (baris 141-147) dan email kegagalan juga diblokir. Penerima di prod: 3 alamat ura.gov.sg (application-prod.properties:57); apakah mereka OIC cannot verify from repo, dan nilai server sebenarnya cannot verify from repo."
+    }
+  ]
+}

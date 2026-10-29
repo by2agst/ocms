@@ -1,0 +1,29 @@
+{
+  "story": "OCMS7.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper, LtaResponseFileParser, LtaBatchTsRovProcessor, LtaProcessingOrchestrator, LtaProcessingStageManager, LtaIdTypeUtil}; datahiveuenfin/services/DataHiveUenFinService (work item placeholder, not LTA). ocmsadminui utils/data/LinkData.tsx (Work Item menu commented out). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no work item code",
+  "note": "Status in the sheet: 'Fully paid'. The story names DOS (Department of Statistics), but the code and OCMS-DF-2026-194 (which cites the OCMS 7 functional document) use LTA VRLS as the vehicle owner data source. Whether DOS equals LTA cannot be confirmed from the repo (cannot verify from repo); all steps are judged on the code behaviour against LTA VRLS. The temporary suspension (TS-ROV) is built and uses the same code as error codes 1, 2, 4 (same fit as OCMS7.3). The work item to the OIC dashboard does not exist: no code creates a work item in the LTA path, the DataHive work item placeholder is also inactive, and the Work Item menu in the UI is commented out. Tickets used: OCMS-DF-2026-160 (unstable ROV loop), OCMS-DF-2026-194.",
+  "recommendation": "Claim only receiving the deregistered particulars and the TS-ROV suspension. The work item and OIC dashboard are not claimed; ask URA whether the TS-ROV Applied email report is an acceptable substitute.",
+  "steps": [
+    {
+      "step": "OCMS receives an agency response with error code 3 (deregistered vehicle)",
+      "detail": "The parser reads deregistrationDate and errorCode (PARSER:255-259). Records with error code 1-4 are split into the TS-ROV path (DLH:260-268, hasErrorCode DLH:446-462); code 3 is described as 'Deregistered Vehicle' (DLH:504-517). The code does not distinguish company from individual owners at this point: only the error code is checked."
+    },
+    {
+      "step": "The owner particulars (including a company) and the deregistration date are saved on the notice",
+      "detail": "For error code 3 only, Phase 0 calls updateNoticeWithOwnerData before suspending (TSR:76-78): the owner_driver row is filled and lta_deregistration_date is saved from the record (ORCH:330-339). LTA company ID types (4 to C) are mapped to BUSINESS_TYPE 'B' (IDT:53-54, 84-102). Error codes 1, 2, 4 do not save particulars (TSR:79-81)."
+    },
+    {
+      "step": "The notice is temporarily suspended under a specific code (TS-ROV)",
+      "detail": "The TS-ROV batch skips PS notices, paid notices (crs_reason filled) and notices whose last stage is not ROV (TSR:218-236). The rest get an ocms_suspended_notice insert of type TS reason ROV (TSR:262-272) and a VON update: suspension_type TS, epr_reason ROV, next stage ROV, due_date_of_revival (TSR:277-287). The revival day count is read from ocms_suspension_reason (TSR:162-166); its value per environment cannot verify from repo. The same code is used for error codes 1, 2, 4, so there is no code specific to deregistered. The story only asks for 'a specific suspension code', which ROV satisfies."
+    },
+    {
+      "step": "OCMS creates a work item for the notice",
+      "detail": "After suspending, TS-ROV Phase C only writes ocms_suspended_notice, VON and eVON (TSR:304-318); no work item is created. Grep for work item/workitem in ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi: the only hit is DataHiveUenFinService.createWorkItemForPRSC, which is a 'feature not ready' placeholder and is not called from the LTA flow (DHUEN:2920-2924). The only workitem POST in ocmsadminui is in the UPL endorsement flow, not LTA."
+    },
+    {
+      "step": "The work item appears on the OIC dashboard for follow-up",
+      "detail": "No work item is created (previous step), so nothing is routed. The Work Item menu in ocmsadminui is still commented out with '//! UNCONFIRMED' (LinkData.tsx:396-398), so there is no work item dashboard the OIC can open. What the OIC can see is only indirect: the TS-ROV suspension on the notice and the 'TS-ROV Applied' tab of the LTA report (see OCMS7.5)."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui utils/validation/Furnish/ValidHirerDriver.ts, utils/validation/error.ts, pages/Furnish/Form/Particulars.ts, pages/Furnish/Confirmation.ts, pages/Furnish/Acknowledgement.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator}, crud/exception/ValidationMessages. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant.",
+  "note": "3-point story, status_with_ura 'Fully paid'. If the rental period does not cover the offence date, the UI shows an error on the date field and 'Proceed to review' stops, so the user cannot continue to submit. The server blocks again (HTTP 400) if the UI is bypassed. Note: the message is an inline field error ('Start date and time of rental period must be earlier than offence date.' / 'End date ... must be later than offence date.'), not a 'submission is disallowed' sentence; the official URA wording is not in the repo. If the rejection comes from the server, the user only sees the generic failure page (Confirmation.ts:193-196), not the specific message. The minute (UI) vs second (server) precision edge case can let a combination pass the UI but be rejected by the server. No relevant maintenance ticket.",
+  "recommendation": "Claimable for the blocking in the UI and on the server. Record that the message is a field error (not a 'submission disallowed' sentence) and a server rejection appears as a generic failure page.",
+  "steps": [
+    {
+      "step": "The system detects a rental period that does not cover the offence date(s) of the selected notice(s)",
+      "detail": "A start date+time later than the earliest offence is rejected (ValidHirerDriver.ts:91-98), an end date+time earlier than the latest offence is rejected (ValidHirerDriver.ts:128-137), and end <= start is also rejected (ValidHirerDriver.ts:140-148). The earliest/latest offence comes from all selected notices (Furnish.ts:383-411). If a notice has no offence date the check is skipped (ValidHirerDriver.ts:86, 128)."
+    },
+    {
+      "step": "The page prompts that the rental period is invalid so the submission is disallowed",
+      "detail": "The date field shows an inline error: 'Start date and time of rental period must be earlier than offence date.' and 'End date and time of rental period must be later than offence date.' (error.ts:495, 508-509), immediately when the value changes (DatetimeInput.ts:155-160). This is a field validation error, not a modal or a 'submission is disallowed' sentence; the official URA wording is not in the repo."
+    },
+    {
+      "step": "The user cannot continue or submit the particulars",
+      "detail": "'Proceed to review' runs ValidateALL and returns immediately on any error (Particulars.ts:114-128), so the stepper does not move to the review/submit page while the rental period is invalid."
+    },
+    {
+      "step": "The server rejects the submission if the rental period does not cover the offence date",
+      "detail": "If the UI is bypassed, validateRentalPeriod rejects end <= start, a start after the offence, and an end before the offence for each notice (FurnishRequestValidator.java:257-283), and the controller answers HTTP 400 without saving (FurnishSubmissionController.java:170-177). However the specific message is thrown as an error and caught, and the user only sees the generic failure page via InitFailure (Confirmation.ts:141-146, 193-196). The UI compares to the minute and the server to the second, so some combinations pass the UI but are rejected by the server with that generic page."
+    }
+  ]
+}

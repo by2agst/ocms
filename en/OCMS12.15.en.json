@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin (DataHiveUenFinService), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, crud OcmsValidOffenceNoticeRepository.findToppanNoticesForStage, workflows/agencies/toppan/upload (ToppanStage, ToppanUploadJob), application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story",
+  "note": "1-point story, status 'Requirement given - Gen flow' (not verified). Same as OCMS12.14 but for Owner/Partner and stage RD2: no code replaces the notice owner or moves the stage back to RD2 from the UEN lookup result. Only DataHive data receipt (partly) and generic RD2 letter generation exist. The UEN job is off in prod; the Toppan upload is blocked by config (OCMS-DF-2026-192).",
+  "recommendation": "Do not claim as done. The logic to switch the owner to the Owner/Partner and revert to RD2 is missing; only the generic RD2 letter exists.",
+  "steps": [
+    {
+      "step": "OCMS receives the individual Owner/Partner particulars",
+      "detail": "Same as OCMS12.12 step 4: the DataHive result carries shareholderData and boardData (BATCH:196-210). Shareholders are saved (SVC:1442-1448) without appointment dates; board data is only logged and not written to the DB (OCMS-DEV-2026-231, SVC:1468-1478). The UEN job is off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). The name 'DOS' is not in code: cannot verify from repo."
+    },
+    {
+      "step": "The notice's vehicle owner is changed to the individual Owner/Partner",
+      "detail": "The only active patch to ocms_offence_notice_owner_driver from the UEN flow is updateCompanyName(), which only replaces the name column with the entity name (SVC:1798-1814). No code writes the Owner/Partner's id_no/name/address as the notice offender. grep director/partner in workflows/datahiveuenfin: no hit."
+    },
+    {
+      "step": "The notice is reverted to stage RD2 (2nd reminder)",
+      "detail": "No code changes next_processing_stage from the UEN lookup result: DataHiveUenFinService only writes company name, address, shareholders and applies TS-ACR suspensions (de-registered, UEN not found, mandatory data missing) (SVC:1346-1480); next_processing_stage is only read (SVC:226, 310). Stage RD2 exists in ToppanStage (STAGE:19-21) but is reached only through the normal sequence or other paths (for example the ENA patch to RD1), not through the UEN lookup result."
+    },
+    {
+      "step": "The 2nd reminder letter (stage RD2) is created and sent to the individual Owner/Partner",
+      "detail": "Letter generation for notices with next_processing_stage='RD2' exists (findToppanNoticesForStage, VonRepository:583-614; ToppanStage:19-20) and runs generically for any offender. But the letter only goes to the offender already recorded on the notice; since the owner is never replaced (step 2), this mechanism is not specific to the Owner/Partner. Upload to Toppan is blocked by sftp.upload.disabledServers=toppan (application-prod.properties:86; ticket OCMS-DF-2026-192 still Ready to UAT). RD2 is the registered-mail stage (Toppan return files carry postal_regn_no). Real delivery: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.59",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (plus-furnish, plus-redirect response), workflows/furnish/dto/FurnishResponse.singleSuccess/singleFailure/singleError, workflows/furnish/stafffurnish/services/StaffFurnishService.FurnishResult. No outbound client to PLUS in any repo",
+  "note": "Story status: Requirement given - Gen flow. Sheet demo remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (sheet claim). The only success 'alert' that exists is the content of the HTTP 200 response to the same PLUS request: appCode OCMS-2000, message 'Success', noticeNo, name, ID and new stage. OCMS sends no separate message to PLUS. That the officer is informed on the PLUS screen: cannot verify from repo.",
+  "recommendation": "Claim partly: PLUS gets a success confirmation in the response to its own request. Do not claim a separate alert from OCMS; no outbound code exists. Ask URA whether the synchronous response is enough.",
+  "steps": [
+    {
+      "step": "OCMS successfully receives and updates the particulars from PLUS",
+      "detail": "plusFurnish calls staffFurnish (line 148); result.isSuccess() (line 150) means all steps finished inside one @Transactional (StaffFurnishService.java:174-175): offender, address, stage and VON are updated, then FurnishResult.success is built (lines 288-294). An exception midway is caught and becomes FurnishResult.failure (lines 296-300), so no success status is sent on failure."
+    },
+    {
+      "step": "OCMS sends a success alert message to PLUS",
+      "detail": "The success response goes back to the caller: HTTP 200 with FurnishResponse.singleSuccess (appCode OCMS-2000, message 'Success', success=true, noticeNo, offenderName, offenderIdNo, newProcessingStage) (PlusIntegrationController.java:151-157; FurnishResponse.java:465-472; FurnishResult.success message 'Success' at StaffFurnishService.java:1094). This is a synchronous answer to the PLUS request, not a separate alert pushed by OCMS; no outbound code to PLUS exists (see OCMS41.57). Hence Sebagian."
+    },
+    {
+      "step": "A failed update is not reported to PLUS as a success",
+      "detail": "If staffFurnish fails, the controller replies HTTP 422 with singleFailure (appCode OCMS-4000, success=false) (PlusIntegrationController.java:158-160; FurnishResponse.java:514-517); an unexpected exception replies HTTP 500 with singleError (OCMS-5000) (lines 162-167; FurnishResponse.java:522-525); failed validation replies 400 (lines 143-145). So the success alert is only sent when the update really finished. How PLUS shows it to the officer: cannot verify from repo."
+    }
+  ]
+}

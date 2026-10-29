@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.32",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui src/pages/Furnish/hooks/useFurnishAPI.ts (rejectFurnish), src/pages/Notice/{hook/useNoticeSubmit.tsx,form/Form.tsx}, src/pages/Furnish/{form/DecisionForm.tsx,list/FurnishSummaryList.tsx}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, crud/BaseEntity, auth/filter/JwtFilter",
+  "note": "Jalur reject yang dipakai UI adalah POST manual-review/reject. Service menyimpan status 'R' dan remarks OIC, lalu BaseEntity @PreUpdate mengisi updUserId dengan username dari JWT, jadi status dan user ID tersimpan otomatis. Dua catatan: (1) email tidak 'dijadwalkan', UI memanggil reject dulu lalu send-email langsung sebagai panggilan terpisah; (2) user ID baru muncul di field 'Updated By' pada tab Update Decision, dan tab itu justru disembunyikan begitu status A atau R (Form.tsx:230), sedangkan daftar summary hanya menampilkan status P. Saya tidak menemukan layar lain yang menampilkan status Rejected bersama user ID, jadi bagian 'terlihat saat browsing' Sebagian. Nilai JWT username di server nyata tidak bisa diverifikasi dari repo.",
+  "recommendation": "Status Rejected dan user ID tersimpan otomatis, bisa diklaim. Bagian 'ditampilkan saat browsing' hanya Sebagian karena tab yang memuat field Updated By disembunyikan untuk status R",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menolak submission: status request otomatis menjadi Rejected",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:92-107; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:196-200; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:257-258; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:276-280; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:466-471",
+      "fit": "Sesuai",
+      "detail": "rejectFurnish (useFurnishAPI.ts:92-107) POST ke manual-review/reject dengan txnNo, reviewedBy dan remarks; dipanggil dari useNoticeSubmit.tsx:198-200 saat decissionStatus = R. ManualReviewController.rejectSubmission (:257-280) meneruskan ke ManualReviewService.rejectSubmission, yang melakukan setStatus('R') dan furnishService.update (:466-470), lalu menyinkronkan ke PII DB (:471). Status berubah tanpa langkah manual tambahan. Email tidak dijadwalkan: UI memanggil send-email langsung setelah reject berhasil (useNoticeSubmit.tsx:214-217)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User ID OIC ikut tersimpan sebagai pihak yang menolak",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseEntity.java:105-109; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseEntity.java:114-128; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:146; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:270-274; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:467-469",
+      "fit": "Sesuai",
+      "detail": "OcmsFurnishApplication extends BaseEntity (OcmsFurnishApplication.java:21). Pada update, @PreUpdate mengisi updUserId = username dari request attribute yang diset JwtFilter (BaseEntity.java:105-109, 114-128; JwtFilter.java:146). Controller menolak request tanpa reviewedBy (ManualReviewController.java:270-274). Catatan: remarks disimpan apa adanya dari OIC (ManualReviewService.java:467-469); user ID baru masuk ke remarks hanya bila OIC mengosongkan remarks ('Rejected by <user>'). Nilai username JWT di server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Rejected dan user ID OIC terlihat saat user browsing di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:179-185; ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:419; ocmsadminui/src/pages/Notice/form/Form.tsx:92-96; ocmsadminui/src/pages/Notice/form/Form.tsx:230; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:60",
+      "fit": "Sebagian",
+      "detail": "Field Status (label dari FURNISH_STATUS) dan 'Updated By' (updUserId) ada di DecisionForm.tsx:179-185 dan :419. Tapi tab Update Decision yang memuat DecisionForm tidak dirender saat status A atau R (Form.tsx:92-96, 230), dan daftar FurnishSummaryList hanya mengambil status P (:60). Saya tidak menemukan layar lain yang menampilkan status Rejected bersama user ID, jadi hanya Sebagian."
+    }
+  ]
+}

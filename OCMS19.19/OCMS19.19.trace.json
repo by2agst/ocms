@@ -1,0 +1,46 @@
+{
+  "story": "OCMS19.19",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-revive-suspension execute, processRevivalList) dan helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}. Repo lain: tidak ada code.",
+  "note": "Status story 'No requirement' (requirement tidak diberikan), dilacak normal. Konfirmasi dari PLUS tidak punya endpoint atau tipe pesan sendiri: konfirmasi adalah panggilan POST /plus-revive-suspension yang sama dengan checking=false (default), dan OCMS tidak menyimpan bukti bahwa dry-run atau tampilan detail terjadi sebelumnya (stateless). Execute memvalidasi ulang field, kode, notice, dan tipe suspension lalu merevive. Celah: srNo opsional di payload PLUS (SuspensionProcessingController.java:707); bila srNo tidak dikirim, helper merevive SEMUA suspension aktif notice itu, TS dan PS sekaligus (TemporaryRevivalHelper.java:157-168, PermanentRevivalHelper.java:168-179), jadi permintaan revive TS bisa ikut menutup PS. Per notice dalam batch diproses satu per satu dan hasilnya dikembalikan ke PLUS sebagai list (:782). Proteksi endpoint sama seperti OCMS19.16 (APIM cannot verify from repo). Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Bisa diklaim untuk menerima konfirmasi dan merevive. Catat bahwa revive tanpa srNo menutup semua suspension aktif (TS dan PS) dan tidak ada link wajib ke tahap validasi sebelumnya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima konfirmasi revival dari PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:776-779",
+      "fit": "Sesuai",
+      "detail": "Konfirmasi = POST /plus-revive-suspension dengan checking=false (default :689-694); jalur execute memanggil processRevivalList dengan srNo dari payload. Tidak ada token atau bukti dry-run sebelumnya; PLUS bisa langsung memanggil execute."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi ulang request sebelum merevive",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:107-137",
+      "fit": "Sesuai",
+      "detail": "Execute mengecek field wajib, panjang remarks, kode revival untuk PLUS plus daftar kode di tabel ocms_suspension_reason (RevivalBaseHelper.java:159-186), notice ada, dan tipe suspension cocok. PermanentRevivalHelper.java:118-148 sama untuk PS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS merevive suspension yang diminta",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:143-168",
+      "fit": "Sebagian",
+      "detail": "Dengan srNo, hanya suspension aktif itu yang di-revive (findActiveBySrNo, :143-155). srNo opsional (SuspensionProcessingController.java:707); tanpa srNo helper merevive semua suspension aktif TS dan PS (:157-168; PermanentRevivalHelper.java:168-179)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim hasil revival per notice ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:782",
+      "fit": "Sesuai",
+      "detail": "Response berupa list per notice {noticeNo, success, appCode, message}; sukses 'TS Revival Success' / 'PS Revival Success' (TemporaryRevivalHelper.java:186-190; RevivalBaseHelper.java:807-815)."
+    }
+  ]
+}

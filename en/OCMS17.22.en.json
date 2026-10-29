@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.22",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper}, ocmsadminui pages/TS/form/TSForm.tsx. ocmsadminprivateapi framework/workflows/agencies/{toppan/upload,lta/upload}, notification_sms_email, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository",
+  "note": "OCMS has no single central escalation guard. The effect comes from VON.suspension_type being set when a TS is applied, and each job reads that column on its own. Toppan reminder letter generation only picks notices with suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), so TS notices get no reminder letter. Two gaps: (1) the LTA upload (cron.ltaupload.enabled=true) still moves TS notices from ROV to RD1 (LtaUploadHelper.java:172-176), so the stage advances even though no letter goes out; (2) the SMS/email reminder queries exclude TS notices except TS-HST, and in prod cron.notification.enabled=false, sms.enable=false, email.enableSmtp=false (the real server values cannot be verified from the repo). Toppan letter generation only runs through the manual trigger POST /toppan/generate-letters because executeJob() in ToppanUploadJobsScheduler is commented out (line 118). The demo remark 'PLUS Original - API not pulling PLUS DB, DB connection dropped' is an environment issue, cannot verify from repo.",
+  "recommendation": "Claim partially: the reminder-letter filter works, but the stage still advances in the LTA upload and the SMS/email path has a TS-HST exception and is switched off in prod. A decision is needed on whether the ROV to RD1 stage move for TS notices counts as 'escalating'.",
+  "steps": [
+    {
+      "step": "Staff applies a TS in OCMS and the notice is marked suspended (suspension_type TS + due_date_of_revival)",
+      "detail": "TSForm.tsx:107 calls POST staff-apply-suspension (SuspensionProcessingController.java:213, processNoticeList at line 231). TemporarySuspensionHelper.java:124 calls updateVON, which sets suspension_type='TS' and due_date_of_revival (SuspensionBaseHelper.java:340-348). Other jobs read this column to hold escalation."
+    },
+    {
+      "step": "PLUS applies a TS and the notice is marked suspended the same way",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) uses processNoticeList (line 546), which ends in tsHelper.processTS (line 1049), the same path as staff (TemporarySuspensionHelper.java:124). The demo remark says the API did not pull PLUS DB data after the 20 Sept deployment; that is an environment/connection issue, cannot verify from repo."
+    },
+    {
+      "step": "Reminder letter generation (RD1 to DR3) does not pick notices that are suspended",
+      "detail": "findToppanNoticesForStage uses 'von.suspension_type IS NULL' (OcmsValidOffenceNoticeRepository.java:610), called from getValidOffenceNoticesOptimized (ToppanUploadHelper.java:1887) by ToppanUploadJob (line 248). Notices with a TS are not in the letter list, so they do not advance through Toppan. Note: the Toppan letter executeJob() is commented out in ToppanUploadJobsScheduler.java:118, so letters are only produced through the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34); the suspension filter is correct, the automatic trigger is not there."
+    },
+    {
+      "step": "TS notices do not move up a stage during the suspension (the LTA upload job is checked too)",
+      "detail": "The LTA upload query only excludes PS: 'suspension_type IS NULL OR != PS' (OcmsValidOffenceNoticeRepository.java:73). LtaUploadHelper.updateProcessingStage splits out TS notices and sends them to RD1 (LtaUploadHelper.java:172-176, 200; called from LtaUploadJob.java:255), so the next_processing_stage of a TS notice still moves from ROV to RD1 while the TS is active. The RD1 reminder letter does not go out because of the Toppan filter in the previous step, but the stage has already moved. cron.ltaupload.enabled=true (cron-schedules-prod.properties:135)."
+    },
+    {
+      "step": "SMS/email reminders are not sent for notices that are suspended",
+      "detail": "The notification queries only take 'suspension_type IS NULL' or TS-HST (NotificationSmsEmailHelper.java:1034-1035 for eNA, 1120-1121 for RD1-DR3 reminders), so other TS are excluded but TS-HST is still sent. In prod cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87), email.enableSmtp=false (line 80): this path is switched off by repo config; the real server values cannot be verified from the repo."
+    }
+  ]
+}

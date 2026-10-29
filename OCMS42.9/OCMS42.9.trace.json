@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDParticulars,Documents,Particulars}.ts, pages/Furnish/API.ts, components/form/{Contact,FileInput}.ts, utils/validation/Furnish/{ValidHirerDriver,ValidParticulars}.ts, utils/option.ts; ocmseserviceapi workflows/furnish/{FurnishRequestValidator,FurnishSubmissionController,FurnishSubmissionServiceImpl}, workflows/uploadfile/{FileUploadController,FileUploadServiceImpl}, utilities/{FileUploadValidator,SingaporeIdValidator}, crud/beans/SystemConstant. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status story 'Demo paid (50% of 75%)'; demo_remark 'Internet PII encryption - cannot fetch offender particulars'. Remark itu soal demo di environment dan tidak terlihat di code. Dari code: form driver/hirer lengkap (nama, ID type + nomor, alamat, kontak, email), upload PDF/JPG/PNG (plus format lain) dengan validasi ketat, dokumen wajib untuk FIN dan Passport (plus Rental Agreement jika leased), dan submit menyimpan application per notice ke PII DB. Catatan: kontak driver/hirer hanya +65 karena country code dikunci; 'save' berarti submit akhir, tidak ada save draft. Enkripsi kolom PII, virus scanner asli dan blob storage: cannot verify from repo. Tiket: OCMS-SR-2026-045 (hardening upload, Closed) dan OCMS-DF-2026-137 (UEN vs NRIC, Closed, eService API dan UI sudah deployed) tercermin di code; OCMS-DF-2026-110/143 (error submit, Closed) tidak mengubah verdict.",
+  "recommendation": "Klaim sesuai dengan catatan: bukti dari code kuat, tetapi demo remark (enkripsi PII Internet) harus dikonfirmasi di environment",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Form Driver's / Hirer's Particulars berisi nama, ID type + nomor ID, alamat, nomor kontak, dan email",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:336-370; ocmseserviceui/src/utils/option.ts:27-32; ocmseserviceui/src/components/form/Contact.ts:121-132; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:21-61",
+      "fit": "Sesuai",
+      "detail": "HDParticulars.render menampilkan dropdown ID type (NRIC, FIN, Passport, UEN dari HDIDTypeUENOptions, option.ts:27-32), ID number, Full Name, address-fields, contact-fields, email-fields (HDParticulars.ts:342-365), ditambah pertanyaan relasi dan supporting documents. Validasi per field dipasang di ValidHirerDriver (:21-61). Catatan: country code kontak dikunci +65 (Contact.ts:121-132), jadi driver/hirer dengan nomor luar negeri tidak bisa memasukkan nomornya di UI, padahal validator UI dan backend punya jalur non-lokal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isian driver/hirer divalidasi (wajib diisi, format nama, ID dengan checksum) di UI dan backend",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:25-96; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:115-128; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:69-105; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:107-124; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:133-148; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/utilities/SingaporeIdValidator.java:258",
+      "fit": "Sesuai",
+      "detail": "UI: ValidateALL dijalankan saat klik 'Proceed to review' (Particulars.ts:115-128) dan ValidPerson memeriksa nama, tipe ID, nomor ID 6-20 karakter dan format (ValidParticulars.ts:25-96). Backend: validateSharedFields mewajibkan nama, tipe ID, nomor ID, blok, jalan, kode pos (FurnishRequestValidator:69-105); nama non-UEN tidak boleh berisi angka (:107-124); nomor ID diperiksa SingaporeIdValidator.getValidationError dengan checksum NRIC/FIN/UEN (:133-148, SingaporeIdValidator.java:258). Tiket OCMS-DF-2026-137 (Closed): NRIC sempat diterima sebagai UEN; konstanta checksum UEN sudah ada di SingaporeIdValidator.java:33-47 dan tiket menyebut perbaikan eService API/UI sudah deployed 23 Juli (versi deployed asli: cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User melampirkan dokumen pendukung dalam format umum (PDF, jpg, png) dan file divalidasi saat upload",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Documents.ts:240-283; ocmseserviceui/src/pages/Furnish/API.ts:718-745; ocmseserviceui/src/components/form/FileInput.ts:35; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/uploadfile/FileUploadController.java:36-40; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/uploadfile/FileUploadServiceImpl.java:60-135; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:143-146; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:164-165; ocmseserviceapi/src/main/resources/application-prod.properties:94-95",
+      "fit": "Sesuai",
+      "detail": "User memilih tipe dokumen lalu file; Documents.ts:240-283 memanggil APIUploadDoc yang POST ke upload temp (API.ts:718-745; nama file hanya alfanumerik, :727-733). Backend FileUploadServiceImpl:60-135 memeriksa ekstensi (SystemConstant:143-146: bmp, jpeg, jpg, png, doc, docx, pdf, xls, xlsx, jadi PDF/jpg/png tercakup), melarang multi-ekstensi, whitelist Content-Type, 10 MB per file (SystemConstant:165), kecocokan magic byte, dan virus scan, lalu menyimpan ke intranet blob sementara. Total 20 MB di UI (FileInput.ts:35) dan backend (SystemConstant:164, FurnishRequestValidator:367-391, maksimal 10 dokumen). Hardening ini berasal dari tiket OCMS-SR-2026-045 (Closed). viruscan.enabled=true di application-prod.properties:94; scanner dan blob storage asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dokumen wajib untuk ID type tertentu (FIN, Passport; plus Rental Agreement jika kendaraan disewa)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Documents.ts:40-48; ocmseserviceui/src/pages/Furnish/Form/Documents.ts:396-403; ocmseserviceui/src/pages/Furnish/Form/Documents.ts:446-490; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:317-361",
+      "fit": "Sesuai",
+      "detail": "UI: FIN wajib DL dan EP, Passport wajib DL dan P (Documents.ts:40-48), RA ditambah kalau hubungan 'Vehicle is leased' (:402); validateDoc menolak lanjut jika ada yang kurang (:446-480), dan kalau tidak ada file sama sekali tampil modal konfirmasi (:484-487). Backend: validateMandatoryDocuments hanya untuk tipe F dan P, mengulang syarat DL/EP/P dan RA (FurnishRequestValidator:317-361). NRIC dan UEN tidak diwajibkan dokumen."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail driver/hirer dan dokumen disimpan sebagai furnish application per notice",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:179-182; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:66-71; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:119-129; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:172-185; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:209-211",
+      "fit": "Sesuai",
+      "detail": "Setelah semua validasi lolos, SubmissionServiceImpl memindahkan dokumen dari temp ke folder permanen (:66-71), mengisi EocmsFurnishApplication dengan furnishName/IdType/IdNo, alamat, telepon, email (:172-185) berstatus 'P' dan is_sync 'N' (:209-211), lalu saveAll untuk aplikasi dan record dokumen (:119-129). 'Save' di story berarti submit akhir setelah review; tidak ada save draft. Demo remark 'Internet PII encryption - cannot fetch offender particulars' dan enkripsi kolom PII: cannot verify from repo. Tiket OCMS-DF-2026-110/143 (Closed) soal error submit tidak menunjukkan defect code yang terbuka."
+    }
+  ]
+}

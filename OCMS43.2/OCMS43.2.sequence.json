@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS43.2 Payment Status Received and Notice Marked Paid",
+    "locale": "en",
+    "output": "OCMS43.2.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "pg",
+      "type": "external",
+      "label": "Payment Gateway",
+      "sublabel": "URA PG"
+    },
+    {
+      "id": "axs",
+      "type": "external",
+      "label": "AXS kiosk",
+      "sublabel": "via thirdpartyapi"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "eService API",
+      "sublabel": "ocmseserviceapi"
+    },
+    {
+      "id": "inet",
+      "type": "database",
+      "label": "Internet DB",
+      "sublabel": "web_txn + eVON"
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "Private API cron",
+      "sublabel": "CronSyncTxnData"
+    },
+    {
+      "id": "von",
+      "type": "database",
+      "label": "Intranet DB",
+      "sublabel": "VON + suspended"
+    }
+  ],
+  "segments": [
+    {
+      "from": 151,
+      "to": 269,
+      "label": "Gateway"
+    },
+    {
+      "from": 271,
+      "to": 299,
+      "label": "AXS"
+    },
+    {
+      "from": 301,
+      "to": 419,
+      "label": "Pull to intranet"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "pg",
+      "to": "api",
+      "y": 165,
+      "label": "POST callback/success",
+      "variant": "default"
+    },
+    {
+      "id": "m1",
+      "from": "api",
+      "to": "pg",
+      "y": 195,
+      "label": "CheckPaymentStatus (PG200)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "pg",
+      "to": "api",
+      "y": 225,
+      "label": "Status, mode, amount",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "api",
+      "to": "inet",
+      "y": 255,
+      "label": "Txn S; eVON PS/FP set",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "axs",
+      "to": "inet",
+      "y": 285,
+      "label": "UpdatePONPayReq: txn S, mode AXS",
+      "variant": "dashed"
+    },
+    {
+      "id": "m5",
+      "from": "cron",
+      "to": "inet",
+      "y": 315,
+      "label": "Pull txns status S, is_sync N",
+      "variant": "default"
+    },
+    {
+      "id": "m6",
+      "from": "cron",
+      "to": "von",
+      "y": 345,
+      "label": "Copy web txn detail",
+      "variant": "default"
+    },
+    {
+      "id": "m7",
+      "from": "cron",
+      "to": "von",
+      "y": 375,
+      "label": "Apply PS-FP or PS-PRA",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "cron",
+      "to": "von",
+      "y": 405,
+      "label": "Suspended notice + refund if extra",
+      "variant": "dashed"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "api",
+      "from": 160,
+      "to": 260,
+      "type": "backend"
+    },
+    {
+      "participant": "inet",
+      "from": 250,
+      "to": 320,
+      "type": "database"
+    },
+    {
+      "participant": "cron",
+      "from": 310,
+      "to": 410,
+      "type": "backend"
+    },
+    {
+      "participant": "von",
+      "from": 340,
+      "to": 410,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches flow",
+      "items": [
+        "Callback verified with gateway",
+        "Txn detail saved with receipt",
+        "PS-FP / PS-PRA applied"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Internet side writes FP without amount check",
+        "AXS payment mode not stored",
+        "Sync failures only in log"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "Gateway and AXS payload formats",
+        "Real PG responses",
+        "Prod cron values"
+      ]
+    }
+  ]
+}

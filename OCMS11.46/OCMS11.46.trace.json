@@ -1,0 +1,73 @@
+{
+  "story": "OCMS11.46",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, utils/map/MapFurnish.ts, pages/Furnish/Form/HDQuests.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishSubmissionServiceImpl,FurnishValidationServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository, crud/beans/SystemConstant. ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, schedulers/SyncInternetIntranetJobsScheduler, agencies/toppan/upload/{ToppanStage,ToppanLettersGeneratorJob,ToppanUploadJob}, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, thirdpartyapi: tidak dipakai untuk alur ini. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "note": "Status sheet: 'Built - Has gap', demo_remark: Internet PII encryption - cannot fetch offender particulars. Alur furnish ada end-to-end: e-service validasi notice yang boleh di-furnish (stage ROV, ENA, RD1, RD2), simpan aplikasi di Internet PII DB, cron SyncInternetIntranet (aktif di prod) menarik dan menjalankan auto-approval atau review manual, lalu driver menjadi offender dan notice dipindah ke stage DN1 (hirer yang di-furnish ke RD1). Stage RR3 ke atas tidak bisa di-furnish. Gap yang terbukti dari repo: lookup notice hirer bergantung pada DecryptByKey di PII DB (gap yang disebut demo_remark; cannot verify from repo), Appendix B Annex 1A tidak ada di repo, dan letter DN1 ke driver tidak terkirim ke Toppan karena upload SFTP diblok di application-prod.properties:86 sementara stage tetap maju (OCMS-DF-2026-192, Ready to UAT). Tiket OCMS-DF-2026-170 (closed) dan OCMS-DF-2026-024 (closed) menyentuh stage change dan alamat setelah furnish.",
+  "recommendation": "Klaim sebagian. Alur furnish sampai driver menjadi offender dan masuk stage DN1 ada di code. Minta bukti dari URA bahwa lookup PII di Internet DB jalan di PRD, dan konfirmasi Appendix B, sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hirer membuka e-service Furnish Driver's Particulars dan mencari NOPO outstanding miliknya",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:71-80; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:253-262; ocmseserviceui/src/route/route.ts:37-41",
+      "fit": "Sebagian",
+      "detail": "Route furnish-particulars ada di ocmseserviceui (route.ts:37-41). Di API, findFurnishableNoticeNos mengambil notice dengan offender_indicator='Y' dan owner_driver_indicator <> 'D', jadi hirer (H) atau owner (O) lolos tetapi driver tidak (EocmsOffenceNoticeOwnerDriverRepository.java:71-80, dipakai FurnishValidationServiceImpl.java:260-262). Query membaca id_no lewat DecryptByKey di PII DB; symmetric key dibuka di EocmsOffenceNoticeOwnerDriverServiceImpl.java:43-46. Demo_remark story ini justru menyebut 'Internet PII encryption - cannot fetch offender particulars'. Apakah key, certificate, dan permission benar di Azure cannot verify from repo, jadi Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Furnish hanya dibuka pada stage pemrosesan yang sudah ditentukan (ROV, ENA, 1st reminder RD1, 2nd reminder RD2)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:175-183; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:210-213; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:112-113",
+      "fit": "Sesuai",
+      "detail": "isProcessingStageEligible meloloskan notice jika last_processing_stage ada di ELIGIBLE_STAGES = ROV, ENA, RD1, RD2, atau (fallback) next_processing_stage ada di RD1, RD2 (FurnishValidationServiceImpl.java:175-183; SystemConstant.java:112-113). Di getIneligibilityReason stage di luar itu ditolak dengan FURNISH_NOTICE_STAGE_INELIGIBLE (baris 210-213). Ini cocok dengan contoh story (1st dan 2nd reminder). Notice yang sudah suspended (crs_reason), PS-DIP/MID/FOR/RIP/RP2, dan UPL juga ditolak (baris 189-208)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hirer mengisi particulars driver dan mengirimkannya; aplikasi tersimpan berstatus pending",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/utils/map/MapFurnish.ts:43; ocmseserviceui/src/utils/map/MapFurnish.ts:111; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:66; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:43-134; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:187; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:210",
+      "fit": "Sesuai",
+      "detail": "UI memetakan jawaban Q1 'Was the person the driver...' ke ownerDriverIndicator: Yes menjadi D (driver), No menjadi H (hirer) (MapFurnish.ts:43, 111; HDQuests.ts:36). POST /v1/furnishapplication menjalankan validasi lalu submitFurnishApplication membuat satu txn_no per notice, memindahkan dokumen pendukung, dan menyimpan EocmsFurnishApplication dengan owner_driver_indicator dari request dan status pending ke PII DB (FurnishSubmissionController.java:66; FurnishSubmissionServiceImpl.java:43-134, 187, 210)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengajuan dipindah ke sistem staf dan diperiksa otomatis; yang gagal cek masuk review manual officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncInternetIntranetJobsScheduler.java:57-67; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:169-174; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:183-225; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:319-337; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306",
+      "fit": "Sesuai",
+      "detail": "Scheduler SyncInternetIntranet menjalankan FurnishProcessingJob (SyncInternetIntranetJobsScheduler.java:57-67); cron.syncintranetinternet.enabled=true di prod (cron-schedules-prod.properties:305-306). FurnishProcessingService memanggil executeApproval bila semua cek lolos, atau executeManualReview dengan alasan bila tidak (FurnishProcessingService.java:169-174). Enam cek: permanent suspension aktif, HST ID, FIN/passport, stage masih furnishable (pasangan LPS|NPS di SystemConstant.java:237-244), offender yang ada, dan pengajuan sebelumnya (FurnishApprovalHelper.java:183-225, 319-337)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver yang di-furnish menjadi offender saat ini pada NOPO dan hirer tidak lagi menjadi offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:445-466; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:542-641; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:713-745",
+      "fit": "Sesuai",
+      "detail": "executeApproval memanggil addFurnishedOffender (menambah baris ocms_offence_notice_owner_driver untuk orang yang di-furnish, termasuk alamat lewat processFurnishedAddress) dan changeProcessingStage; switchOffenderIndicator menurunkan indikator offender lama dari Y ke N di Intranet dan Internet DB (FurnishApprovalHelper.java:445-466, 542-641, 713-745). Tiket OCMS-DF-2026-024 (closed, prod) menyangkut alamat mha_reg driver lama setelah furnish overwrite; code saat ini tidak dibuktikan ulang di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice masuk ke jalur follow-up driver (stage DN1) sesuai automated workflow Appendix B Annex 1A",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:644-662; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:668-710",
+      "fit": "Sebagian",
+      "detail": "changeProcessingStage: bila indikator pihak yang di-furnish D, last/next_processing_stage menjadi DN1 (bila H menjadi RD1), prev stage disimpan, admin fee di-nol-kan dan amount_payable dikembalikan ke composition_amount, next_processing_date = max(notice_date + 7 hari, besok), lalu Internet VON disinkronkan (FurnishApprovalHelper.java:644-662, 668-710). Appendix B Annex 1A tidak ada di repo, jadi kesesuaian aturan 7 hari dan urutan stage dengan dokumen itu cannot verify from repo. Tiket OCMS-DF-2026-170 (closed, prod) adalah admin fee $15 salah pada transisi DN1->DN1 dan RD1->RD1, ditambal di baris 668-675."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver menerima follow-up berikutnya (surat DN1 lewat vendor cetak) sesuai workflow",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:22; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-612; ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:424-430",
+      "fit": "Sebagian",
+      "detail": "Stage DN1 ada di ToppanStage (ToppanStage.java:22) dan ikut diproses cron Toppan (ToppanLettersGeneratorJob.java:151); notice dipilih lewat next_processing_stage=DN1 dengan offender_indicator='Y' dan tanpa suspension (OcmsValidOffenceNoticeRepository.java:608-612), jadi yang dikirimi adalah driver. Tetapi application-prod.properties:86 memblok upload SFTP ke Toppan (sftp.upload.disabledServers=toppan), dan stage tetap maju karena gate dilewati (ToppanUploadJob.java:424-430). Fit yang sama dengan OCMS11.50 (pengiriman ke vendor). Tiket OCMS-DF-2026-192 (Ready to UAT) membahas hal ini. Kondisi sebenarnya di server cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS7.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper, LtaResponseFileParser, LtaBatchTsRovProcessor, LtaProcessingOrchestrator, LtaProcessingStageManager, LtaIdTypeUtil}; datahiveuenfin/services/DataHiveUenFinService (placeholder work item, bukan LTA). ocmsadminui utils/data/LinkData.tsx (menu Work Item dikomentari). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code work item",
+  "note": "Status di sheet: 'Fully paid'. Story menyebut DOS (Department of Statistics), sedangkan code dan OCMS-DF-2026-194 (merujuk OCMS 7 functional document) memakai LTA VRLS sebagai sumber data pemilik kendaraan. Apakah DOS sama dengan LTA tidak bisa dipastikan dari repo (cannot verify from repo); semua step ditulis berdasarkan perilaku code terhadap LTA VRLS. Bagian suspend sementara (TS-ROV) terbangun dan memakai kode yang sama dengan error code 1, 2, 4 (sama dengan fit OCMS7.3). Bagian work item ke dashboard OIC tidak ada: tidak ada kode yang membuat work item di jalur LTA, placeholder work item di DataHive juga belum aktif, dan menu Work Item di UI dikomentari. Tiket dipakai: OCMS-DF-2026-160 (loop ROV tidak stabil), OCMS-DF-2026-194.",
+  "recommendation": "Klaim hanya bagian penerimaan particulars deregistered dan suspend TS-ROV. Work item dan dashboard OIC tidak diklaim; minta URA konfirmasi apakah report email TS-ROV Applied cukup sebagai pengganti.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima respons agency dengan error code 3 (kendaraan deregistered)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:255-259; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:260-268; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:446-462; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:504-517",
+      "fit": "Sesuai",
+      "detail": "Parser membaca deregistrationDate dan errorCode (PARSER:255-259). Record dengan error code 1-4 dipisah ke jalur TS-ROV (DLH:260-268, hasErrorCode DLH:446-462); code 3 diberi deskripsi 'Deregistered Vehicle' (DLH:504-517). Code tidak membedakan pemilik company dan individu pada titik ini: yang dicek hanya error code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars pemilik (termasuk company) dan tanggal deregistrasi disimpan ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:76-78; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:330-339; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:53-54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:84-102",
+      "fit": "Sesuai",
+      "detail": "Untuk error code 3 saja, Phase 0 memanggil updateNoticeWithOwnerData sebelum suspend (TSR:76-78): owner_driver diisi, dan lta_deregistration_date disimpan dari record (ORCH:330-339). ID type company LTA (4 sampai C) dipetakan ke BUSINESS_TYPE 'B' (IDT:53-54, 84-102). Error code 1, 2, 4 tidak menyimpan particulars (TSR:79-81)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di-suspend sementara dengan kode suspension khusus (TS-ROV)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:218-236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:262-272; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:277-287; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:97-98",
+      "fit": "Sesuai",
+      "detail": "Batch TS-ROV melewati notice PS, notice yang sudah dibayar (crs_reason terisi), dan notice yang last stage-nya bukan ROV (TSR:218-236). Sisanya dapat insert ocms_suspended_notice type TS reason ROV (TSR:262-272) dan update VON: suspension_type TS, epr_reason ROV, next stage ROV, due_date_of_revival (TSR:277-287). Jumlah hari revival dibaca dari ocms_suspension_reason (TSR:162-166); nilainya per environment cannot verify from repo. Kode yang sama dipakai untuk error code 1, 2, 4, jadi tidak ada kode khusus untuk deregistered. Story hanya meminta 'a specific suspension code', dan ROV memenuhinya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item untuk notice tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:304-318; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2924",
+      "fit": "Tidak ada code",
+      "detail": "Setelah suspend, Phase C TS-ROV hanya menulis ocms_suspended_notice, VON, dan eVON (TSR:304-318); tidak ada pembuatan work item. Grep work item/workitem di ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi: satu-satunya hasil adalah DataHiveUenFinService.createWorkItemForPRSC yang berisi placeholder 'feature not ready' dan tidak dipanggil dari alur LTA (DHUEN:2920-2924). Satu-satunya POST workitem di ocmsadminui ada di alur endorsement UPL, bukan LTA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item muncul di dashboard OIC untuk di-follow-up",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:396-398; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:304-318",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada work item yang dibuat (step sebelumnya), jadi tidak ada yang dirutekan. Menu Work Item di ocmsadminui masih dikomentari dengan label '//! UNCONFIRMED' (LinkData.tsx:396-398), sehingga tidak ada dashboard work item yang bisa dibuka OIC. Yang bisa dilihat OIC hanya hasil tidak langsung: suspension TS-ROV di notice dan tab 'TS-ROV Applied' di report LTA (lihat OCMS7.5)."
+    }
+  ]
+}

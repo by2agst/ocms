@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi services/datahive/nricFinUenDataRetrieval/service/{DataHiveUENBatchService,DataHiveUENServiceImpl}, workflows/datahiveuenfin/services/DataHiveUenFinService (storeUenDataResult, updateShareholderInfo, updateBoardInfo), schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminapi crud/ocmsizdb/{OcmsDhAcraBoardInfo,OcmsDhAcraShareholderInfo,OcmsDhAcraCompanyDetail} (read CRUD). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status in stories.json is 'Requirement given - Gen flow'. DOS = DataHive/ACRA cannot be confirmed from the repo. What exists: DataHive queries on V_DH_ACRA_BOARD_INFO_FULL (directors) and V_DH_ACRA_SHAREHOLDER_NGZ (shareholders) per UEN, run together with the firm query. The queries only filter on UEN; the date of offence and the appointment period are not used as a filter anywhere (appointment/withdrawn dates are only carried into the DTO). Writing board data to the DB is switched off by a comment citing OCMS-DEV-2026-231; shareholder data is written only for regular notice records, and for the Unclaimed adhoc queue (no noticeNo) only the address is stored. There is no branch 'address unchanged, continue to fetch directors' because address change detection does not exist (see OCMS20.3). The job is also off in the prod properties (cron.mhadownload.uenfin.enabled=false). Mapping 'owner/partner' to shareholder is an interpretation, not stated in the code.",
+  "recommendation": "Do not claim in full. Fetching director/shareholder data from DataHive per UEN exists but without a filter on offence date and appointment period, board writing is disabled, and the job is off in the prod properties",
+  "steps": [
+    {
+      "step": "If the registered address has not changed, OCMS continues to request the company owner/partner/director data",
+      "detail": "There is no branch on the result of an address comparison (the comparison itself does not exist, same as OCMS20.3). Board and shareholder are fetched together with the firm query for all found UENs (DataHiveUENBatchService.java:95-113), without checking whether the address changed."
+    },
+    {
+      "step": "OCMS sends the company UEN to the registry (DOS) to request owner/partner/director data",
+      "detail": "The UEN is sent to DataHive view V_DH_ACRA_BOARD_INFO_FULL (WHERE ENTITY_UEN IN, DataHiveUENBatchService.java:441-442) and V_DH_ACRA_SHAREHOLDER_NGZ (line 424). DOS = DataHive/ACRA cannot be confirmed from the repo. The job is off in prod properties (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; real server value cannot verify from repo) and the Unclaimed adhoc queue has an early return (DataHiveUenFinJob.java:189-191)."
+    },
+    {
+      "step": "The received data is filtered by the date of offence and the officer appointment period",
+      "detail": "The board query only filters ENTITY_UEN (DataHiveUENBatchService.java:441). Appointment and withdrawn dates are read into the DTO (DataHiveUENBatchService.java:494-495; UENDataResult.java:97-98) but never compared with the notice offence date (grep positionAppointmentDate/offenceDate in ocmsadminprivateapi and ocmsadminapi; the only offence-date comparison is in the FIN death flow)."
+    },
+    {
+      "step": "Owner/partner/director particulars are stored in OCMS so staff can use them",
+      "detail": "Shareholders are saved through updateShareholderInfo for regular notice records (DataHiveUenFinService.java:1443-1448), but board/director is not written: the updateBoardInfo call is commented out because of OCMS-DEV-2026-231 (DataHiveUenFinService.java:1472-1477). For the Unclaimed adhoc queue (no noticeNo) only the address is stored (DataHiveUenFinService.java:1055). The read API /v1/dhacraboardinfolist exists in api-authorization.properties:43 but its table is not filled by the current job. Mapping owner/partner to shareholder is an interpretation."
+    }
+  ]
+}

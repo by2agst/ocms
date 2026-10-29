@@ -1,0 +1,46 @@
+{
+  "story": "OCMS9.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/furnish/manual/ManualFurnishServiceImpl, workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus, crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver (offender_indicator); ocmsadminprivateapi framework/workflows/furnish_processing/helpers/FurnishApprovalHelper (switchOffenderIndicator), framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (queryRecordsForEna, queryRecordsForReminder), jobs/NotificationSmsEmailJob}. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ditelusuri untuk story ini",
+  "note": "Story meminta OCMS menentukan pihak yang sedang dituju offence berdasarkan tanggal update terbaru (owner vs driver). Code tidak membandingkan tanggal: pihak saat ini ditandai kolom offender_indicator pada ocms_offence_notice_owner_driver. Setiap jalur yang menulis owner/driver baru (furnish approval cron, manual furnish, patch owner/driver staff) menurunkan row Y lama ke N lalu memasang Y di row baru, jadi pemenangnya adalah penulisan terakhir yang memasang Y, bukan perbandingan tanggal update. Query eNotification (ENA dan reminder) hanya mengambil offender_indicator = 'Y' dan tidak punya penjaga bila ada dua row Y di satu notice (hasilnya dua record). Pemakaian untuk admin fee dan court case tidak ditelusuri. Tiket OCMS-DF-2026-177 (Closed) menunjukkan jalur MHA result pernah mengabaikan indicator; perbaikannya tidak diverifikasi di story ini. Catatan demo (Vault, permission App Service) cannot verify from repo.",
+  "recommendation": "Klaim dengan catatan: hasil 'pihak terbaru' tercapai lewat flag saat penulisan, bukan perbandingan tanggal update; follow-up di luar eNotification belum ditelusuri",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat data owner/driver baru masuk, pihak terbaru menjadi offender saat ini dan row lama diturunkan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:546; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:555; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:713-722; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/ManualFurnishServiceImpl.java:99; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/ManualFurnishServiceImpl.java:137; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus.java:231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus.java:331-342",
+      "fit": "Sebagian",
+      "detail": "Furnish approval memanggil switchOffenderIndicator lalu memasang Y di row baru (FurnishApprovalHelper.java:546,555,713-722). Manual furnish menurunkan row Y lama ke N lalu set Y (ManualFurnishServiceImpl.java:99,137) dan patch owner/driver staff memanggil resetOtherOffendersToNonCurrent saat Y dipasang (OwnerDriverServiceImplPlus.java:231,331-342). Tidak ada code yang membandingkan tanggal update owner dengan driver: yang menang adalah penulisan terakhir yang memasang Y. Contoh story (owner 1 Jul, driver 5 Jul, jadi driver) hanya terjadi bila update driver lewat salah satu jalur itu. Primary key (notice_no, owner_driver_indicator) membatasi satu row per peran (OcmsOffenceNoticeOwnerDriver.java:16,28-33)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Follow-up eNotification (ENA dan reminder) hanya mengambil pihak yang berstatus offender saat ini",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1027-1029; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1110-1112",
+      "fit": "Sesuai",
+      "detail": "queryRecordsForEna dan queryRecordsForReminder join ocms_offence_notice_owner_driver dengan offender_indicator = 'Y' (NotificationSmsEmailHelper.java:1027-1029 untuk ENA, :1110-1112 untuk RD1/RD2/RR3/DN1/DN2/DR3). Pihak dengan indicator N tidak ikut dikirimi notifikasi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID pihak offender saat ini menjadi kunci follow-up berikutnya (cek exclusion, lookup kontak, penerima)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1018-1019; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:203-207; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226",
+      "fit": "Sesuai",
+      "detail": "Query memilih onod.id_no AS idNo dan onod.id_type AS idType milik offender saat ini (NotificationSmsEmailHelper.java:1018-1019). Job memakai idNo itu untuk cek exclusion list (NotificationSmsEmailJob.java:203-207,226) dan record yang sama dipakai untuk lookup kontak dan pengiriman."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Follow-up lain (admin fee, court case, unclaimed, HST) juga memakai pihak offender saat ini",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:245; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:579; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:307; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:204",
+      "fit": "Sebagian",
+      "detail": "Flag offender_indicator = 'Y' ikut dipakai Change of Processing (ChangeOfProcessingService.java:245,579), Unclaimed reminder (UnclaimedServiceImpl.java:307) dan HST (HstManagementServiceImpl.java:204). Pemakaian untuk admin fee dan court case tidak ditemukan/ditelusuri. OCMS-DF-2026-177 (Closed, Prod deployment) mencatat jalur MHA result pernah memperbarui record tanpa memeriksa offender indicator; perbaikannya tidak diverifikasi di sini."
+    }
+  ]
+}

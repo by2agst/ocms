@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper (life_status D + date_of_death triggers processPS RIP/RP2, TS-NRO for a future DoD), utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper} (PS without revival date, stages NPA-CPC), framework/workflows/datahiveuenfin/services/DataHiveUenFinService (DataHive FIN path, switched off in prod), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: no dedicated path for this story",
+  "note": "The story asks that notices of individuals with a given life status (RIP = deceased) are immediately suspended temporarily under a specific suspension code and period so they do not escalate. Code: an MHA result (life_status D + date_of_death) makes OCMS apply a suspension automatically inside the same MHA Download job, code RIP (DoD on/after the offence) or RP2 (DoD before the offence). But that is a PS (permanent) without a revival date, not a temporary suspension with a period; TS is only used for a future DoD (TS-NRO). Requirement status: 'Requirement given - Gen flow' (generic flow, no OCMS flow deck). The DataHive FIN path (cron.mhadownload.uenfin.enabled=false) is off in prod. The MHA file content and the real server property values cannot be verified from the repo. Tickets: OCMS-DF-2026-135 (closed, PS limited to notices in the batch) and OCMS-DF-2026-177 (closed, offender indicator) change the scope of steps 1-2",
+  "recommendation": "Claim partially: deceased identification and automatic suspension exist. The 'temporary' and 'period' parts do not match the story (code uses PS without a revival date); ask URA to confirm whether PS-RIP/PS-RP2 counts as equivalent",
+  "steps": [
+    {
+      "step": "OCMS recognises individuals with the deceased life status from the MHA result",
+      "detail": "While processing the MHA result file, life_status is saved (MhaNricDownloadHelper.java:730) and date_of_death is parsed and saved (:745-748). The suspension branch only runs when dod != null and life_status is 'D' (:873-874). The MHA Download job is enabled=true in prod, Mon-Sat 11:30, 16:30, 23:30 (cron-schedules-prod.properties:119-120); the real server value cannot be verified from the repo. Scope is limited to the notice in the batch file (OCMS-DF-2026-135, closed), not all notices of the individual; a record without date_of_death is not handled. No role restriction because it is an automatic job."
+    },
+    {
+      "step": "OCMS applies a suspension immediately after the life status is recognised",
+      "detail": "The suspension is applied in the same loop that stores life_status (processPS is called at MhaNricDownloadHelper.java:1017-1024 for notices that are not batch-safe; the rest are applied through applyPsSuspensionGetApplied after the loop, :1566-1575). So 'immediately' means in the same MHA Download run, not real-time. A notice that already has another suspension or is paid goes through the per-notice processPS validation and can be rejected (PermanentSuspensionHelper.java:160-163). The second path through DataHive FIN (DataHiveUenFinService.java:1572, :3285) is also off because cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "The suspension uses a specific code for deceased cases",
+      "detail": "A dedicated code exists: RIP when date_of_death is on/after the offence date, RP2 when before it (MhaNricDownloadHelper.java:962-965; processPS with SuspensionReason.RIP at :1020; RIP/RP2 constants in SystemConstant.java:34-35). A future DoD uses TS-NRO (:890)."
+    },
+    {
+      "step": "The suspension is temporary",
+      "detail": "The story asks for a temporary suspension. RIP/RP2 are applied through PermanentSuspensionHelper.processPS (MhaNricDownloadHelper.java:1017-1022; PermanentSuspensionHelper.java:68), so suspension_type = PS (SystemConstant.SuspensionType.PERMANENT). TS is only used for a future DoD (TS-NRO, :890), not for the RIP/RP2 cases."
+    },
+    {
+      "step": "The suspension has a defined period",
+      "detail": "PS computes the revival date and it is always NULL ('Step 7: Calculate revival date (PS-specific) - Always NULL', PermanentSuspensionHelper.java:179-180), so a RIP/RP2 notice has no period and does not revive automatically. There is no period setting for the RIP/RP2 codes."
+    },
+    {
+      "step": "The notice does not escalate to the next stage",
+      "detail": "A RIP/RP2 suspension can only be applied at stages NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC; at CFC it is rejected (SuspensionBaseHelper.java:85-88, :210-214). A notice with a suspension is marked in VON, but the repo does not prove that every stage cron (reminder, DN, court) skips PS notices; only some were checked. So stopping escalation is only proven for applying the suspension, not for all crons."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS35.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/{mha/upload/jobs/MhaNricUploadJob,lta/upload/jobs/LtaUploadJob}, resources/{cron-schedules-prod.properties,datahive/datahive-common.properties}. ocmsadminapi workflows/notice_management/{retrieval/getnotice/GetNoticeController,ownerdriver/ownerdriver/OwnerDriverControllerPlus,filedownload/downloadfile/FileDownloadController}, workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}. ocmsadminui models/Fvault.d.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no dataset-provision code",
+  "note": "The requirement is not given in the sheet (status 'No requirement'), so the steps come from the story text. The story asks OCMS to provide about five datasets to MHA, Vault and LTA for analysis and policy planning. In the repo, the links to MHA and LTA are enquiries (OCMS asks the agency), not data provision; 'Vault' only appears as Azure Key Vault and as DataHive, which is inbound. What resembles dataset content is three on-demand APIs for PLUS (notice, owner/driver, court), pulled per request, not an export for MHA/Vault/LTA, so each of those steps is Sebagian at most. There is no scheduled export of five datasets. Who receives the datasets and the format the agencies want: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the MHA/LTA enquiries and three on-demand APIs for PLUS exist. Ask URA/the team to define the dataset list, recipients and schedule, then build a dedicated export. The story status is No requirement; confirm first whether it is still in scope.",
+  "steps": [
+    {
+      "step": "OCMS interfaces with MHA to provide offence datasets for MHA's analysis needs",
+      "detail": "The channel to MHA exists (SFTP server 'mha', MhaNricUploadJob.java:42; cron.mhaupload 0 0 9,14,21 ? * MON-SAT enabled=true, cron-schedules-prod.properties:105-107), but its content is an enquiry: the job takes valid NRIC data, builds an NRO file, sends it to MHA and reads back the address result (MhaNricUploadJob.java:20-36). Ticket OCMS-DF-2026-125 calls it the 'MHA enquiry file'. The direction is OCMS asking MHA, not OCMS providing parking offence, owner/hirer/driver or court datasets for MHA's analysis. There is no other job to MHA."
+    },
+    {
+      "step": "OCMS interfaces with LTA to provide offence datasets for LTA's analysis needs",
+      "detail": "The channel to LTA exists (cron.ltaupload 0 0 3,19 * * ? enabled=true, description 'LTA Upload (ROV files)', cron-schedules-prod.properties:134-136). LtaUploadJob takes valid offence notices, builds a request file and sends it through COMCRYPT and SFTP (LtaUploadJob.java:22-37). Ticket OCMS-DF-2026-118 calls it the 'LTA enquiry'. Same as MHA: OCMS asks LTA, it does not provide datasets for LTA's analysis."
+    },
+    {
+      "step": "OCMS interfaces with GovTech's Vault to provide datasets",
+      "detail": "There is no interface named Vault. The word 'vault' in the repos only refers to Azure Key Vault (secret storage). The closest interface is DataHive, but its direction is inbound: OCMS sends a list of IDs per query and reads data (datahive.batchSize=1000, datahive-common.properties:11-14; Fvault.d.ts only holds types of data read from DataHive, lines 1-30). There is no dataset export to Vault. Whether Vault is the same as DataHive: cannot verify from repo."
+    },
+    {
+      "step": "Dataset 1: parking offence notice details are available to agencies",
+      "detail": "plus-offence-notice returns valid offence notice records with filters and pagination (GetNoticeController.java:34-39). This is an on-demand API for PLUS (name and comment 'PLUS Interface'), not a scheduled or bulk dataset for MHA, Vault or LTA. Whether PLUS counts as an 'other agency' and how access is protected (JwtFilter skips plus-* endpoints, so it depends on APIM): cannot verify from repo."
+    },
+    {
+      "step": "Dataset 2: owner, hirer and driver details are available to agencies",
+      "detail": "plus-offence-notice-owner-driver returns owner/driver data per noticeNo and/or idNo (OwnerDriverControllerPlus.java:21-31); ticket OCMS-SR-2026-053 (Closed) added the effective date for the PLUS display. Same as dataset 1: an on-demand lookup for PLUS, not a dataset for MHA, Vault or LTA. The same controller also has an update path (line 39), so PLUS writes as well as reads."
+    },
+    {
+      "step": "Dataset 3: court details are available to agencies",
+      "detail": "plus-get-court-case-info accepts up to 500 notices and returns noticeNo, courtPaymentDueDate and reason from ocms_court_case (CasIntegrationController.java:167-171; CasIntegrationServiceImpl.java:637-680). Only three fields, pulled by PLUS; not a court dataset for MHA, Vault or LTA."
+    },
+    {
+      "step": "About 5 datasets are handed to the agencies (scheduled or exported) for data analysis and policy planning",
+      "detail": "No export job or endpoint builds about five datasets for agencies. The prod crons (cron-schedules-prod.properties:62-351) are only Toppan, MHA, LTA, vHub, CES, reports and sync. The download sources of the staff portal are only reports and result files (TOPPAN, LTA, MHA, DATAHIVE, ENOTIF, UNCLAIMED, TEMPLATE, UEN, FIN, VHUB; FileDownloadController.java:89-99). The list of five datasets and their recipients is not in the repo."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Revival/form/{RevivalDetails,RevivalForm}, pages/Revival/page/Revival, utils/validation/Revival/Revival.ts, utils/mapping/Revival/Revival.ts, context/OptionsContext.tsx (REVIVAL_REASON). ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-revive-suspension), helpers/RevivalBaseHelper}. Other repos: not relevant",
+  "note": "Sheet status: Demo paid (50% of 75%), 1 point; no flow deck. The Revival Details form has a Revival Reason dropdown (required) and a Remark textarea (optional, max 200 characters), and both values are sent to the API on revive. The reason list comes from ocms_suspension_reason (type RV, source OCMS, active); that table content is DB data with no seed SQL in the repo, so which reason codes exist cannot be verified from repo. A comment at TemporaryRevivalHelper.java:114 says 50 characters, but the code (UI and server) limits to 200; the code is what runs. No maintenance ticket changes these steps.",
+  "recommendation": "Can be claimed in full based on code. The revival reason list in the DB should be confirmed in UAT (not visible from the repo).",
+  "steps": [
+    {
+      "step": "The Revival Details form offers a Revival Reason dropdown",
+      "detail": "When the form opens, setOptions loads REVIVAL_REASON with suspensionSource = 'OCMS' and active status (RevivalDetails.tsx:39-47; constant.ts:3). CB_REVIVAL_REASON POSTs suspensionreasonlist with suspensionType = 'RV' (OptionsContext.tsx:280-291,316-319), and the dropdown shows code + description (OptionsContext.tsx:294-299; RevivalDetails.tsx:64-80). The ocms_suspension_reason content is DB data with no seed SQL in the repo: which reason codes exist cannot be verified from repo."
+    },
+    {
+      "step": "A revival reason must be filled in before revival can continue",
+      "detail": "The yup validation makes the 'reason' field required (Revival.ts:18,25-27; wired in Revival.tsx:128-129). The Proceed button runs validate() and, on failure, shows the alert 'Failed to proceed REVIVAL. Please check your form.' then focuses the faulty field (RevivalForm.tsx:69-84). The server re-checks: an empty reason is rejected (RevivalBaseHelper.java:121-123) and the code must exist in the active RV list for source OCMS from the DB (RevivalBaseHelper.java:86-97,175-183); if reading the list fails, an empty set is used so every code is rejected (fail-closed)."
+    },
+    {
+      "step": "Special remarks are optional free text up to 200 characters",
+      "detail": "The 'remark' TextAreaInput has no required rule, length=200 and a remaining-characters counter (RevivalDetails.tsx:83-91). The server rejects remarks over 200 characters at the staff-revive-suspension endpoint (SuspensionProcessingController.java:639-643) and in the helper (RevivalBaseHelper.java:139-145). The comment at TemporaryRevivalHelper.java:114 says 50 characters but the code uses 200; the limit in the original spec cannot be verified from repo."
+    },
+    {
+      "step": "The entered reason and remarks are sent to the revival together with the logged-in officer ID",
+      "detail": "ReviveDataMapping builds the payload {noticeNo[], suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival = user.userId} from the form values (Revival.ts:17-23), used for both the PS and TS requests (RevivalForm.tsx:109-117,137-145). On the server these values are written to the suspended_notice rows as revival_reason, revival_remarks and officer_authorising_revival (RevivalBaseHelper.java:278-299)."
+    }
+  ]
+}

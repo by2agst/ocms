@@ -1,0 +1,37 @@
+{
+  "story": "OCMS17.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, parameter checking),helpers/SuspensionProcessingHelper.validateSuspension,helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper}.java. ocmsadminprivateapi AutoRevivalHelper (revive per row), a copy of plus-apply-suspension in framework/workflows/plus. There is no dedicated 'extend' endpoint or field in the six repos. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "There is no separate 'extend TS' feature. An extension is modelled as a new TS apply through plus-apply-suspension on a notice that already has a TS: processTS does not reject TS on top of TS and adds a new ocms_suspended_notice row; VON keeps the furthest revival date. A 'can it be allowed' check exists through the checking=true parameter (dry-run), but for a notice that is already TS validateSuspension returns eligible straight away without checking source, stage or paid (SuspensionProcessingHelper.java:366-370), while the real execution runs all of those checks. Conversely, the dry-run for a notice whose VON is not TS (e.g. TS on top of PS FOR/MID) uses an 'Overlapping suspension detected' check that execution does not have. So a dry-run answer does not always match the execution result. The extension duration is counted from today (now + days), not from the old TS end date; if the result is shorter than the existing revival date, VON does not change but the response is still 'TS Success'. There is no extension limit rule (number of times or maximum days) and the story does not name one. Revival: AutoRevivalHelper handles each due TS row and keeps the remaining suspension (AutoRevivalHelper.java:440-463). The copy of plus-apply-suspension in ocmsadminprivateapi has the same validation logic; which APIM route PLUS uses cannot be verified from the repo. Tickets: OCMS-DF-2026-025 (VON-based TS check), OCMS-DF-2026-027 (sr_no); no ticket is specific to extension.",
+  "recommendation": "Claim partially: a follow-up TS apply from PLUS works and is recorded, but the dry-run validation for a notice that is already TS checks nothing and 'extend' has no specific rule or trace. Ask URA to confirm the 'extend' semantics (counted from today or from the old TS end date) and its limit rules.",
+  "steps": [
+    {
+      "step": "PLUS can send a request to extend a temporary suspension.",
+      "detail": "There is no 'extend' endpoint, field or flag (grep for extend/extension/extendTs across the six repos found nothing relevant). PLUS extends by calling plus-apply-suspension again: suspensionType TS, code, new daysToRevive. The channel exists and mandatory fields are validated (CTRL:504-528), but the request does not mark itself as an extension, and caller auth for plus-* is not visible (JwtFilter.java:179): cannot verify from repo."
+    },
+    {
+      "step": "PLUS can ask OCMS to check a request without applying it.",
+      "detail": "plus-apply-suspension accepts the query param checking=true, which runs validateSuspension without writing anything (srNo '0', CTRL:997), so PLUS can ask first whether the request is allowed. The mechanism matches the story; the content of the validation is judged in the next step."
+    },
+    {
+      "step": "OCMS checks whether the extension can be allowed.",
+      "detail": "For a notice whose VON is already TS and a TS request, validateSuspension returns eligible straight away (SPH:366-370 'idempotent') before the source-permission, stage, paid and overlap checks (SPH:412-440). So the dry-run for an extension always says 'allowed' even though execution may reject it (stage not eligible, source not authorized, etc. in TSH:73-96). The reverse also exists: for a notice whose VON is not TS, the dry-run rejects with 'Overlapping suspension detected' (SPH:595-613) although execution has no such check. The story's validation ('OCMS can validate whether it can be allowed') is inconsistent with the execution result."
+    },
+    {
+      "step": "When the extension is actually sent, the notice is checked again.",
+      "detail": "Execution (checking=false) re-checks PLUS source permission (BASE:294-336), stage (BASE:189-275), whether the notice is paid (TSH:87-90) and PS overlap (TSH:159-178) before writing. The comment at TSH:68-70 says TS on top of TS is deliberately allowed to continue. A notice that fails gets success=false + a reason."
+    },
+    {
+      "step": "The suspension is extended by the number of days PLUS requested.",
+      "detail": "The new revival date = now + daysToRevive (TSH:188-190), not the old TS end date + days; VON is only updated to the furthest date (TSH:110-118). If the result is shorter than the existing date, VON does not change but the response is still 'TS Success' (TSH:140). Days of 0 or negative are replaced by a default (TSH:192-208, same as OCMS17.12/17.14). The story does not say counted from when; cannot verify business intent from repo. There is no limit on the number of extensions or maximum days."
+    },
+    {
+      "step": "The extended suspension is recorded and keeps the notice suspended.",
+      "detail": "The extension is saved as a new ocms_suspended_notice row with source PLUS and its own date; the old TS row stays (TSH:129-133) and is not marked as 'extended'. When the old TS falls due, AutoRevivalHelper revives the due row and keeps the remaining TS on VON (AutoRevivalHelper:440-463), so the notice is not revived while the new TS is still active. There is no extension column, flag, reason or count for audit."
+    },
+    {
+      "step": "PLUS gets an answer for each notice in the extension request.",
+      "detail": "PLUS receives a results[] per notice: success true 'TS Success' or success false + a reason message, each with appCode OCMS-2000 / OCMS-4000 (addAppCodeToResults, CTRL:1186-1198). For a dry-run the result is eligible true/false + message."
+    }
+  ]
+}

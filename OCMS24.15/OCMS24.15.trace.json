@@ -1,0 +1,46 @@
+{
+  "story": "OCMS24.15",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "Tidak ada flow deck OCMS; langkah diambil dari teks story. Status sheet: Demo paid (50% of 75%); demo_remark: Vault & SMS code split, mungkin perlu permission SMS untuk api App Service server, 'I recall seeing a court SMS on test phone' (klaim, bukan bukti).",
+  "code_summary": "Jalur SMS ada di job eNotification (ocmsadminprivateapi): kontak dari DataHive (bila flag aktif), pengelompokan per penerima (combineNotices), lalu sendBatchSms lewat SmsUtil ke APIM. Semuanya untuk SMS reminder parking RD1 sampai DR3; tidak ada template atau data court summons. Di prod sms.enable=false tanpa sms.allowedSources (dev/uat punya ENOTIFICATION) dan cron.notification.enabled=false, jadi SMS tidak keluar menurut konfigurasi repo.",
+  "note": "Status 'Demo paid (50% of 75%)' dan catatan 'court SMS on test phone' adalah klaim demo; repo tidak punya konten court. Permission SMS di App Service dan nomor yang diterima dari DOS cannot verify from repo. Tiket OCMS-DF-2026-180 hanya petunjuk bahwa cron eNotification belum aktif.",
+  "recommendation": "Sebagian: infrastruktur SMS batch ada tetapi tanpa konten dan seleksi court summons, dan SMS dimatikan di konfigurasi prod repo. Jangan diklaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile diperoleh dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2716",
+      "fit": "Sebagian",
+      "detail": "refreshIndividualContactInfo mengambil nomor lewat DataHive Singpass (NotificationSmsEmailHelper.java:2710-2716) tetapi hanya bila statusGetDatahive = true (:2468); prod cron.enareminder.datahive=false (cron-schedules-prod.properties:48; nilai server asli cannot verify from repo). DOS = DataHive/LTA tidak bisa dipastikan dari repo. Fakta sama dengan OCMS24.14 langkah 2 dan OCMS9.4, sama-sama Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Defendant individu yang unik diidentifikasi untuk SMS di tiap batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2200",
+      "fit": "Sebagian",
+      "detail": "combineNotices mengelompokkan record per penerima (I_<id_no>) + stage + paymentDueDate sehingga satu orang mendapat satu SMS untuk stage reminder (NotificationSmsEmailHelper.java:2151-2200); stage ENA untuk individu sengaja tidak digabung (:2168-2173). Berlaku untuk reminder parking, bukan batch court summons. Sama dengan OCMS9.5 (Sebagian)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS berisi detail court summons",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459",
+      "fit": "Tidak ada code",
+      "detail": "Isi SMS dibuat dari template per stage lewat prepareTemplateData dan determineTemplateName (NotificationSmsEmailHelper.java:425-430, :459) dengan data VON stage RD1 sampai DR3. Tidak ada kata court di helper, job, maupun SmsUtil; tidak ada data court summons yang dimasukkan ke pesan. Klaim demo 'court SMS on test phone' tidak punya dasar code di enam repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim SMS reminder ke defendant lewat gateway SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527-1530",
+      "fit": "Sebagian",
+      "detail": "sendBatchSms memanggil smsUtil.sendBatchSmsSimple (NotificationSmsEmailHelper.java:1527, :1611) ke APIM, dipanggil job bila notification.sms.enabled=true (application.properties:176; NotificationSmsEmailJob.java:289-291). Tetapi prod sms.enable=false (application-prod.properties:87) tanpa sms.allowedSources (hanya dev/uat mengisi ENOTIFICATION) dan cron.notification.enabled=false (cron-schedules-prod.properties:236). Nilai server asli dan permission SMS di App Service cannot verify from repo; jalurnya untuk reminder parking."
+    }
+  ]
+}

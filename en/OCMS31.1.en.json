@@ -1,0 +1,25 @@
+{
+  "story": "OCMS31.1",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchAllForm.tsx,hook/useSearchParams.tsx,hook/useSearch.ts} (generic notice search in the staff portal), utils/config/env.ts; ocmsadminapi api-authorization.properties (OCMS_NOTICE_SEARCH mapping) and crud/ocmsizdb/OcmsCourtCase. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no AOS code",
+  "note": "The story asks for searching summonses for the AOS by summons number, ID number, batch number and court mention date range. What exists is only the generic Notice Search page in the staff portal, not an AOS preparation screen. The Summons No., ID No. and Court Mention Date From/To fields exist in the form, but the summons and court mention searches call /v1/summon and /v1/courtmention, which have no controller or entity in ocmsadminapi/ocmsadminprivateapi (only listed in api-authorization.properties:23), and the summons search is disabled unless ENV is STAGING/LOCAL (env.ts:11). The batch number search is not wired to the form. The story status is blank in the data; no relevant maintenance ticket. Real production server and environment: cannot verify from repo.",
+  "recommendation": "Claim only partially for the generic Notice Search (ID number, summons and court mention fields in the UI). Do not claim it as an AOS preparation feature: the summon/courtmention endpoints and the batch number search are not in the repo. Ask the team in which repo the summons and court mention tables are served.",
+  "steps": [
+    {
+      "step": "Officer searches summonses by summons number",
+      "detail": "The Notice Search form has a Summons No. field (NoticeSearchAllForm.tsx:437-439). The search calls getNoticesBySummon only when isAPIFound (useSearchParams.tsx:206-208), and isAPIFound = isSTAGING || isLocal (env.ts:11), so it is off in DEV/UAT/PRO. getNoticesBySummon does GET endpoint 'summon' with summon_no[$regex] (useSearch.ts:56-66). ocmsadminapi/ocmsadminprivateapi have no summon controller or entity; /v1/summon only appears in api-authorization.properties:23. This is a generic notice search, not an AOS screen."
+    },
+    {
+      "step": "Officer searches summonses by ID number",
+      "detail": "The ID No. field exists in the form (NoticeSearchAllForm.tsx:541-543) and is sent as the idNo param of the notice search (useSearchParams.tsx:179, 530). The result is the offender's notice list, not a summons list for the AOS; no filter limits it to notices that have a summons. The server side (validoffencenoticelist) was not re-read in this chunk."
+    },
+    {
+      "step": "Officer searches summonses by batch number",
+      "detail": "getNoticesByCourtBatchNo is defined (useSearch.ts:144-157) and exported (useSearch.ts:181), but it is not called in useSearchParams.tsx (the search block 206-260 does not use it) and the Notice Search form has no batch number field. On the server side, the ocms_court_case entity only has notice_no, court_payment_due_date, reason (OcmsCourtCase.java:18-31), without csd_batch_no; the courtcase endpoint has no controller. Searching the six repos for court batch / csd_batch_no only finds the REPCCS detail view and type definitions."
+    },
+    {
+      "step": "Officer searches summonses by court mention date range",
+      "detail": "The form has Court Mention Date From/To (NoticeSearchAllForm.tsx:317-318, 344-346). When either is filled, getNoticesByCourtMention does GET endpoint 'courtmention' with mention_date[$gte]/[$lte] (useSearchParams.tsx:232-241, useSearch.ts:99-113). The backend has no court mention controller or entity (only listed in api-authorization.properties:23), so the result depends on a service not in the six repos; cannot verify from repo. The result is general notices, not AOS summonses."
+    }
+  ]
+}

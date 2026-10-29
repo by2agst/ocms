@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.18",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/HST/suspension/{HSTSuspension,form/SearchIDForm,form/HSTSuspensionForm,list/OutstandingNoticesList}, pages/HST/hooks/useHST.tsx, App.tsx, utils/data/LinkData.tsx; ocmsadminapi workflows/notice_management/suspension/{HstManagementController,HstManagementServiceImpl,HstApplyDto}, workflows/notice_creation/core/helpers/TemporarySuspensionHelper, api-authorization.properties (OCMS_HST_SUSPENSION). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah manual ini",
+  "note": "The 'special indicator' in the code is HST (House Tenant): a record in the ocms_hst table plus TS-HST on the notices. The officer uses the menu HST > Manual HST Suspension: search the ID, see the outstanding notices, fill in name and address, Apply. POST /v1/apply-hst creates the HST record (id_no is unique, duplicates are rejected) and then calls processTS for each notice with offender_indicator='Y', skipping notices with an active PS (OCMS-DF-2026-094 is already fixed in the code). Notices that are already paid are rejected by processTS. OCMS-DF-2026-091: an ID with no notices can now be applied. Two remarks: the screen says 'selected notice(s)' although the request carries no notice numbers, so the server always applies to all notices; and per-notice failures only reach the log, so the officer still sees success. The 'do not resend' decision (precondition of the story) is not recorded as data anywhere, same as story 20.16.",
+  "recommendation": "The core claim (HST record + TS-HST on all outstanding notices) is supported by the code. Two small gaps: the do-not-resend decision is not recorded, and per-notice failures do not reach the officer.",
+  "steps": [
+    {
+      "step": "The officer has decided not to resend and opens Manual HST Suspension",
+      "detail": "The menu HST > Manual HST Suspension and the /hst/suspension route exist (App.tsx:196-200, LinkData.tsx:183-200,388); the API is limited by the OCMS_HST_SUSPENSION mapping (api-authorization.properties:96-97). The 'do not resend' decision does not become data or a work item; the officer just opens the page. Same fact as step 4 of story 20.16 (Sebagian)."
+    },
+    {
+      "step": "The officer searches the ID and OCMS checks the ID is not yet in the HST list and shows the outstanding notices",
+      "detail": "SearchIDForm calls check-hst with checkType 'create' (SearchIDForm.tsx:45); if hst=true the screen refuses with 'ID ... is already suspended under HST' (59-64). When the ID is not HST the server returns the name and latest mha_reg address from ONOD (HstManagementServiceImpl.java:126-135, 201-227). Notices are fetched through offencenoticeownerdriverlist (SearchIDForm.tsx:106-121) and shown as 'Outstanding Notices (Will be suspended under TS-HST)'. An ID with no notices may still continue (OCMS-DF-2026-091)."
+    },
+    {
+      "step": "OCMS creates the special indicator (an HST record with name and address) for that ID",
+      "detail": "POST /v1/apply-hst (HstManagementController.java:117) validates HstApplyDto (idNo, idType N/F/B/P and name are required; HstApplyDto.java:18-28), rejects duplicates (HstManagementServiceImpl.java:303-305, controller 128-131) and saves the ocms_hst record with name and address (308-322). The form sends the fields from HSTSuspensionForm.tsx:137-153."
+    },
+    {
+      "step": "The indicator is applied to all outstanding notices under the ID (TS-HST)",
+      "detail": "applyHstSuspension fetches all ONOD rows with that id_no and offender_indicator='Y' (HstManagementServiceImpl.java:326-331), skips notices with an active PS (338-341, 562-566; fix for OCMS-DF-2026-094), then applyHstToNotice calls tsHelper.processTS with reason HST (487-510). processTS rejects notices that are already paid (TemporarySuspensionHelper.java:86-90) and writes VON, eVON and suspended_notice (120-137). Note: the screen says 'selected notice(s)' (HSTSuspensionForm.tsx:97-99) but the request carries no notice numbers (line 141, commented out), so the server always applies to all notices of the offender. Notices where the ID is not the offender are not included."
+    },
+    {
+      "step": "OCMS tells the officer the result of applying the indicator",
+      "detail": "A processTS failure for a notice is only logged and the loop continues (HstManagementServiceImpl.java:336-347); the method returns only the idNo (349) and the controller answers SAVE_SUCCESS (HstManagementController.java:117-124). The screen shows 'HST suspension applied successfully' (HSTSuspensionForm.tsx:160-164) even if some or all notices failed, and the HST record stays saved. The officer cannot tell which notices were not suspended."
+    }
+  ]
+}

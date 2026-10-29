@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts, utils/option.ts, utils/models/Fpayment.d.ts (payment mode choice eNETS, VISA/Mastercard, PayNow). ocmseserviceapi workflows/urapg/{controller/UraPaymentController,model/GenerateTransactionRequest,service/UraPaymentService}, crud/beans/SystemConstant (method codes and transaction prefix), application-prod.properties (gateway URL). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no portal payment mode choice code",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark: Internet PII encryption (an environment issue). The page offers three radio choices (eNETS, VISA or Mastercard, PayNow) through PaymentMode() and the 'Proceed to Payment' button only becomes active after one mode is chosen; the choice is mapped to gateway codes JX/ENETC/PYNOW and checked by the server with @Pattern. Gap: SystemConstant.java:25 has a comment 'JX = Credit Card' while the UI maps eNETS to JX and VISA/Mastercard to ENETC (API.ts:173-177); a comment is not proof, but what the codes mean at the gateway: cannot verify from repo. Whether the three modes are really enabled at the production gateway (the ura.payment.gateway.* URLs exist only in application-prod.properties:26-28, with a comment above them saying 'NOT CREATED YET'): cannot verify from repo. No maintenance ticket touches the list of payment modes. OCMS-SR-2026-159 only names eNETS, Credit Card, PayNow as gateway payment sources.",
+  "recommendation": "Claimable for showing and choosing the payment mode in the portal. The meaning of codes JX/ENETC and whether each mode is enabled at the production gateway must be confirmed outside the repo",
+  "steps": [
+    {
+      "step": "The page displays payment mode options: eNETS, VISA or Mastercard, and PayNow",
+      "detail": "PaymentMode() renders a 'Select Payment Mode' radio group with three options: ENETS (eNETS logo), MASTER_VISA (VISA and Mastercard logos) and PAYNOW (with a PayNow steps help icon) (lines 589-650). TPaymentMode is limited to those three (Fpayment.d.ts:4). It is used in the Singpass user flow (InitPaymentSPCPUnpaid, line 1040) and in the normal search flow."
+    },
+    {
+      "step": "Payment modes are offered only when there is a payable fine",
+      "detail": "hasPayableItems (lines 578-587) must be true; otherwise PaymentMode() returns nothing (lines 590-592), so the mode choice is not shown on a page with only non-payable fines."
+    },
+    {
+      "step": "The offender chooses the preferred mode and can continue only after choosing",
+      "detail": "selectMode stores the choice in formData and paymentMode and in the cache (lines 463-475). The 'Proceed to Payment' button stays disabled until a fine and a mode are chosen (lines 791-793); onClick also refuses to run when mode or selection is empty (lines 738-742)."
+    },
+    {
+      "step": "The chosen mode is translated to a gateway method code and validated by the server",
+      "detail": "The UI maps ENETS to JX, MASTER_VISA to ENETC and PAYNOW to PYNOW (API.ts:173-177); the server rejects any value other than JX|ENETC|PYNOW through @Pattern (GenerateTransactionRequest.java:35). The comment at SystemConstant.java:25 calls JX 'Credit Card', which contradicts the UI label eNETS for JX. A comment is not proof; what the codes mean at the gateway: cannot verify from repo."
+    },
+    {
+      "step": "A transaction is created with the chosen mode and the offender is taken on to pay with that mode",
+      "detail": "POST /v1/egeneratetransaction (UraPaymentController.java:32-35) calls generateTransaction, which builds a txnId with a prefix by mode (PYNOW = DICNOC, others OC; SystemConstant.java:18-20), sends paymentMode to the gateway (UraPaymentService.java:211) and stores paymentMode on every transaction row (line 266). The gateway response and gateway page: cannot verify from repo."
+    },
+    {
+      "step": "The summary page shows the chosen payment mode",
+      "detail": "Summary shows 'Payment by <mode label>' from PaymentMode[mode].label (PaymentProcess.ts:97-106); the labels are eNETS, Credit Card (Visa/Mastercard) or PayNow (option.ts:55-60)."
+    }
+  ]
+}

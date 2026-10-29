@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.30",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi: workflows/furnish/{stafffurnish/{controllers/StaffFurnishController,services/StaffFurnishService},helpers/FurnishabilityChecker,manual/{ManualFurnishController,ManualFurnishServiceImpl,helpers/ManualFurnishValidationService},plusintegration/controllers/PlusIntegrationController}, workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/CreateNoticeHelper}. ocmsadminui: pages/Notice/hook/useODH.tsx (staff-furnish/*). ocmsadminprivateapi: agencies/toppan/upload/helpers/ToppanUploadHelper (PS-FOR). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "The story has status 'User Story Removed': the verdict stays Removed even though code exists, no diagram, not claimed. Code found: furnish by staff (staff-furnish/*) and PLUS (/plus-furnish) through StaffFurnishService, and officer manual furnish (/furnish/officer/manual/single). Important finding: foreign-vehicle notices are created with an active PS-FOR (CreateNoticeHelper.java:175) and FurnishabilityChecker.checkPermanentSuspension rejects ALL active PS without exception (FurnishabilityChecker.java:340-348), although the javadoc of StaffFurnishService.java:83-85 says PS-FOR is allowed. As a result the staff-furnish and PLUS paths block foreign-vehicle notices until the PS-FOR is revived; the /furnish/officer/manual path only checks stage (ManualFurnishValidationService.java:33-58) so it does not block, but no caller exists in ocmsadminui. Appendix B/Annex 1A is not in the repo so the 'automated processing workflow' cannot be verified from the repo. PLUS endpoint authorization: JwtFilter skips plus-* so protection depends on APIM, which is not visible in the repo. No maintenance ticket was relevant enough to use for the verdict.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "The offending vehicle is recognised as a foreign vehicle (type F) and its notice is outstanding",
+      "detail": "When the notice is created, vehicle type F triggers createForeignVehicleSuspension which inserts PS-FOR into suspended_notice (CreateNoticeServiceImpl.java:1197-1205; CreateNoticeHelper.java:148-176). Type F recognition exists; but PS-FOR becomes active at once, which affects the next furnish steps."
+    },
+    {
+      "step": "The officer updates/furnishes driver's particulars manually in OCMS",
+      "detail": "The staff portal calls staff-furnish/furnish-redirect-check (ocmsadminui useODH.tsx:106) which goes through FurnishabilityChecker; checkPermanentSuspension rejects a notice with any active PS, including FOR (FurnishabilityChecker.java:107-110,340-348, message MSG_PS_SUSPENDED). The javadoc at StaffFurnishService.java:83-85 says FOR is excepted, but the code does not except it. So foreign-vehicle notices are blocked until the PS-FOR is revived. The /furnish/officer/manual/single path only checks stage (ManualFurnishValidationService.java:33-58) and does not block, but nothing in ocmsadminui calls it."
+    },
+    {
+      "step": "Driver's particulars are furnished through PLUS",
+      "detail": "POST /plus-furnish calls staffFurnishService.staffFurnish (PlusIntegrationController.java:136-148), which starts with the same checkFurnishable (StaffFurnishService.java:175-186), so a foreign-vehicle notice with an active PS-FOR is rejected with HTTP 422. JwtFilter skips plus-* endpoints, protection depends on APIM: cannot verify from repo."
+    },
+    {
+      "step": "After furnishing, the notice moves to the driver stage (DN1) per the automated processing workflow",
+      "detail": "staffFurnish replaces the offender and sets the stage to DN1 for a driver (StaffFurnishService.java:238-258, determineNewStage :924-931). This is the generic furnish flow, with no foreign-vehicle branch. Appendix B / Annex 1A is not in the repo, so the match with the 'automated processing workflow' cannot be verified from the repo."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "story": "OCMS11.25",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, refreshCompanyContactInfo, generateMessages, sendEmail), utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. Other repos: no code specific to this story.",
+  "note": "The story asks for an email to each unique company owner listing the outstanding NOPOs and referring to the 3rd letter. In code: companies (id_type B) only receive email, notices are merged per UEN + stage + due date, the RR3_EMAIL_COMPANY(_COMBINED) template is filled with the notice list, then sent through EmailService. Three things lower the claim: (1) the eNotification job is off in prod (cron-schedules-prod.properties:236, ticket OCMS-DF-2026-180 awaits the cron being activated); (2) even if the job is switched on, no email goes out because email.enableSmtp=false and source ENOTIFICATION is not in prod email.smtp.allowedSources (application-prod.properties:80-81), and EmailService refuses to send (EmailService.java:65-71); (3) in prod the company email comes from the old database value because the CorpPass refresh is off (cron.enareminder.datahive=false). The email template text lives in the database, not in the repo: whether it refers to the 3rd letter: cannot verify from repo. Emails for stages DN1/DN2/DR3 are deliberately skipped (no template), which does not affect RR3.",
+  "recommendation": "Claim partially. The per-company notice merging and email sending logic exists, but the eNotification job is off and email sending for source ENOTIFICATION is disabled in prod. Ask URA to confirm the prod configuration and the RR3 template text before claiming in full.",
+  "steps": [
+    {
+      "step": "The company owner's latest email is obtained and unique companies are identified (notices merged per UEN)",
+      "detail": "refreshCompanyContactInfo fetches CP_ACCOUNT_EMAIL (active A01 account) from the CorpPass view through DataHive, but only when cron.enareminder.datahive=true (false in prod, cron-schedules-prod.properties:48); when false the old email_addr in the database is used (NotificationSmsEmailHelper.java:2496-2594, :2461-2484). combineNotices merges notices with key 'B_<UEN>' + stage + due date into one record (:2151-2210, :2230-2246; called at NotificationSmsEmailJob.java:191). The source 'DOS' is not in the repo (DataHive/CorpPass is): cannot verify from repo."
+    },
+    {
+      "step": "The email lists the outstanding NOPOs and refers to the 3rd reminder letter",
+      "detail": "generateMessages picks template <stage>_EMAIL_COMPANY[_COMBINED] (RR3: RR3_EMAIL_COMPANY_COMBINED when there are several notices), fills it with combinedNotices, noticeCount, amountPayable, paymentDueDate and splits subject and body (NotificationSmsEmailHelper.java:274-330, :410-430, :459-476). The NOPO list is included. The template text is in ocms_template_store (DB), not in the repo: whether it refers to the 3rd letter: cannot verify from repo. Missing template -> email skipped (:322)."
+    },
+    {
+      "step": "The email is sent to each company owner in the batch job",
+      "detail": "For id_type B the job sends emails one by one when notification.email.enabled=true (application.properties:177) (NotificationSmsEmailJob.java:378-388) through sendEmail with source ENOTIFICATION (NotificationSmsEmailHelper.java:556-580). EmailService.sendEmail refuses when email.enableSmtp=false and the source is not in email.smtp.allowedSources (EmailService.java:65-71). In prod enableSmtp=false and the allowedSources list does not include ENOTIFICATION (application-prod.properties:80-81), while UAT includes it, so no email is sent in the repo configuration. The job is also off (cron-schedules-prod.properties:236). Mail server and delivery result: cannot verify from repo."
+    }
+  ]
+}

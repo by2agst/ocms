@@ -1,0 +1,29 @@
+{
+  "story": "OCMS14.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/App.tsx, utils/data/LinkData.tsx, utils/Meta/Embassy.ts (Embassy routes and menu are commented out; the pages/epic14 folder does not exist). ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils + application.properties (ocms.vehicle.*), crud/ocmsizdb/OcmsVipVehicle (the only special vehicle number table, for VIP). ocmsadminapi crud/ocmsizdb/OcmsVipVehicle (generic CRUD without a screen). There is no embassy/diplomatic vehicle table.",
+  "note": "The core of this story is a frontend screen where an officer adds and deletes special vehicle numbers and suffixes in a parameter table, and OCMS uses that list to recognise notices. The screen and the table do not exist: all Epic14 routes (EmbassyList, SpecialNotices, DiplomatLetters) are commented out, the Embassy menu is commented out, and the pages/epic14 folder does not exist. Only suffix recognition through properties works (one pattern S..CC/CD/TC/TE), with no list of vehicle numbers. The demo remark mentions ACs for an embassy screen and DIP letters; those are not in the code. Ticket OCMS-SR-2026-051 (patching table ocms_vip_vehicle through a DB script) supports the idea that special vehicle lists are changed in the DB, not through a screen. Table content in the real database cannot verify from repo.",
+  "recommendation": "Do not claim as done. The maintenance screen and the embassy/diplomatic vehicle table do not exist; only suffix recognition through properties works. Claim only the Sebagian parts or mark the gap.",
+  "steps": [
+    {
+      "step": "The officer opens a frontend screen to add and delete special vehicle numbers and suffixes",
+      "detail": "The Epic14 import is commented out (App.tsx:48) and the routes EmbassyList, SpecialNotices, DiplomatLetters are commented out (App.tsx:204-205,214); the Embassy menu is commented out (LinkData.tsx:404); the folder src/pages/epic14 does not exist. The routes that are active under /embassy are only view and edit of a single special notice and drafts (App.tsx:206-216), which are notice screens, not list maintenance. A grep for embassy, diplomat and vip vehicle in ocmsadminui only finds number format validation, LTA flag fields and that menu. There is no screen for table ocms_vip_vehicle either."
+    },
+    {
+      "step": "The list of vehicle numbers and suffixes is saved in a parameter table (embassy details and diplomatic vehicle numbers)",
+      "detail": "There is no entity, repository or SQL for an embassy or diplomatic vehicle table in ocmsadminapi or ocmsadminprivateapi. The DIP and MID rules are stored as properties in application.properties:119-122 and read through @Value without defaults, startup fails if a key is missing (SpecialVehUtils.java:27-36). The only special vehicle number table is ocms_vip_vehicle for VIP (OcmsVipVehicle*). The mechanism differs from the story text."
+    },
+    {
+      "step": "The list covers specific vehicle numbers, not only suffixes",
+      "detail": "isDip and isMid only match prefix and suffix patterns (SpecialVehUtils.java:114-121,128-131); there is no lookup of specific DIP or MID vehicle numbers. The only number lookup in a table is isVip for VIP (SpecialVehUtils.java:138-149), so not DIP. Ticket OCMS-SR-2026-051: the VIP table was changed through a DB script."
+    },
+    {
+      "step": "OCMS recognises notices of vehicles with a special suffix",
+      "detail": "Suffix patterns are recognised at notice creation: DIP prefix S + suffix CC/CD/TC/TE and MID prefix or suffix MID/MINDEF (SpecialVehUtils.java:114-121,128-131; CreateNoticeServiceImpl.java:693-714; hardcoded ocmsadminapi copy CreateNoticeServiceImpl.java:1027-1032). Sebagian because the list comes from properties (not a parameter table maintained by an officer), the same as OCMS14.1 DIP and MID steps. Notices already created are not re-recognised if the properties change (no re-evaluate job was found)."
+    },
+    {
+      "step": "Notices of special vehicles are processed accordingly, including DIP letters generated from embassy details",
+      "detail": "D and I notices enter the normal reminder pipeline RD1 then RD2 (ToppanStage.java:19-20; NoticeProcessingHelper.java:609-615 for I), see OCMS14.3. There is no template or generator for an embassy-specific DIP letter and embassy details are not used (no table); the Diplomat Letters menu is commented out (LinkData.tsx:404; App.tsx:214). The demo remark says DIP letters are generated from a new embassy table; that was not found."
+    }
+  ]
+}

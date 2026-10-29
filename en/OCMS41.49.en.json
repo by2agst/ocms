@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.49",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{hook/{useSearchParams,useBatchOperation,ApplyOperationAction}, component/{NoticeSearchSlot,FailedNoticesList}, list/NoticeSearchAllList}, pages/BatchFurnish/{page,form,list}; ocmsadminapi workflows/furnish/{stafffurnish/StaffFurnishController (furnish-redirect-check), helpers/FurnishabilityChecker}. Other repos: no code.",
+  "note": "Status Demo paid (50% of 75%). The furnishable conditions are computed on the server (active PS, an_flag=Y, stage NPA..CPC) and called from the UI, but the UI deliberately does not filter: useBatchOperation.ts:313-317 sets success = all notices (filter commented out), so the 'selected' list still holds non-furnishable notices. The server rejects those again on submit. Ticket: OCMS-DF-2026-187 (Pending UAT, Payment Status column sort in search results) does not change the verdict; the column code now uses source crsReasonOfSuspension (components/datagrid/column/index.tsx:272), whether it is correct cannot verify from repo.",
+  "recommendation": "Claim partially: the furnishable conditions and rejection reasons are proven; the displayed list is not filtered down to furnishable notices only.",
+  "steps": [
+    {
+      "step": "Officer searches notices with standard parameters (vehicle number, ID number) and the results show with checkboxes",
+      "detail": "The search form sends vehicleNo (useSearchParams.tsx:325) and idNo (:530) to validoffencenoticelist; results show in a Datagrid with select-all/row checkboxes (NoticeSearchAllList.tsx:113-127). The search itself is the subject of OCMS41.41; here the selectable results are judged. Ticket OCMS-DF-2026-187 (Pending UAT) about Payment Status column sort does not change the verdict. Sesuai."
+    },
+    {
+      "step": "OCMS applies the pre-defined furnishable conditions to the selected notices",
+      "detail": "The officer picks Apply Operation > Batch Furnish (the option only shows if the user has function OCMS_BATCH_FURNISH, NoticeSearchSlot.tsx:284-288). The UI calls staff-furnish/furnish-redirect-check with the notice list (useBatchOperation.ts:285-309). FurnishabilityChecker.checkFurnishabilityBatch rejects notices that (1) have an active PS without a date of revival (FurnishabilityChecker.java:340-352), (2) have an_flag = Y (advisory notice) (:363-371), (3) have a last processing stage outside NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC (:51-61, 176-185). The specification's 'pre-defined' condition list is not in the repo, so the match cannot verify from repo. Sesuai."
+    },
+    {
+      "step": "The screen shows the list of furnishable notices",
+      "detail": "The check result is not used to filter: the filter lines are commented out and `result.success = data` (useBatchOperation.ts:313-317), so non-furnishable notices stay in the 'Selected Notices' list and also appear in the 'Notices not furnishable' list (BatchFurnishForm.tsx:328-343). As a result the 'all failed' branch never runs (ApplyOperationAction.tsx:237-248) and the text 'Continue with N notice(s)' counts all notices (:250-256). The other operations (TS/PS/Revival) do filter (useBatchOperation.ts:147). If the check call throws, success and failed are emptied and the officer is still taken to the form without notices (:332). The server rejects non-furnishable notices per notice on submit (StaffFurnishService.java:181-184), so nothing is written wrongly. Sebagian."
+    },
+    {
+      "step": "Non-furnishable notices are shown with a reason per notice",
+      "detail": "Every notice that fails the check goes into `failed` with the server message (useBatchOperation.ts:322-326) and is shown in FailedNoticesList with a message column (FailedNoticesList.tsx:80). Server messages: 'Notice cannot be furnished/redirected - Notice is permanently suspended.', 'Notice is an Advisory Notice and is not eligible for furnish/redirect.', 'Last Processing Stage is not eligible (current: ...)' (FurnishabilityChecker.java:72-78, 120-125). Sesuai."
+    },
+    {
+      "step": "The list shows key notice information so the officer can pick the applicable ones",
+      "detail": "BatchFurnishList shows notice no, type, date, offence place, rule code, vehicle no, stage and processing date, next stage, suspension type/reason, payment status, amount payable (BatchFurnishList.tsx:93-132) and a Delete button per row to drop unwanted notices (:49-59, 134-139). Sesuai."
+    }
+  ]
+}

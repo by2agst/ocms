@@ -1,0 +1,37 @@
+{
+  "story": "OCMS20.26",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/HST/revival/{form/HSTRevivalForm,form/SearchIDForm}, pages/HST/hooks/useHST. ocmsadminapi workflows/notice_management/suspension/{HstManagementController.reviveHst, HstManagementServiceImpl.reviveHst/reviveHstSuspension/updateMailingAddress}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice (findToppanNoticesForStage), framework/workflows/agencies/toppan/upload/{ToppanUploadJob, ToppanUploadHelper}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, resources/application-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status 'Requirement given - Gen flow'. The 'special indicator' in code is HST: one row in ocms_hst plus TS-HST on every notice of that ID. The staff Manual HST Revival page (confirmation, sends ID + name + new address) calls POST /v1/revive-hst, which revives TS-HST, clears the suspension on VON/eVON, deletes the HST row, and writes the new address as furnished_mail with letter_address=Y, so the 'lift indicator' and 'new address' parts exist (HstManagementServiceImpl.java:419-470, 572-623). The 'resend reminder' part is only implicit: revival does not change next_processing_stage/date and does not trigger a letter. A notice joins the letter run when its RD1-DR3 stage is due and the Toppan job is run. Letter generation only runs through the manual trigger POST /generate-letters because the scheduler call is commented out (ToppanUploadJobsScheduler.java:118), and the SFTP upload to Toppan is blocked by sftp.upload.disabledServers=toppan (application-prod.properties:86; OCMS-DF-2026-192 is still Ready to UAT). The real server property value cannot be verified from repo. The revival page stands alone (search by ID) and is not linked to the decision work item (OCMS20.25).",
+  "recommendation": "Claim partially: lifting HST, reviving TS-HST and the new address exist and work through the Manual HST Revival page. Do not claim 'resend reminder to the vendor' in full: there is no explicit resend trigger, letter generation is manual only, and the Toppan upload is blocked by config. Ask URA to confirm whether the reminder must be resent right after the lift (today it depends on next_processing_date)",
+  "steps": [
+    {
+      "step": "OIC looks up the ID on Manual HST Revival and confirms the decision to lift the indicator",
+      "detail": "The /hst/revival page looks up the ID through check-hst (SearchIDForm.tsx:53) and rejects an ID that is not in HST (:64). The Revive HST button validates the form and opens the 'Confirm HST Revival' modal (HSTRevivalForm.tsx:52-76). The modal text only mentions deleting the HST ID and reviving TS-HST, not resending a reminder. The page stands alone and is not linked to the decision work item (scope of OCMS20.25)."
+    },
+    {
+      "step": "The UI sends the ID, name and new address to the revive API",
+      "detail": "handleRevival builds idNo, name, the address (blk, street, floor, unit, building, postal), date_of_address_change and invalid tag, then POSTs revive-hst (HSTRevivalForm.tsx:81-94, useHST.tsx:138-141). HstReviveDto has no address-change-date field (HstReviveDto.java:11-21), so the date_of_address_change sent by the UI is not stored. The endpoint maps to permission OCMS_HST_REVIVAL (api-authorization.properties:102-103); which role holds that permission cannot be verified from repo."
+    },
+    {
+      "step": "The API lifts the indicator: the HST row for that ID is deleted",
+      "detail": "reviveHst calls hstService.delete(idNo) (HstManagementServiceImpl.java:466). The 'H' indicator is derived from whether idNo exists in ocms_hst (checkHstIndicator :69-89), so it disappears after the delete. The controller rejects an ID that is not in HST with 404 (HstManagementController.java:173-176). Note: a per-notice exception is only logged (:460-462) and the response stays successful (controller :180), so the HST row can be deleted even if one notice failed to revive; whether the transaction rolls back in that case cannot be verified from repo."
+    },
+    {
+      "step": "TS-HST on all notices of the ID is revived and the suspension is cleared",
+      "detail": "Notices are found from ONOD offender_indicator=Y per idNo (HstManagementServiceImpl.java:423-428). Per notice, the latest suspended_notice is revived only if it is TS + reason HST + not yet revived (:523-526): date_of_revival, revival_reason HAV, remarks (:527-531). Then the suspension fields on VON are cleared (:540-550) and eVON is synced (:553, :656-672). A notice whose latest suspension is not TS-HST (e.g. PS) is left alone."
+    },
+    {
+      "step": "The new address becomes the letter destination address",
+      "detail": "updateMailingAddress creates or updates the furnished_mail row with the form address and letter_address=Y (HstManagementServiceImpl.java:601-607), then clears letter_address=Y on the other address rows (:617, :630-649). Toppan picks the letter_address=Y row as the letter address (ToppanUploadHelper.java:2197-2200), so the next letter uses the new address. A failed address update is only logged (:619-622)."
+    },
+    {
+      "step": "The reminder is resent to the new address after the indicator is lifted",
+      "detail": "Revival only clears suspension_type; next_processing_stage and next_processing_date are not changed and there is no resend trigger (HstManagementServiceImpl.java:515-556). A notice joins the letter run when its stage is due (next_processing_date <= today) and suspension_type is NULL (OcmsValidOffenceNoticeRepository.java:608-611), so 'resend' is just moving on to the next stage, not resending the reminder that was returned. Letter generation only runs through the manual POST /generate-letters (ToppanUnifiedController.java:34-40) because executeJob is commented out in the day-end scheduler (ToppanUploadJobsScheduler.java:118)."
+    },
+    {
+      "step": "PDF/data files are sent to the vendor for printing and postage",
+      "detail": "The job builds the data file URA-DPT-{stage}-... and uploads it to blob (ToppanUploadJob.java:286-289, 314); PDFs are only built for the ANL stage (:322-333), reminders are data files. The SFTP delivery to Toppan is blocked by sftp.upload.disabledServers=toppan (application-prod.properties:86), and the delivery gate is bypassed so the stage still advances although the file is not delivered (ToppanUploadJob.java:418-429; OCMS-DF-2026-192, Ready to UAT). The real server property value cannot be verified from repo."
+    }
+  ]
+}

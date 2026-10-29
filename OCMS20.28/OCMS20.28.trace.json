@@ -1,0 +1,64 @@
+{
+  "story": "OCMS20.28",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/HST/revival/{form/HSTRevivalForm,form/SearchIDForm,list/OutstandingNoticesList}, pages/HST/hooks/useHST, App.tsx, utils/data/LinkData, utils/Meta/HSTs. ocmsadminapi workflows/notice_management/suspension/{HstManagementController, HstManagementServiceImpl, revivenotice/helpers/ReviveProcessingHelper}, resources/api-authorization.properties. ocmsadminprivateapi schedulers/ToppanUploadJobsScheduler, workflows/autorevival/helpers/AutoRevivalHelper, crud/ocmsizdb/OcmsValidOffenceNotice. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story 'Demo paid (50% of 75%)', demo remark 'Manual revive so notice processing continue'. Fiturnya ada dan jelas: menu HST > Manual HST Revival (/hst/revival) memanggil POST /v1/revive-hst yang me-revive TS-HST di semua notice milik ID tanpa cek tanggal jatuh tempo revival, mengosongkan suspension VON/eVON, dan menghapus baris HST (HstManagementServiceImpl.java:419-470, 515-556). Notice lalu tidak lagi dikecualikan dari query enquiry yang memakai NOT EXISTS ocms_hst (OcmsValidOffenceNoticeRepository.java:549, 576). Job otomatis HST Auto Suspension dan HST Looping dikomentari dari scheduler day-end (ToppanUploadJobsScheduler.java:120-121), jadi lift manual tidak bentrok dengan proses otomatis; revival otomatis memasang ulang TS-HST hanya untuk suspension yang ia revive sendiri (AutoRevivalHelper.java:757-775, OCMS-DF-2026-117). Satu hal yang perlu diwaspadai: exception per notice hanya di-log (HstManagementServiceImpl.java:460-462) dan baris HST tetap dihapus (:466); kalau satu notice gagal di-revive, ID tidak bisa dicari lagi di halaman revival (cek-nya butuh baris HST). Dampak transaksi (rollback atau tidak) cannot verify from repo. Role yang boleh memakai OCMS_HST_REVIVAL cannot verify from repo.",
+  "recommendation": "Aman diklaim sebagai fitur yang berjalan. Catat satu risiko: kegagalan revive per notice ditelan dan baris HST tetap dihapus, sehingga notice bisa tertinggal TS-HST tanpa jalan lift lewat UI. Layar hanya lift per ID, bukan per notice (revive biasa memblok TS-HST, ReviveProcessingHelper.java:146-151)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka layar Manual HST Revival kapan saja",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:183-203; ocmsadminui/src/App.tsx:196-200; ocmsadminui/src/utils/Meta/HSTs.ts:16-19; ocmsadminapi/src/main/resources/api-authorization.properties:102-103",
+      "fit": "Sesuai",
+      "detail": "Menu HST punya anak 'Manual HST Revival' (LinkData.tsx:183-203, Meta HSTs.ts:16-19) dan route /hst/revival (App.tsx:196-200). Tidak ada pembatasan waktu, jadwal, atau status job di UI maupun API revive. Endpoint dipetakan ke permission OCMS_HST_REVIVAL (api-authorization.properties:102-103); role yang memegangnya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mencari ID dan OCMS memastikan ID itu memang di bawah HST",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/SearchIDForm.tsx:53; ocmsadminui/src/pages/HST/revival/form/SearchIDForm.tsx:64; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:101-118; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:157-165",
+      "fit": "Sesuai",
+      "detail": "SearchIDForm memanggil check-hst dengan checkType revival (SearchIDForm.tsx:53). API mengembalikan nama dan alamat tersimpan dari ocms_hst bila ada (HstManagementServiceImpl.java:101-118, 157-165); bila tidak ada, UI menampilkan 'not suspended under HST' dan berhenti (SearchIDForm.tsx:64). Daftar notice di layar diambil dari offencenoticeownerdriverlist hanya dengan filter idNo (SearchIDForm.tsx:78-81), bukan hanya notice outstanding, walau judul tabelnya 'Outstanding Notices (Will be revived)'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfirmasi lift manual",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:52-76; ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:81-94; ocmsadminui/src/pages/HST/hooks/useHST.tsx:138-141",
+      "fit": "Sesuai",
+      "detail": "Tombol Revive HST membuka modal 'Confirm HST Revival' yang menyebut penghapusan HST ID dan revive semua TS-HST (HSTRevivalForm.tsx:52-76). Setelah OK, UI POST revive-hst dengan idNo, nama, dan alamat (HSTRevivalForm.tsx:81-94, useHST.tsx:138-141). Sama dengan langkah konfirmasi di OCMS20.26."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "TS-HST pada semua notice milik ID langsung di-revive tanpa menunggu proses otomatis",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:423-428; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:515-556; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/revivenotice/helpers/ReviveProcessingHelper.java:146-152; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119-121; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:757-775",
+      "fit": "Sesuai",
+      "detail": "reviveHst me-revive TS-HST terbaru di tiap notice offender ID itu tanpa memeriksa due_date_of_revival atau jadwal job (HstManagementServiceImpl.java:423-428, 515-556). Revive biasa per notice memblok TS-HST (ReviveProcessingHelper.java:146-152), jadi halaman ini jalur manualnya. Job otomatis HST Auto Suspension dan HST Looping dikomentari di scheduler day-end (ToppanUploadJobsScheduler.java:120-121), sedangkan AutoRevival tetap jalan (:119) dan hanya memasang ulang TS-HST untuk suspension yang ia revive sendiri (AutoRevivalHelper.java:757-775). Suspension yang sudah di-revive manual punya date_of_revival terisi sehingga tidak ikut. Fit sama dengan langkah revive di OCMS20.26. Tiket OCMS-DF-2026-117 (closed) soal logika looping TS-HST."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Special indicator dicabut dari ID",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:460-466; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:69-89; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:168-188",
+      "fit": "Sesuai",
+      "detail": "hstService.delete(idNo) menghapus baris di ocms_hst (HstManagementServiceImpl.java:466); indicator 'H' bergantung pada baris itu (:69-89). Catatan risiko: exception per notice hanya di-log (:460-462) dan delete tetap jalan, jadi kalau satu notice gagal di-revive, notice itu tertinggal TS-HST dan ID tidak lagi muncul di halaman revival; dampak rollback cannot verify from repo. Fit sama dengan langkah 'indicator dicabut' di OCMS20.26."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kembali diproses setelah lift",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:540-553; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:549; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:576",
+      "fit": "Sesuai",
+      "detail": "Revive mengosongkan suspension_type, eprReasonOfSuspension, eprDateOfSuspension dan dueDateOfRevival di VON serta menyinkronkan eVON (HstManagementServiceImpl.java:540-553). Query enquiry yang memakai NOT EXISTS ocms_hst (OcmsValidOffenceNoticeRepository.java:549, 576) tidak lagi mengecualikan ID itu karena baris HST sudah hilang, dan query Toppan hanya mensyaratkan suspension_type IS NULL. Catatan: pembuatan surat Toppan sendiri hanya lewat trigger manual dan upload Toppan diblok config (lihat OCMS20.26); itu bukan bagian langkah lift ini."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS34.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/pages/NoticeSearch (page/upload/{Upload,UploadResult,UploadErrorList}.tsx, context/NoticeSearchUploadContext.tsx), components/SheetUpload.tsx, context/SheetContext.tsx, utils/data/SheetData.ts (HeaderNoticeSearchAll), utils/validation/NoticeSearch/ValidNoticeSearchUpload.ts, App.tsx route notices/search/:search_type/upload; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (POST validoffencenoticelist). A generic Notice Search XLSX upload, not house-visit specific. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "The story asks the Tagging officer to upload summon numbers or IDs in an Excel file so OCMS can automate the checks for the daily house visit schedule. What exists is the generic Notice Search > Upload Template (XLSX) feature: a template with columns Notice No., Summon No., Vehicle No., ID No. (SheetData.ts:531-536), only .xlsx up to 2 (ValidFile.ts:154,167-170), each row is format-validated and queried through POST validoffencenoticelist, and rows not found go to an error list. But the feature is not tied to house visits or the service provider schedule (the words house visit do not appear in the six repos). There is a gap in the code: summon_no is validated (ValidNoticeSearchUpload.ts) but not put into the query params (NoticeSearchUploadContext.tsx:106-112), while the single search form uses the summon endpoint (useSearch.ts:56-62). From reading the code, a row holding only a Summon No. calls validoffencenoticelist with only offenderIndicator=Y and $limit=999, so the result may be up to 999 unrelated notices or not the notice of that summon; not executed, runtime behaviour cannot verify from repo. Access (Tagging officer) is only limited by the function OCMS_NOTICE_SEARCH in api-authorization.properties:21; the Tagging officer role cannot verify from repo. The story status in stories.json is blank, so the requirement is not given. No maintenance ticket is relevant to this upload.",
+  "recommendation": "Claim partially. XLSX upload of notice/ID numbers exists as a Notice Search feature, but it is not a house visit feature and summon_no is not used in the query. Fix the summon_no handling before claiming in full",
+  "steps": [
+    {
+      "step": "Officer membuka halaman upload XLSX untuk nomor summon / ID",
+      "detail": "Route notices/search/:search_type/upload opens the 'Search Notices - XLSX File Upload' page (App.tsx:108-117; Upload.tsx:59-68). It is the generic Notice Search page, not a house visit schedule page; there is no link to a service provider or work order."
+    },
+    {
+      "step": "Officer meng-upload file Excel berisi Summon No. / ID No. sesuai template",
+      "detail": "The template 'Search-Notices-Template' has columns Notice No., Summon No., Vehicle No., ID No. (SheetData.ts:531-536). SheetContext.tsx:103-112 registers it with .xlsx format and a maximum of 2 (ValidFile.ts:154,167-170). The file is uploaded and parsed in the browser through SheetUpload.tsx."
+    },
+    {
+      "step": "Format tiap baris (Summon No., ID No., Notice No.) divalidasi sebelum dicek",
+      "detail": "ValidNoticeSearchUpload uses the NoticeNo, SummonNo and IDNo validators (ValidNoticeSearchUpload.ts:11-15). NoticeSearchUploadContext.tsx:90-101 runs yup.validate per row and stores errors per field; invalid rows are not queried."
+    },
+    {
+      "step": "OCMS memakai nomor summon / ID dari baris untuk mencari notice terkait",
+      "detail": "The query to POST validoffencenoticelist uses noticeNo, vehicleNo, idNo and offenderIndicator=Y, limit 999 (NoticeSearchUploadContext.tsx:106-122). summon_no is not in the params although it is validated and in the template. From reading the code, a Summon-No-only row calls the endpoint with only the offenderIndicator filter (not executed; runtime behaviour cannot verify from repo). Rows not found go to the error list 'Record is not found' (:134-135) and can be downloaded (UploadErrorList.tsx)."
+    }
+  ]
+}

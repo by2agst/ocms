@@ -1,0 +1,46 @@
+{
+  "story": "OCMS48.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Staff UI (ocmsadminui): tidak ada layar pilih-banyak court notice maupun form bulk decision; payment acceptance flag hanya ditampilkan (pages/Notice/detail/PaymentDetails.tsx). Yang ada hanya API machine-to-machine ocmsadminapi workflows/cas_integration (CasIntegrationController: /casUpdateCourtNotices, /plus-payment-activation) yang diisi sistem CAS/PLUS, plus cron ocmsadminprivateapi workflows/paymentcutoff (PaymentAcceptanceCutoffServiceImpl) yang scheduler-nya di-comment. Form UPL Decision Request (ocmsadminui pages/NoticeUPL) mirip tapi per-notice dan untuk notice UPL.",
+  "note": "Story Removed (status_with_ura). Story minta officer memilih court notices lalu mengisi composition amount, payment due date, dan payment acceptance flag untuk di-apply bulk. Di staff portal tidak ada layar seleksi banyak court notice dan tidak ada form bulk decision (grep bulk/court/composition di ocmsadminui: hanya hideBulkDownload di DecissionDetails.tsx:297 dan Furnish/form/DecisionForm.tsx:397, tidak terkait). payment_acceptance_allowed hanya ditampilkan (PaymentDetails.tsx:61). Nilai-nilai ini hanya bisa masuk lewat API sistem lain: /casUpdateCourtNotices (CAS, max 500, mengisi amount_payable dan payment_acceptance_allowed, bukan composition amount dan bukan due date) dan /plus-payment-activation (PLUS, max 10, mengisi amount_payable, flag, dan court payment due date di ocms_court_case). Kedua endpoint dikecualikan dari JWT (JwtFilter.java:183, WebConfig.java:83-85), jadi proteksi bergantung pada APIM yang tidak terlihat di repo. casUpdateCourtNotices menolak notice FULL_PAYMENT (CasIntegrationServiceImpl.java:336). Cron payment acceptance cutoff (set flag N setelah due date lewat) hanya menulis VON (PaymentAcceptanceCutoffServiceImpl.java:77-83), tidak menulis eVON yang dibaca portal publik, dan pemanggilannya di-comment (ToppanUploadJobsScheduler.java:123). Verdict tetap Removed; semua code di atas tidak diklaim. Tiket: OCMS-SR-2026-155 (UPL decision workflow tidak punya backend).",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer sudah memilih beberapa court notice untuk bulk decision di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/DecissionDetails.tsx:297; ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:59-68",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar pilih-banyak court notice. Satu-satunya list dengan tombol aksi (UPL RequestList) memakai tombol Propose per baris, satu notice per submit (RequestList.tsx:59-68). Kata bulk di ocmsadminui hanya muncul sebagai hideBulkDownload (DecissionDetails.tsx:297). Dicari dengan court, bulk, courtcase, selection di ocmsadminui; 0 hasil yang relevan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi composition amount untuk court notice yang dipilih",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/RequestForm.tsx:116; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:103-117",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada input composition amount untuk court notice. CompositionAmountInput hanya ada di form UPL Decision Request per notice (RequestForm.tsx:116, tampil saat stage DN1), itu fitur lain dan bukan bulk. API CAS tidak menyentuh composition_amount: SET clause hanya amount_payable dan payment_acceptance_allowed dkk (CasIntegrationServiceImpl.java:103-117). Form UPL dicatat sebagai orphan Removed tapi mirip."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menentukan payment due date untuk court notice yang dipilih",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:805-823; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:55; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:123",
+      "fit": "Sebagian",
+      "detail": "Tidak ada input officer. Court payment due date hanya bisa diisi oleh sistem PLUS lewat /plus-payment-activation (disimpan ke ocms_court_case, CasIntegrationServiceImpl.java:805-823). Due date dipakai cron payment acceptance cutoff untuk mencari notice yang lewat due date (PaymentAcceptanceCutoffServiceImpl.java:55), tetapi pemanggilan cron di-comment (ToppanUploadJobsScheduler.java:123), jadi hanya jalan lewat endpoint manual POST /payment-acceptance-cutoff. Halaman admin Court Payment Due Date hanya punya Meta path dan tidak punya route (Meta/System.ts:20, tidak ada di App.tsx). Sebagian karena data due date ada, tetapi bukan input officer dan bukan bulk dari staff portal. Nilai property cron di server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menentukan payment acceptance flag (enabled/disabled) untuk court notice yang dipilih",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:220; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:801; ocmsadminui/src/pages/Notice/detail/PaymentDetails.tsx:61",
+      "fit": "Sebagian",
+      "detail": "Flag bisa di-set massal, tetapi bukan oleh officer: /casUpdateCourtNotices (CasIntegrationController.java:101, max 500) dan /plus-payment-activation (CasIntegrationController.java:220, max 10, setPaymentAcceptanceAllowed di CasIntegrationServiceImpl.java:801) menerima flag dari CAS/PLUS. Staff portal hanya menampilkan flag (PaymentDetails.tsx:61), tidak ada kontrol ubah. Kedua endpoint skip JWT (JwtFilter.java:183, WebConfig.java:83-85); proteksi APIM cannot verify from repo. Terkait tiket OCMS-SR-2026-179 (flag payment_acceptance_allowed stuck blank untuk NRO/CSD/CSR setelah stage transition CAS, On Hold) dan OCMS-DF-2026-173 (settled case masih flag Y). Sebagian karena mekanisme set flag massal ada, tetapi aktornya sistem lain."
+    }
+  ]
+}

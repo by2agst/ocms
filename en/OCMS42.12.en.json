@@ -1,0 +1,37 @@
+{
+  "story": "OCMS42.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDParticulars,HDQuests,Documents,Particulars}.ts, pages/Furnish/API.ts, utils/option.ts, utils/validation/Furnish/ValidHirerDriver.ts, utils/map/MapFurnish.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}, workflows/uploadfile/FileUploadServiceImpl, crud/beans/SystemConstant, utilities/SingaporeIdValidator. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant.",
+  "note": "3-point story, status_with_ura 'Demo paid (50% of 75%)', demo_remark 'Internet PII encryption - cannot fetch offender particulars'. The company hirer/driver form (ID type UEN/NRIC/FIN/Passport, name, address, contact, email, relationship, document upload) exists and is validated in the UI and on the server. There is no automatic lookup of hirer particulars by ID (manual entry), matching 'fill in' in the story; the demo remark about Internet DB PII encryption cannot be verified from the repo. The only step that is not fully Sesuai is the company auto-populate (company name only, same as OCMS42.11). 'Save' happens at the final submit after review (not a mid-form save); the form is also cached in the browser. Related tickets: OCMS-DF-2026-137 (UEN accepted an NRIC, Closed, eService API/UI deployed to Prod 23 July) and OCMS-DF-2026-110/-143/-175 (company submit errors; all Closed, -175 closed without a code change). No open ticket on these steps.",
+  "recommendation": "Claimable for the hirer/driver form, relationship, supporting documents and saving. Record the auto-populate gap (company name only) and that the demo remark about PII encryption cannot be verified from the repo.",
+  "steps": [
+    {
+      "step": "Company owner has used MyInfo Business and the company particulars are auto-populated",
+      "detail": "The 'Retrieve MyInfo Business' button calls POST userinfo (Furnish.ts:455-457). For Corppass the backend only calls EDH (UserInfoController.java:108-121) and the UI only takes entityName from the result (API.ts:416-422), so only the Company Name is auto-populated (Furnish.ts:211). Contact number and email are not filled from MyInfo Business and must be typed. The real EDH/MyInfo Business response cannot be verified from the repo (external Singpass/Corppass). The same fact is judged in sibling stories OCMS42.10 and OCMS42.12."
+    },
+    {
+      "step": "Company chooses the hirer or driver ID type (UEN, NRIC, FIN, Passport)",
+      "detail": "The hdIDType dropdown uses HDIDTypeUENOptions, which contains NRIC, FIN, Passport, UEN (option.ts:27-32; HDParticulars.ts:203-224). Choosing UEN as a driver is rejected with 'ID Type cannot be UEN if the person is a Driver' (HDParticulars.ts:225-230; error.ts:28). Changing the ID type clears the other hd* fields (HDParticulars.ts:220, 275-334)."
+    },
+    {
+      "step": "Company enters the hirer or driver ID number and name, with validation",
+      "detail": "The hdID and hdName fields are rendered and validated via ValidPerson (ValidHirerDriver.ts:21-30); a UEN name may contain digits, an NRIC/FIN/Passport name may not (HDParticulars.ts:185-193; FurnishRequestValidator.java:107-131). The server checks format and checksum per ID type via SingaporeIdValidator.getValidationError (FurnishRequestValidator.java:133-143). OCMS-DF-2026-137 (NRIC accepted as UEN) is Closed/Prod deployed for the eService API and UI; the code state in prod cannot be verified from the repo."
+    },
+    {
+      "step": "Company enters the hirer or driver address, contact number and email",
+      "detail": "HDParticulars renders address-fields (postal, block, street, floor, unit, building), contact-fields and email-fields with hd* keys (HDParticulars.ts:104-145, 361-365), validated by ValidAddress/ValidContact/ValidEmail (ValidHirerDriver.ts:32-60). The server requires block, street name and postal code (FurnishRequestValidator.java:69-87). Address auto-fill from postal code is another story (OCMS42.21)."
+    },
+    {
+      "step": "Company indicates the relationship of the hirer or driver with the owner (e.g. leased vehicle)",
+      "detail": "The 'Relationship to owner' radio is filled from RelationshipOptions (Employee, Vehicle is leased, Family, Others) or RelationshipUENOptions (Subsidiaries, Vehicle is leased, Others) depending on the hirer ID type (HDQuests.ts:163-208; option.ts:34-54). It is mandatory in the UI (ValidHirerDriver.ts:165-169) and on the server (FurnishRequestValidator.java:91-93). 'Vehicle is leased' triggers the rental period (OCMS42.14) and 'Others' triggers free text (OCMS42.13)."
+    },
+    {
+      "step": "Company attaches supporting documents in common file formats (PDF, jpg, png)",
+      "detail": "Documents are uploaded per type by the UI to the temp upload endpoint (Documents.ts:269-274; API.ts:718-740). The server accepts the extensions bmp, jpeg, jpg, png, doc, docx, pdf, xls, xlsx (SystemConstant.java:143-145; FileUploadServiceImpl.java:67-74) with a limit of 10 MB per file, 20 MB in total and at most 10 documents (SystemConstant.java:164-165; FurnishRequestValidator.java:367-390). The PDF, jpg, png named in the story are included. The detail of the server content-type/magic-byte check was not traced."
+    },
+    {
+      "step": "The hirer or driver particulars and documents are saved",
+      "detail": "While filling in, the form is cached in the browser (HDParticulars.ts:271-273). Permanent saving happens at the final submit after review: POST /v1/furnishapplication fills the furnish application record (name, ID, address, relationship, rental) and batch-saves the applications and documents to the PII DB (FurnishSubmissionServiceImpl.java:119-128, 173-198). Tickets OCMS-DF-2026-110/-143/-175 reported a generic submit error for Corppass users; all are Closed and none is open, but -175 was closed without a code change. PII encryption and the result in the DB cannot be verified from the repo."
+    }
+  ]
+}

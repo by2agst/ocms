@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.29",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/daily_reports/{jobs/ClassifiedVehicleReportJob,helpers/ClassifiedVehicleReportHelper,models/ClassifiedVehicleReport*,services/impl/DailyReportServiceImpl}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAllTypeVNotices, findTypeVAmendedToS), utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code laporan/dashboard classified vehicle",
+  "note": "Story status 'Requirement given - Gen flow'. Yang ada adalah laporan HARIAN 'Classified Vehicle (VIP) Report' (job 7 di DailyReportJobsScheduler, 08:00) yang mengirim Excel 3 sheet lewat email ke email.report.recipients. Tidak ada jadwal mingguan atau bulanan untuk laporan ini: daftar job bulanan hanya Monthly Exception Report, Monthly Paid Report, HST Monthly Query (cron-schedules-prod.properties:282-284) dan satu-satunya cron mingguan adalah pembersihan blob. Laporannya kumulatif (semua notice tipe V sepanjang waktu, tanpa filter periode), bukan ringkasan per minggu/bulan. Tidak ada dashboard OIC di code mana pun; 'routing ke dashboard' diwujudkan sebagai email. Pengiriman email juga dimatikan di prod: email.enableSmtp=false dan email.smtp.allowedSources tidak memuat sumber laporan ini, sedangkan job tidak mengisi source di EmailRequest, sehingga EmailService.sendEmail mengembalikan false dan job berstatus gagal (application-prod.properties:80-81, EmailService.java:65-71, ClassifiedVehicleReportJob.java:139-146). Nilai server asli cannot verify from repo. Kolom 'Outstanding/Settled' dihitung dari amount_payable > 0, bukan dari payment status. Tidak ada maintenance ticket yang menyebut laporan ini.",
+  "recommendation": "Klaim kecil. Hanya laporan harian kumulatif yang dikirim lewat email yang ada; laporan mingguan, bulanan, dan dashboard OIC tidak ada, dan email dimatikan di properties prod. Jangan klaim sebagai selesai.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan ringkasan mingguan untuk notice classified vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:268; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:102",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya jadwal laporan classified vehicle adalah job 7 di combined daily report, cron.dailyreport.schedule=0 0 8 * * ? (cron-schedules-prod.properties:255-256,268; DailyReportJobsScheduler.java:102). Tidak ada jadwal mingguan untuk laporan ini; satu-satunya cron mingguan di file properties adalah pembersihan blob (cron-schedules-prod.properties:318). Pencarian 'weekly' dan 'classified' di semua repo tidak menemukan job lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan ringkasan bulanan untuk notice classified vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-284",
+      "fit": "Tidak ada code",
+      "detail": "Combined monthly report (tanggal 1, 08:30) hanya berisi Monthly Exception Report, Monthly Paid Report, dan HST Monthly Query (cron-schedules-prod.properties:275,282-284). Tidak ada job classified vehicle bulanan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Ada laporan ringkasan notice classified vehicle (jumlah total, outstanding, settled, di-amend)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:49-53; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:133-161; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:728; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:749-751",
+      "fit": "Sebagian",
+      "detail": "ClassifiedVehicleReportHelper membuat Excel 3 sheet: Summary, Type V Notices Detail, Amended Notices (V to S) (ClassifiedVehicleReportHelper.java:49-53,106-113). Sheet Summary memuat Total Notices Issued, Outstanding, Settled, Amended (:154-161). Data diambil dari semua VON bertipe V tanpa filter tanggal (OcmsValidOffenceNoticeRepository.java:728), jadi isinya kumulatif, bukan ringkasan per minggu/bulan. Notice yang diamend dihitung dari TS-CLV yang sudah di-revive dan kini bertipe S (:749-751)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat offence, car park, amount payable, alasan suspension, notice outstanding, dan notice settled",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/ClassifiedVehicleReportHelper.java:179-183; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:710-728",
+      "fit": "Sebagian",
+      "detail": "Sheet detail punya kolom Offence Code (computer_rule_code), Place of Offence (pp_name), Composition/Amount Payable, Payment Status, Suspension Type, Suspension Reason (ClassifiedVehicleReportHelper.java:179-183; OcmsValidOffenceNoticeRepository.java:710-728). Offence berupa kode, bukan uraian. Suspension Reason diambil dari epr_reason_of_suspension VON, yaitu alasan suspension terbaru. Payment Status Outstanding/Settled hanya dari amount_payable > 0 (:724-726), bukan dari payment_status, sehingga notice yang di-waive tapi masih punya amount_payable muncul sebagai Outstanding."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diarahkan ke dashboard OIC untuk tindak lanjut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:113-129; ocmsadminprivateapi/src/main/resources/application-prod.properties:57",
+      "fit": "Beda dari flow",
+      "detail": "Laporan tidak masuk dashboard: job membuat EmailRequest ke email.report.recipients dengan Excel terlampir (ClassifiedVehicleReportJob.java:113-137; application-prod.properties:57, tiga alamat email URA). Tidak ada endpoint, tabel, atau halaman dashboard OIC untuk laporan ini di ocmsadminapi, ocmsadminui, maupun repo lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan benar-benar terkirim ke penerima OIC",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-71; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/ClassifiedVehicleReportJob.java:139-146",
+      "fit": "Sebagian",
+      "detail": "email.enableSmtp=false di properties prod dan email.smtp.allowedSources hanya memuat DAILY_PAID_REPORT, MONTHLY_PAID_REPORT, PAYMENT_EXCEPTION_REPORT, JOB_EXECUTION_REPORT, LTA_REPORT, FURNISH_DAILY_NOTIFICATION, TOPPAN_REPORT, MHA_REPORT, DATAHIVE_CONTACT_INFO (application-prod.properties:80-81). Job tidak mengisi source di EmailRequest, jadi EmailService.sendEmail mengembalikan false (EmailService.java:65-71) dan job mencatat 'Email sending failed' (ClassifiedVehicleReportJob.java:139-146). Berdasarkan repo, email tidak terkirim; nilai server asli cannot verify from repo."
+    }
+  ]
+}

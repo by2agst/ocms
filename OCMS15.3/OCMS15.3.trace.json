@@ -1,0 +1,46 @@
+{
+  "story": "OCMS15.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/CPS/page/CPSSearch.tsx (formSearchToParams, Datagrid), utils/validation/CPS/ValidCPSSearch.ts + NoticeSearch/Valid.ts (format), components/datagrid/template/template2/Form.tsx (modal error), components/datagrid/table/TableBody.tsx (teks kosong default), pages/CPS/form/CPSForm.tsx (modal hasil validate); ocmsadminapi OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices (hitung ineligible), ChangeOfProcessingController.validateChangeProcessingStage, EligibilityService}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Story minta pesan error jika nilai search tidak valid (notice number salah, sudah paid, cancelled, dst) atau tidak ada notice yang berlaku. Yang ada: pesan error untuk format notice no/vehicle no yang salah dan untuk kombinasi kriteria yang kurang. Untuk notice yang paid, NPA, court atau punya PS (termasuk cancelled), API menghitungnya di summary.ineligible tetapi UI tidak membaca summary itu (tidak ada pemakaian summary/ineligible di pages/CPS maupun components/datagrid), jadi notice itu hilang diam-diam tanpa alasan. Hasil kosong hanya menampilkan teks default 'No records to display' di grid, bukan pesan error. Pesan alasan per notice baru muncul di langkah berikutnya (validate) untuk notice yang sudah dipilih. Format ID No tidak divalidasi di UI CPS. Cara UI menangani respons error 400/500 dari API tidak ditelusuri (cannot verify). Tiket maintenance: tidak ada yang menyentuh pesan search ini.",
+  "recommendation": "Klaim sebagian (Evidence 50%): pesan format dan kombinasi ada, tetapi tidak ada pesan alasan untuk notice paid/cancelled/court/PS dan hasil kosong hanya teks default. Perlu pesan error khusus di UI memakai summary.ineligible",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai pencarian tidak valid (format notice no atau vehicle no salah, kriteria kurang) menampilkan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/CPS/ValidCPSSearch.ts:18-19; ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:18-31; ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:34-40; ocmsadminui/src/i18n/en/translation.json:988-991; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:149-151; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:270-289; ocmsadminui/src/components/datagrid/template/template2/Form.tsx:80-96",
+      "fit": "Sesuai",
+      "detail": "ValidCPSSearch memasang validator NoticeNo (pesan 'Invalid notice no.', translation.json:988-991) dan VehicleNo ('Number does not match the local vehicle number format', Valid.ts:38). Saat Search ditekan, validate() dan formSearchToParams yang gagal ditampilkan di ModalAlert (template2/Form.tsx:80-96); formSearchToParams juga melempar pesan 'Please enter another field...' atau 'Please enter Current Processing Stage field...' (CPSSearch.tsx:270-290). Format ID No tidak divalidasi di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah paid, cancelled, atau tidak berlaku lainnya memunculkan pesan error beserta alasannya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:376-429; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:436-441; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:333-364",
+      "fit": "Beda dari flow",
+      "detail": "API membuang notice paid, NPA, stage non-eligible, dan PS aktif (cancelled termasuk PS) lalu hanya menghitungnya di summary.ineligible (Service:376-441). UI tidak membaca summary itu: Datagrid hanya menerima data[] (CPSSearch.tsx:333-364) dan grep summary/ineligible di pages/CPS dan components/datagrid kosong. Hasilnya notice hilang diam-diam, tanpa pesan error atau alasan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika tidak ada notice yang berlaku, OCMS menampilkan pesan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/table/TableBody.tsx:19; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:341-343; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:254-259",
+      "fit": "Sebagian",
+      "detail": "Grid memakai teks kosong default 'No records to display' (TableBody.tsx:19) karena CPSSearch hanya mengisi label.title (CPSSearch.tsx:341-343). Ada pemberitahuan, tetapi bukan pesan error dan tidak membedakan 'nilai salah' dari 'tidak ada notice yang berlaku'. Response API tetap 200 dengan data kosong (Controller:254-259)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah dipilih tetapi tidak boleh diubah ditolak dengan pesan alasan per notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/form/CPSForm.tsx:107-145; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:140-215; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:36-47; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:86-98",
+      "fit": "Sebagian",
+      "detail": "Saat Proceed to CPS, UI memanggil POST change-processing-stage/validate lalu menampilkan modal '<n> notice(s) cannot be changed' berisi noticeNo dan pesan, mis. 'Notice is at court stage' atau 'Notice has permanent suspension (PS-xxx)' (CPSForm.tsx:113-145; EligibilityService:86-98). Pesan alasan ini ada, tetapi muncul setelah notice dipilih, bukan di hasil pencarian seperti yang diminta story."
+    }
+  ]
+}

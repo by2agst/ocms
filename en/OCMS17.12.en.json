@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/TSForm.tsx, utils/mapping/TS/TS.ts; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/TemporarySuspensionHelper,helpers/SuspensionBaseHelper}.java (staff-apply-suspension -> processTS -> VON, eVON, ocms_suspended_notice); api-authorization.properties OCMS_APPLY_TS. ocmsadminprivateapi: AutoRevivalHelper (revive at due date). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "After the officer confirms, the UI maps the form to the request (suspensionType TS, reasonOfSuspension, dueDateOfRevival = number of days, remarks, officer) and sends POST staff-apply-suspension in batches of 20 notices. The backend handles each notice in TemporarySuspensionHelper.processTS: source permission, stage, paid and PS-overlap checks, revival date = now + days, then updates VON, syncs eVON and inserts one ocms_suspended_notice row with the TS's own revival date. Mismatch: when days is empty, 0 or negative, calculateRevivalDate silently uses the default days from ocms_suspension_reason or 30 days instead of the requested duration, and neither the UI nor the backend enforces a minimum of 1 day. Other notes: VON keeps only the furthest revival date when another TS already exists (the 'furthest' rule) while the ocms_suspended_notice row keeps the TS's own date. The catch in processTS (lines 134-137) does not rethrow, so a possible partial write on a DB error needs verification. Tickets: OCMS-DF-2026-027 (duplicate sr_no in batch, Closed/Prod deployed; the code now calls the sequence per notice, SuspensionProcessingController.java:997), OCMS-SR-2026-022 ('0 notices' pop-up caused by a timeout on one 84-notice request; fix: batch of 20 and res.error check, TSForm.tsx:97-113). Revival at the due date runs through Auto Revival (job 2 of the toppanupload cron, enabled=true in cron-schedules-prod.properties:62); the real server value cannot be verified from the repo.",
+  "recommendation": "Claimable for the main flow (UI -> staff-apply-suspension -> VON/eVON/suspended_notice). Note the duration gap: days that are empty or <= 0 are not rejected and are replaced by a default.",
+  "steps": [
+    {
+      "step": "After confirming, the portal sends the suspension request in small batches.",
+      "detail": "After confirmation, onAPI maps the form with TSMapping.CreateDataMapping (suspensionType TS, reasonOfSuspension = code, dueDateOfRevival = day_no, suspensionRemarks, officerAuthorisingSuspension = user) and POSTs 'staff-apply-suspension' per group of 20 notices (BATCH_SIZE, TSForm:97). OCMS-SR-2026-022 fix: small groups and a res.error check (TSForm:109-113)."
+    },
+    {
+      "step": "The system handles each selected notice as a temporary suspension.",
+      "detail": "staffApplySuspension forces suspensionSource = OCMS and calls processNoticeList; each notice is routed to tsHelper.processTS when suspensionType is TS (CTRL:1049). Access goes through the OCMS_APPLY_TS mapping (api-authorization.properties:58-59); enforcement sits in the authorization filter and was not traced further because the story names no role beyond Notice Processing Officer."
+    },
+    {
+      "step": "The notice is suspended for the number of days entered.",
+      "detail": "Revival date = LocalDateTime.now() + days (TSH:188-190), correct for days > 0; the UI sends days as dueDateOfRevival and extractDaysToRevive reads it (CTRL:1157-1182). But empty, 0, negative or non-numeric days fall back to the default from ocms_suspension_reason (source OCMS) or 30 days (TSH:192-208) and still return 'TS Success'. There is no minimum-1-day validation in the backend or in TSDetails (only isNumber). The 'indicated' duration can be ignored without a warning."
+    },
+    {
+      "step": "The suspension is saved on the notice and recorded in the suspension history.",
+      "detail": "processTS calls updateVON (suspension_type TS, epr_reason, epr_date, due_date_of_revival), updateEVON (internet DB sync) and insertSuspendedNotice (ocms_suspended_notice row with the TS's own revival date, source, remarks, officer, srNo from the sequence). If a TS with a later date already exists, VON uses the furthest date (TSH:113-118) while the suspended_notice row keeps its own date. sr_no is now taken from the sequence per notice (OCMS-DF-2026-027). Risk to verify: the catch at TSH:134-137 does not rethrow inside a @Transactional method, so VON could be saved without a suspended_notice row if the insert fails."
+    },
+    {
+      "step": "One failing notice does not stop the other notices.",
+      "detail": "processNoticeList handles each notice separately inside a loop; an error on one notice is caught in processSingleNotice and becomes a failed result for that notice only, while the other notices are still processed. createStaffBatchResponse always wraps 'OCMS-2000 Update Success.' with a results[] per notice (success true/false), which the UI reads for the success/failure message (see OCMS17.13)."
+    }
+  ]
+}

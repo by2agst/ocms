@@ -1,0 +1,33 @@
+{
+  "story": "OCMS19.21",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-revive-suspension),helpers/{PermanentRevivalHelper,RevivalBaseHelper}}, crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl, workflows/furnish/plusintegration/controllers/PlusDataRetrievalController. ocmsadminprivateapi paymentReport/jobs/PaymentExceptionReportJob. ocmsadminui App.tsx (Epic46 refund routes commented out). Cumulus: no code in any of the six repos",
+  "note": "Sheet status: No requirement (requirement not given). The story asks that after a PS on a paid notice is revived from PLUS, OCMS creates a refund advice and interfaces it to Cumulus. The first part exists: a revived PS-FP/PS-PRA (staff or PLUS, same helper) creates an ocms_refund_notice row with a Refund Notice ID. The Cumulus interface has no code at all, and the Epic46 refund screens in the staff portal are commented out. Interpretation note: the word 'revive' in the story is ambiguous; the paths that produce a refund in code are revival of PS-FP/PRA (this story) and applying PS-APP/CAN/CFA/VST to a paid notice (used by another story, tickets OCMS-DF-2026-075 and OCMS-DF-2026-152). Tickets used: OCMS-DF-2026-075 (closed, changes the apply-PS path on paid notices, not revival) and OCMS-DF-2026-152 (open, refundNoticeId in the plus-apply-suspension response). Cumulus, APIM and server property values: cannot verify from repo.",
+  "recommendation": "Claim partially: refund advice creation on PS-FP/PRA revival is proven in code; the Cumulus interface does not exist and the Epic46 refund screens are switched off. Do not claim the Cumulus part without evidence from another system",
+  "steps": [
+    {
+      "step": "PLUS user requests revival of a Permanent Suspension (PS) on a paid notice via PLUS",
+      "detail": "POST /plus-revive-suspension (SuspensionProcessingController.java:690) accepts noticeNo, caseNo, suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival. For PS only one notice per request (lines 745-750), the source is forced to PLUS, and PLUS revival codes are limited to CSR or OTH (RevivalBaseHelper.java:77-80, 168-172). Who may call the endpoint is not visible in the repo: JwtFilter skips JWT for plus-*, protection depends on APIM (cannot verify from repo)."
+    },
+    {
+      "step": "OCMS revives the PS successfully",
+      "detail": "PermanentRevivalHelper calls updateDatabaseAfterRevivalAll (PermanentRevivalHelper.java:200-203): every active suspended_notice row gets date_of_revival, revival_reason, remarks and officer (RevivalBaseHelper.java:285), then VON and eVON are cleared (lines 742-752). For PS-FP/PS-PRA clearVONSuspension also nulls payment_status and sets eservice_message_code by stage (lines 320-345). Success response is \"PS Revival Success\" (PermanentRevivalHelper.java:255)."
+    },
+    {
+      "step": "OCMS recognises that the notice is paid and refund-eligible",
+      "detail": "After revival, processRefundForRevival runs only for PS-FP and PS-PRA (PS_CODES_WITH_REFUND = FP, PRA in SystemConstant.java:54, checked at PermanentRevivalHelper.java:285) and only if the original crs_reason_of_suspension is not null, meaning a payment exists (lines 293-296). Other PS codes (for example PS-APP) revived do not create a refund through this path."
+    },
+    {
+      "step": "OCMS creates the refund advice (ocms_refund_notice record)",
+      "detail": "createIfNotExists (PermanentRevivalHelper.java:319-326) writes one ocms_refund_notice row: refund_notice_id in the format RE{YYYYMMDD}{NNN} from a sequence (OcmsRefundNoticeServiceImpl.java:56, save at line 78), receipt_no from the web transaction detail (fallback \"MIG-<noticeNo>\" for migrated notices, PermanentRevivalHelper.java:299-309), refund_amount = amount_paid, refund_reason = the revival code. Idempotent per receipt+notice. One gap: an error while creating the refund is only logged and the revival still succeeds (PermanentRevivalHelper.java:339-344), so the officer is not told when the refund failed to be created."
+    },
+    {
+      "step": "The refund advice is available for refund follow-up (Epic OCMS46)",
+      "detail": "The ocms_refund_notice record can be read by PLUS via POST /plus-refund-notice-list (PlusDataRetrievalController.java:70) and appears in the scheduled daily Payment Exception Report (PaymentExceptionReportJob.java:24-37; cron.dailyreport.enabled=true in cron-schedules-prod.properties:256, real server value cannot be verified from the repo). But the Epic46 refund routes and pages in ocmsadminui are all inside a comment block (App.tsx:60, 342-346 and closing at 371), so the staff-portal refund create/approve process is not in the repo."
+    },
+    {
+      "step": "The refund advice is interfaced to Cumulus",
+      "detail": "The word \"cumulus\" does not appear in any of the six repos (case-insensitive grep over src of ocmsadminapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi; refund advice, credit note and refund + sftp/upload also returned nothing). The code chain ends with an INSERT into ocms_refund_notice (OcmsRefundNoticeServiceImpl.java:78); no cron, file generator, SFTP or outbound API call carries the refund to a finance system. It may be built outside these repos or done manually; cannot verify from repo."
+    }
+  ]
+}

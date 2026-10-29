@@ -1,0 +1,29 @@
+{
+  "story": "OCMS10.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findNoticesForDataHiveEnrichment), framework/workflows/agencies/mha/{upload,download}, framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper, jobs/ToppanLettersGeneratorJob}. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no AN-specific code for this step",
+  "note": "Sheet status: Demo paid (50% of 75%). No flow deck. An AN that cannot be notified electronically (no contact, send failed after retry, passport, exclusion list) is moved to RD1 with an_flag still 'Y' (NotificationSmsEmailHelper.java:1237-1262, 1279-1296; NotificationSmsEmailRetryJob.java:1219-1275). The latest-address check uses the Epic OCMS8 MHA pipeline, not AN-specific code: the MHA NRIC upload selects RD1-stage notices without suspension and id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581), so an AN sitting at RD1 is picked up. The gaps: NRIC only; FIN/UEN go through the DataHive query (:529-554) whose caller is commented out in ToppanLettersGeneratorJob.java:126-148 and cron.mhadownload.datahive=false (cron-schedules-prod.properties:50), and passport has no path. The MHA address update has open or recent tickets: OCMS-DF-2026-176 (Ready to UAT, owner_driver/addr timestamps not updated), OCMS-DF-2026-177 (Closed, updates without an offender-indicator check), OCMS-DF-2026-183 (Pending Closure, URA2NRO files piling up on SFTP). An AN without an address is dropped silently from the letter and shows up again every run (ToppanUploadHelper.java:2587-2600). Per-environment values and real Vault/DataHive/MHA behaviour: cannot verify from repo. Completeness of Epic OCMS8 is judged in the OCMS8 stories.",
+  "recommendation": "Claim partially. The move of ANs to the letter track and the MHA address pipeline exist, but the address check only covers NRIC and is not AN-specific; an AN without an address is not flagged or escalated",
+  "steps": [
+    {
+      "step": "OCMS detects that the AN SMS/email cannot be sent (no contact, failed after retry, passport, exclusion list)",
+      "detail": "The job removes exclusion-list and passport IDs (NotificationSmsEmailJob.java:226-245), invalid contacts (:254-262), and ENA notices without a number/email (:356-370) and moves them to the letter track. For failed sends, the retry job reads SMS/email records in error status (NotificationSmsEmailRetryJob.java:285-320) and after the resend moves failed notices still at stage ENA to RD1 (:1219-1240). The rule is generic for all ENA notices, including ANs."
+    },
+    {
+      "step": "The AN notice is moved to the letter track (RD1) with the AN flag kept",
+      "detail": "patchNextStageToRd1NextDay and updateStageToRd1 set last=ROV, next=RD1, next_processing_date=tomorrow, is_sync='N' (NotificationSmsEmailHelper.java:1237-1262, 1279-1296); the retry job does the same (NotificationSmsEmailRetryJob.java:1261-1275). an_flag is untouched so the notice stays an AN; the AN letter query looks for an_flag='Y' at RD1 (OcmsValidOffenceNoticeRepository.java:693-694), while the normal RD1 letter excludes ANs (:611)."
+    },
+    {
+      "step": "The latest-address check (Epic OCMS8) picks the AN notice now on the letter track",
+      "detail": "findNoticesForMhaNricUpload selects notices with next_processing_stage RD1-DR3, suspension_type NULL, offender_indicator 'Y' and id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581), with no an_flag filter, so an AN at RD1 is picked up; the MHA upload cron is on in prod (cron-schedules-prod.properties:105-106). But only NRIC: FIN and UEN go through findNoticesForDataHiveEnrichment (:529-554) whose caller is commented out in ToppanLettersGeneratorJob.java:126-148 and the flag cron.mhadownload.datahive=false (cron-schedules-prod.properties:50); passport has no path. The path is generic (Epic OCMS8); there is no AN-specific call. Real Vault/DataHive: cannot verify from repo. Same fit as the OCMS1.8 address step."
+    },
+    {
+      "step": "The latest address from the check is updated in the owner address data",
+      "detail": "MHA results are processed by MhaNricDownloadHelper: the registered address is stored in ocms_offence_notice_owner_driver_addr with type_of_address 'mha_reg' through bulk insert/update (MhaNricDownloadHelper.java:630, 1348-1355) and the update is scoped per notice (:760-764). Tickets remain: OCMS-DF-2026-176 (Ready to UAT; owner_driver and addr date/time not updated when MHA results are processed), OCMS-DF-2026-177 (Closed, Prod deployment; updates without an offender-indicator check), OCMS-DF-2026-183 (Pending Closure; several URA2NRO files piling up on SFTP). Real MHA results: cannot verify from repo."
+    },
+    {
+      "step": "The latest address is used for the AN letter; a notice without an address is not sent",
+      "detail": "getAdvisoryNoticeLettersOptimized adds the address to each AN notice (ToppanUploadHelper.java:2574-2578) and then drops those with no address field at all (:2580-2600). A dropped notice is only logged and stays at RD1, so it reappears every run with no marker or escalation to an officer. Real address data: cannot verify from repo."
+    }
+  ]
+}

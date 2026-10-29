@@ -1,0 +1,64 @@
+{
+  "story": "OCMS37.9",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/notificationreport (NotificationReportJob, NotificationReportHelper), notification_sms_email/services/NotificationSmsEmailServiceImpl (pemicu laporan), crud/beans/SystemConstant. ocmsadminapi: workflows/reports/system/notification/NotificationReportServiceImpl (search UNION SMS+email). ocmsadminui: pages/Report (ReportListSMS, ReportListEmail, ReportSlot). Tidak ada code ad-hoc di ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story minta OCMS membuat summary report atas pesan ad-hoc yang sudah dikirim dan officer bisa mengunduhnya. Status sheet: Built - Has gap. Karena pengiriman ad-hoc tidak ada di main (lihat OCMS37.8), tidak ada record ad-hoc untuk dilaporkan. Yang ada adalah laporan eNotification harian (NotificationReportJob, Excel dengan sheet Summary/Success/Error) yang di-hardcode ke service_type = 'Reminder' (SystemConstant.java:19; NotificationReportHelper.java:462) dan stage ENA/RD1/RD2/RR3/DN1/DN2/DR3 (helper :277), jadi mencakup pesan cron per notice, bukan ad-hoc. Laporan ini dikirim sebagai attachment email ke penerima property (NotificationReportJob.java:222-232), bukan diunduh officer, dan dipicu setelah cron eNotification selesai (NotificationSmsEmailServiceImpl.java:49,67) yang di prod cron.notification.enabled=false (cron-schedules-prod.properties:236); email.enableSmtp=false dan allowedSources tidak memuat ENOTIFICATION (application-prod.properties:80-81), nilai server sebenarnya tidak bisa diverifikasi dari repo. Staff portal punya tab Report 'Cron SMS Sent Reports' dan 'Cron Email Sent Reports' berupa daftar (ReportListSMS.tsx:53, ReportListEmail.tsx:54) tanpa tombol Export (ReportSlot.tsx:151 hanya tampil jika onExport diberikan; kedua list tidak memberikannya). Ticket: OCMS-DF-2026-180 (status Closed, catatan 'Awaiting eNotification cron to activate') menunjukkan cron eNotification belum aktif; tidak mengubah verdict selain mendukung Sebagian.",
+  "recommendation": "Klaim sebagian saja. Mekanisme laporan eNotification ada tetapi hanya untuk pesan cron (service_type Reminder), bukan ad-hoc, dan dikirim via email, bukan diunduh officer",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer sudah mengirim SMS/email ad-hoc lewat OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:257-269",
+      "fit": "Tidak ada code",
+      "detail": "Prasyarat story tidak terpenuhi di main: route compose-email, compose-sms, message-sent di-comment (App.tsx:257-269) dan tidak ada endpoint kirim ad-hoc (lihat OCMS37.8). grep adhoc/ad-hoc, test send, message-sent, compose-sms/compose-email, enotification-send di src ocmsadminapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: hasilnya hanya route/menu yang di-comment (App.tsx:257-269, LinkData.tsx:143-155), konstanta path (utils/Meta/AdhocNotification.ts), HstAdHocReportService (laporan HST, bukan pesan) dan DataHiveUenFinJob 'adhoc' (alamat NRO, bukan SMS/email)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report atas pesan ad-hoc yang terkirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/jobs/NotificationReportJob.java:183; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/services/NotificationSmsEmailServiceImpl.java:49; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/services/NotificationSmsEmailServiceImpl.java:67; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:19; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/helpers/NotificationReportHelper.java:462; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Mekanisme laporan ada tetapi bukan untuk ad-hoc. NotificationReportJob membuat Excel ENOTIF_Report_<tanggal>.xlsx (NotificationReportJob.java:183) setelah cron eNotification selesai (NotificationSmsEmailServiceImpl.java:49,67). Query di-hardcode service_type = SERVICE_TYPE_REMINDER ('Reminder', SystemConstant.java:19, NotificationReportHelper.java:462), jadi pesan ad-hoc tidak ikut. Pemicunya, cron eNotification, di prod cron.notification.enabled=false (cron-schedules-prod.properties:236); nilai server sebenarnya tidak bisa diverifikasi dari repo. OCMS-DF-2026-180 mencatat 'Awaiting eNotification cron to activate'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Summary menampilkan jumlah pesan terkirim dan gagal per jenis SMS/email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/helpers/NotificationReportHelper.java:277-288; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/helpers/NotificationReportHelper.java:328-333",
+      "fit": "Sebagian",
+      "detail": "Sheet Summary menghitung total, sukses, dan gagal untuk SMS dan email per stage ENA, RD1, RD2, RR3, DN1, DN2, DR3 (NotificationReportHelper.java:277-288, statistik :328-333). Tidak ada kategori ad-hoc dalam daftar stage, jadi hitungan ad-hoc tidak muncul."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat detail tiap pesan (penerima, isi/jenis, status, error, waktu kirim)",
+      "repo": "ocmsadminprivateapi, ocmsadminapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/helpers/NotificationReportHelper.java:350-367; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/notification/NotificationReportServiceImpl.java:71-85",
+      "fit": "Sebagian",
+      "detail": "Sheet Success/Error memuat notice_no, contact, name, id_no, processing_stage, message_type, error_message, tanggal/jam kirim (NotificationReportHelper.java:350-367). Endpoint staff notification-report/search menggabungkan tabel email dan SMS (NotificationReportServiceImpl.java:71-85) tanpa filter ad-hoc. Detail ada, tetapi per notice (ref_no) dan hanya untuk record Reminder pada laporan Excel."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan hanya mencakup pesan ad-hoc (dipisahkan dari pesan cron)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/helpers/NotificationReportHelper.java:462; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:19",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penanda atau filter ad-hoc. Query laporan Excel dikunci ke service_type 'Reminder' (SystemConstant.java:19, NotificationReportHelper.java:462). Endpoint search menerima serviceType (NotificationReportRequestDto.java) tetapi tidak ada nilai ad-hoc yang pernah ditulis karena pengirim ad-hoc tidak ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengunduh laporan untuk melihat detailnya",
+      "repo": "ocmsadminprivateapi, ocmsadminui",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notificationreport/jobs/NotificationReportJob.java:222-232; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminprivateapi/src/main/resources/application-prod.properties:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-70; ocmsadminui/src/pages/Report/component/ReportSlot.tsx:151; ocmsadminui/src/pages/Report/lists/ReportListSMS.tsx:53",
+      "fit": "Beda dari flow",
+      "detail": "Laporan dikirim sebagai attachment email ke penerima dari property email.report.recipients (NotificationReportJob.java:222-232), bukan diunduh officer. Di prod email.enableSmtp=false dan allowedSources tidak memuat ENOTIFICATION (application-prod.properties:80-81); job tidak mengisi source (NotificationReportJob.java:215-221) sehingga EmailService mengembalikan false (EmailService.java:65-70); nilai server sebenarnya tidak bisa diverifikasi dari repo. Tab Report 'Cron SMS/Email Sent Reports' hanya daftar (ReportListSMS.tsx:53) tanpa tombol Export (ReportSlot.tsx:151 butuh onExport, tidak diberikan)."
+    }
+  ]
+}

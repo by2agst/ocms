@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: staff/cron/agency side, not used by the steps of this story (only the Intranet-to-eVON sync cron feeds the data, not traced)",
+  "note": "Status 'Fully paid'. Classification of non-furnishable notices and the 'cannot be furnished' message box exist, but per-notice details (notice number, date, car park, offence, amount, due date) are not shown: the backend only sends Eligible notices and the UI only shows a count. The pay option is a button/link to the general Payment page, which needs its own login and search (Sebagian, same as shared pages in other stories). Notices that may not be paid (PRA, payment_acceptance_allowed N) are hidden entirely. No maintenance ticket changes this verdict.",
+  "recommendation": "Do not claim in full. Non-furnishable notice details are not displayed; the pay option only leads to the general Payment page. Ask URA whether the count + pay link is enough.",
+  "steps": [
+    {
+      "step": "The system marks the ID's outstanding notices that cannot be furnished",
+      "detail": "Notices of the ID (offender_indicator='Y') are marked 'Not Eligible' when the user is a driver (owner_driver_indicator 'D', FurnishApplicationListServiceImpl.java:97, 146-147), when crs_reason_of_suspension is not null (FurnishValidationServiceImpl.java:192), when PS with reason DIP/MID/FOR/RIP/RP2 (199-203; SystemConstant.java:108-110), when type is UPL 'U' (206), or when the stage is not ROV/ENA/RD1/RD2 (211; SystemConstant.java:112-113). The controller counts totalNotEligible (FurnishApplicationListController.java:119-121)."
+    },
+    {
+      "step": "The page tells the customer that other outstanding notices cannot be furnished",
+      "detail": "NonFurnishableInfo shows the box 'There are N other outstanding notice(s) that cannot be furnished. Please proceed to pay.' when totalNotEligible > 0 (FurnishableNotices.ts:120-137), with the number taken from the response (FurnishApplicationListController.java:131-137)."
+    },
+    {
+      "step": "The page shows the details of each non-furnishable notice: notice number, offence date and time, car park, offence committed, amount payable, due date",
+      "detail": "Only the count is shown (FurnishableNotices.ts:131-132). The controller sends only 'Eligible' notices to the UI (FurnishApplicationListController.java:124-128, 137); 'Not Eligible' notices are only counted. There is no table or row for non-furnishable notices, so their notice number, date, car park and amount are not displayed. The offence committed and due date are also never sent by the backend (API.ts:94-111 reads computerRuleCodeDescription/paymentDueDate that the DTO never fills; see the 42.5 steps)."
+    },
+    {
+      "step": "Customer selects the option to pay for those notices",
+      "detail": "The 'Make payment' button (always rendered, even with no non-furnishable notice, FurnishableNotices.ts:224-229) and the 'proceed to pay' link (132) only open the /payment page in a new tab (203-208). The Payment page is a separate feature with its own Singpass/Corppass login using the PAYMENT app id (Auth.ts:32-33; PaymentSearch.ts:341-350; route.ts:17-19) and its own notice search; the ID or notices from the furnish page are not carried over. A shared page that is not specific to this story is rated Sebagian."
+    },
+    {
+      "step": "The pay option is only for notices that are allowed to be paid (if allowed)",
+      "detail": "Notices with epr_reason_of_suspension 'PRA' or payment_acceptance_allowed 'N' are dropped from the result (FurnishApplicationListServiceImpl.java:128-131). The 'payment allowed' condition is enforced, but by hiding those notices: they are neither displayed nor counted in totalNotEligible, instead of being shown without a pay option. The eVON query also drops notices with a filled crs_reason_of_suspension or an_flag 'Y' (EocmsValidOffenceNoticeRepository.java:105-118). Whether the Payment page enforces the same rule cannot verify from the furnish flow."
+    }
+  ]
+}

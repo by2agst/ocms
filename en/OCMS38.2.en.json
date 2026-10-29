@@ -1,0 +1,29 @@
+{
+  "story": "OCMS38.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeUPL/{List/RequestList,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, utils/config/env.ts, pages/Furnish/{list/FurnishSummaryList,hooks/useFurnishAPI}, App.tsx, utils/data/LinkData.tsx; ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, crud/ocmsizdb/OcmsFurnishApplication; ocmsadminprivateapi workflows/datahiveuenfin/services/DataHiveUenFinService (placeholder). The approvalinbox and workitem resources and the UPL_APPROVAL/CHANGE_STAGE commands have no receiver in the six repos",
+  "note": "Status sheet: Built - Has gap. The story asks for a generic work item on a dashboard, click-through, a decision, and the notice resuming. The dashboard and work item routing do not exist (Dashboard.tsx:26-29, LinkData.tsx:398). A real decision exists only in the Furnish queue (ManualReviewController approve/reject; approve advances the stage, reject only sets status R). The UPL Decision Request path exists in the UI but its menu is commented out, the approvalinbox call is active only on STAGING/LOCAL (env.ts:11), and no backend receiver was found; sibling stories OCMS13.4-13.7 cover the same UPL flow. Furnish is another mechanism, so each step is at most Sebagian. No relevant maintenance ticket was found (grep dashboard/work item/notification).",
+  "recommendation": "Limited claim. A decision on a notice is proven only in the Furnish queue; dashboard work items and routing to the officer do not exist, and the UPL path is not proven to run in URA environments. Align with the results of OCMS13.4-13.7.",
+  "steps": [
+    {
+      "step": "A work item for decision-making is routed to the officer's dashboard",
+      "detail": "No dashboard shows work items (Dashboard.tsx:26-29 is empty) and the Work Items menu is commented out (LinkData.tsx:398). The UI only sends POST /workitem from the UPL Decision Request form (useEndorsement.tsx:119-121) with allocated_to set to the logged-in user and marked '//! Hard code' (NoticeUPL.ts:194), so it is not routing to another OIC. No receiver for the 'workitem' resource exists in the six repos (grep workitem/work_item in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi: only the placeholder DataHiveUenFinService.java:2920-2923). The backend part cannot be verified from the repo."
+    },
+    {
+      "step": "The officer clicks the work item to open and view the notice",
+      "detail": "Two clickable lists exist: (1) UPL Decision Request, where the 'Propose' button opens a modal for UPL notices at stage NPA with decision not yet Y (RequestList.tsx:36-40, :59-68; route App.tsx:84), but the UPL menu is commented out (LinkData.tsx:397) so it is reachable only by direct URL; (2) the Furnished Hirer/Driver list, where the notice number opens the notice page in a new tab (FurnishSummaryList.tsx:97-101; route App.tsx:192-193). Neither is a click from a dashboard. Staff-side role gating was not examined (cannot verify from repo)."
+    },
+    {
+      "step": "The officer makes a decision on the notice",
+      "detail": "Two decision paths exist. Furnish: the UI DecisionForm calls manual-review/approve-hirer, approve-driver or reject (useFurnishAPI.ts:105, :209-211) served by ManualReviewController.java:171, :214, :257. UPL: the Decision Request form (RequestForm) runs useEndorsement.onRequestAPI, which calls 'approvalinbox' only when isAPIFound (useEndorsement.tsx:104-116; isAPIFound = STAGING or LOCAL, env.ts:11) and then POST /workitem (:119-121); the approvalinbox and workitem resources have no receiver in the repos, so the UPL path is not proven to run in DEV/UAT/PRO. Furnish is a separate queue (epic 41), not the generic work item the story names, hence Sebagian."
+    },
+    {
+      "step": "The decision is saved (outcome, remark, officer, date)",
+      "detail": "Furnish: approve sets status A and remarks then updates the furnish application (ManualReviewService.java:363-365), reject sets status R and the OIC remarks (ManualReviewService.java:466-470); reviewer identity and date are only visible in logs/audit, and storage of a reviewer field was not examined (cannot verify from repo). UPL: the MapPatchApprovalInbox mapping fills decision, decision_officer, decision_date, remark_decison (NoticeUPL.ts:146-150) but is only sent when isAPIFound (useEndorsement.tsx:104)."
+    },
+    {
+      "step": "The notice resumes processing according to the decision",
+      "detail": "Furnish approve: addFurnishedOffender then changeProcessingStage (ManualReviewService.java:375-379; stage detail at :880-919) so the notice advances to the next stage. Furnish reject: only status R (:466-470), no stage change or re-route, so the notice does not actively resume. UPL: the stage change is done by the UI in the endorsement step through the CHANGE_STAGE workflow (useEndorsement.tsx:188-227), not by the officer's decision; that workflow command does not exist in the backend repos (grep CHANGE_STAGE/UPL_APPROVAL in ocmsadminapi and ocmsadminprivateapi: 0 hits)."
+    }
+  ]
+}

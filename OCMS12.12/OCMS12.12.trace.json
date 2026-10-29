@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/notification_sms_email (reminder dan exclusion untuk id_type B), workflows/datahiveuenfin (DataHiveUenFinJob, DataHiveUenFinHelper, DataHiveUenFinService), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService (query V_DH_ACRA_*), schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminui pages/Vault/Datahive (tab Directors Details dengan data kosong). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story 2 point: untuk pemilik perusahaan, OCMS mengirim UEN lalu mengidentifikasi owner/partner/director menurut date of offence dan appointment period. Di repo, pengiriman UEN ada lewat DataHiveUenFinJob (query ke view ACRA di DataHive/Snowflake); nama 'DOS' tidak muncul di code, jadi kesetaraan DOS = DataHive: cannot verify from repo. Job UEN dimatikan di prod (cron.mhadownload.uenfin.enabled=false). Data board/director diambil tetapi tidak disimpan (OCMS-DEV-2026-231) dan tidak ada code yang memfilter berdasarkan date of offence atau appointment period. Status 'Demo paid' dari sheet bukan bukti; remark demo (Vault) tidak diverifikasi.",
+  "recommendation": "Klaim sebagian. Minta URA konfirmasi 'DOS' = DataHive/ACRA, dan kapan job UEN diaktifkan di prod. Langkah identifikasi owner/partner/director belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim electronic reminder (surat ke-2) ke pemilik perusahaan atau mengecek opt-out-nya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:446-448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1140; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1135",
+      "fit": "Sebagian",
+      "detail": "Query reminder yang sama dengan pemilik individu juga memilih notice dengan id_type 'B' (perusahaan): helper membedakan penerima COMPANY vs INDIVIDUAL berdasarkan idType 'B' (NH:446-448, 465) dan mengecualikan id_no di ocms_enotification_exclusion_list (NH:1131-1135). Seperti story OCMS12.11, cron.notification.enabled=false di cron-schedules-prod.properties:236, jadi tidak jalan di prod. Pengiriman nyata: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice pemilik perusahaan (UEN) yang perlu dicek ke registry",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:265-282",
+      "fit": "Sesuai",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL memilih notice dengan next_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3'), next_processing_date <= hari ini, kendaraan bukan 'I', suspension_type IS NULL, onod.id_type IN ('F','B'), bukan di ocms_nro_temp dan ocms_hst, offender_indicator='Y'. id_type 'B' = UEN, jadi notice perusahaan yang mencapai tahap reminder terpilih."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN perusahaan ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/helpers/DataHiveUenFinHelper.java:304-323; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "batchProcessAllRecords() mengelompokkan record B dan memanggil batchProcessUenRecords() (HLP:323), yang mengirim daftar UEN ke DataHive (Snowflake) lewat query V_DH_ACRA_FIRMINFO_R/D, shareholder dan V_DH_ACRA_BOARD_INFO_FULL (BATCH:441). Nama 'DOS' tidak ada di code; DataHive/ACRA dipakai sebagai pengganti, dan kesetaraannya cannot verify from repo. Job ini hanya jalan bila cron.mhadownload.uenfin.enabled=true (SCHED:103-107), padahal false di prod (PROD:52, komentar: nama view DataHive belum diverifikasi); true di UAT. Respons nyata DataHive: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima data owner/partner/director perusahaan beserta tanggal penunjukan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:196-210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478",
+      "fit": "Sebagian",
+      "detail": "Hasil batch memuat shareholderData dan boardData (position_appointment_date, position_withdrawn_date, person id, position code) (BATCH:196-210). Shareholder disimpan lewat updateShareholderInfo (SVC:1442-1448), tanpa tanggal penunjukan. Board hanya dilog dan TIDAK ditulis ke DB karena mapping DataHive salah (OCMS-DEV-2026-231) (SVC:1468-1478). Jadi director/partner diterima di memory tetapi tidak tersimpan untuk dipakai langkah berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi owner/partner/director berdasarkan date of offence dan appointment period",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:436-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478",
+      "fit": "Tidak ada code",
+      "detail": "Query board hanya WHERE ENTITY_UEN IN (...) (BATCH:436-442): tidak ada filter tanggal. Tidak ada code yang membandingkan notice_date_and_time/tanggal pelanggaran dengan position_appointment_date dan position_withdrawn_date, dan tidak ada code yang memilih satu orang. grep director/partner/appointment di ocmsadminprivateapi, ocmsadminapi, thirdpartyapi hanya mengenai retrieval dan entity. Tab 'Directors Details' di staff portal menerima data={{}} (DatahiveHirerDetail.tsx:57-59), jadi tidak menampilkan hasil. Catatan: jalur FIN mengirim next_processing_date sebagai offenceDate (SVC:751), bukan tanggal pelanggaran; tidak dinilai di story ini."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS19.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Revival/form/RevivalForm (onAPI, onSubmit, modal), components/modal/ModalAlert. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController.createStaffBatchResponse, helpers/{RevivalBaseHelper,TemporaryRevivalHelper,PermanentRevivalHelper}}. Other repos: not relevant",
+  "note": "Sheet status: Fully paid (1 point); no flow deck. The server returns a result per notice (success true/false and message) in a data.results envelope; the UI merges the PS and TS request results and shows the modal 'Revival Applied Successfully to N Notices.' with a check icon, or an error modal with the success and failure counts. The gap: the success prompt does not fully reflect the final state, because failures of the eVON sync, the TS-RED amount revert and the refund creation are only logged while the per-notice result stays success. Also, if the TS request throws after the PS request is already committed, the officer only sees 'Error: ...' without knowing which PS notices were revived [Medium confidence: from reading the code, not tested]. No maintenance ticket is specific to this prompt.",
+  "recommendation": "Can be claimed for the revival success/failure prompt in the staff portal. State that failures of sub-steps (eVON, TS-RED amount, refund) do not show in the prompt.",
+  "steps": [
+    {
+      "step": "The server returns the revival result per notice (success, appCode, message) in a data.results envelope",
+      "detail": "The TS/PS helper returns createSuccessResponse with success=true, appCode OCMS-2000 and message 'TS Revival Success' / 'PS Revival Success' (RevivalBaseHelper.java:807-815; TemporaryRevivalHelper.java:186-190; PermanentRevivalHelper.java:251-255), or createErrorResponse with success=false (RevivalBaseHelper.java:792-800). The controller wraps it with createStaffBatchResponse (SuspensionProcessingController.java:664, 1106-1117). The envelope is always OCMS-2000 'Update Success.' even when some notices fail; per-notice failures are in results (1109-1112)."
+    },
+    {
+      "step": "The UI merges the PS and TS request results into a success list and a failed list",
+      "detail": "onAPI reads res.result.data.results from each POST and puts items with success=true in the success list and the rest in the failed list (RevivalForm.tsx:125-134, 153-162). For successful notices the UI refetches the latest data through validoffencenoticelist (165-188) and stores it in batch state without duplicates (190-202)."
+    },
+    {
+      "step": "When everything succeeds, the officer sees the success prompt 'Revival Applied Successfully to N Notices.'",
+      "detail": "When success.length > 0 and failed.length = 0, the message 'Revival Applied Successfully to N Notices.' with isError=false is set on ModalAlert (RevivalForm.tsx:219-221, 230-235). ModalAlert shows a green check icon for isError=false (ModalAlert.tsx:35-45). When the modal is closed the UI moves to /notices/revival/view (RevivalForm.tsx:262-267)."
+    },
+    {
+      "step": "When some fail, the officer sees an error prompt with the success and failure counts, not a success prompt",
+      "detail": "An empty response gives 'Error: No response received...' (RevivalForm.tsx:216-218); partial failure gives 'N Applied Successfully. M Failed...' and total failure 'All M Notices Failed to Apply Revival...' with isError=true (222-228). An exception is caught and shown as 'Error: ...' (236-244). The success prompt does not appear unless no notice failed."
+    },
+    {
+      "step": "The success prompt reflects the real end state (every revival sub-step really succeeded)",
+      "detail": "Success is reported after the suspended_notice and VON updates, although failures of the eVON sync (RevivalBaseHelper.java:603-605), the TS-RED amount revert (919-923) and the PS-FP/PRA refund creation (PermanentRevivalHelper.java:340-344, 'Revival succeeded but refund creation failed') are only logged and the per-notice result stays success=true. Also the PS and TS requests are sent one after another; if the second POST throws after the first is committed, the UI only shows 'Error: ...' (RevivalForm.tsx:148-163, 236-244) without the list of already revived notices [Medium confidence: POST hook error behaviour not tested]."
+    }
+  ]
+}

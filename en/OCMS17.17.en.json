@@ -1,0 +1,21 @@
+{
+  "story": "OCMS17.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plusApplySuspension, addAppCodeToResults), helpers/{SuspensionBaseHelper,SuspensionProcessingHelper,TemporarySuspensionHelper}, crud/beans/SystemConstant (message texts). Mirror in ocmsadminprivateapi framework/workflows/plus/notice_creation/core. Other repos not relevant.",
+  "note": "When TS validation fails, OCMS sends an error message to PLUS per notice (noticeNo, success=false or eligible=false, message) with appCode OCMS-4000; a malformed request gets HTTP 400 OCMS-4000 and a system error HTTP 500 OCMS-4007. Two things to know: the whole batch is answered HTTP 200 even if every notice failed, and the specific code (OCMS-4002/4003/4004) passed into createErrorResponse is dropped, so PLUS can only tell the reason from the message text. How PLUS shows the message to its user cannot verify from repo (PLUS is outside the repos).",
+  "recommendation": "Claim as done. Note that the specific error code is not sent, only the message text and appCode OCMS-4000.",
+  "steps": [
+    {
+      "step": "For every rejected notice OCMS builds an error message that explains the reason",
+      "detail": "Execution: createErrorResponse fills {noticeNo, srNo:null, success:false, message}. Dry-run: createValidationErrorResponse fills {noticeNo, eligible:false, message}. Example texts: 'Unable to TS as one or more Notices has been paid.', 'Unable to TS as Notice has been permanently suspended', 'Source not authorized to use this Suspension Code', 'Notice is under Court processing'. The specific appCode parameter (OCMS-4002/4003/4004) is passed in but not put into the map in SuspensionBaseHelper.java:529-534, so it does not reach PLUS."
+    },
+    {
+      "step": "OCMS sends the failed results to PLUS in the response with an error appCode",
+      "detail": "Per-notice results are collected in a list; addAppCodeToResults adds appCode OCMS-2000 when success/eligible is true, otherwise OCMS-4000, then ResponseEntity.ok(results). So the HTTP status is 200 even if every notice failed; PLUS has to read success/eligible and appCode per notice. Mirror in ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:117). The format on the PLUS side cannot verify from repo."
+    },
+    {
+      "step": "A malformed request or a system error is also answered with an error message to PLUS",
+      "detail": "Missing mandatory fields or a suspensionSource other than PLUS get HTTP 400 {appCode:OCMS-4000, message:'Invalid request. Please double-check the request body.'}; an unexpected exception gets HTTP 500 {OCMS-4007, 'System error. Please inform Administrator'}."
+    }
+  ]
+}

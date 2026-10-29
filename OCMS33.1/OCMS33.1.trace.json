@@ -1,0 +1,46 @@
+{
+  "story": "OCMS33.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: schedulers/CesUploadJobsScheduler, workflows/agencies/ces/jobs/CesGenerateFileJob, services/ces/CesWantedVehicleServiceImpl (Wanted Vehicle), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findCertisForeignVehicleNotices, utilities/ces/CesWantedVehiclesDatGenerator, services/comcrypt/helper/ComcryptCallbackHelper (encrypt + SFTP), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story kosong di stories.json dan sheet (epic ERP2, catatan 'Logic/flow not received'), jadi tidak ada requirement tambahan; dinilai dari teks story. Code yang paling dekat adalah file CES 'Wanted Vehicle': job harian 00:05 (cron.cesupload.enabled=true di prod) meng-query notice PS/FOR yang belum dibayar dan sudah lewat X hari (nilai X dari ocms_parameter FOR/PERIOD, isi row cannot verify from repo), membuat file CES_WANTED_VEHICLES_*.DAT, lalu mengirimnya lewat COMCRYPT dan SFTP ke server ces. Celahnya: query aktif tidak memfilter vehicle registration type (query varian ber-filter 'F' ada tetapi tidak dipanggil siapa pun), dan konsep 'tagged vehicle' atau 'hitlist' sebagai data tersendiri tidak ada; daftar murni hasil query suspension. Hanya satu tujuan (CES) yang terlihat; sistem enforcement lain atau penerimaan di sisi CES cannot verify from repo. Tiket: OCMS-SR-2026-040 (SMS status job CES, Closed) dan OCMS-SR-2026-150 (cek count file CES, masih Ready to DEV / SIT) menyentuh job yang sama tetapi tidak mengubah isi daftar, jadi tidak mengubah verdict.",
+  "recommendation": "Klaim sebagian. Daftar harian ke CES berjalan, tetapi kriteria vehicle registration type tidak diterapkan di query aktif dan tidak ada konsep tagged vehicle/hitlist. Konfirmasi ke URA apakah file Wanted Vehicle CES dianggap memenuhi story ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menjalankan job harian untuk membuat daftar tagged vehicle",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/CesUploadJobsScheduler.java:43-52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:207-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:198",
+      "fit": "Sesuai",
+      "detail": "CesUploadJobsScheduler berjalan dengan cron cron.cesupload.schedule=0 5 0 * * ? (00:05 setiap hari) dan cron.cesupload.enabled=true di cron-schedules-prod.properties:207-208. Kalau enabled=true, executeCesUploadJobs memanggil CesGenerateFileJob, yang memanggil cesWantedVehicleService.executeCesWantedVehicle() (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:198). Nilai property di server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar dipilih dari notice dengan kriteria vehicle registration type, suspension status, dan X hari dari tanggal offence",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:313-322; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:291; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:53",
+      "fit": "Sebagian",
+      "detail": "Query aktif findCertisForeignVehicleNotices (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:306-324) memilih vehicle_no distinct dengan suspension_type='PS', epr_reason_of_suspension='FOR', amount_paid 0/null, dan notice_date_and_time <= hari ini dikurangi nilai ocms_parameter code FOR / parameter_id PERIOD (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:313-322). Suspension status dan X hari ada. Vehicle registration type TIDAK difilter: filter vehicle_registration_type='F' hanya ada di varian findForeignVehicleNotices (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:291) yang tidak dipanggil dari mana pun (grep: hanya definisi di ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:304). Nilai X (row ocms_parameter) cannot verify from repo. Tidak ada tabel atau flag 'tagged'; daftar adalah hasil query suspension saja."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file daftar tagged vehicle (header, detail per vehicle, trailer)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:33-50; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:115-117; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:75",
+      "fit": "Sesuai",
+      "detail": "CesWantedVehiclesDatGenerator.generateDatFileContent menulis header (tanggal+jam), satu detail per vehicle (vehicle number 14 char + message 'Outstanding notices. Call URA ...') dan trailer dengan jumlah record (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:33-50); nama file CES_WANTED_VEHICLES_<timestamp>.DAT (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:115-117). Kalau query kosong, service mengembalikan SUCCESS dengan 0 record dan tidak membuat file (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:55-61), jadi hari tanpa data tidak mengirim file."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar dikirim ke frontend enforcement system",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:90; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:104-116; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:256-258; ocmsadminprivateapi/src/main/resources/application-prod.properties:82-86",
+      "fit": "Sesuai",
+      "detail": "File di-upload ke blob (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:90), lalu token enkripsi COMCRYPT diminta (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:104-116) dan setelah callback file terenkripsi di-upload ke SFTP server sesuai config (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:256-258). Di prod sftp.enabled=true, allowedSources memuat COMCRYPT_ENCRYPTED_CES dan hanya toppan yang di-disable (application-prod.properties:82-86), jadi jalur CES tidak diblok. Hanya CES yang menjadi tujuan; sistem enforcement lain, penerimaan di sisi CES, dan nilai server asli cannot verify from repo. Tiket OCMS-SR-2026-150 (cek count file, belum selesai) tidak mengubah jalur kirim."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS5.7",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/reports/system/noticecreated/{NoticeCreatedReportController,NoticeCreatedReportServiceImpl}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findEnforcementReport), api-authorization.properties. ocmsadminui pages/Report/{index.tsx,lists/ReportListNoticeCRE.tsx}, pages/Dashboard/Dashboard.tsx, utils/mapping/Notice/Notice.ts. ocmsadminprivateapi: cron daily_reports tidak berisi laporan notice manual. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terkait",
+  "note": "Status di stories.json: 'Fully paid'; requirement jelas di story text. Ada laporan 'Notices Created in Backend' (source OCMS = kode 004) berformat xlsx dengan sheet Summary dan sheet per tipe offence, tetapi hanya dibuat saat user menekan Export dengan rentang tanggal pilihan. Tidak ada cron/scheduler harian, dan tidak ada pengiriman ke dashboard (halaman Dashboard staff portal kosong; laporan berada di menu Report, model pull). Laporan juga memuat semua notice berlabel 004 termasuk bulk upload. Role OIC dan grup OCMS_REPORT_NOTICE_CRE di database: cannot verify from repo. Tiket: OCMS-DF-2026-149 (Closed, Excel dipindah ke backend, dipakai sebagai konteks); OCMS-DF-2026-194 (Open) soal laporan LTA VRLS, tidak mengubah verdict; OCMS-DF-2026-005 soal laporan CES (enforcement-report) bukan laporan ini.",
+  "recommendation": "Klaim sebagian kecil. Laporan on-demand untuk notice manual sudah ada dan bisa diunduh. Bagian daily otomatis dan routing ke dashboard OIC belum ada; jangan diklaim selesai tanpa konfirmasi URA bahwa menu Report diterima sebagai pengganti.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang dibuat manual bisa dikenali dari sumbernya untuk dimasukkan ke laporan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/Notice/Notice.ts:289; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportServiceImpl.java:67-74; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:109-112",
+      "fit": "Sebagian",
+      "detail": "Laporan mengenali notice manual lewat subsystem_label: source OCMS dipetakan ke kode 004 (NoticeCreatedReportServiceImpl.java:67-68) dan query findEnforcementReport memfilter 3 karakter pertama subsystem_label (OcmsValidOffenceNoticeRepository.java:109-112). Kode 004 diisi UI saat create (Notice.ts:289). Sama seperti OCMS5.6 langkah sumber notice: label ditentukan client, dan 004 juga dipakai bulk upload, jadi laporan memuat semua notice berlabel 004, bukan hanya yang dibuat satu-satu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report berisi daftar notice yang dibuat manual",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportServiceImpl.java:66-90; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportServiceImpl.java:113-136",
+      "fit": "Sebagian",
+      "detail": "Report 'Notices Created in Backend' (source OCMS) memang ada: generateNoticeCreatedExcel mengambil notice dan detailnya (NoticeCreatedReportServiceImpl.java:66-90) lalu buildWorkbook membuat sheet Summary (judul, tanggal generate, rentang tanggal, total record) dan satu sheet per tipe offence (:113-136). Isinya sesuai story (daftar notice + ringkasan), tetapi dibuat atas permintaan user dengan rentang tanggal yang dipilih, bukan laporan harian otomatis. Tiket OCMS-DF-2026-149 (Closed) memindahkan pembuatan Excel ini dari browser ke backend; tiket OCMS-DF-2026-194 (Open) mencatat feedback lanjutan DF-149 yang belum selesai, isinya untuk laporan lain (LTA VRLS) dan tidak mengubah verdict."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan dibuat otomatis setiap hari (daily)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportController.java:31-36; ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx:44-49; ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx:67-70",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada scheduler atau cron untuk laporan ini. Report hanya dibuat saat user menekan Export di staff portal: POST reports/notice-created/export (NoticeCreatedReportController.java:31-36) dipanggil dari ReportListNoticeCRE.tsx:67-70, dengan filter creDate default PAST(1) sampai NOW (:44-49). Folder cron daily_reports di ocmsadminprivateapi hanya berisi AnsLetterReconciliation, ClassifiedVehicleReport, dan RipHirerDriverReport; tidak ada yang membuat laporan notice manual. Pencarian di ocmsadminapi, ocmsadminprivateapi, dan ocmsadminui dengan beberapa kata kunci (notice created, creation report, daily, dashboard) tidak menemukan job harian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diarahkan (routed) ke dashboard OIC",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-32; ocmsadminui/src/pages/Report/index.tsx:17-20",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada pengiriman laporan ke dashboard. Halaman Dashboard di staff portal kosong (Dashboard.tsx:21-32 hanya Meta dan div row tanpa isi). Laporan yang ada hanya menu 'Notices Created in Backend' di halaman Report (Report/index.tsx:17-20), yang harus dibuka dan diekspor sendiri oleh user (pull), bukan dikirim ke OIC (push). Ini beda dari flow yang diminta story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC dapat mengunduh laporan untuk melihat detail notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx:67-70; ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx:75-76; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/noticecreated/NoticeCreatedReportController.java:39-48",
+      "fit": "Sesuai",
+      "detail": "User membuka Report > Notices Created in Backend, memilih source OCMS dan rentang tanggal, lalu Export: UI memanggil reports/notice-created/export dengan responseType BLOB (ReportListNoticeCRE.tsx:67-70) dan menyimpan file ReportNoticeOCMS.xlsx (:75-76). Controller mengembalikan xlsx dengan Content-Disposition attachment (NoticeCreatedReportController.java:39-48). Hak akses lewat grup OCMS_REPORT_NOTICE_CRE (api-authorization.properties:127); apakah role OIC di-assign ke grup itu ada di database: cannot verify from repo."
+    }
+  ]
+}

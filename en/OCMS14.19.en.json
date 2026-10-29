@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.19",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (applyClvSuspensionForVipVehicles), framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper} (processTsClvLooping, processClvPostRevival), utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/agencies/lta/download/helpers/*, cron-schedules-prod.properties. ocmsadminapi only has AutoSuspensionHelper.triggerClvSuspension, which is never called. No relevant code in ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks OCMS to automatically update the registration type of classified vehicles and suspend the notices under a specific code for X days taken from a parameter. In code, type 'V' is set only when a notice is created (not an update of already existing outstanding notices). Suspension code CLV exists (TS-CLV) with the number of days from column no_of_days_for_revival in the suspension_reason table (default 30 days when no row is found), but CLV can only be applied at stage RR3/DR3 (SuspensionBaseHelper.java:181-184), not right after identification. Two triggers: (1) ToppanUploadHelper after RR3/DR3 letters are produced, but it selects notices by the plate regex '^V[A-Z0-9]+$', not by type V or the VIP list, so real classified plates (e.g. SLB..., SPG...) are not caught on this path; letter generation in the day-end cron is commented out, only via the manual trigger (addendum fact); (2) AutoRevivalJob (runs in the 00:15 day-end job, enabled=true in the prod properties) scans RR3/DR3 notices of type V that are not FP and applies CLV when missing or due for another loop. After revival CLV is re-applied without a type-V check (see OCMS14.20). The CLV day value in the real DB cannot be verified from repo (a comment says 21 days). The LTA download uses type V for the RD1 path. Relevant ticket: OCMS-DF-2026-117 (Closed, no code change) on the TS-HST/CLV re-apply loop; it does not change the verdict.",
+  "recommendation": "Partial claim: type V, TS-CLV suspension with days from a parameter, and the RD1 path exist. Updating the type of already existing outstanding notices does not exist, CLV is only at stage RR3/DR3, and the Toppan path picks notices by a plate regex. Ask URA to confirm the expected suspension timing.",
+  "steps": [
+    {
+      "step": "OCMS automatically updates the vehicle registration type of classified vehicle notices",
+      "detail": "Type 'V' is assigned automatically, but only when the notice is created (SpecialVehUtils.java:86-90 then CreateNoticeServiceImpl.java:707-714). No job changes the type of already existing outstanding notices when a vehicle newly joins the list (the refresh only touches ocms_vip_vehicle, CasVipVehicleService.java:135-161), so the 'update' only applies to new notices."
+    },
+    {
+      "step": "OCMS temporarily suspends the notice under a specific suspension code (TS-CLV)",
+      "detail": "Code CLV exists and is applied through tsHelper.processTS(noticeNo, ..., 'CLV', null, ...) (AutoRevivalHelper.java:1126-1129, ToppanUploadHelper.java:709-716), but SuspensionBaseHelper only allows CLV at stage RR3/DR3 (CLV_ALLOWED_STAGES line 67, rejected at lines 181-184). So a classified notice is not suspended right after it is identified, only once it reaches the end of the reminders. The story names no stage; partial because the suspension timing is narrower than the story wording."
+    },
+    {
+      "step": "The suspension period of X days is configured through a parameter value maintained in OCMS",
+      "detail": "The CLV callers pass daysToRevive = null (AutoRevivalHelper.java:1127; ToppanUploadHelper.java:713), so calculateRevivalDate reads no_of_days_for_revival from the TEMPORARY CLV row of table ocms_suspension_reason (TemporarySuspensionHelper.java:232-243); if the row is missing a 30-day default is used (lines 246-248). So X days can be changed in table data without a deploy. The CLV value in the real DB (a Toppan comment says 21 days) cannot be verified from repo; whether a screen exists to change it was not checked in this story."
+    },
+    {
+      "step": "After the final reminder letters are produced, classified notices are picked for suspension through the Toppan path",
+      "detail": "After stage RR3/DR3 is processed, applyClvSuspensionForVipVehicles picks notices with vehicleNo.matches('^V[A-Z0-9]+$') (ToppanUploadHelper.java:706), i.e. plates starting with the letter V, not vehicle_registration_type = 'V' or the ocms_vip_vehicle list. Real classified plates in the table (e.g. SPG1790U in ticket OCMS-SR-2026-051) do not match this regex; conversely a non-classified plate starting with V would be suspended. This path also only runs through letter generation, which is commented out in the day-end cron (addendum fact), so in practice it needs the manual trigger."
+    },
+    {
+      "step": "A daily job selects unpaid type V notices at the final reminder stage and applies TS-CLV",
+      "detail": "AutoRevivalJob calls processTsClvLooping (AutoRevivalJob.java:178), which loads notices whose last_processing_stage is RR3/DR3 (AutoRevivalHelper.java:1048-1049), skips those not type 'V' or already FP (lines 1111-1112), and applies CLV when no active CLV exists or another loop is due (1117-1129). The job runs from executeDayEndJobs (ToppanUploadJobsScheduler.java:119, not commented out) on schedule 0 15 0 * * ? with enabled=true (cron-schedules-prod.properties:61-62). Selection uses type V so it is accurate; the real server flag value cannot be verified from repo."
+    },
+    {
+      "step": "Processing differs according to the updated vehicle type",
+      "detail": "In the LTA download, detectVehicleType returns 'V' when the notice vehicle_registration_type = 'V' (LtaDownloadHelper.java:484-490); the VIP path then writes owner data and sets stage RD1 through processVipVehicle (LtaProcessingOrchestrator.java:119-127), different from the standard path. Type V is also used for TS-CLV looping (step above)."
+    }
+  ]
+}

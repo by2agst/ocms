@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.25",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, refreshCompanyContactInfo, generateMessages, sendEmail), utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. Repo lain: tidak ada code khusus story ini.",
+  "note": "Story minta email ke setiap company owner unik berisi NOPO outstanding dan merujuk ke letter ke-3. Code: company (id_type B) hanya menerima email, notice digabung per UEN + stage + due date, template RR3_EMAIL_COMPANY(_COMBINED) diisi daftar notice, lalu dikirim lewat EmailService. Tiga hal menurunkan klaim: (1) job eNotification mati di prod (cron-schedules-prod.properties:236, tiket OCMS-DF-2026-180 menunggu cron aktif); (2) walau job dinyalakan, email tidak keluar karena email.enableSmtp=false dan sumber ENOTIFICATION tidak ada di email.smtp.allowedSources prod (application-prod.properties:80-81), sedangkan EmailService menolak kirim (EmailService.java:65-71); (3) email company di prod dipakai dari database lama karena refresh CorpPass mati (cron.enareminder.datahive=false). Teks template email ada di database, bukan di repo: apakah merujuk letter ke-3: cannot verify from repo. Email stage DN1/DN2/DR3 sengaja dilewati (tidak ada template), tidak mempengaruhi RR3.",
+  "recommendation": "Klaim sebagian. Logic gabung notice per company dan kirim email ada, tetapi job eNotification mati dan pengiriman email dimatikan untuk sumber ENOTIFICATION di prod. Minta konfirmasi URA soal konfigurasi prod dan teks template RR3 sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email company owner terbaru diambil dan company unik diidentifikasi (notice digabung per UEN)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496-2594; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "refreshCompanyContactInfo mengambil CP_ACCOUNT_EMAIL (akun A01 ACTIVE) dari view CorpPass lewat DataHive, tetapi hanya bila cron.enareminder.datahive=true (false di prod, cron-schedules-prod.properties:48); kalau false dipakai email_addr lama di database (NotificationSmsEmailHelper.java:2496-2594, :2461-2484). combineNotices menggabungkan notice dengan kunci 'B_<UEN>' + stage + due date menjadi satu record (:2151-2210, :2230-2246; dipanggil NotificationSmsEmailJob.java:191). Sumber 'DOS' tidak ada di repo (yang ada DataHive/CorpPass): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi email memuat daftar NOPO outstanding dan merujuk ke letter reminder ke-3",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-330; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-476",
+      "fit": "Sebagian",
+      "detail": "generateMessages memilih template <stage>_EMAIL_COMPANY[_COMBINED] (RR3: RR3_EMAIL_COMPANY_COMBINED bila banyak notice), mengisinya dengan combinedNotices, noticeCount, amountPayable, paymentDueDate lalu memisah subject dan body (NotificationSmsEmailHelper.java:274-330, :410-430, :459-476). Daftar NOPO ikut. Teks template ada di ocms_template_store (DB), bukan di repo: apakah merujuk letter ke-3: cannot verify from repo. Template tidak ada -> email dilewati (:322)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim ke setiap company owner dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-388; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-71; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Untuk id_type B job mengirim email satu per satu bila notification.email.enabled=true (application.properties:177) (NotificationSmsEmailJob.java:378-388) lewat sendEmail dengan sumber ENOTIFICATION (NotificationSmsEmailHelper.java:556-580). EmailService.sendEmail menolak bila email.enableSmtp=false dan sumber tidak ada di email.smtp.allowedSources (EmailService.java:65-71). Di prod enableSmtp=false dan daftar allowedSources tidak memuat ENOTIFICATION (application-prod.properties:80-81), sedangkan UAT memuatnya, jadi email tidak terkirim di konfigurasi repo. Job juga mati (cron-schedules-prod.properties:236). Mail server dan hasil kirim: cannot verify from repo."
+    }
+  ]
+}

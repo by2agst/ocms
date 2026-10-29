@@ -1,0 +1,25 @@
+{
+  "story": "OCMS16.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/ReductionController (mapResultToResponse, mapValidationError, mapBusinessError, determineHttpStatus, handleValidationException), dto/ReductionResult, ReductionServiceImpl. The error message is returned as a CrudResponse in the HTTP response of the same request. Other repos: no code",
+  "note": "The error goes to PLUS as the synchronous HTTP response of the same request (no separate push/callback): 409 'Notice is not eligible', 409 'Notice has been paid', 404 'Notice not found'. Main gap: amount validation failures (reduced >= payable, mismatch, zero/negative) and wrong dates are all mapped to 400 'Invalid format' (ReductionController.java:140-142), so the detailed message built by the validator (e.g. 'Amount reduced (x) must be less than current amount payable (y)') never reaches PLUS and the PLUS user is not told that the amount is what is not allowed. Related: the 'Missing data' code never comes out of body validation, because the handler looks for the text 'must not be null/blank' (ReductionController.java:202-206) while the constraint messages in ReductionRequest read '... is required'; all missing fields become 'Invalid format'. Unreadable JSON (e.g. a wrong date format) likely falls to the Exception handler and is answered 500 'Reduction fail' (ReductionController.java:217-225) [Medium confidence: Spring resolver behaviour, not tested]. How PLUS displays the message to its user cannot be verified from the repo. No maintenance ticket touches this error mapping.",
+  "recommendation": "Claim partially. Errors for not-eligible and paid notices match; amount errors only appear as 'Invalid format' with no reason.",
+  "steps": [
+    {
+      "step": "When the requested reduction fails amount validation, OCMS sends an error message explaining that the amount cannot be allowed",
+      "detail": "Errors from validateReductionAmounts (INVALID_REDUCTION_AMOUNT, INCONSISTENT_AMOUNTS, NEGATIVE_AMOUNT) and INVALID_DATES are all mapped to HTTP 400 'Invalid format' (ReductionController.java:136-144,167-168). The detailed validator text (ReductionValidator.java:179-202) only reaches the log, not the response. PLUS learns the request was rejected but not that the amount is the problem. The PLUS display cannot be verified from the repo."
+    },
+    {
+      "step": "When the notice does not qualify for reduction, OCMS sends the error 'Notice is not eligible'",
+      "detail": "NOT_ELIGIBLE is mapped to a CrudResponse error 'Notice is not eligible' with HTTP 409 (ReductionController.java:146-152,169-175; status source at ReductionServiceImpl.java:190-195)."
+    },
+    {
+      "step": "When the notice is already paid, OCMS sends the error 'Notice has been paid'",
+      "detail": "NOTICE_PAID is mapped to 'Notice has been paid' with HTTP 409 (ReductionController.java:149,173; ReductionServiceImpl.java:184-189)."
+    },
+    {
+      "step": "The error message is sent to PLUS in the response of the same request, and no notice data is changed",
+      "detail": "The controller turns the ReductionResult into a CrudResponse + HTTP status and returns it as the response (ReductionController.java:59-68,120-134). All checks happen before applyReduction (ReductionServiceImpl.java:73-113), so the notice is unchanged when rejected. Delivery to the PLUS user cannot be verified from the repo."
+    }
+  ]
+}

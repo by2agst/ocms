@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentSearch}.ts and Table/Column.ts (non-payable rows, info icon, 'Payment Status' modal). ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (message codes E2/E4/E5/E10/E11 per notice), crud/ocmsezdb/eocmsusermessage (message text in the DB). ocmsadminapi workflows/notice_creation/core/helpers/{NoticeProcessingHelper,SuspensionBaseHelper,RevivalBaseHelper} (set eservice_message_code). thirdpartyapi, ocmsadminprivateapi, ocmsadminui: no related code",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark 'Check if this is ready'. The mechanism exists: a notice that cannot be paid is still shown (Singpass user list or notice/vehicle search result) with payment_acceptance_allowed = N and a per-notice message, chosen by eservice_message_code (E5 annulled/PS-ANS, E4 court block, E2 court on vehicle search, E10/E11 pending transaction). The message appears in the 'Payment Status' modal after the info icon is clicked. Gap: all advice text (including 'Contact URA') sits in table eocms_user_message in the DB and the repo has no seed, so whether a message really contains a follow-up step: cannot verify from repo; a non-payable row only shows '-' in the Amount and Status columns, the advice is visible only after clicking the icon; the message code is set explicitly only for a few conditions (E1, E4, E5, E6, E2, E12) in ocmsadminapi, other conditions depend on the value already stored. Related tickets (all Closed, Prod deployed): OCMS-DF-2026-009 (wrong message for PS-APP etc. at AXS), OCMS-SR-2026-043 (wrong eservice message for court at AXS), OCMS-DF-2026-029 (revival: message code by stage). Ticket OCMS-DF-2026-011 quotes a sample court message text that advises contacting URA; that is a ticket quote, not proof of the DB content.",
+  "recommendation": "Partial claim: the mechanism to show a per-notice message for non-payable notices exists, but the 'Contact URA' advice text cannot be proven from the repo (it is in the DB) and the advice appears only after clicking the icon",
+  "steps": [
+    {
+      "step": "A Singpass/Corppass user also sees notices that cannot be paid, not only payable ones",
+      "detail": "The ID search uses findAllByNoticeNoInWithoutCrsFilter, which also returns annulled notices (an_flag = Y), PS-ANS and court-stage notices (CPC/CFC/COM/COS/COW) besides payable ones. The 'outstanding' filter drops only paid (FP) notices, so non-payable notices stay in the list with paymentAcceptanceAllowed = N."
+    },
+    {
+      "step": "Non-payable notice/vehicle search results stay listed with a message instead of being dropped",
+      "detail": "handleNoticeNoSearch and handleVehicleNoSearch map all results into DTOs with eserviceMessage and paymentAcceptanceAllowed; only 'Y' ones go into allPayableNotices (lines 257-259 and 408-410). applyTransactionAndConditionLogicBatch fills the per-notice message from codes (E10 when the transaction is under 5 minutes, E11 after that, then court conditions E2/E4 or the eservice_message_code from the DB)."
+    },
+    {
+      "step": "The follow-up advice (e.g. contact URA) for each notice condition is taken from a message in the database",
+      "detail": "getMessage(code) reads column eservice_message from eocms_user_message (EocmsUserMessageRepository.java:17) and uses DEFAULT_ERROR when the row is missing (line 65). Codes are mapped per condition (E5 for annulled/PS-ANS at lines 212-218, E4/E2 court, E10/E11). The text content, including whether it has a 'Contact URA' sentence or another follow-up step: cannot verify from repo (no SQL seed in the six repos)."
+    },
+    {
+      "step": "The message code per notice condition is set by the notice processes (annulled, court, suspension, revival)",
+      "detail": "NoticeProcessingHelper sets E5 for an_flag = Y (line 329) and E4 for payment block (line 409); SuspensionBaseHelper sets E5 when PS-ANS is applied (line 361); RevivalBaseHelper.getEserviceMessageCodeForStage gives E1 for pre-court stages and E4 for other stages (lines 832-842). The code is set explicitly only for these conditions; other suspension types are not covered here and depend on the value already stored. Tickets OCMS-DF-2026-009, OCMS-SR-2026-043, OCMS-DF-2026-029 (all Closed, Prod deployed) show the message code was wrong for a while after go-live."
+    },
+    {
+      "step": "The page shows that advice to the offender",
+      "detail": "A non-payable row has no checkbox; instead an info icon (aria-label 'View notice message') opens the 'Payment Status' modal with the message (lines 244-274). The Amount and Status columns of that row only show '-' (Column.ts:119 and 160), so the advice is not directly visible on the page, only after the icon is clicked. The icon appears only when the message is not empty (showElement, line 273); FP/PRA notices intentionally have no message."
+    },
+    {
+      "step": "The offender cannot proceed to pay when no fine is payable",
+      "detail": "hasPayableItems is false when allPayableNotices is empty and no row has isSelect = 'Y' (lines 578-587); in that case PaymentMode() and PayButton() return nothing (lines 590-592 and 729-731), so the page shows only the message/icon without the 'Proceed to Payment' button."
+    }
+  ]
+}

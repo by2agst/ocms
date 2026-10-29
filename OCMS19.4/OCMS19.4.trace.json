@@ -1,0 +1,46 @@
+{
+  "story": "OCMS19.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{context/NoticeSearchUploadContext,page/upload/UploadErrorList,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/page/Revival, utils/validation/NoticeSearch/Valid.ts, components/datagrid/table/TableBody.tsx, i18n/en/translation.json; ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai",
+  "note": "Pesan error untuk nilai tidak valid ada: format notice number salah ditandai di form dan di baris upload, dan baris upload yang tidak ketemu masuk tabel Record Not Found. Namun pesan khusus revival (notice tanpa suspension/reduction) baru muncul setelah officer memilih Apply Revival, bukan saat search atau upload, dan search yang kosong hanya menampilkan teks umum No records to display. Ada edge case: bila panggilan staff-revive-eligibility gagal, UI menelan error lalu pindah ke halaman Revival yang kosong tanpa pesan. Pengecekan reduction (notice tidak punya reduction) tidak ada di eligibility; hanya TS/PS yang dicek. Tidak ada tiket maintenance yang mengubah verdict story ini.",
+  "recommendation": "Klaim sebagian: validasi format dan Record Not Found sudah ada. Catat bahwa pesan notice tanpa suspension muncul di tahap Apply Revival dan search kosong hanya teks umum.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error bila nilai yang dicari/diunggah tidak valid (format notice number salah)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:18-32; ocmsadminui/src/i18n/en/translation.json:988-991; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:90-101; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadErrorList.tsx:104-117",
+      "fit": "Sesuai",
+      "detail": "Validasi yup NoticeNo memakai Format(NOTICE) dan pesan error.notice_no.format Invalid notice no. (Valid.ts:18-32, i18n/en/translation.json:988-991) dipasang di form search (ValidNoticeSearchAll.ts:25) dan di tiap baris upload (NoticeSearchUploadContext.tsx:90-101); baris gagal masuk tabel error dengan kolom Description View Detail (UploadErrorList.tsx:104-117). Yang dicek hanya format, bukan checksum atau keberadaan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error bila notice yang diunggah tidak ditemukan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:134-135; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadErrorList.tsx:46-66",
+      "fit": "Sesuai",
+      "detail": "Jika validoffencenoticelist mengembalikan 0 data, baris diberi error api Record is not found (NoticeSearchUploadContext.tsx:134-135) dan ditampilkan di box merah Record Not Found (n) dengan tombol Download Record (UploadErrorList.tsx:46-66). Untuk search biasa (bukan upload) tidak ada pesan notice tidak ditemukan, lihat langkah 4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error bila notice tidak punya suspension atau reduction untuk direvive",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:222-271; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:392-397; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:184-197; ocmsadminui/src/pages/Revival/page/Revival.tsx:113",
+      "fit": "Sebagian",
+      "detail": "Pesan Notice has no TS/PS suspension to revive. dihasilkan staff-revive-eligibility (SuspensionProcessingController.java:392-397) dan ditampilkan sebagai daftar error di modal (ApplyOperationAction.tsx:184-197), tetapi baru setelah officer memilih notice dan menekan Select pada Apply Revival; di hasil search atau upload notice itu tetap tampil biasa. Aturan lain di endpoint yang sama: TS-HST ditolak (378-381), lebih dari 1 PS ditolak (402-410), notice tidak ada (371). Reduction tidak dicek terpisah: notice tanpa TS/PS dianggap tidak punya reduction; pengecekan record reduction hanya log warning saat revival (RevivalBaseHelper.java:880-884). Edge case: bila panggilan eligibility error, catch mengosongkan success dan failed (useBatchOperation.ts:262-265), handleRV lalu tetap navigasi dengan daftar kosong (ApplyOperationAction.tsx:199-205) dan halaman Revival tidak merender apa pun (Revival.tsx:113), tanpa pesan error."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan pesan bila tidak ada notice yang berlaku untuk direvive pada hasil search",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/table/TableBody.tsx:19; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:113-135",
+      "fit": "Sebagian",
+      "detail": "Search yang tidak menemukan apa pun hanya menampilkan teks umum No records to display di datagrid (TableBody.tsx:19; NoticeSearchAllList.tsx tidak mengisi label empty). Tidak ada pesan khusus bahwa tidak ada notice yang bisa direvive. Search yang menemukan notice tetapi tidak satu pun punya suspension tetap menampilkan daftar penuh tanpa peringatan."
+    }
+  ]
+}

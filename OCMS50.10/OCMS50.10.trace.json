@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Tidak ada fitur subscribe/unsubscribe di portal: ocmseserviceui dan ocmseserviceapi tidak punya route, endpoint, atau kata opt-out/unsubscribe. Kode mirip hanya di sisi staff dan cron: ocmsadminapi crud/ocmsizdb/enotificationexclusion (CRUD ocms_enotification_exclusion_list), ocmsadminui pages/ENotifExclusion (halaman Exclusion), ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (skip ID yang dikecualikan). thirdpartyapi: tidak ada",
+  "note": "Status sheet 'User Story Removed': verdict tetap Removed walau ada code mirip. Offender tidak bisa memilih subscribe/unsubscribe sendiri di portal (grep unsubscribe, opt-out, optIn, subscri*, notification preference di ocmseserviceui dan ocmseserviceapi: 0 hasil relevan). Yang ada adalah daftar eksklusi e-notification yang dikelola staff (ocms_enotification_exclusion_list: id_no + remarks) dan NotificationSmsEmailJob yang melewati ID di daftar itu (reminder di-skip, ENA dipindah ke RD1 jalur kertas). Pengiriman SMS dan email di prod properties dimatikan (sms.enable=false, email.enableSmtp=false); nilai server sebenarnya cannot verify from repo. Semua langkah yang punya code ditulis Sebagian sesuai aturan Removed.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender yang sudah login melihat opsi subscribe/unsubscribe notifikasi SMS/email",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:15-42",
+      "fit": "Tidak ada code",
+      "detail": "routes portal hanya payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). Grep unsubscribe, opt-out, optIn, 'notification preference', subscri* di ocmseserviceui/src dan ocmseserviceapi/src: tidak ada fitur preferensi notifikasi, baik di UI maupun API."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pilihan offender disimpan sebagai preferensi notifikasi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusion.java:20-30; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:50; ocmsadminui/src/App.tsx:302-310",
+      "fit": "Sebagian",
+      "detail": "Penyimpanan ada tetapi bukan dari offender: entity EnotificationExclusion (tabel ocms_enotification_exclusion_list, kolom id_no dan remarks) diisi staff lewat POST /v1/enotificationexclusion dan halaman staff 'exclusion' (App.tsx:302-310; ExclusionForm memakai endpoint enotificationexclusionlist). Endpoint dipetakan ke OCMS_ENOTIF_EXCLUSION di api-authorization.properties:156. Tidak ada kolom channel (SMS vs email): satu ID berarti semua e-notification dilewati."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender yang berhenti berlangganan tidak lagi menerima reminder SMS/email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194-195; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:225-231; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1227; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminprivateapi/src/main/resources/application-prod.properties:87",
+      "fit": "Sebagian",
+      "detail": "NotificationSmsEmailJob memuat semua id_no dari ocms_enotification_exclusion_list (loadAllExcludedIds, NotificationSmsEmailHelper.java:1207-1216) dan melewati record yang ID-nya ada di daftar itu (NotificationSmsEmailJob.java:225-231). loadAllExcludedIds mengembalikan set kosong bila query gagal (:1212-1215), jadi fail-open. Pengiriman diatur properties prod: sms.enable=false (application-prod.properties:87) dan email.enableSmtp=false (:80); nilai di server sebenarnya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender yang berhenti berlangganan tetap menerima reminder hardcopy",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:225-231",
+      "fit": "Sebagian",
+      "detail": "Untuk ID yang dikecualikan pada tahap ENA, job memanggil patchNextStageToRd1NextDay (NotificationSmsEmailJob.java:228-230) sehingga notice pindah ke RD1 (jalur kertas); untuk tahap reminder lain record hanya di-skip. Apakah surat hardcopy benar terkirim (Toppan) cannot verify from repo, dan generate letter di cron Toppan sendiri dinonaktifkan (ToppanUploadJobsScheduler.executeDayEndJobs, hanya lewat trigger manual)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender bisa mengubah keputusan lagi (subscribe kembali) kapan saja",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:166; ocmsadminapi/src/main/resources/api-authorization.properties:156",
+      "fit": "Sebagian",
+      "detail": "Hanya staff yang bisa mengubah: endpoint patch (:102) dan delete (:166) ada di ocmsadminapi, tetapi api-authorization.properties:156 hanya memetakan enotificationexclusionlist, enotificationexclusion, dan enotificationexclusionpatch; enotificationexclusiondelete dan enotificationexclusionexists tidak ada di mapping itu, dan grep di ocmsadminui/src tidak menemukan pemanggilan delete. Perilaku authorization untuk path yang tidak terpetakan cannot verify from repo. Tidak ada jalur untuk offender sendiri."
+    }
+  ]
+}

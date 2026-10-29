@@ -1,0 +1,29 @@
+{
+  "story": "OCMS15.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingService.processPlusChangeStage + processPlusNoticeWithStageNewFlow (PLUS path), EligibilityService (staff eligibility rules, not called from the PLUS path), SystemConstant.Subsystem.PLUS_CODE. Other repos: no code",
+  "note": "Story status: Requirement given - Gen flow (no OCMS flow deck). Appendix B of Annex 1A is not in the repo, so 'according to Appendix B' cannot be proven. The PLUS path has only two rejection/skip rules of its own (CFC from source 005, offenceType U) and a notice-exists check. The full eligibility rules (court stage, PS, role vs stage, offence type O/E, RD2, CFC needs UEN) exist in EligibilityService but are only called from the staff portal path (ChangeOfProcessingService.java:232, :975), not from the PLUS path. Stage map validation was deliberately removed with a comment that PLUS may move forward and backward. The offenceType U to DN1/DN2/DR3/CPC case answers SUCCESS without changing anything, which contradicts story 15.15. Tickets: no maintenance ticket directly targets this check.",
+  "recommendation": "Claim only the rules that exist (CFC from source 005, notice not found/duplicate). Do not claim an Appendix B check; EligibilityService would need to be called from the PLUS path, or URA must confirm that PLUS is intentionally unrestricted",
+  "steps": [
+    {
+      "step": "A request from source PLUS (005) to move to stage CFC is rejected as not applicable",
+      "detail": "When PLUS_CODE (\"005\") equals source and nextStageName = CFC, PlusChangeStageException(\"OCMS-4004\") is thrown before any notice is touched (ChangeOfProcessingService.java:1302-1307; SystemConstant.java:22). The rule is real and works; whether it is part of Appendix B: cannot verify from repo. Note: the Javadoc example for source says \"004\", which would bypass this rule."
+    },
+    {
+      "step": "A request with offenceType U to stage DN1, DN2, DR3 or CPC is treated as not applicable",
+      "detail": "This condition does not reject; processPlusChangeStage simply returns (:1316), so the controller answers 200 SUCCESS without changing VON or writing an audit row (ChangeOfProcessingService.java:1311-1317; ChangeOfProcessingController.java:505-512). The story wants notices that are not applicable to be handled as an error to PLUS (OCMS15.15). The code comment says 'Skip processing', so it may be intentional, but the behaviour differs from the story text."
+    },
+    {
+      "step": "OCMS checks whether the requested stage transition is allowed by the stage rules (Appendix B)",
+      "detail": "Stage map validation was deliberately removed from the PLUS path: 'STEP 3 SKIPPED: Stage map validation not required for PLUS (allows bidirectional transitions)' (ChangeOfProcessingService.java:1319-1321). The lastStageName sent by PLUS is not even used; the previous stage comes from VON (:1464-1480, :1484). There is no check of stage order or combination on this path."
+    },
+    {
+      "step": "OCMS checks each notice's condition (court stage, permanent suspension, offender role vs stage, offence type, RD2, CFC entity) before changing the stage",
+      "detail": "These rules exist in EligibilityService.checkEligibility (EligibilityService.java:69-154) but are only called from the staff portal validate and submit (ChangeOfProcessingService.java:232, :975). processPlusNoticeWithStageNewFlow goes straight to computing the amount and writing VON without calling it (:1476-1500), so notices at court stage, under PS, or with a mismatched role still change stage through PLUS. No ticket mentions this."
+    },
+    {
+      "step": "The requested notice must exist and must not be duplicated within one request; failures are reported",
+      "detail": "A duplicate noticeNo in the request is recorded as the error 'Duplicate noticeNo in request' (ChangeOfProcessingService.java:1360-1366); a notice missing from VON throws NOTICE_NOT_FOUND (:1470-1476); all errors are collected and thrown as PROCESSING_FAILED (:1389-1392). Only two basic checks, not Appendix B."
+    }
+  ]
+}

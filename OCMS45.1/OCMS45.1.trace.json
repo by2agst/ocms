@@ -1,0 +1,55 @@
+{
+  "story": "OCMS45.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/synctxndata/{CronSyncTxnData,AxsTransactionValidator}, crud/ocmsezdb/webtxndetail/EWebTxnDetailRepository, framework/schedulers/SyncInternetIntranetJobsScheduler, framework/workflows/adminfee/helpers/AdminFeeHelper, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper. ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentValidator}. ocmsadminui pages/Payment/PaymentCash.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada pengecekan waktu bayar vs waktu escalation",
+  "note": "Story minta OCMS membandingkan tanggal/jam bayar dengan tanggal/jam proses escalation notice (misal bayar $40 sebelum naik ke $55), lalu meng-update notice sebagai paid tanpa officer mengurangi amount manual. Status story di sheet: Fully paid. Code hanya menyimpan payment_date_and_time dan menyalinnya ke Intranet (CronSyncTxnData.java:674); keputusan paid atau tidak murni membandingkan total bayar dengan amount_payable saat ini (CronSyncTxnData.java:568-574). Karena job yang menaikkan amount_payable (stage RR3/DR3 lewat ToppanUploadHelper.java:2120-2123 dan 1520; admin fee lewat AdminFeeHelper.java:262) sudah menaikkan amount_payable ke $55 sebelum sync berjalan, pembayaran $40 menjadi PS-PRA (partial), bukan PS-FP. Kata escalat/escalation dan perbandingan payment_date_and_time dengan tanggal proses tidak ditemukan di empat repo backend maupun staff UI (grep dengan sinonim processing date, last_processing_date, payment_date_and_time). Tiket OCMS-SR-2026-080 (Closed, Prod deployed): notice 694100370T naik ke $55, jadi PS-PRA, dan MGG harus mem-patch amount_payable ke $40 secara manual; ini kasus migrasi CAS tetapi hasil akhirnya sama dengan yang dihindari story. Isi payload Payment Gateway/AXS dan nilai property server sebenarnya cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penyimpanan waktu bayar dan sync pembayaran yang ada; pengecekan waktu bayar vs waktu escalation dan keputusan paid belum ada, dan hasilnya masih PS-PRA yang butuh patch/reduction manual. Minta URA/tim konfirmasi aturan yang disepakati.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan tanggal dan jam bayar dari transaksi pembayaran yang masuk dan membawanya ke Intranet",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsezdb/webtxndetail/EWebTxnDetailRepository.java:20-21; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:674; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncInternetIntranetJobsScheduler.java:68; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306; ocmsadminprivateapi/src/main/resources/application-prod.properties:100",
+      "fit": "Sesuai",
+      "detail": "CronSyncTxnData dipanggil scheduler sync tiap 10 menit (SyncInternetIntranetJobsScheduler.java:68, cron-schedules-prod.properties:305-306 enabled=true). Query mengambil transaksi eocms_web_txn_detail dengan is_sync 'N'/null dan status 'S' (EWebTxnDetailRepository.java:20-21), lalu payment_date_and_time disalin ke ocms_web_txn_detail (CronSyncTxnData.java:674). payment.sync.enabled=true di application-prod.properties:100. Isi waktu bayar dari Payment Gateway/AXS dan nilai property di server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan tanggal dan jam bayar dengan tanggal dan jam proses escalation notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:562-568; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:583; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/adminfee/helpers/AdminFeeHelper.java:262; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1514-1520; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2120-2123",
+      "fit": "Tidak ada code",
+      "detail": "payment_date_and_time hanya dibaca untuk diisikan ke crs_date_of_suspension (CronSyncTxnData.java:583); tidak ada kondisi yang membandingkannya dengan tanggal proses/escalation. Satu-satunya pembanding adalah total bayar vs amount_payable (CronSyncTxnData.java:562-568). Job yang menaikkan amount_payable tidak melihat transaksi yang belum di-sync (ToppanUploadHelper.java:2120-2123 RR3/DR3 = composition + admin fee, ditulis di 1514-1520 bersama last_processing_date; AdminFeeHelper.java:262 composition + admin fee). Job mana persisnya yang menaikkan $40 ke $55 di prod cannot verify from repo. Grep escalat, processing date, last_processing_date, payment_date_and_time di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi dan ocmsadminui tidak menemukan perbandingan waktu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dari hasil perbandingan itu OCMS memutuskan apakah notice di-update sebagai paid (bayar lebih awal dari escalation dianggap paid)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:562-574; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentValidator.java:64-91",
+      "fit": "Tidak ada code",
+      "detail": "Keputusan paid hanya berdasarkan jumlah: newAmountPaid dibanding amount_payable saat ini, comparison >= 0 berarti PS-FP, selain itu PS-PRA (CronSyncTxnData.java:562-574). Jalur manual ocmsadminapi sama: PaymentValidator.java:64-91 (over, exact, partial). Tidak ada cabang 'dibayar sebelum escalation maka dianggap lunas'. Tiket OCMS-SR-2026-080 menunjukkan officer harus patch amount_payable ke $40 supaya notice 694100370T dianggap sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di-update sebagai paid (PS-FP) walaupun yang dibayar (misal $40) lebih kecil dari amount payable setelah escalation ($55)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:568-574; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:600-615; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:33; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:389-399",
+      "fit": "Beda dari flow",
+      "detail": "Untuk contoh story ($40 dibayar, amount_payable sudah $55) comparison < 0, jadi cabang partial: PS-PRA lewat applyPSPaymentToVON dengan amount_paid=40 dan amount_payable tetap 55, eservice message E12 (CronSyncTxnData.java:600-615; REASON_PRA = PARTIAL_AMOUNT 'PRA' di SystemConstant.java:33). Jalur manual juga set PS-PRA (PaymentUpdateServiceImpl.java:389-399). Hasilnya bukan PS-FP; tiket OCMS-SR-2026-080 mencatat notice PS-PRA tidak bisa di-reduction sampai amount_payable di-patch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer tidak perlu mengurangi amount secara manual supaya pembayaran ter-update",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:568-574; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:389-399; ocmsadminui/src/pages/Payment/PaymentCash.tsx:250-259",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada koreksi otomatis atas amount_payable untuk pembayaran yang masuk sebelum escalation: sync langsung memakai amount_payable terbaru (CronSyncTxnData.java:562-568) dan hasil partial hanya ditandai PS-PRA. Layar manual payment hanya menampilkan hint 'Amount entered is lesser than the Amount Payable.' (PaymentCash.tsx:250-259). Tiket OCMS-SR-2026-080 membuktikan koreksi masih dilakukan lewat patch DB oleh MGG."
+    }
+  ]
+}

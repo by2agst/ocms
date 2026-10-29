@@ -1,0 +1,29 @@
+{
+  "story": "OCMS12.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob,jobs/ToppanUploadJob,helpers/ToppanUploadHelper,models/ToppanStage}, framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl (createToppanRequestFileContent), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findToppanNoticesForStage, utilities/sftpComponent/SftpUtil, application-{dev,uat,prod}.properties (sftp.upload.disabledServers), cron-schedules-prod.properties (toppanupload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "The requirement is given in the story text (status_with_ura: Demo paid 50% of 75%). The 'first letter reminder' in code is stage RD1 (ToppanStage.RD1), produced by the daily 00:15 Toppan Upload cron: a 719-character fixed-width data file URA-DPT-RD1-D1-<timestamp> (not a PDF; PDFs exist only for stage ANL), encrypted through COMCRYPT and sent to the Toppan SFTP. Key finding: sftp.upload.disabledServers=toppan is active in application-dev/uat/prod.properties (prod comment: block Toppan uploads only), so in the repo the file never reaches the vendor; since the OCMS-DF-2026-192 handling (Ready to UAT) the delivery gate is bypassed and the stage still advances to RD2 even though the file was not delivered. RD1 selection has no special vehicle/ID type filter; the Foreign filter applies to all stages and MID/DIP only at RR3/DR3. The content of Appendix C of Annex 1A is not in the repo. The real environment property value (may be overridden): cannot verify from repo.",
+  "recommendation": "Do not claim vendor delivery as done. The RD1 data file generation is proven, but the upload to Toppan is blocked by config in dev/uat/prod and the stage advances without delivery. Ask URA to confirm the production value of disabledServers and the Appendix C definition.",
+  "steps": [
+    {
+      "step": "OCMS selects owner notices due for the first reminder letter (stage RD1)",
+      "detail": "findToppanNoticesForStage('RD1'): next_processing_stage = RD1, next_processing_date <= today, suspension_type IS NULL, offender_indicator = 'Y', not an Advisory Notice (an_flag != 'Y'). The toppanupload cron is enabled=true, scheduled daily at 00:15 in cron-schedules-prod.properties. Double check: the 00:15 schedule (process_dayend_jobs) exists and is enabled, but the call to toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs (line 119) is commented out, so letter generation only runs through the manual trigger POST /toppan/generate-letters. Rated Partial."
+    },
+    {
+      "step": "Notices with a special vehicle/ID type (Appendix C) do not get this letter",
+      "detail": "Only Foreign (F) vehicles without PS-FOR are removed at all stages (TH:1943-1971). Military/Diplomatic (I/D) are removed and given PS-MID/PS-DIP only at stages RR3/DR3 (TH:1979-2014), and Diplomat/VIP are deliberately sent to RD1 by LTA (Orchestrator:101-127), so they still receive the RD1 letter. The Appendix C of Annex 1A list is not in the repo, so a full match cannot be proven."
+    },
+    {
+      "step": "OCMS builds the letter data file (name, ID, address, letter date, amount) for the vendor",
+      "detail": "After the letter_address = 'Y' filter, ToppanUploadJob builds URA-DPT-RD1-D1-<yyyyMMddHHmmss> through createToppanRequestFileContent: header H, one 719-character detail line per notice (sorted by postal code), trailer T; letterDate, paymentDueDate and amountPayable are filled at TH:2099-2132. The story says 'PDF/data files', so a data file satisfies it; PDFs are only generated for ANL. Whether the detail columns match the Toppan specification: cannot verify from repo."
+    },
+    {
+      "step": "File is sent to the vendor for printing and postage (COMCRYPT encryption then SFTP)",
+      "detail": "The code requests a COMCRYPT encryption token and an upload to the Toppan SFTP, but SftpUtil rejects uploads for servers listed in sftp.upload.disabledServers (SftpUtil:444-448) and the value is toppan in application-prod.properties:86 (also uat:77, dev:77; comment: block Toppan uploads only). So in the repo the file does not reach the vendor. The real environment value may be overridden: cannot verify from repo. Ticket OCMS-DF-2026-192 (Ready to UAT) describes this issue."
+    },
+    {
+      "step": "After the letter is sent the notice moves to the next stage (RD2) and the owner is informed",
+      "detail": "confirmDeliveryAndAdvanceStage calls updateProcessingStage (last = RD1, next = RD2 from ocms_stage_map). But because the Toppan upload is blocked, gateBypassed = true (TJ:424-448) and the stage still advances with the marker 'delivery-gate=bypassed(sftp-disabled)' even though the file was not delivered. So the database state 'letter sent' does not mean the owner received a letter. This bypass behaviour needs business confirmation (OCMS-DF-2026-192)."
+    }
+  ]
+}

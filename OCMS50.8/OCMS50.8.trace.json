@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/spcp/controller/SpcpController (session NRIC/UEN + JWT), workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmspii/eocmsoffencenoticeownerdriver, crud/ocmsezdb/eocmsvalidoffencenotice. ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts, Table/Column.ts, API.ts. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan",
+  "note": "Story minta offender yang sudah login Singpass (individu atau bisnis) bisa melihat semua outstanding fine atas ID atau perusahaannya, dengan detail (tanggal offence, car park, nomor kendaraan, amount). Code mendukung: session dari login menyimpan NRIC (individu) atau entityId/UEN (Corppass), pencarian ID mengambil notice dari PII DB dengan id_type N,F atau B dan offender_indicator = 'Y', memfilter outstanding (payment_status bukan FP), dan UI menampilkan nomor notice, kendaraan, car park + tanggal + jam, kode offence, dan amount. Catatan: notice annulled/PS-ANS ikut muncul di daftar outstanding sebagai non-payable, dan amount tampil '-' untuk baris non-payable. Jika query PII gagal (misalnya key dekripsi tidak bisa dibuka) catch di findParkingFinesByIdNo mengembalikan daftar kosong, tampil sebagai 'tidak ada fine'; ini cocok dengan remark demo 'Internet PII encryption', tetapi kondisi DB/key di Internet cannot verify from repo. Singpass/Corppass handshake cannot verify from repo.",
+  "recommendation": "Boleh diklaim: alur code dari session login sampai daftar outstanding lengkap ada. Syarat: PII DB dan key dekripsi di environment Internet harus dites langsung (remark demo), dan login Singpass/Corppass nyata tidak bisa dibuktikan dari repo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender sudah login lewat Singpass (individu) atau Corppass (bisnis) dan session membawa NRIC atau UEN",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:82-95; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:199-203",
+      "fit": "Sesuai",
+      "detail": "getAuthResponse memanggil handleRealAuth; setelah auth Singpass/Corppass, createSession(sessionId, nric, entityId) menyimpan NRIC dan entityId (UEN untuk Corppass) di PII DB lalu generateToken(sessionId) menerbitkan JWT (SpcpController.java:199, 203). Jalur bypass hanya aktif bila spcp.bypass.enabled=true (default false, SpcpController.java:41; true hanya di application-dev.properties:46). Handshake Singpass/Corppass sendiri cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengambil semua notice atas ID offender atau atas perusahaannya",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:298-312; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:22-31; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverServiceImpl.java:108-117; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:142-153",
+      "fit": "Sesuai",
+      "detail": "ID dan tipe diambil dari session, bukan dari request: entityId terisi -> idType 'B' dan idNo = UEN, selain itu idType 'N,F' dan idNo = NRIC (ParkingFinesController.java:308-311). Query native mencocokkan DecryptByKey(id_no) dan id_type, dan hanya offender_indicator = 'Y' (EocmsOffenceNoticeOwnerDriverRepository.java:22-30); service membuka dan menutup symmetric key (ServiceImpl.java:108-117). Notice lalu dimuat dari eVON lewat findAllByNoticeNoInWithoutCrsFilter. Bila query melempar exception, findParkingFinesByIdNo mengembalikan daftar kosong (catch di akhir method) sehingga UI menampilkan pesan E7; ketersediaan key dekripsi di Internet DB (remark demo) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar memuat semua fine yang masih outstanding",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:324-341; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:81-102",
+      "fit": "Sesuai",
+      "detail": "Semua hasil dihitung dulu: totalOutstanding = payment_status bukan 'FP', totalPaid = 'FP' (ParkingFinesController.java:325-331); filter 'outstanding' hanya meneruskan yang bukan FP (:334-337). Query eVON mencakup notice tanpa suspension CRS, stage court, annulled/PS-ANS, dan FP/PRA dalam 6 bulan (EocmsValidOffenceNoticeRepository.java:81-102). Notice annulled/PS-ANS ikut dihitung outstanding walau non-payable. Kasus notice yang sudah dibayar masih tampil outstanding karena sync intranet-internet diperbaiki di OCMS-DF-2026-168 / OCMS-SR-2026-167 (Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap fine menampilkan tanggal offence, car park, nomor kendaraan, dan amount payable",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Table/Column.ts:16-19; ocmseserviceui/src/pages/Payment/Table/Column.ts:76-101; ocmseserviceui/src/pages/Payment/Table/Column.ts:109-122; ocmseserviceui/src/pages/Payment/Table/Column.ts:181-198; ocmseserviceui/src/pages/Payment/API.ts:49-71",
+      "fit": "Sesuai",
+      "detail": "Untuk pencarian ID, kolom adalah Notice Number, Vehicle Number, Place of Offence, Offence, Status, Amount (Column.ts:181-198). Kolom Place of Offence menampilkan nama car park (pp_name) plus 'Date:' dan 'Time:' dari notice_date_and_time (FormatPlaceOfOffence, :76-95); kolom 'Date of Offence' terpisah hanya dipakai pencarian vehicle/notice. Amount memakai format '$' untuk baris payable dan '-' untuk non-payable (:109-122). Pemetaan data dari response ada di API.ts:49-71."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih fine dari daftar untuk melanjutkan pembayaran",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1028-1046; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:198-208; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-243",
+      "fit": "Sesuai",
+      "detail": "InitPaymentSPCPUnpaid merender tabel outstanding dengan checkbox, pilihan payment mode, dan tombol Pay (PaymentSearchResult.ts:1028-1046). Pilihan bertahan antar halaman lewat mergeSelections (:198-208) dan hanya baris payable yang bisa dicentang (:243). Fakta pemilihan ini sama dengan OCMS50.6 langkah 1."
+    }
+  ]
+}

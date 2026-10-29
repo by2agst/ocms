@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.60",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/stafffurnish/services/StaffFurnishService (stage RD1/DN1 + next_processing_date setelah furnish), ocmsadminprivateapi src/main/java/.../agencies/mha/upload/{jobs/MhaNricUploadJob,helpers/MhaNricDataHelper}, agencies/mha/download/helpers/MhaNricDownloadHelper, framework/schedulers/MhaDownloadJobsScheduler, datahiveuenfin/jobs/DataHiveUenFinJob; src/main/resources/cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, thirdpartyapi: tidak ada pemicu pengecekan address",
+  "note": "Status story: Requirement given - Gen flow. Demo remark sheet: 'Vault Code Split. Vault needs to run as notice needs to get vehicle and owner info for ANS Code split required. Permission for Vault connection is granted to the api App Service server' (klaim sheet, tidak sesuai dengan teks story dan tidak dinilai). Tidak ada pemicu langsung: furnish (PLUS maupun staff) hanya mengubah stage ke RD1/DN1 dan next_processing_date ke besok 00:00, lalu cron MHA upload (09:00, 14:00, 21:00 Senin-Sabtu) mengambil notice dengan stage itu dan offender_indicator=Y, id_type=N, dan hasilnya diproses cron download (11:30, 16:30, 23:30). Jadi 'hari yang sama' bergantung pada jam furnish dan tidak berlaku hari Minggu. Hanya individu NRIC yang tercakup; pengecekan UEN/FIN (DataHive) mati di prod (cron.mhadownload.uenfin.enabled=false). Nilai asli di server: cannot verify from repo. Partner MHA/SFTP: cannot verify from repo. Isi Epic OCMS8 tidak dibaca lagi di sini.",
+  "recommendation": "Klaim sebagian: update dari PLUS/staff otomatis masuk antrean cek MHA NRIC pada run cron berikutnya. Tidak ada pemicu langsung 'hari yang sama', Minggu tidak jalan, dan cek perusahaan (UEN) mati di prod. Jangan klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars hirer/driver diupdate dari PLUS atau lewat update manual staff di OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:175-262",
+      "fit": "Sesuai",
+      "detail": "Dua jalur yang disebut story ada: PLUS lewat /plus-furnish dan /plus-redirect, staff lewat /staff-furnish yang memakai StaffFurnishService yang sama (PlusIntegrationController.java:148, 197; StaffFurnishController.java:36-37). Hasilnya offender baru berstatus current (indicator Y), stage RD1/DN1 dan next_processing_date terisi (StaffFurnishService.java:223, 240, 257-260). Jalur Online Customer Portal tidak diperiksa di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record yang baru diupdate masuk antrean pengecekan registered address pada hari yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:144-157; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:254-260; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:186-199; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pemicu langsung dari furnish ke pengecekan address. Furnish hanya mengisi next_processing_stage RD1/DN1 dan next_processing_date = max(notice + 7 hari, besok 00:00) (StaffFurnishService.java:144-157, 254-260). Cron MHA upload memilih notice dengan stage RD1/RD2/RR3/DN1/DN2/DR3, next_processing_date <= besok dan suspension_type null (MhaNricDataHelper.java:186-199) serta offender_indicator=Y dan id_type=N (baris 345-346), sehingga record furnish masuk di run berikutnya. Jadwal prod: cron.mhaupload.schedule=0 0 9,14,21 ? * MON-SAT, enabled=true (cron-schedules-prod.properties:105-106). Furnish setelah 21:00 atau pada hari Minggu baru terambil hari kerja berikutnya, jadi 'hari yang sama' tidak terjamin. Nilai di server asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek registered address terbaru individu (NRIC) ke MHA dan memprosesnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:29-44; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:630-648",
+      "fit": "Sebagian",
+      "detail": "Untuk individu ber-NRIC, enquiry file MHA dibuat (MhaNricDataHelper.java:29-44) dan file hasil diproses cron download (jadwal prod 11:30, 16:30, 23:30 Senin-Sabtu, enabled=true, cron-schedules-prod.properties:119-120) yang menulis/mengupdate address tipe mha_reg (MhaNricDownloadHelper.java:630-648). Alasan Sebagian: (1) OCMS-DF-2026-176 (status Ready to UAT, belum deployed) memperbaiki date/time stamp owner_driver dan owner_driver_addr yang tidak diupdate saat pemrosesan hasil MHA; (2) OCMS-DF-2026-177 (Closed) menunjukkan hasil MHA sebelumnya mengupdate record tanpa cek offender indicator; (3) pertukaran file dengan MHA lewat SFTP/COMCRYPT: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek registered address terbaru perusahaan (UEN/FIN) untuk particulars yang di-furnish",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50-52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:43; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:104",
+      "fit": "Sebagian",
+      "detail": "Cron MHA upload hanya mengambil id_type=N (MhaNricDataHelper.java:345-346), jadi perusahaan (UEN) dan FIN tidak ikut. Job terpisah DataHiveUenFinJob ada, tetapi di prod dimatikan: cron.mhadownload.uenfin.enabled=false dengan komentar 'Keep disabled in PROD until DataHive view names are verified' dan cron.mhadownload.datahive=false (cron-schedules-prod.properties:50-52; MhaDownloadJobsScheduler.java:43, 104). Nilai di server asli: cannot verify from repo. Code ada, eksekusinya off menurut repo."
+    }
+  ]
+}

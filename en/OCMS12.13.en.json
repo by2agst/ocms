@@ -1,0 +1,33 @@
+{
+  "story": "OCMS12.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin (DataHiveUenFinService.storeUenDataResult, updateShareholderInfo), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, cron-schedules-prod.properties. ocmsadminui pages/Vault/Datahive (Directors Details with empty data). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story",
+  "note": "3-point story, status 'Requirement given - Gen flow' (not verified). Only the receipt of ACRA data from DataHive (board and shareholders) through DataHiveUenFinJob exists; board data is not stored (OCMS-DEV-2026-231), there is no date-of-offence / appointment-period filter, and no code decides to revert to RD1 (Director/Partner) or RD2 (Owner/Partner). The UEN job is off in prod (cron.mhadownload.uenfin.enabled=false). The name 'DOS' is not in code: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only data receipt exists (partly); the date filter and the revert decision are not built. Confirm the decision rule with URA.",
+  "steps": [
+    {
+      "step": "OCMS receives the owner/partner/director particulars from DOS",
+      "detail": "Same as OCMS12.12 step 4: the DataHive result carries shareholderData and boardData (BATCH:196-210). Shareholders are saved (SVC:1442-1448) without appointment dates; board data is only logged and not written to the DB (OCMS-DEV-2026-231, SVC:1468-1478). The UEN job is off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). The name 'DOS' is not in code: cannot verify from repo."
+    },
+    {
+      "step": "The received particulars are stored in OCMS so the decision can use them",
+      "detail": "Shareholders are written to ocms_dh_acra_shareholder_info (person id, share allotted, category) without name or appointment date; board data is NOT written (SVC:1468-1478, OCMS-DEV-2026-231). The staff portal has a 'Directors Details' tab but it is called with data={{}} (DatahiveHirerDetail.tsx:57-59, DirectorDetail.tsx:19-28), so officers do not see directors from the DB."
+    },
+    {
+      "step": "Particulars are selected based on the date of offence",
+      "detail": "The board query is only WHERE ENTITY_UEN IN (...) (BATCH:436-442) and the notice query (SVC:221-246) does not carry the offence date for UEN; no code compares the offence date with ACRA data. Grep tried: offence date, appointment, director, partner, position in ocmsadminprivateapi, ocmsadminapi, thirdpartyapi."
+    },
+    {
+      "step": "Particulars are selected based on the appointment period",
+      "detail": "position_appointment_date and position_withdrawn_date are carried in BoardInfo (BATCH:196-210) but never compared with any date; board data is not even written to the DB (SVC:1468-1478). There is no appointment-period check."
+    },
+    {
+      "step": "OCMS decides to revert the notice to send the 1st reminder to the individual Director/Partner",
+      "detail": "No code changes next_processing_stage from the UEN lookup result: DataHiveUenFinService only writes company name, address, shareholders and applies TS-ACR suspensions (de-registered, UEN not found, mandatory data missing) (SVC:1346-1480); next_processing_stage is only read (SVC:226, 310). There is no Director/Partner decision branch. Manual alternative: officers can furnish a hirer through the staff portal (outside the automatic flow of this story)."
+    },
+    {
+      "step": "OCMS decides to revert the notice to send the 2nd reminder to the individual Owner/Partner",
+      "detail": "No code changes next_processing_stage from the UEN lookup result: DataHiveUenFinService only writes company name, address, shareholders and applies TS-ACR suspensions (de-registered, UEN not found, mandatory data missing) (SVC:1346-1480); next_processing_stage is only read (SVC:226, 310). There is no Owner/Partner decision branch."
+    }
+  ]
+}

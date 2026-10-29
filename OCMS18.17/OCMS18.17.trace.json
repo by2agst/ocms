@@ -1,0 +1,46 @@
+{
+  "story": "OCMS18.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension, helpers/SuspensionProcessingHelper.validateSuspension (Rule 4, PS di atas PS dari PLUS), helpers/PermanentSuspensionHelper.processPS/validateOverlap, SuspensionBaseHelper. Salinan di ocmsadminprivateapi framework/workflows/plus dan utilities/suspension_helpers.",
+  "note": "Pengecekan 'sudah ada PS' ada (suspension_type = PS di valid_offence_notice). Yang tidak sesuai story: setelah cek itu OCMS tidak mengirim pesan tentang PS yang sudah ada. Mode checking=true membalas eligible:true 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205) dan mode execute langsung me-revive PS lama lalu memasang PS baru (PermanentSuspensionHelper.java:125-130) tanpa menunggu PLUS. Satu-satunya pesan 'sudah PS' hanya untuk kode PS yang sama persis ('Success Notice already PS', PermanentSuspensionHelper.java:91). Komentar kode (PermanentSuspensionHelper.java:253) menyebut test plan OCMS 18.17/18/20, tetapi komentar bukan bukti. Maintenance ticket OCMS-DF-2026-075 (closed, prod deployed) menambah pengecualian paid notice pada cek PS yang sama (PermanentSuspensionHelper.java:82-95). Perilaku PLUS dan salinan mana yang dipanggil: cannot verify from repo.",
+  "recommendation": "Klaim sebagian saja: pengecekan existing PS ada, pesan existing PS ke PLUS tidak ada. Tambahkan jawaban khusus (kode PS lama, tanggal) saat checking menemukan PS berbeda, atau tandai sebagai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima permintaan permanent suspension dari PLUS untuk satu atau lebih notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-551",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension menerima noticeNo (list), suspensionType, reasonOfSuspension, officerAuthorisingSuspension, memaksa suspensionSource = PLUS (SuspensionProcessingController.java:530-543) dan memproses tiap notice (SuspensionProcessingController.java:546-550). Auth/APIM di depan endpoint PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi bahwa permintaan permanent suspension dapat diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:386-405; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:560-586; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:100-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:195-220",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS18.16 langkah 1: execute memeriksa kode per source, stage, paid (PermanentSuspensionHelper.java:100-117). Pada mode checking untuk notice yang sudah PS, validatePSRequestForPlusValidation (SuspensionProcessingHelper.java:560-586) memeriksa kode, paid, CFC/CPC, tetapi tidak memeriksa stage/court. Bila PS lama adalah FP/PRA, PS baru hanya boleh APP/CAN/CFA/VST (PermanentSuspensionHelper.java:212-218, daftar dari standard code CRS_PS_CODES dan PS_REFUND_CODES: cannot verify values from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah sudah ada permanent suspension yang diterapkan pada notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:195-206; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:386-389",
+      "fit": "Sesuai",
+      "detail": "Cek dilakukan dari VON: suspensionType == PERMANENT (PermanentSuspensionHelper.java:79, 127, 198; SuspensionProcessingHelper.java:387-388) dan kode lama dibaca dari eprReasonOfSuspension (PermanentSuspensionHelper.java:80, 203). Dipakai di kedua mode (checking dan execute). Kode PS yang sama dikenali dan dianggap sudah beres (PermanentSuspensionHelper.java:81-92). Cek memakai kolom di VON, bukan membaca baris aktif di ocms_suspended_notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan ke PLUS yang memberi tahu adanya permanent suspension yang sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:386-405; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1198-1205; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130",
+      "fit": "Beda dari flow",
+      "detail": "Untuk PS lama dengan kode berbeda, checking membalas eligible:true 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205) tanpa menyebut PS lama, dan execute langsung me-revive PS lama serta memasang yang baru (PermanentSuspensionHelper.java:125-130). Pesan 'sudah PS' hanya ada untuk kode PS yang sama persis, itu pun sebagai status sukses 'Success Notice already PS' (PermanentSuspensionHelper.java:91). Jadi PLUS tidak diberi tahu soal PS lama pada kasus yang dimaksud story. Salinan ocmsadminprivateapi sama (ocmsadminprivateapi SuspensionProcessingHelper.java:119-134; ocmsadminprivateapi PermanentSuspensionHelper.java:123-125, 172-176)."
+    }
+  ]
+}

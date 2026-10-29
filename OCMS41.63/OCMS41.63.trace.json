@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.63",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, agencies/mha/download/MhaNricDownloadHelper (bufferMhaRegistrationAddress), furnish_processing/FurnishApprovalHelper (furnished_mail), toppan/upload/ToppanUploadHelper (letter_address), syncintranetinternet/SyncIntranetInternetService, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, cron-schedules-prod.properties, application-prod.properties. ocmseserviceapi: EocmsValidOffenceNoticeRepository (data pembayaran). Appendix A dan B Annex 1: tidak ada di repo",
+  "note": "Status story: Requirement given - Gen flow. Code meng-update address lewat row mha_reg dari hasil MHA, tetapi tanpa pengecekan cocok-atau-tidak dengan furnished address, dan row furnished_mail yang sudah bertanda letter_address=Y tidak digeser. Sinkronisasi ke eService dan pembuatan surat reminder ada, tetapi surat Toppan hanya jalan lewat trigger manual dan upload Toppan dimatikan di config prod. Isi Appendix A dan B Annex 1 tidak ada di repo, jadi kecocokan dengan workflow itu cannot verify from repo. Tiket: OCMS-DF-2026-130 (mha_reg kini full replace), OCMS-DF-2026-024 (alamat offender lama), OCMS-DF-2026-067 dan OCMS-DF-2026-077 (celah is_sync yang membuat notice tidak muncul di eService, Closed), OCMS-DF-2026-192 (generate surat manual gagal, belum UAT).",
+  "recommendation": "Klaim hanya sebagian: update address dari MHA dan sinkronisasi ada, pengecekan cocok dengan furnished address tidak ada. Konfirmasi dengan URA apakah aturan 'furnished address menang' (letter_address) sudah menggantikan perbandingan, dan lampirkan Appendix A dan B untuk verifikasi",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek registered address terbaru hirer/driver yang di-furnish",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:565-569; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:784; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Notice yang sudah di RD1/DN1 (stage setelah furnish) ikut query upload MHA bila NPD kurang dari atau sama dengan besok, tanpa suspension, offender_indicator Y dan id_type N (hanya NRIC) (OcmsValidOffenceNoticeRepository.java:565-569); hasil MHA hanya diterapkan ke row ONOD yang masih current offender (MhaNricDownloadHelper.java:777-784, OCMS-DF-2026-177). Cron upload (Senin-Sabtu 09:00, 14:00, 21:00) dan download (11:30, 16:30, 23:30) enabled=true di prod (cron-schedules-prod.properties:105-106, :119-120). Hirer/driver bertipe UEN, FIN atau passport tidak masuk query ini, dan job DataHive UEN/FIN dimatikan di prod (:52). Nilai asli di server cannot verify from repo. Konsisten dengan OCMS41.61 langkah 1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memastikan registered address cocok dengan address yang di-furnish",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2280-2340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723-1760",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada perbandingan row mha_reg dengan furnished_mail (postal code, unit) di enam repo; jalur tulis mha_reg tidak membaca furnished_mail. Fakta yang sama dengan OCMS41.61 langkah 2, jadi fit-nya sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update address sebagaimana mestinya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2294-2334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:2323-2325; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:468-520",
+      "fit": "Sebagian",
+      "detail": "Row mha_reg ditulis ulang penuh dari hasil MHA, termasuk mengosongkan field yang kini blank (MhaNricDownloadHelper.java:2294-2334, OCMS-DF-2026-130), tetapi tanpa syarat cocok. letter_address=Y hanya diberikan bila belum ada row Y (:2323-2325), jadi furnished_mail dari furnish tetap dipakai untuk surat pertama. Setelah satu surat Toppan terkirim, flag dipindah ke mha_reg lalu lta_reg lalu lta_mail dan furnished_mail tidak ada di rantai fallback (ToppanUploadHelper.java:468-520), sehingga reminder berikutnya memakai registered address. Hirer yang hanya punya furnished address berisiko tanpa letter address (fakta addendum). OCMS-DF-2026-024 (alamat offender lama tampil di offender baru) Closed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dan data yang di-update tersedia di eService untuk pembayaran lewat sync Internet-Intranet",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:802-803; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:127-128; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:437-438; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:291-292; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:44",
+      "fit": "Sebagian",
+      "detail": "Hasil MHA menandai ONOD isSync='N' (MhaNricDownloadHelper.java:802-803) dan SyncIntranetInternetService menyalin VON, ONOD dan OND ke Internet (SyncIntranetInternetService.java:127, :437, :612) tiap 10 menit, enabled=true di prod (cron-schedules-prod.properties:291-292). SyncIntranetInternetService tidak menyalin row address (mha_reg), dan pembayaran membaca eocms_valid_offence_notice (EocmsValidOffenceNoticeRepository.java:44). OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed) menunjukkan jalur yang mengubah stage tanpa is_sync='N' membuat notice tidak muncul di eService; apakah semua jalur sudah diaudit cannot verify from repo. Tampilan nyata di eService bergantung data: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tindak lanjut terhadap hirer/driver yang di-furnish berjalan menurut automated processing workflow Appendix A dan B Annex 1",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2199; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "Surat reminder memakai row address dengan letter_address=Y (ToppanUploadHelper.java:2199). Jadwal Toppan 00:15 enabled=true (cron-schedules-prod.properties:61-62), tetapi pemanggilan toppanLettersGeneratorService.executeJob() di dalamnya di-comment (ToppanUploadJobsScheduler.java:118), jadi surat hanya dibuat lewat POST /toppan/generate-letters (ToppanUnifiedController.java:34). Upload ke Toppan dimatikan di config prod (sftp.upload.disabledServers=toppan, application-prod.properties:86); nilai asli di server cannot verify from repo. OCMS-DF-2026-192 (generate surat manual di production gagal) masih Ready to UAT. Isi Appendix A dan B: cannot verify from repo."
+    }
+  ]
+}

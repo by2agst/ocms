@@ -1,0 +1,55 @@
+{
+  "story": "OCMS21.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/NoticeRecordHelper (PS-DBB dibuat saat INSERT, tanpa pemanggilan SMS/email); ocmsadminprivateapi workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (sendSms/sendEmail generik untuk eNotification) + application-prod.properties/cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait.",
+  "note": "Status di sheet: 'Requirement given - Gen flow'; demo remark: 'Check if SK did SMS to notify PS-DBB. Doubt it.' Hasil baca kode mendukung keraguan itu: tidak ada kode yang mengirim SMS/email pembatalan setelah PS-DBB, dan tidak ada pengecekan 'notifikasi sudah dikirim hari yang sama'. Yang ada hanya pengirim SMS/email generik untuk eNotification yang matikan di properties prod (sms.enable=false, email.enableSmtp=false, cron.notification.enabled=false; nilai server asli cannot verify from repo). Karena PS-DBB dipasang pada notice baru saat dibuat, urutan 'sudah di-SMS lalu disuspend' juga tidak terjadi di jalur ini. Tidak ada ticket maintenance relevan.",
+  "recommendation": "Jangan klaim sebagai selesai. Bangun trigger notifikasi pembatalan setelah PS-DBB (dan cek notifikasi hari yang sama) lalu konfirmasi kebutuhan dengan URA",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice duplicate yang masih outstanding sudah disuspend permanen oleh OCMS (PS-DBB)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:497-503; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:559-568; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1119-1120",
+      "fit": "Sebagian",
+      "detail": "PS-DBB diterapkan pada notice BARU saat INSERT (lihat OCMS21.1), jadi notice tersebut belum pernah dikirimi notifikasi sebelumnya. Kode tidak menyuspend notice outstanding lama yang sudah diberi SMS/email di hari yang sama, sehingga kombinasi 'duplicate sudah di-SMS lalu disuspend' tidak terjadi lewat jalur otomatis ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah SMS/email pemberitahuan sudah terkirim untuk notice itu pada hari yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:212-219",
+      "fit": "Tidak ada code",
+      "detail": "Tabel ocmsizmgr.ocms_sms_notification_records dibaca oleh NotificationSmsEmailHelper untuk logika eNotification (reminder ENA), tetapi tidak ada query atau kode yang mengaitkan PS-DBB dengan catatan notifikasi hari yang sama. Grep DBB di folder notification_sms_email, ocmsadminapi notice_creation (SMS/email), dan thirdpartyapi: tidak ada hasil. Demo remark story: 'Check if SK did SMS to notify PS-DBB. Doubt it.'"
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspend PS-DBB memicu pesan pembatalan ke pemilik kendaraan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:497-503; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:602-620",
+      "fit": "Tidak ada code",
+      "detail": "Jalur pembuatan PS-DBB hanya mengisi VON dan record ocms_suspended_notice (NoticeRecordHelper.java:497-503, 602-620); tidak ada pemanggilan SmsUtil/EmailService atau antrean notifikasi. Grep 'cancel' di resources ocmsadminprivateapi/ocmsadminapi hanya menemukan laporan pembayaran, bukan template pesan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi SMS/email menyatakan notice sudah dibatalkan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:509-529",
+      "fit": "Tidak ada code",
+      "detail": "Isi pesan yang ada hanya untuk reminder eNotification (stage ENA/DN/DR). Tidak ditemukan template atau teks 'notice has been cancelled' di enam repo (grep cancel/dibatalkan pada resources dan source). Isi template di DB (ocms_standard_code / template table) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS/email terkirim ke pemilik kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:509-529; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-578; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Mekanisme kirim generik ada (NotificationSmsEmailHelper.sendSms/sendEmail), tetapi hanya dipakai job eNotification, bukan oleh suspend DBB. Di properties prod: sms.enable=false (application-prod.properties:87), email.enableSmtp=false (80), cron.notification.enabled=false (cron-schedules-prod.properties:236); nilai di server asli cannot verify from repo. Tidak ada mekanisme ini yang dikaitkan dengan story."
+    }
+  ]
+}

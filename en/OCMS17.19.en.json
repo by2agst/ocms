@@ -1,0 +1,21 @@
+{
+  "story": "OCMS17.19",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/SuspensionProcessingHelper,helpers/TemporarySuspensionHelper}, workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto}; ocmsadminprivateapi framework/workflows/plus/notice_management/retrieval/getnotice. Other repos not relevant.",
+  "note": "The story asks OCMS to send the existing TS details (code and number of days) to PLUS so the PLUS user can confirm applying the new TS. The apply/validate response only holds noticeNo, success/eligible, message, srNo and appCode; there is no old TS code or days. That data can only be pulled by PLUS via /plus-suspended-notice and /plus-offence-notice (reasonOfSuspension, dueDateOfRevival; the number of days is not sent and has to be derived from dateOfSuspension and dueDateOfRevival). OCMS has no confirmation mechanism: a second TS request is processed the same as the first. The PLUS screen that shows the details and a confirm button cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the TS data that PLUS can pull exists; OCMS sending the details in the apply flow, and the confirmation, are not in the code.",
+  "steps": [
+    {
+      "step": "OCMS builds the existing TS details (suspension code and number of days) and sends them to PLUS in the validation response",
+      "detail": "The validation response is only {noticeNo, eligible, message} (SuspensionProcessingHelper.java:1198-1218) and the execution response {noticeNo, srNo, success, message} + appCode (SuspensionBaseHelper.java:541-551, SuspensionProcessingController.java:1186-1198). There is no field for the old TS code or number of days. Searched with grep existing/already/overlap/existingSuspension in ocmsadminapi and ocmsadminprivateapi (PLUS path and UI) with no hit in the apply flow."
+    },
+    {
+      "step": "The existing TS details (code, type, source, revival due date, remarks) are available to PLUS through read endpoints",
+      "detail": "The suspended_notice DTO holds reasonOfSuspension, suspensionType, suspensionSource, dateOfSuspension, dueDateOfRevival, suspensionRemarks. The number of days is not a field; PLUS has to derive it from dateOfSuspension and dueDateOfRevival. /plus-offence-notice gives the notice-level reason and dueDateOfRevival, where with several TS the reason = the latest TS while the due date = the furthest (TemporarySuspensionHelper.java:104-118), so the two can come from different TS. This is a pull by PLUS, not something OCMS sends."
+    },
+    {
+      "step": "The PLUS user is told about the existing suspension and confirms to still apply the new TS",
+      "detail": "On the OCMS side there is no confirmation state or flag: a second /plus-apply-suspension request is processed like the first, and an old TS does not block it (TemporarySuspensionHelper.java:68-70), so 'confirm then apply' can run, just without any confirmation requirement. The PLUS screen that shows the details and asks for confirmation cannot verify from repo."
+    }
+  ]
+}

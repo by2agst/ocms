@@ -1,0 +1,29 @@
+{
+  "story": "OCMS1.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/enforcement/{EnforcementController,EnforcementServiceImpl} (on-demand REPCCS/CES report, xlsx export). ocmsadminui pages/Report/index.tsx, pages/Report/lists/ReportListNoticeFE.tsx. ocmsadminprivateapi cron-schedules-prod.properties (daily report job list, no REPCCS report). ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'User Story Removed': the verdict stays Removed, not claimed. All that exists is the staff portal report 'Notices Created by Enforcement Systems' (REPCCS source), generated on demand and downloadable as Excel with Received/Successful/Failed counts. There is no scheduled daily report, no routing to an OIC dashboard, and no admin fee or payment reference number count. A payment reference number is not created in any code searched. Who may open the report (OIC only or all staff) cannot be verified from repo.",
+  "recommendation": "Not claimed (Removed). A similar on-demand report exists, but the daily report, OIC dashboard, admin fee count and payment reference number count do not.",
+  "steps": [
+    {
+      "step": "OCMS generates a daily report of the transactions received from REPCCS",
+      "detail": "The scheduled daily report job (cron.dailyreport.schedule=0 0 8 * * ?, cron-schedules-prod.properties:255) only contains Payment Exception, Daily Paid, RIP Hirer/Driver, HST, Unclaimed, Furnish Daily Officer Notification and Classified Vehicle (:262-268). No job builds a REPCCS transaction report. The 'Notices Created by Enforcement Systems' report is only generated on demand from the staff portal (see the next step). Searched ocmsadminprivateapi for REPCCS, enforcement-report and 'Notices Created': no job."
+    },
+    {
+      "step": "The report is routed to the OIC's dashboard",
+      "detail": "The report only appears as the menu 'Notices Created by Enforcement Systems' on the staff portal Report page (index.tsx:21-23) and has to be opened and searched manually. There is no push or routing of the report to an OIC dashboard, no email and no backend notification for it. Searched workflows/enforcement and ReportListNoticeFE.tsx for dashboard, routing and email: none."
+    },
+    {
+      "step": "The OIC can download the report",
+      "detail": "POST /enforcement-report/export returns ReportNoticeREPCCS.xlsx (EnforcementController.java:36-52) and the Export button in ReportListNoticeFE.tsx:74 serves the REPCCS source. It is on demand with a date filter chosen by the user (not a daily report), and the controller has no role annotation; restricting it to the OIC cannot be verified from repo. Ticket OCMS-DF-2026-149 moved Excel generation to the backend and OCMS-DF-2026-005 (wrong Summary tally, seen on CES) is closed."
+    },
+    {
+      "step": "The report shows the number of transactions imposed with an admin fee",
+      "detail": "The REPCCS report columns are only S/N, Source, Notice No., Offence Type, ANS Flag, Transaction ID, Date/Time Received, Vehicle No., Offence Date/Time, Computer Rule Code, PP Code, Composition Amount, Vehicle Category, Vehicle Registration Type, Operator/PW ID, Subsystem Label, OBU Label (EnforcementServiceImpl.java:81-86). The Summary only has Total Received / Successful / Failed (:145-147). There is no admin fee column or count. Indeed no admin fee is applied when a REPCCS transaction is received: amount_payable = composition amount (NoticeRecordHelper.java:727); the admin fee is calculated later by other jobs (AdminFeeHelper for foreign vehicles, ToppanUploadHelper.java:1390-1401 for RR3/DR3)."
+    },
+    {
+      "step": "The report shows the number of transactions with a payment reference number generated",
+      "detail": "No code creates a 'payment reference number' when a REPCCS transaction is received or when an admin fee is imposed. Searched paymentRef, payment_ref and 'payment reference' in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi and thirdpartyapi: no generation, only other references (receipt_no in CronSyncTxnData.java:641, the webhook Transaction ID). The only identifier in the report is the webhook Transaction ID (EnforcementServiceImpl.java:82), not a payment reference, and there is no related count."
+    }
+  ]
+}

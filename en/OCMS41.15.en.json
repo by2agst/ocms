@@ -1,0 +1,33 @@
+{
+  "story": "OCMS41.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/form/{DecisionForm,ReplyComposeForm,ReplyEmail,ReplySMS}, pages/Furnish/components/{ComposeEditor,SelectTemplate}, pages/Furnish/hooks/useFurnishAPI, pages/Notice/{hook/useNoticeSubmit,form/Form}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, utilities/{emailutility/EmailService,smsutility/SmsUtil}, application(-prod).properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant to this step",
+  "note": "Status in stories.json: Demo paid (50% of 75%); the requirement is given. Demo remark: 'Using ad-hoc sms/email'. The Send Email/SMS option exists on the decision form, the officer picks channel and recipient, and after the approval is saved the email/SMS goes out through SMTP and APIM SMS and is recorded. One step is Sebagian: the template content (whether it urges payment) lives in the template store in the database, not in the repo, so it cannot be verified from the repo; OCMS-DF-2026-136 (Closed, Prod deployed) recorded the template dropdown once being empty. Something to watch: a message is only sent if the officer presses 'Add to send list' (compose_list not empty); ticking Send Email/SMS alone only saves the approval (useNoticeSubmit.tsx:215-233). A send failure does not undo the approval. Actual delivery through the URA SMTP and APIM SMS cannot be verified from the repo; in the repo email.enableSmtp=true (application.properties:133) and sms.enable=true (application-prod.properties:36), the real server values cannot be verified from the repo.",
+  "recommendation": "Claim: the send email/SMS option after approval, channel and recipient choice, and recording are proven. Confirm with URA that the template content does urge payment (it is in the database, not in the repo)",
+  "steps": [
+    {
+      "step": "Officer menilai detail dan menyetujui particulars sebagai Hirer atau Driver",
+      "detail": "The 'OIC Review' box has Decision Status and, for Approve, an 'Approve As' Driver/Hirer choice (DecisionForm.tsx:436-470). Submit calls approveFurnish to manual-review/approve-hirer or approve-driver (useNoticeSubmit.tsx:193-200; useFurnishAPI.ts:205-225; ManualReviewController.java:171-255). The approval logic and its effect on the notice (HST, stage) are outside this story."
+    },
+    {
+      "step": "Form keputusan menyediakan opsi Send Email/SMS",
+      "detail": "The 'Send Email/SMS' checkbox (sendEmailSms) is in the OIC Review box (DecisionForm.tsx:471-481); when ticked the 'Reply' tab appears (Form.tsx:88-90, 240-247). The option only shows while the submission is not yet Approved/Rejected (DecisionForm.tsx:435)."
+    },
+    {
+      "step": "Officer memilih email dan/atau SMS dan penerima, yaitu hirer/driver yang di-furnish",
+      "detail": "Message Mode Email or SMS is chosen per entry and 'Add to send list' adds the entry to compose_list, so one approval can carry both an email and an SMS (ReplyComposeForm.tsx:57-80, 91-112). The Recipients dropdown (Owner/Driver/Hirer) fills emailTo or the mobile number from furnishEmailAddr/furnishTelNo when the indicator matches, or from the owner data for Owner (ComposeEditor.tsx:211-266). The recipient is not forced to be the furnished person; the officer can pick Owner."
+    },
+    {
+      "step": "Officer memilih pesan siap pakai yang menyarankan hirer/driver menyelesaikan notice",
+      "detail": "SelectTemplate loads FURNISH_* templates from POST templatestorelist and filters them by decision and recipient, for example Approve + Hirer = FURNISH_EMAIL_HIRER / FURNISH_SMS_HIRER, Driver = FURNISH_EMAIL_DRIVER / FURNISH_SMS_DRIVER (SelectTemplate.tsx:28-61, 71-117), then renders via templatestore/render. The template content is stored in the database, not in the repo, so whether the text tells the person about the offence and asks to pay cannot be verified from the repo. The officer can also edit the text (ComposeEditor). OCMS-DF-2026-136 (Closed, Prod deployed) recorded the template dropdown once being empty; I did not verify the fix."
+    },
+    {
+      "step": "Sistem menyimpan approval lalu mengirim email/SMS yang ada di send list",
+      "detail": "Submit order: approveFurnish (or rejectFurnish) first; if it succeeds and sendEmailSms is ticked and compose_list is not empty, composeFurnish sends SMS as one batch to manual-review/send-sms and emails one by one to manual-review/send-email (useNoticeSubmit.tsx:193-233; useFurnishAPI.ts:118-203). If the approval fails, no email/SMS is sent (useNoticeSubmit.tsx:202-208); if sending fails, the approval stays and an error message is shown (useNoticeSubmit.tsx:219-222). Edge case: ticking sendEmailSms without 'Add to send list' sends nothing and only reports the approval (useNoticeSubmit.tsx:215,230-231). The reject path also sends messages, outside this story."
+    },
+    {
+      "step": "Email dan SMS dikirim ke penerima dan setiap pengiriman dicatat",
+      "detail": "send-email validates txnNo, noticeNo, recipient, subject, htmlBody and calls sendAndRecordEmail (ManualReviewController.java:300-345; ManualReviewService.java:494-520); send-sms accepts a single request or an array and calls sendAndRecordSms / batch (ManualReviewController.java:401-415; ManualReviewService.java:585-610). FurnishNotificationService sends through EmailService (SMTP) and SmsUtil (APIM batch SMS), then stores a record with service_type FURNISH and status S/E in the email/SMS notification tables (FurnishNotificationService.java:50-84, 166-217). Not switched off by repo config: email.enableSmtp=true (application.properties:133; EmailService.java:40-43) and sms.enable=true (application-prod.properties:36; SmsUtil.java:237-241); the real server values and actual receipt by SMTP/APIM cannot be verified from the repo."
+    }
+  ]
+}

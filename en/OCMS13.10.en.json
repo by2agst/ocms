@@ -1,0 +1,29 @@
+{
+  "story": "OCMS13.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (exclusion list), framework/workflows/agencies/mha/{upload/helpers/MhaNricDataHelper,upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, framework/workflows/datahiveuenfin/services/DataHiveUenFinService, framework/workflows/agencies/toppan/upload/{models/ToppanStage,jobs/ToppanUploadJob}, framework/schedulers/ToppanUploadJobsScheduler, resources/{application-prod,cron-schedules-prod}.properties. No UPL-specific code; the MHA/DataHive and Toppan mechanisms are generic. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Demo paid (50% of 75%)'. Demo remark: Vault must run because the notice needs vehicle/owner information, and Vault permission is granted to the api App Service. The story asks that after the e-reminder is sent or the offender has opted out, OCMS checks and updates the particulars (Epic OCMS8) so the 2nd letter can be sent. In code nothing links the e-reminder or the opt-out to the particulars check; each runs on its own, driven by next_processing_stage and next_processing_date. The MHA check picks notices whose next_processing_stage is RD1..DR3 (including DN2) and due tomorrow, so a UPL notice is checked before its DN2 letter. Coverage is the same as OCMS8.1/8.3/8.4: NRIC through MHA, FIN and UEN through DataHive (job off in prod, cron.mhadownload.uenfin.enabled=false), passport has no path. Tickets: OCMS-DF-2026-183 (Pending Closure, MHA cannot process several piled-up enquiry files), OCMS-DF-2026-125 and -133 (Closed; remark: the MHA cron was not yet turned on in Production at that time), OCMS-DF-2026-192 (Ready to UAT, Toppan block). The real server values, the MHA/SFTP/COMCRYPT connection and Vault: cannot verify from repo.",
+  "recommendation": "Claim in part. Selecting NRIC notices for MHA before DN2 matches; FIN/UEN/passport and sending the 2nd letter are not complete. Confirm with URA/the team whether the generic MHA/DataHive route is enough in place of the story's chain e-reminder, then particulars check, then 2nd letter",
+  "steps": [
+    {
+      "step": "The e-reminder has been sent or the offender is found to have opted out of electronic reminders",
+      "detail": "Opt-out is checked through the ocms_enotification_exclusion_list table: loadAllExcludedIds loads all IDs (NotificationSmsEmailHelper.java:1207-1217) and a record whose ID is in the list is skipped (NotificationSmsEmailJob.java:194-232). loadAllExcludedIds returns an empty set when the query fails, so the check fails open. No code uses the result 'e-reminder sent' or 'opted out' to release the notice to the next step; the stage moves on by next_processing_date. The job is switched off in prod (cron.notification.enabled=false, cron-schedules-prod.properties:236)."
+    },
+    {
+      "step": "OCMS selects the notices of local NRIC holders due for the 2nd letter to be checked with MHA/ICA",
+      "detail": "MhaNricDataHelper selects ocms_valid_offence_notice rows with nextProcessingStage IN (RD1, RD2, RR3, DN1, DN2, DR3) and nextProcessingDate <= tomorrow (MhaNricDataHelper.java:186-199), suspension NULL or TS-HST/UNC, then owner/driver rows with offender_indicator Y and idType N (:345-346). Because DN2 is in the list, a UPL notice about to get its 2nd letter is checked the day before. The MHA upload job has enabled=true in prod (cron-schedules-prod.properties:105-106). Same fit as step 1 of OCMS8.3. Note: the remark of OCMS-DF-2026-125/-133 (June) says the MHA cron was not yet turned on in Production; the current server value: cannot verify from repo."
+    },
+    {
+      "step": "Offenders with a FIN, UEN or foreign passport also have their particulars checked",
+      "detail": "FIN and UEN are selected by the DataHive job with id_type IN ('F','B') (DataHiveUenFinService.java:239), but that job runs only when cron.mhadownload.uenfin.enabled=true and it is false in prod (cron-schedules-prod.properties:52). Passport (idType P) has no query or view at all; the MHA selection is idType N only (MhaNricDataHelper.java:346), so the passport part has no code. Same fit as OCMS8.3 and OCMS8.4."
+    },
+    {
+      "step": "OCMS sends the IDs to MHA and updates the offender's particulars (name, date of birth, address, life status)",
+      "detail": "MhaNricUploadJob reads the notice data (MhaNricUploadJob.java:156), builds the enquiry file and puts it in blob (:217) for COMCRYPT to encrypt and send to the MHA SFTP. MhaNricDownloadHelper processes the result: name and lifeStatus are written to owner/driver (MhaNricDownloadHelper.java:729, 854-858) together with the mha_reg address and DOB/DoD. Sebagian because OCMS-DF-2026-183 (Pending Closure) reports that MHA cannot process several enquiry files piling up in SFTP /mhanro/input, and the SFTP/COMCRYPT/MHA connection: cannot verify from repo. Same fit as OCMS8.3."
+    },
+    {
+      "step": "The notice is ready to receive the 2nd letter reminder/notification (stage DN2)",
+      "detail": "Stage DN1 points to DN2 as the next stage with a 14-day gap (ToppanStage.java:22), so the notice enters the 2nd letter queue after the DN1 letter. Letter generation itself runs only by manual trigger because the generate call in the scheduler is commented out (ToppanUploadJobsScheduler.java:118), and sftp.upload.disabledServers=toppan lets the stage advance without delivery confirmation (ToppanUploadJob.java:419-433; OCMS-DF-2026-192). Sending the 2nd letter is the scope of OCMS13.11."
+    }
+  ]
+}

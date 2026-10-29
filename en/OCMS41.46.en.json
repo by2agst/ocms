@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.46",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/{form/{Owner,Hirer,Driver}Form.tsx, hook/useODH.tsx}; ocmsadminapi workflows/furnish/stafffurnish/{StaffFurnishController, StaffFurnishService} (staff-furnish/batch-furnish is what the UI uses for one notice) and the CRUD patch endpoints offencenoticeownerdriverpatch/offencenoticeaddresspatch (Edit path). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story.",
+  "note": "Status Demo paid (50% of 75%). The single-notice UI uses staff-furnish/batch-furnish with one notice (useODH.tsx:290-300), not /furnish/officer/manual/single, even though the ManualFurnishController comment names OCMS41.46-48; that controller is not called by the UI and is absent from api-authorization.properties (logged as an orphan). Tickets used: OCMS-DF-2026-024 (Closed, Prod deployed, old addresses deleted when a furnish overwrites the offender) and OCMS-DF-2026-170 (Closed, administration fee zeroed on furnish). Which function the OIC holds (staff-furnish/batch-furnish is only mapped to OCMS_BATCH_FURNISH) cannot verify from repo.",
+  "recommendation": "Claim partially: Furnish, Edit, address and result message are proven. Edit is only for the current offender; non-current particulars can only be overwritten (Furnish) or redirected.",
+  "steps": [
+    {
+      "step": "Officer opens the Owner/Hirer/Driver form on the notice; input fields (ID type/no, name, phone, email, address) are available and existing data is prefilled",
+      "detail": "OwnerForm, HirerForm and DriverForm use useODH. OWNER/HIRER/DRIVER data from NoticeContext becomes `existing` (useODH.tsx:74-79) and fills the form (e.g. hirer_name, HirerForm.tsx:294). Fields are read-only (readonly={!edit}) until the officer presses Furnish/Edit (HirerForm.tsx:511-512). Prompting the existing particulars is the subject of story OCMS41.45; here only the availability of input fields is judged. Sesuai."
+    },
+    {
+      "step": "Officer records new particulars (Furnish): the offender is saved and becomes the current offender",
+      "detail": "The Furnish button runs furnish-redirect-check (useODH.tsx:101-130), then after ValidODH (:165-167) and confirmation POSTs staff-furnish/batch-furnish with one notice (:290-300). The server requires name, idType, idNo, street name (StaffFurnishController.java:465-489); batchFurnish calls staffFurnish per notice (StaffFurnishService.java:656). staffFurnish sets the previous offenders to indicator N (:201), saves a new ONOD record with offender_indicator Y (:213-231) and syncs to PII (:232). Note: staff-furnish/batch-furnish is only mapped to function OCMS_BATCH_FURNISH (api-authorization.properties:72-73), not OCMS_OIC_FURNISH; which function the OIC holds cannot verify from repo. Sesuai."
+    },
+    {
+      "step": "The mailing address entered is saved as the letter address; old addresses of that role do not carry over",
+      "detail": "On furnish, the old addresses for notice+role are deleted (deleteAllByNoticeNoAndOwnerDriverIndicator, StaffFurnishService.java:206-207) so the new offender does not inherit mha_reg/lta_reg/lta_mail/furnished_mail (OCMS-DF-2026-024, Closed, Prod deployed). Then furnished_mail is created/overwritten with letter_address=Y and the other letter address flags are reset (createOrUpdateFurnishedMailAddress, :945-1008). Postal code and block/house no are optional, street name is required (StaffFurnishController.java:485-487). Sesuai."
+    },
+    {
+      "step": "Officer updates existing particulars (Edit)",
+      "detail": "The Edit button only shows when particulars exist and that record is the current offender (offenderIndicator Y) (useODH.tsx:485-492); non-current particulars cannot be edited, only Furnish (overwrite) or Redirect. The only check is a local PS test on suspensionType (:88-99), with no furnishable-stage check. Submit calls PATCH offencenoticeownerdriverpatch (key notice_no, indicator) then offencenoticeaddresspatch or POST offencenoticeaddress for furnished_mail (:353-376). Two separate calls from the UI, not one transaction: if the second fails the ODH data is already changed and the UI shows 'API Error' (:443-449). Edit does not change the stage. Sebagian."
+    },
+    {
+      "step": "OCMS confirms the record/update to the officer",
+      "detail": "After all API calls succeed, the alert '<Owner/Hirer/Driver> detail has been successfully furnished/updated.' is shown (useODH.tsx:430-442) and the page reloads so the latest data is visible (onAlrOk, :274-283). On error an 'API Error: ...' alert is shown (:443-449). Same fit as OCMS41.48 step 1. Sesuai."
+    }
+  ]
+}

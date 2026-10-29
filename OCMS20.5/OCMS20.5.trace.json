@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi services/datahive/nricFinUenDataRetrieval/service/{DataHiveUENBatchService,DataHiveUENServiceImpl}, workflows/datahiveuenfin/services/DataHiveUenFinService (storeUenDataResult, updateShareholderInfo, updateBoardInfo), schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminapi crud/ocmsizdb/{OcmsDhAcraBoardInfo,OcmsDhAcraShareholderInfo,OcmsDhAcraCompanyDetail} (CRUD baca). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status stories.json 'Requirement given - Gen flow'. DOS = DataHive/ACRA tidak bisa dikonfirmasi dari repo. Yang ada: query DataHive V_DH_ACRA_BOARD_INFO_FULL (direktur) dan V_DH_ACRA_SHAREHOLDER_NGZ (pemegang saham) per UEN, dijalankan bersama query firma. Query hanya memfilter UEN; tanggal pelanggaran dan periode penunjukan (appointment) tidak dipakai sebagai filter di mana pun (tanggal appointment/withdrawn hanya dibawa ke DTO). Penulisan data board ke DB dimatikan lewat komentar OCMS-DEV-2026-231; data shareholder ditulis hanya untuk record notice reguler, dan untuk antrean adhoc Unclaimed (tanpa noticeNo) hanya alamat yang disimpan. Tidak ada percabangan 'alamat tidak berubah, lanjut ambil direktur' karena deteksi perubahan alamat tidak ada (lihat OCMS20.3). Job juga mati di prod properties (cron.mhadownload.uenfin.enabled=false). Mapping 'owner/partner' ke shareholder adalah interpretasi, bukan dinyatakan di code.",
+  "recommendation": "Jangan klaim penuh. Pengambilan data direktur/pemegang saham dari DataHive per UEN ada tetapi tanpa filter tanggal pelanggaran dan periode penunjukan, penulisan board dimatikan, dan job mati di prod properties",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila alamat terdaftar tidak berubah, OCMS lanjut meminta data owner/partner/director perusahaan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1376; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:95; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:113",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada percabangan berdasarkan hasil perbandingan alamat (perbandingan itu sendiri tidak ada, sama dengan OCMS20.3 langkah 3). Board dan shareholder diambil bersamaan dengan query firma untuk semua UEN yang ditemukan (DataHiveUENBatchService.java:95-113), tanpa melihat apakah alamat berubah."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN perusahaan ke registry (DOS) untuk meminta data owner/partner/director",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:50; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:51; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1055; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "UEN dikirim ke view DataHive V_DH_ACRA_BOARD_INFO_FULL (WHERE ENTITY_UEN IN, DataHiveUENBatchService.java:441-442) dan V_DH_ACRA_SHAREHOLDER_NGZ (baris 424). DOS = DataHive/ACRA tidak bisa dikonfirmasi dari repo. Job dimatikan di prod properties (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; nilai server nyata cannot verify from repo) dan antrean adhoc Unclaimed punya early-return (DataHiveUenFinJob.java:189-191)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data yang diterima disaring berdasarkan tanggal pelanggaran dan periode penunjukan (appointment) pejabat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:494; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:495; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UENDataResult.java:97",
+      "fit": "Tidak ada code",
+      "detail": "Query board hanya memfilter ENTITY_UEN (DataHiveUENBatchService.java:441). Tanggal appointment dan withdrawn dibaca ke DTO (DataHiveUENBatchService.java:494-495; UENDataResult.java:97-98) tetapi tidak pernah dibandingkan dengan tanggal pelanggaran notice (grep positionAppointmentDate/offenceDate di ocmsadminprivateapi dan ocmsadminapi; pembanding tanggal pelanggaran hanya ada di alur kematian FIN)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars owner/partner/director disimpan di OCMS agar bisa dipakai staf",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1443; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1446; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1472; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1475; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1055; ocmsadminapi/src/main/resources/api-authorization.properties:43",
+      "fit": "Sebagian",
+      "detail": "Shareholder disimpan lewat updateShareholderInfo untuk record notice reguler (DataHiveUenFinService.java:1443-1448), tetapi board/director tidak ditulis: panggilan updateBoardInfo dikomentari karena OCMS-DEV-2026-231 (DataHiveUenFinService.java:1472-1477). Untuk antrean adhoc Unclaimed (tanpa noticeNo) hanya alamat yang disimpan (DataHiveUenFinService.java:1055). API baca /v1/dhacraboardinfolist ada di api-authorization.properties:43 tetapi tabelnya tidak diisi oleh job saat ini. Pemetaan owner/partner ke shareholder adalah interpretasi."
+    }
+  ]
+}

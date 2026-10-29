@@ -1,0 +1,55 @@
+{
+  "story": "OCMS26.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController.casUpdateCourtNotices, service/CasIntegrationServiceImpl.updateCourtNotices, dto/CasUpdateNoticeItem}, config/WebConfig, auth/filter/JwtFilter, crud/ocmsizdb/stagemap/StageValidationService. ocmsadminui pages/NoticeSearch/hook/useSearch.ts (pencarian warrant_no). Tidak ada code untuk menerima update adjudication khusus warrant of arrest, mencatat outcome court, atau alur tindak lanjut warrant: ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi, ocmseserviceui tidak punya code court adjudication.",
+  "note": "Status story di sheet kosong (requirement tidak diberikan), ditelusuri normal. Satu-satunya jalur masuk dari court ke OCMS adalah endpoint umum POST /v1/casUpdateCourtNotices yang menimpa kolom stage, tanggal stage, amount_payable, payment_acceptance_allowed dan field suspension di VON (intranet) dan eVON (internet). Endpoint ini tidak tahu konsep warrant of arrest: tidak ada field, cabang, atau stage khusus WOA di DTO maupun service, dan tidak ada kolom/entity untuk outcome adjudication (OcmsCourtCase hanya noticeNo, courtPaymentDueDate, reason). Stage dari pemanggil diterima apa adanya karena StageValidationService.validateStagesFromExternalSource tidak dipanggil. Pencarian staff berdasarkan warrant_no memanggil resource warrantofarrest yang tidak punya controller di ocmsadminapi. Endpoint di-bypass dari JwtFilter dan authorization interceptor, dan ocms.cas.key.validation.enabled=false di prod: proteksi bergantung pada APIM, cannot verify from repo. Apakah CAS benar mengirim update WOA lewat endpoint ini cannot verify from repo. Ticket OCMS-SR-2026-179 (On Hold): stage NRO/CSD/CSR dari CAS tidak mengisi payment_acceptance_allowed.",
+  "recommendation": "Klaim parsial saja untuk penulisan stage dan amount_payable lewat endpoint CAS umum. Outcome adjudication dan tindak lanjut warrant of arrest belum ada: minta URA/tim konfirmasi apakah fitur WOA dibangun di sistem CAS atau repo lain.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Court system mengirim update hasil case adjudication atas warrant of arrest yang diterbitkan ke OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:85; ocmsadminapi/src/main/resources/application-prod.properties:55",
+      "fit": "Sebagian",
+      "detail": "Hanya ada satu pintu masuk umum dari CAS: POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101), maksimal 500 notice per request (:124). Tidak ada endpoint, field atau tipe pesan khusus warrant of arrest, jadi 'adjudication WOA' hanya mungkin lewat payload stage/amount umum; apakah CAS memang mengirimnya cannot verify from repo. Endpoint dikecualikan dari authorization interceptor (WebConfig.java:85) dan JwtFilter, dan ocms.cas.key.validation.enabled=false di prod (application-prod.properties:55): proteksi bergantung pada APIM, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update processing stage notice sesuai update adjudication",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:437; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:438; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:439; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:472; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:473; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/stagemap/StageValidationService.java:70",
+      "fit": "Sebagian",
+      "detail": "last/prev/next processing stage dari payload menimpa kolom di VON (CasIntegrationServiceImpl.java:437-439) dan eVON (:472-473); jika field kosong nilai lama dipertahankan. Stage tidak divalidasi: validateStagesFromExternalSource (StageValidationService.java:70) hanya didefinisikan dan tidak dipanggil dari updateCourtNotices, jadi stage apa pun diterima. Tidak ada pemetaan ke stage warrant of arrest. Notice yang sudah FULL_PAYMENT ditolak (:336). OCMS-SR-2026-179 (On Hold): stage NRO/CSD/CSR dari CAS tidak mengisi payment_acceptance_allowed sehingga notice tidak bisa dibayar online."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencantumkan outcome adjudication pada notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:22; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:25",
+      "fit": "Tidak ada code",
+      "detail": "DTO CasUpdateNoticeItem hanya membawa noticeNo, suspensionType, stage/tanggal, atomsFlag, amountPayable, paymentAcceptanceAllowed, eprReasonOfSuspension, eprDateOfSuspension; tidak ada field outcome/hasil adjudication. Entity OcmsCourtCase hanya noticeNo, courtPaymentDueDate, reason dan hanya dibaca (plus-get-court-case-info) atau ditulis oleh plus-payment-activation, bukan oleh update CAS. Sinonim yang dicoba: outcome, adjudicat, judgment, verdict, decision di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi dan ocmsadminui. Hanya ada tipe model UI Icourtoutcomeapproval.d.ts tanpa halaman atau endpoint."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update amount payable notice sesuai update adjudication",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:445; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:474; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:111; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:148; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:384; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:390",
+      "fit": "Sesuai",
+      "detail": "amountPayable dari payload ditulis ke amount_payable di VON (CasIntegrationServiceImpl.java:445, set clause :111, eksekusi :384) dan eVON (:474, :148, :390); jika tidak dikirim nilai lama dipertahankan. Ini memenuhi isi langkah (amount payable ikut ter-update), terlepas dari jenis kasusnya. Ticket OCMS-SR-2026-179 menyebut amount_payable dari CAS terisi benar."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Court Processing Officer menindaklanjuti warrant of arrest yang diterbitkan dari notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:69; ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:74; ocmsadminui/src/pages/Notice/hook/useStagePermissions.tsx:86",
+      "fit": "Tidak ada code",
+      "detail": "Pencarian notice by warrant_no memanggil resource 'warrantofarrest' (useSearch.ts:69-75), tetapi tidak ada controller/entity warrantofarrest di ocmsadminapi maupun ocmsadminprivateapi (nama hanya muncul di api-authorization.properties:23), jadi pemanggilan itu tidak punya server. Tidak ada layar, stage atau job tindak lanjut WOA. Satu-satunya terkait adalah pesan UI 'Notice has been submitted to State Court' (useStagePermissions.tsx:86) yang hanya blokir edit. Sinonim dicoba: warrant, WOA, arrest, summon, court di kedua layer (UI dan API)."
+    }
+  ]
+}

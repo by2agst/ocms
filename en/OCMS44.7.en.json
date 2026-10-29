@@ -1,0 +1,37 @@
+{
+  "story": "OCMS44.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/MonthlyReportJobsScheduler, framework/workflows/paymentReport/{jobs/MonthlyPaidReportJob,helpers/MonthlyPaidReportHelper,services/MonthlyPaidReportServiceImpl}, utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi PaymentUpdateServiceImpl (sender OCMS for staff payments). ocmsadminui pages/Cron/list/CronList.tsx (manual trigger), pages/Payment/PaymentCash.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this report",
+  "note": "Status Replacement Story (points empty). The requested monthly report mostly exists as the Monthly Paid Report (cron on the 1st at 08:30, Excel sent by email), but it contains all channels (eService, AXS, Offline, JTC, Refund), not only non e-payment, and the Offline sheet has no offence date/time or place. The recipients are 21 individual @ura.gov.sg addresses, not a confirmed URA Finance. The work item for the designated OICs and the browse screen by date range do not exist. Weekly does not exist (only daily and monthly). Prod configuration: email.enableSmtp=false but MONTHLY_PAID_REPORT is in the allowlist; real server value cannot verify from repo. Tickets used: OCMS-SR-2026-016, OCMS-SR-2026-088, OCMS-SR-2026-148, OCMS-SR-2026-153 (all Closed). Evidence 50.0%.",
+  "recommendation": "Claim partially: the monthly report and email exist. Ask URA whether the Monthly Paid Report (all channels) replaces the non e-payment report, who the URA Finance recipients are, and mark the OIC work item and date range browse screen as gaps",
+  "steps": [
+    {
+      "step": "OCMS generates the collection report automatically per period (weekly/monthly)",
+      "detail": "Prod: cron.monthlyreport.schedule=0 30 8 1 * ? and enabled=true (cron-schedules-prod.properties:275-276); the scheduler calls monthlyPaidReportService.executeJob() (MonthlyReportJobsScheduler.java:75) with the previous month as the period (MonthlyPaidReportServiceImpl.java:42). There is no weekly schedule; only daily (cron.dailyreport, 08:00) and monthly exist, so the monthly period satisfies 'weekly/monthly'. Real server value: cannot verify from repo. Same as the monthly step in OCMS43.5."
+    },
+    {
+      "step": "The report contains only non e-payment collections (other than eService/AXS)",
+      "detail": "The query takes all notices with crs_reason_of_suspension IN ('PRA','FP') in that month (lines 91-93), then splits them per channel using the sender column: URA = eService, AXS, OCMS = Offline (lines 187-191; staff payments use sender OCMS: PaymentUpdateServiceImpl.java:174), and a PP code that is not in the REPCCS car park list = JTC Collections (line 202). So non e-payment exists as the Offline and JTC sheets, but the report that is sent is one workbook with all channels plus Refund; there is no dedicated non e-payment report. The Offline sheet is only filled when the PP code is in the REPCCS list and the sender contains OCMS; an empty/other sender goes to uncategorized and is not counted. Ticket OCMS-SR-2026-088 (Closed): closed URA car parks were wrongly put under JTC."
+    },
+    {
+      "step": "The report shows notice number, offence date/time and place, amount paid, payment date and receipt number",
+      "detail": "The Offline sheet (lines 594-605) has Date/Time of Payment, Creation Date, Notice No., Receipt No., Payment Mode, Amount Paid, Amount payable, PP code and the suspension/ATOMS columns; there is no offence date/time and no offence place. The SQL does select notice_date_and_time and pp_name as offence_location (lines 63, 72) but the Offline sheet does not write them. The JTC sheet (lines 697-711) has Notice Date And Time and PP Code (not the place name). Related OCMS-SR-2026-153 (Closed): ATOMS Flag and Offence Notice Type columns were added."
+    },
+    {
+      "step": "OCMS builds the Excel report file and attaches it to an email",
+      "detail": "generateExcelReport builds a workbook with the sheets Summary, eService, Offline, AXS, JTC Collections, Refund (MonthlyPaidReportHelper.java:262-279); the job attaches OCMS_Monthly_Paid_Report_yyyyMM.xlsx to the EmailRequest with source MONTHLY_PAID_REPORT and calls emailService.sendEmail (MonthlyPaidReportJob.java:215, 227). In prod email.enableSmtp=false (application-prod.properties:80) but MONTHLY_PAID_REPORT is in email.smtp.allowedSources (line 81) and EmailService lets that source through (EmailService.java:65-67), so sending is not switched off. For a month with no data a 'no data' email is still sent (MonthlyPaidReportJob.java:146). Real SMTP configuration on the server: cannot verify from repo."
+    },
+    {
+      "step": "The email is sent automatically to URA Finance",
+      "detail": "Recipients come from email.report.paymentreport.monthly.recipients (MonthlyPaidReportJob.java:51-52); in prod it holds 21 individual @ura.gov.sg addresses (application-prod.properties:75), not a group or an address that can be confirmed as URA Finance. Tickets OCMS-SR-2026-016 and OCMS-SR-2026-148 (Closed) show the list was extended for JTC/CAS reconciliation officers. Who sits in Finance: cannot verify from repo. Manual sending is also possible through the Cron button 'Monthly Paid Notices Report Email' (CronList.tsx:54)."
+    },
+    {
+      "step": "OCMS creates a work item to inform the designated OICs that the report was generated and sent to URA FIN",
+      "detail": "After sending, MonthlyPaidReportJob only records job metadata (status COMPLETED, recipients) and creates no work item record (MonthlyPaidReportJob.java:105-250). Grep for work item/workitem/ocms_work/workorder in the six repos: the backend has no work item entity or service; ocmsadminui only has a 'Work Items' Meta/link and a workitem resource name in Fapi.d.ts, with no page or call from the report. The 'no data' and failure emails go to the same recipient list, but those are emails, not work items."
+    },
+    {
+      "step": "Staff can browse all non e-payment collection records within a user-specified date range",
+      "detail": "The staff portal has the Payment Cash page (single notice input form, PaymentCash.tsx) and a Report page (list of reports such as HST, TS, LTA, MHA) without an offline/non e-payment payment report; the Cron menu only triggers the report email (CronList.tsx:53-54). No list page with a date range filter for offline payments was found. A generic CRUD API webtxndetaillist exists, but it is only used by PaymentCash for a single notice lookup. The DOS Reports screen in ReportListDOS.tsx is unrelated: DOS = DataHive/LTA cannot be confirmed from the repo."
+    }
+  ]
+}

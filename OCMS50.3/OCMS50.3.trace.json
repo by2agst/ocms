@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts, utils/validation/Payment/ValidPayment.ts, utils/validation/Format/ValidNOPO.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, workflows/urapg/controller/UraPaymentController. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait",
+  "note": "Input sampai 5 Notice Number ada dan berfungsi (5 kolom, kolom berikutnya aktif setelah kolom sebelumnya valid, cek duplikat, satu request membawa semua notice, backend mengambil semuanya dengan satu query IN, hasil bisa dipilih beberapa sekaligus). Batas 5 hanya ditegakkan di UI (slice(0,5)); backend tidak membatasi jumlah. Bagian 'payment reference number' tidak ada code (lihat OCMS50.2). Pembayaran gabungan: UI mengirim semua notice terpilih dalam satu APIPostGenerateTransaction, tetapi gateway pembayaran cannot verify from repo. Tiket OCMS-DF-2026-017 (kolom reset ke 1 setelah kembali mencari, Closed, Prod deployed) adalah petunjuk; code sekarang mereset ke 5 kolom (PaymentSearch.ts:327-333).",
+  "recommendation": "Klaim input sampai 5 Notice Number dan pembayaran gabungan sampai ke pembuatan transaksi. Jangan klaim payment reference number. Catat bahwa batas 5 hanya di UI.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tab Notice Number menampilkan 5 kolom input, kolom berikutnya aktif setelah kolom sebelumnya terisi valid",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:75; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:224-333",
+      "fit": "Sesuai",
+      "detail": "formData.notices diinisialisasi 5 string kosong; MultipleInput membuat 'Notice Number 1..5' (panjang 10), kolom index>0 disabled sampai kolom sebelumnya valid (validateAndEnableNext). resetNoticeInputs mengembalikan 5 kolom (tiket OCMS-DF-2026-017, Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap nomor divalidasi format dan duplikatnya sebelum pencarian dikirim",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Payment/ValidPayment.ts:31-60; ocmseserviceui/src/utils/validation/Format/ValidNOPO.ts:4-28; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:232-290",
+      "fit": "Sesuai",
+      "detail": "Format('NOTICE') memakai ValidNotice (9 digit + check letter berbobot); kolom pertama wajib; nomor ganda ditandai 'Duplicate Notice Number entered.' dan tombol Search Fines dinonaktifkan selama ada error (updateSearchButtonState)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender bisa memasukkan Payment Reference Number di kolom yang sama",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Format/ValidNOPO.ts:4-28; ocmseserviceui/src/utils/validation/error.ts:336-342",
+      "fit": "Tidak ada code",
+      "detail": "Kolom hanya menerima format notice. ValidTransaction (huruf + 10 digit) ada di ValidNOPO.ts:53-56 tetapi tidak dipakai oleh ValidPayment. Teks error notice_reference_no tidak dirujuk di mana pun. Sama dengan langkah Payment Reference Number di OCMS50.2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Semua nomor yang diisi (maksimal 5) dikirim sekaligus dalam satu pencarian",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:154-158; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:111-113; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:150-200",
+      "fit": "Sesuai",
+      "detail": "APIPostSearchFines memfilter nomor kosong, memotong .slice(0, 5), dan mengirim {noticeNo:[...]}; controller menerima list lewat parseNoticeNumbers. Batas 5 hanya di UI: backend tidak memeriksa jumlah, jadi pemanggil langsung ke API bisa mengirim lebih dari 5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Backend mengambil semua notice yang dicari sekaligus dan mengembalikannya bersama",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:69-98; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:63-79; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-266",
+      "fit": "Sesuai",
+      "detail": "checkNoticesList menjalankan satu query findAllByNoticeNoIn untuk seluruh list, memuat transaksi terakhir dalam batch, lalu handleNoticeNoSearch mengembalikan semua notice dengan allPayableNotices. Notice yang tidak lolos filter query tidak ikut dikembalikan (lihat OCMS50.4)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender bisa memilih beberapa notice hasil pencarian dan membayarnya sekaligus",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:183-232; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:728-790; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentController.java:32-47",
+      "fit": "Sebagian",
+      "detail": "Tabel memakai checkbox dan menyimpan pilihan di unpaidSelected; PayButton mengirim seluruh notice terpilih dalam satu APIPostGenerateTransaction ke /egeneratetransaction. Sisi repo ada. Gateway pembayaran (eNETS/PayNow), callback, dan hasil pembayaran sebenarnya cannot verify from repo. Notice yang tidak bisa dibayar (paymentAcceptanceAllowed=N) tidak punya checkbox."
+    }
+  ]
+}

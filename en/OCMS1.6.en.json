@@ -1,0 +1,33 @@
+{
+  "story": "OCMS1.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, cron-schedules-*.properties; ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController; ocmsadminui App.tsx + pages/ManageTemplate. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: User Story Removed (3 points), so the verdict stays Removed even though code exists. What exists is the eNotification cron (send_ena_reminder), which sends SMS to individual owners at the ENA stage and reminder stages (RD1 onward), not a 'pre-notice' batch with a DOS lookup as the story describes. Three main differences: (1) every individual notice gets its own SMS, there is no dedup per unique owner (combineNotices deliberately does not combine individual ENA notices, NotificationSmsEmailHelper.java:2171-2175); (2) the template data only holds amountPayable and paymentDueDate, no admin fee; (3) the scheduler flag cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236) and ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate', so automatic sending is not proven to be live; per-environment value: cannot verify from repo. The DataHive lookup is off (cron.enareminder.datahive=false, cron-schedules-prod.properties:48), so the mobile number comes from the stored owner/driver column. The 'DOS' source and the SMS gateway: cannot verify from repo. Repo note: ocmsadminprivateapi has two copies of the source (cronservice/ at the root and src/main/java/); build.gradle has no custom sourceSets so src/main/java is the one used, and the root copy differs (it does not yet have the OCMS-DEV-2026-260 fix). Double check note: the story is Removed, so steps that have code are counted as Partial (not Matches) to stay consistent with OCMS1.1-1.5; nothing is claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "The vehicle owner mobile numbers have been obtained from DOS before the SMS is sent",
+      "detail": "refreshContactInfo only calls DataHive when cron.enareminder.datahive=true; it is false in dev/uat/prod (cron-schedules-prod.properties:48), so the branch that runs uses the phoneNo/mobileCode already stored in ocms_offence_notice_owner_driver (NotificationSmsEmailHelper.java:2461-2476; the ENA query reads onod.offender_tel_no and offender_tel_code at :1015-1016). There is no integration named 'DOS' in the repo; whether DataHive = DOS and whether the stored number came from there: cannot verify from repo."
+    },
+    {
+      "step": "The unique individual vehicle owners for the SMSes in each batch are identified",
+      "detail": "combineNotices deliberately does not combine ENA notices of individuals (idType != B): each notice gets a unique key recipientKey+'_ENA_'+noticeNo (NotificationSmsEmailHelper.java:2171-2175), and the job adds ALL valid records to smsRecords with the comment 'each notice gets its own SMS' (NotificationSmsEmailJob.java:279-283). One owner with 3 ENA notices receives 3 SMSes, not 1. Reminder stages (RD1 onward) are combined per owner+stage+due date (:2178-2182), but that is not what the story asks for the pre-notice batch."
+    },
+    {
+      "step": "The SMS goes only to individual owners, not to companies",
+      "detail": "Records with idType 'B' (company/UEN) are skipped from the SMS batch (NotificationSmsEmailJob.java:269-277) and determineDeliveryChannel returns EMAIL for 'B' and SMS otherwise (NotificationSmsEmailHelper.java:443-452); sendBatchSms has the same defensive check (:1544)."
+    },
+    {
+      "step": "The SMS is built from an SMS template configured in OCMS",
+      "detail": "The template name is built as {stage}_{channel}_{INDIVIDUAL|COMPANY}[_COMBINED], e.g. ENA_SMS_INDIVIDUAL (NotificationSmsEmailHelper.java:459-475), then the body is loaded from ocms_template_store through templateService.getAndProcessTemplate (:301-305). Staff can create and edit SMS templates through the ManageTemplate routes of type SMS (ocmsadminui/src/App.tsx:281 edit, :295 create), which call OcmsTemplateStoreController (POST /templatestore :52, patch :222). There is no delete endpoint (ticket OCMS-SR-2026-163, delete was not built). The template rows in each environment database: cannot verify from repo; when a template is missing the SMS is skipped with an error log (:307-310)."
+    },
+    {
+      "step": "The SMS states the outstanding parking charges, the admin fee, and the payment due date",
+      "detail": "The template placeholder data only holds name, noticeNo, vehicleNo, amountPayable, noticeDateTime, paymentDueDate (NotificationSmsEmailHelper.java:410-421); there is no admin fee field. The admin fee is only set in the RR3/DR3 letter stages (ToppanUploadHelper.java:1320-1324, 2063-2077; other stages write 0, ticket OCMS-DF-2026-170), so an ENA-stage SMS cannot carry it. The ENA due date = last_processing_date + PDD without post-dating days, from the OCMS-DF-2026-180 fix (ticket still waiting for the cron to go live); the reminder due date = last_processing_date + POS + PDD (:1088-1090 in the reminder query). The final text depends on the template content: cannot verify from repo."
+    },
+    {
+      "step": "The SMS is sent to each owner by the batch job",
+      "detail": "The job sends the batch through smsUtil.sendBatchSmsSimple (NotificationSmsEmailHelper.java:1611) when notification.sms.enabled=true (NotificationSmsEmailJob.java:287-292), and the per-notice status is saved by saveSendStatus (:396). But the scheduled trigger runNotificationMainJobs returns immediately when cron.notification.enabled=false (NotificationJobsScheduler.java:48-54), and the value is false in dev/uat/prod (cron-schedules-prod.properties:236). The only other path is the manual endpoint /cron/combined-scheduler/notification-main/trigger. Ticket OCMS-DF-2026-180 says the eNotification cron is not yet activated. Real delivery through the SMS gateway and the per-environment value: cannot verify from repo."
+    }
+  ]
+}

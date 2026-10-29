@@ -1,0 +1,73 @@
+{
+  "story": "OCMS41.50",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot, hook/ApplyOperationAction, list/NoticeSearchAllList}, pages/BatchFurnish/{page/BatchFurnish, form/{BatchFurnishForm,BatchFurnishDetails}, list/BatchFurnishList}, utils/{mapping/Furnish/FurnishMap, validation/BatchFurnish}; ocmsadminapi workflows/furnish/stafffurnish/{StaffFurnishController.batchFurnish, StaffFurnishService.batchFurnish/staffFurnish}, api-authorization.properties (OCMS_BATCH_FURNISH). Repo lain: tidak ada code.",
+  "note": "Status Demo paid (50% of 75%). Alur bulk lengkap ada end-to-end. Dua catatan: penanda 'notice punya data furnish' di daftar hanyalah tebakan dari stage dan ownerDriverIndicator, bukan baca record ONOD; dan batchFurnish berjalan dalam satu @Transactional sambil menangkap exception per notice, sehingga apakah tulisan parsial dari notice yang gagal ikut ter-commit cannot verify from repo. Opsi tipe offender diambil dari standardcode OFFENDER_INDICATOR (DB), isinya cannot verify from repo. Tidak ada tiket maintenance yang spesifik untuk bulk furnish.",
+  "recommendation": "Klaim, dengan catatan: pemilihan notice, tipe offender, dan update massal terbukti; penanda 'sudah ada particulars' di daftar hanya heuristik stage.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar notice mencakup notice dengan dan tanpa particulars yang sudah di-furnish, dan yang sudah ada ditandai",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/list/BatchFurnishList.tsx:61-88; ocmsadminui/src/utils/constant.ts:161; ocmsadminui/src/utils/models/Ivalidoffencenotice.d.ts:233",
+      "fit": "Sebagian",
+      "detail": "Daftar tidak membedakan saat memilih: semua notice terpilih masuk. Baris diberi highlight 'Notice(s) highlighted have existing furnish data' bila lastProcessingStage ada di FURNISHED_STAGES (RD1, DN1, RD2, DN2, RR3, DR3, CFC, CPC; constant.ts:161) dan field ownerDriverIndicator terisi (BatchFurnishList.tsx:61-88). Ini tebakan dari stage, bukan pembacaan record ONOD; stage RD1/RD2/RR3 juga tercapai lewat reminder normal pada owner tanpa furnish, jadi penanda bisa salah. Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice yang berlaku dari daftar (checkbox, select all)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:122-127; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:232-237; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:117-133; ocmsadminui/src/pages/BatchFurnish/list/BatchFurnishList.tsx:49-59",
+      "fit": "Sesuai",
+      "detail": "Datagrid hasil pencarian punya checkbox select all dan per baris (NoticeSearchAllList.tsx:122-127). Tombol Select meneruskan baris terpilih ke ApplyOperationAction (NoticeSearchSlot.tsx:232-237, 299-302; ApplyOperationAction.tsx:117-133). Di halaman Batch Furnish officer masih bisa menghapus baris (BatchFurnishList.tsx:49-59). Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih operasi Batch Furnish yang hanya tersedia untuk user dengan function terkait",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:284-302; ocmsadminui/src/utils/option.tsx:314-319; ocmsadminui/src/utils/constant.ts:271-281; ocmsadminapi/src/main/resources/api-authorization.properties:72-73",
+      "fit": "Sesuai",
+      "detail": "Dropdown Apply Operation berisi Apply TS, Apply PS, Apply Revival, Batch Furnish (option.tsx:314-319), disaring dengan hasFunction (NoticeSearchSlot.tsx:284-288) memakai pemetaan BATCH_FURNISH -> OCMS_BATCH_FURNISH (constant.ts:271-281). Server memeriksa lagi lewat OcmsAuthorizationInterceptor: endpoint staff-furnish/batch-furnish dipetakan ke OCMS_BATCH_FURNISH (api-authorization.properties:72-73). Role yang diberi function itu cannot verify from repo. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih tipe offender (owner/hirer/driver) untuk bulk update",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:76-101; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:66-71; ocmsadminui/src/utils/validation/BatchFurnish/ValidBatchFurnishForm.ts:21; ocmsadminui/src/context/OptionsContext.tsx:450-453",
+      "fit": "Sesuai",
+      "detail": "Form Batch Furnish punya dropdown 'Offender Role' wajib diisi (BatchFurnishDetails.tsx:76-101; validasi ValidBatchFurnishForm.ts:21) dengan opsi dari standardcode OFFENDER_INDICATOR (OptionsContext.tsx:450-453); isi opsi di DB cannot verify from repo. UI membuang tipe UEN bila role Driver (BatchFurnishDetails.tsx:66-71); guard ini hanya di UI, staffFurnish tidak memeriksanya (hanya staffRedirect, StaffFurnishService.java:333-335). Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Satu set particulars diterapkan ke semua notice terpilih sekaligus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:100-120; ocmsadminui/src/utils/mapping/Furnish/FurnishMap.ts:95-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:221-264; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:630-658; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:296-300",
+      "fit": "Sesuai",
+      "detail": "Setelah konfirmasi, UI mengirim satu POST staff-furnish/batch-furnish berisi noticeNumbers[] dan satu set particulars (BatchFurnishForm.tsx:107-120; FurnishMap.ts:95-117). Server memvalidasi field wajib lalu batchFurnish melakukan loop dan memanggil staffFurnish per notice (StaffFurnishService.java:630-658), memberi 207 bila ada yang gagal (StaffFurnishController.java:260-263). Exception per notice ditangkap dan dikembalikan sebagai failure (StaffFurnishService.java:296-300) sehingga satu notice gagal tidak menghentikan yang lain; apakah tulisan parsial notice gagal ikut ter-commit dalam transaksi tunggal cannot verify from repo. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah punya particulars ikut ditimpa dalam bulk update",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:88-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:196-232",
+      "fit": "Sesuai",
+      "detail": "Konfirmasi batch menyebut 'All existing <role> details will be overwritten' (BatchFurnishForm.tsx:89). staffFurnish tidak menolak notice yang sudah punya record: offender lama diberi indicator N, alamat lama peran itu dihapus, record baru disimpan (StaffFurnishService.java:196-232). Fit sama dengan OCMS41.47 langkah 3. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang ternyata tidak furnishable ditolak saat update massal, hasil dilaporkan per notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:179-184; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:243-263; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:122-132",
+      "fit": "Sesuai",
+      "detail": "staffFurnish memanggil checkFurnishable lagi per notice dan mengembalikan failure dengan pesan alasan (StaffFurnishService.java:181-184); controller mengirim hasil per notice (StaffFurnishController.java:243-258) dan UI memisah success/failed (BatchFurnishForm.tsx:122-132). Ini menutup celah saringan UI di OCMS41.49 langkah 3. Sesuai."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS33.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/schedulers/CesUploadJobsScheduler, framework/workflows/agencies/ces/jobs/CesGenerateFileJob, framework/services/ces/CesWantedVehicleServiceImpl, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findCertisForeignVehicleNotices), utilities/ces/CesWantedVehiclesDatGenerator; resources cron-schedules-prod.properties, application-prod.properties. ocmsadminui: route dan menu tagged-vehicle di-comment. Tidak ada code DOS, EPS operator, atau pemilihan ID dengan warrant of arrest.",
+  "note": "Status story kosong di stories.json dan tidak ada requirement tambahan; dinilai dari teks story. Story minta OCMS menerima vehicle number terbaru per ID dengan warrant of arrest outstanding dari DOS, membuat file harian, lalu mengirimnya ke frontend enforcement system dan EPS operator. Yang ada hanya file CES 'Wanted Vehicle': cron harian 00:05 (cron.cesupload.enabled=true di prod, ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:207-208) membuat CES_WANTED_VEHICLES_*.DAT dari notice foreign vehicle dengan PS/FOR yang belum dibayar dan sudah lewat X hari (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:306-324), lalu mengirimnya terenkripsi via COMCRYPT dan SFTP (sftp.enabled=true, disabledServers=toppan, ocmsadminprivateapi/src/main/resources/application-prod.properties:82-86). Isi file berasal dari status notice, bukan dari ID warrant atau hasil DOS, jadi pembuatan file dan pengiriman paling tinggi Sebagian (sama dengan OCMS33.4 dan OCMS33.5). Tidak ada integrasi DOS (DOS = DataHive/LTA tidak bisa dikonfirmasi dari repo), tidak ada pemilihan ID dengan warrant (modul Court belum ada, ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:727), dan kata EPS tidak muncul di code. Nilai property server asli, nilai ocms_parameter FOR/PERIOD, dan penerimaan di CES/EPS cannot verify from repo. Tiket OCMS-SR-2026-150 (bug fix CES upload cron, status In SIT, belum selesai) menyentuh alert SMS job ini, bukan isi file.",
+  "recommendation": "Klaim hanya Sebagian untuk pembuatan dan pengiriman file harian ke CES. Penerimaan data dari DOS, pemilihan ID warrant, dan pengiriman ke EPS operator jangan diklaim",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima vehicle number terbaru untuk ID dengan outstanding warrant of arrest dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:727; ocmsadminui/src/pages/Report/lists/ReportListDOS.tsx:82",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada client, endpoint, atau cron yang menerima data dari DOS. Kata DOS hanya muncul di layar staff 'DOS Reports' (ocmsadminui/src/pages/Report/lists/ReportListDOS.tsx:82) yang memanggil resource dosvaultrecords tanpa controller di repo mana pun, dan tab-nya di-comment (ocmsadminui/src/pages/Report/lists/ReportList.tsx:162-166). DOS = DataHive/LTA cannot be confirmed from the repo. DataHive batch yang ada mengambil data NRIC/FIN/UEN, bukan vehicle number per ID warrant."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih ID yang punya outstanding warrant of arrest",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:727; ocmsadminapi/src/main/resources/api-authorization.properties:23",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada query atau job yang memilih ID berdasarkan warrant. Kolom Warrant Description di file Toppan sengaja dikosongkan dengan komentar 'Court module not ready for MVP1' (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:727). Di ocmsadminapi hanya ada entry otorisasi /v1/warrantofarrest (ocmsadminapi/src/main/resources/api-authorization.properties:23) tanpa controller, dan UI hanya punya model Iwarrantofarrest untuk pencarian notice. Sama dengan OCMS33.5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file harian berisi vehicle number terbaru per ID",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/CesUploadJobsScheduler.java:43-52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:198; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:53; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:306-324; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:115-117",
+      "fit": "Sebagian",
+      "detail": "Cron CES 00:05 jalan tiap hari (cron.cesupload.enabled=true, ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:207-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/CesUploadJobsScheduler.java:43-52) dan membuat CES_WANTED_VEHICLES_*.DAT (header, detail per vehicle, trailer; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/ces/CesWantedVehiclesDatGenerator.java:115-117). Tetapi isinya dari query notice foreign vehicle PS/FOR yang belum dibayar (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:306-324 via ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:53), bukan dari vehicle number per ID warrant. Mekanisme file harian ada, sumber datanya beda dari story. Nilai prod properties di repo true; nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file harian ke frontend enforcement system",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:104-109; ocmsadminprivateapi/src/main/resources/application-prod.properties:82-86",
+      "fit": "Sebagian",
+      "detail": "File CES di-upload ke blob lalu dienkripsi via COMCRYPT dan dikirim SFTP (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:104-109). Prod properties: sftp.enabled=true, sftp.upload.allowedSources memuat COMCRYPT_ENCRYPTED_CES, disabledServers=toppan saja (ocmsadminprivateapi/src/main/resources/application-prod.properties:82-86), jadi CES tidak dimatikan. Yang terkirim file Wanted Vehicle dari status notice, bukan daftar dari DOS, dan CES hanya satu sistem; sistem enforcement lain tidak ditemukan. Sama dengan OCMS33.4. Nilai server asli dan penerimaan di CES cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file harian ke EPS operator",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "",
+      "fit": "Tidak ada code",
+      "detail": "Kata EPS (sebagai operator) tidak muncul di ocmsadminapi, ocmsadminprivateapi, ocmsadminui, atau thirdpartyapi (grep EPS, hanya cocok dengan kata lain). Tidak ada job atau folder SFTP tujuan EPS. Satu-satunya tujuan file kendaraan harian adalah server ces (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/ces/CesWantedVehicleServiceImpl.java:104-109)."
+    }
+  ]
+}

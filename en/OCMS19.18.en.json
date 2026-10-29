@@ -1,0 +1,29 @@
+{
+  "story": "OCMS19.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto}, workflows/notice_management/retrieval/getnotice/{GetNoticeController (plus-offence-notice),mapper/NoticeResponseMapper}, workflows/notice_creation/core/SuspensionProcessingController (dry-run response). Other repos: no code.",
+  "note": "Story status is 'No requirement' (requirement not given); traced normally. Existing suspension details are available to PLUS through POST /plus-suspended-notice (lists ocms_suspended_notice rows with type, reason, source, dates, due date of revival, officer, remarks, srNo) and the notice status through POST /plus-offence-notice (suspensionType, eprReasonOfSuspension, crsReasonOfSuspension, amountPayable). It works as a pull: PLUS makes the call; the revival dry-run response only holds eligible and message, no suspension details (SuspensionProcessingController.java:942,966-971), so 'OCMS sends the details once validation passes' is not automatic. Reduction details: a reduction shows only as a TS-RED suspension row; the ocms_reduced_offence_amount record (amount_payable before reduction) is not exposed by any plus-* endpoint in ocmsadminapi (class ReducedOffenceAmount is used only in the reduction and revival modules). /plus-suspended-notice also returns rows already revived unless PLUS sets the filter dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:51). Protection of plus-* is the same as OCMS19.16 (JWT skipped, APIM cannot verify from repo). No relevant maintenance ticket.",
+  "recommendation": "Can be claimed partly: suspension details and notice status are available through plus-* endpoints that PLUS calls. Do not claim full 'reduction details' because the reduction record is not exposed, and automatic sending after validation does not exist.",
+  "steps": [
+    {
+      "step": "PLUS requests the existing suspension details of the notice",
+      "detail": "POST /plus-suspended-notice accepts the filters noticeNo, suspensionType, dateOfSuspension, dueDateOfRevival, suspensionSource, dateOfRevival[$null] (whitelist in SuspendedNoticeServiceImplPlus.java:46-61), sorted latest first (:75)."
+    },
+    {
+      "step": "OCMS sends the suspension detail content to PLUS",
+      "detail": "The response carries noticeNo, srNo, dateOfSuspension, suspensionType, reasonOfSuspension, suspensionSource, dueDateOfRevival, dateOfRevival, officers, remarks. srNo is sent so PLUS can point at a suspension at confirmation. Already-revived rows are returned unless PLUS uses the filter dateOfRevival[$null] (SuspendedNoticeServiceImplPlus.java:51)."
+    },
+    {
+      "step": "OCMS sends the existing reduction details to PLUS",
+      "detail": "A reduction shows only as a suspension row with reason TS-RED. The ocms_reduced_offence_amount record (amount_payable before reduction, used by revival at RevivalBaseHelper.java:877-886) is not exposed by any plus-* endpoint in ocmsadminapi; the current amountPayable is in plus-offence-notice (NoticeResponseMapper.java:83)."
+    },
+    {
+      "step": "OCMS sends the current notice status to PLUS",
+      "detail": "POST /plus-offence-notice returns suspensionType, eprReasonOfSuspension, crsReasonOfSuspension, amountPayable through NoticeResponseMapper (:70,79,83,87)."
+    },
+    {
+      "step": "OCMS sends the details after the revival validation passes",
+      "detail": "A passing dry-run response is only {noticeNo, eligible:true, message:'Validation passed - eligible for revival'} (:966-971). PLUS fetches the details with a separate call; the order on the PLUS side cannot verify from repo."
+    }
+  ]
+}

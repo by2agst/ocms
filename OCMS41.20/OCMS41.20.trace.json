@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}. ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/{FurnishSyncHelper,FurnishNotificationService}. ocmsadminprivateapi framework/schedulers/SyncInternetIntranetJobsScheduler (cron.syncinternetintranet.enabled=true, arah Internet ke Intranet). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dibaca untuk sisi eService (cannot verify from repo)",
+  "note": "Status di stories.json: Demo paid (50% of 75%); demo remark minta cron diaktifkan dan Internet-Intranet sync agar notice tampil di eService untuk pembayaran. Update particulars otomatis berjalan saat konfirmasi. Yang tidak sesuai story: tidak ada penjadwalan pengiriman, pesan dikirim langsung. Soal remark: jalur approve manual menulis eVON dan ONOD ke DB Internet langsung dari request (FurnishSyncHelper), bukan lewat cron; cron Internet-Intranet di PRD aktif (cron-schedules-prod.properties:306) tetapi menjalankan FurnishProcessing dan CronSyncTxnData untuk arah Internet ke Intranet. Sync dari request bersifat soft failure (error hanya di-log), dan baris alamat furnished_mail tidak ikut di-sync dari jalur ini. Tampilan nyata di eService cannot verify from repo.",
+  "recommendation": "Klaim sebagian: update otomatis dan prompt keberhasilan. Jangan klaim pengiriman terjadwal. Siapkan bukti tampilan notice di eService setelah approve karena repo tidak membuktikannya",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah konfirmasi, OCMS menjadwalkan pengiriman SMS/email",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:191-232; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-98; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:166-222",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada penjadwalan: setelah approve sukses, UI langsung memanggil send-email/send-sms (useNoticeSubmit.tsx:198-216) dan backend mengirim sinkron lewat emailService.sendEmail (FurnishNotificationService.java:61) atau smsUtil.sendBatchSmsSimple (baris 182) lalu mencatat status S/E. Tidak ada tabel antrean, field jadwal, atau job pengirim balasan officer (grep \"schedul\" kosong di folder furnish UI dan API). Fakta sama dengan OCMS41.17 langkah 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update particulars hirer/driver untuk notice secara otomatis",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:362-366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:749-817; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:775-782; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:880-928",
+      "fit": "Sesuai",
+      "detail": "Pada konfirmasi approve-hirer/approve-driver mengganti offender aktif (indikator lama ke N, alamat lama role itu dihapus, ONOD baru dengan ID, nama, email, telepon, alamat furnished_mail), menyetel stage RD1/DN1, menghitung ulang amount_payable, dan menandai furnish application Approved (ManualReviewService.java:362-366, 749-817, 880-928). Fakta sama dengan OCMS41.17 langkah 3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil update tersedia di sisi eService sehingga notice bisa dibayar (sesuai demo remark)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:880-928; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishSyncHelper.java:178-206; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishSyncHelper.java:57-81; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:306",
+      "fit": "Sebagian",
+      "detail": "changeProcessingStage memanggil syncVonToInternet (ManualReviewService.java:927) yang menulis last/next stage, amount_payable, dan is_sync=Y ke eVON (FurnishSyncHelper.java:178-206); ONOD baru disync ke PII lewat syncOnodToPii (FurnishSyncHelper.java:57-81), keduanya dari request, bukan cron. Kedua sync soft failure: error hanya di-log dan eVON yang tidak ditemukan dilewati (baris 184-187, 199-202), jadi Internet DB bisa tertinggal tanpa kegagalan terlihat. Baris alamat furnished_mail tidak ikut di-sync dari jalur ini. Cron Internet-Intranet aktif di PRD (cron-schedules-prod.properties:306) tetapi menjalankan FurnishProcessing dan CronSyncTxnData untuk arah Internet ke Intranet. Konteks OCMS-DF-2026-067 dan OCMS-DF-2026-077 (Closed): eVON pernah tertinggal karena is_sync tidak diset di jalur lain. Tampilan notice di eService (ocmseserviceapi/ocmseserviceui) tidak ditelusuri; cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi prompt bahwa update particulars berhasil",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:210-226; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:254-272",
+      "fit": "Sesuai",
+      "detail": "Bila approve sukses, modal alert menampilkan \"Furnished particulars has been saved as the Current Driver/Hirer.\" (useNoticeSubmit.tsx:210-212, 223-225; ditampilkan di ActionNotice.tsx:254-272). Bila gagal, pesan memuat alasan (useNoticeSubmit.tsx:204-207)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi prompt bahwa pengiriman SMS/email sudah dijadwalkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:210-226; ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:254-272",
+      "fit": "Sebagian",
+      "detail": "Ada prompt tentang hasil pengiriman, tetapi isinya \"the email/SMS has been sent to the recipient\" (useNoticeSubmit.tsx:225) atau \"Email/SMS was not successfully sent\" (baris 220), bukan \"scheduled\", karena pengiriman memang tidak dijadwalkan. Prompt tidak muncul bila checkbox dicentang tetapi compose_list kosong (baris 215-216)."
+    }
+  ]
+}

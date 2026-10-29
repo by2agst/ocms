@@ -1,0 +1,21 @@
+{
+  "story": "OCMS18.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST /plus-apply-suspension), helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}, crud/ocmsizdb/OcmsRefundNotice/{OcmsRefundNoticeServiceImpl, OcmsRefundNotice}, crud/ocmsizdb/OcmsWebTransactionDetail, workflows/furnish/plusintegration/controllers/PlusDataRetrievalController (/plus-refund-notice-list, /plus-web-txn-detail-list). No code in ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi for the message to PLUS",
+  "note": "Status in stories.json: No requirement (the requirement is not given); the story is traced normally from its text. The 'message to PLUS' in the code is the synchronous response of POST /plus-apply-suspension: success, message 'PS Success', appCode and, when a refund is created, refundNoticeId and refundCreDate. The refund mode (credit card, PayNow) is not in the response; payment_mode exists only in ocms_web_txn_detail, which PLUS can fetch through a separate endpoint. Ticket OCMS-DF-2026-152 (refundNoticeId held the receipt number, status Ready to DEV / In SIT) is still open; the code on main already returns the real RE id, but the prod deploy status cannot be verified from the repo. How PLUS displays and uses the message cannot be verified from the repo.",
+  "recommendation": "Claim partially: the PS success message and the refund ID are sent to PLUS; the refund mode is not in the message. Wait for ticket OCMS-DF-2026-152 to close before raising the refund ID step to Sesuai.",
+  "steps": [
+    {
+      "step": "OCMS sends PLUS a message that the permanent suspension of the paid notice succeeded",
+      "detail": "processPS returns a map {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150; SuspensionBaseHelper.java:541-548). The controller adds appCode OCMS-2000 for successful results (SuspensionProcessingController.java:1186-1198) and returns a per-notice result list with HTTP 200 (:546-555). The mechanism is a synchronous response to the caller, not a push. The display in PLUS cannot be verified from the repo."
+    },
+    {
+      "step": "The message tells PLUS that the refund advice has been created (refund ID and time)",
+      "detail": "When a refund is created, the response gets refundNoticeId and refundCreDate (PermanentSuspensionHelper.java:152-156). On main, createIfNotExists returns the real refund_notice_id RE... (OcmsRefundNoticeServiceImpl.java:42-83; used at :356-366), so the OCMS-DF-2026-152 bug (field held the receipt number) looks fixed in code; that ticket is still Ready to DEV / In SIT and the prod deploy status cannot be verified from the repo, so the fit is lowered to Sebagian. If the refund is skipped (empty amountPaid) or fails, the response is still 'PS Success' without refund fields and without a failure flag (:324-336, :372-376), so PLUS cannot tell 'no refund' from 'refund failed'. SuspensionProcessingHelper.processSuspension still puts the receipt number in refundNoticeId when amountPaid <= 0 (SuspensionProcessingHelper.java:729, :757) but is not called from the PLUS controller."
+    },
+    {
+      "step": "The message includes the refund mode (credit card, PayNow) so the officer can tailor the reply to the offender",
+      "detail": "The PS response contains only noticeNo, srNo, success, message, appCode, refundNoticeId, refundCreDate (PermanentSuspensionHelper.java:150-156); there is no mode field. OcmsRefundNotice has no mode column (OcmsRefundNotice.java:28-58). payment_mode exists in OcmsWebTransactionDetail.java:48 and PLUS can fetch it with POST /plus-refund-notice-list (receiptNo, PlusDataRetrievalController.java:70) then POST /plus-web-txn-detail-list (:132); that is two extra calls and gives the original payment mode, not a refund mode. Whether PLUS uses that route cannot be verified from the repo."
+    }
+  ]
+}

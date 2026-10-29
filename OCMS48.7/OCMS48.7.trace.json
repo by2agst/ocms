@@ -1,0 +1,46 @@
+{
+  "story": "OCMS48.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Staff UI (ocmsadminui): tidak ada langkah confirm dan tidak ada prompt sukses untuk bulk decision court notice. Penerapan nilai secara batch hanya ada di ocmsadminapi workflows/cas_integration (CasIntegrationController /casUpdateCourtNotices dan /plus-payment-activation; CasIntegrationServiceImpl.updateCourtNotices dan updatePaymentActivation) yang dipanggil sistem CAS/PLUS, menulis VON dan eVON. Prompt per aksi hanya ada di UPL endorsement (pages/NoticeUPL/Hooks/useEndorsement.tsx), fitur lain.",
+  "note": "Story Removed (status_with_ura). Tidak ada tombol confirm dan tidak ada prompt sukses bulk decision di staff portal; satu-satunya ModalConfirm/ModalAlert di area ini milik UPL Decision Request/Endorsement per notice (useEndorsement.tsx:270-281, 261-268). Penerapan batch ada di sisi API tetapi dipicu CAS/PLUS, bukan konfirmasi officer: /casUpdateCourtNotices memproses sampai 500 notice dengan chunked UPDATE ke VON (ocmsizmgr.ocms_valid_offence_notice) dan eVON (ocmsezmgr.eocms_valid_offence_notice) bila eVON ada (CasIntegrationServiceImpl.java:368, 385-393), dan menolak notice FULL_PAYMENT (CasIntegrationServiceImpl.java:336). /plus-payment-activation maksimal 10 notice, update VON, ocms_court_case, dan eVON (CasIntegrationServiceImpl.java:741-743). Respons API berisi updatedCount/failedCount per notice untuk pemanggil CAS, bukan prompt ke officer. Keputusan langsung berlaku tanpa gerbang endorsement apa pun. Verdict tetap Removed; tidak diklaim. Tiket: OCMS-SR-2026-179 dan OCMS-DF-2026-173 (nilai flag salah setelah update CAS/status settled), OCMS-DF-2026-010 (deaktivasi pembayaran tertimpa record web txn).",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfirmasi penerapan bulk decision ke court notice yang dipilih",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:270-281",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada langkah confirm bulk untuk court notice. Satu-satunya ModalConfirm di area ini adalah konfirmasi per notice untuk UPL Decision Request/Endorsement (useEndorsement.tsx:270-281, teks 'Are you sure you want to ... this UPL notice'), fitur lain. Dicari confirm, bulk, court di ocmsadminui; tidak ada yang relevan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan keputusan ke semua court notice yang dipilih secara bulk",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:220; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:229",
+      "fit": "Sebagian",
+      "detail": "Penerapan batch ada, tetapi dipicu sistem lain: /casUpdateCourtNotices (CasIntegrationController.java:101) menerima sampai 500 notice (baris 124) dan /plus-payment-activation (baris 220) sampai 10 notice (baris 229). Bukan hasil konfirmasi officer dari staff portal. Notice FULL_PAYMENT ditolak (CasIntegrationServiceImpl.java:336). Kedua endpoint skip JWT (JwtFilter.java:183, WebConfig.java:83-85); proteksi APIM cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai keputusan tersimpan di record notice (VON dan eVON) sehingga berlaku di portal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:368; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:385-393; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:741-743; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:77-83",
+      "fit": "Sebagian",
+      "detail": "CAS menulis ke VON dan eVON bila eVON ada (CasIntegrationServiceImpl.java:368, 385-393), PLUS ke VON, ocms_court_case, dan eVON (baris 741-743). Tetapi yang ditulis hanya amount_payable, payment_acceptance_allowed, stage, dan suspension (SET clause baris 103-117, 144-155); composition amount tidak ditulis, dan due date hanya lewat PLUS ke ocms_court_case. Cron cutoff yang mematikan flag setelah due date hanya menulis VON, tidak eVON yang dibaca portal (PaymentAcceptanceCutoffServiceImpl.java:77-83). Jadi flag 'N' dari cutoff tidak sampai ke portal publik. Tiket OCMS-DF-2026-010 dan OCMS-SR-2026-021 menunjukkan portal/ePay membaca flag dari data eVON/txn yang bisa menyimpang."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan prompt sukses kepada officer setelah bulk decision diterapkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:261-268; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada prompt sukses untuk bulk decision di staff portal. ModalAlert di useEndorsement.tsx:261-268 milik alur UPL per notice. Respons /casUpdateCourtNotices (updatedCount, failedCount, daftar hasil per notice) dikirim ke pemanggil CAS, tidak ada UI officer yang membacanya."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS28.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/agencies/lta/{upload/helpers/LtaUploadHelper,download/helpers/LtaBatchCode0Processor}, workflows/datahiveuenfin/services/DataHiveUenFinService (isPassExpired, work item placeholder), cron-schedules-prod.properties. Tidak ada pemicu dari court summons dan tidak ada perbandingan registered vs mailing address.",
+  "note": "Story minta: bila alamat tidak berubah atau pass tidak valid (pemilik asing), OCMS mengirim nomor kendaraan, menerima data pemilik dan LTA alternative mailing address dari DOS, lalu mengecek apakah registered address dan LTA mailing address berbeda. Yang ada hanya alur LTA biasa: notice di stage ROV dikirim ke LTA (LtaUploadHelper.java:88), hasilnya menulis alamat lta_reg dan lta_mail (LtaBatchCode0Processor.java:497-518, 591-601); upload/download cron enabled=true di prod (cron-schedules-prod.properties:134-135, 148-149). Itu terjadi saat pembuatan notice, bukan sebagai lanjutan dari return summons. Tidak ada kode yang membandingkan lta_reg dengan lta_mail; hanya prioritas letter_address lta_reg lalu lta_mail (LtaBatchCode0Processor.java:495-497). Kondisi pemicu 'tidak ada perubahan alamat' tidak ada; cek pass expired ada (DataHiveUenFinService.java:3021) tetapi aksinya hanya log PLACEHOLDER (DataHiveUenFinService.java:3042-3046). DOS = LTA/DataHive cannot be confirmed from the repo; kanal SFTP LTA cannot verify from repo. Status story kosong; dianalisis normal.",
+  "recommendation": "Klaim parsial untuk pengambilan data pemilik dan alamat LTA yang sudah ada di alur ROV. Pemicu dari return summons dan perbandingan alamat belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memicu langkah ini saat alamat tidak berubah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:495-497",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kode yang menyimpulkan 'tidak ada perubahan registered address' lalu memulai kueri kendaraan. LTA upload memilih notice hanya dari stage ROV dan tanggal (LtaUploadHelper.java:88). Dicari: same/compare/differ/unchanged pada LTA upload, LtaBatchCode0Processor, dan DataHiveUenFinService; tidak ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memicu langkah ini bila pass pemilik asing tidak valid",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3021",
+      "fit": "Sebagian",
+      "detail": "isPassExpired mengecek Date of Expiry <= hari ini (DataHiveUenFinService.java:3021-3030) dan flow expired dipanggil (DataHiveUenFinService.java:2995-3010), tetapi createWorkItemForLTVPExpired hanya me-log PLACEHOLDER (DataHiveUenFinService.java:3042-3046), tidak memulai kueri kendaraan. Job mati di prod (cron-schedules-prod.properties:52)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim nomor kendaraan ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:88",
+      "fit": "Sebagian",
+      "detail": "LTA upload men-stream notice stage ROV dengan tipe O/E dan mengirim file enquiry ke LTA (LtaUploadHelper.java:88). Cron enabled=true di prod (cron-schedules-prod.properties:134-135). Pemicunya stage ROV saat notice dibuat, bukan return summons. DOS = LTA cannot be confirmed from the repo; kanal SFTP cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima data pemilik kendaraan dan LTA alternative mailing address",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:497-518",
+      "fit": "Sebagian",
+      "detail": "LtaBatchCode0Processor menulis data pemilik, alamat registrasi (lta_reg) dan alamat surat (lta_mail) ke ONOD dan ONOD_addr (LtaBatchCode0Processor.java:497-518, planMailingAddressWrite di baris 591-601). Dijalankan oleh LTA download cron (cron-schedules-prod.properties:148-149, enabled=true). Terjadi pada alur ROV biasa."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi apakah registered address dan LTA mailing address berbeda",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:495-497",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada perbandingan. Kode hanya memilih satu alamat sebagai letter_address (prioritas lta_reg lalu lta_mail, LtaBatchCode0Processor.java:495-497; LtaProcessingOrchestrator.java:534-556). Tidak ada flag atau hasil 'berbeda' yang disimpan."
+    }
+  ]
+}

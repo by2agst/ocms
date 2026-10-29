@@ -1,0 +1,25 @@
+{
+  "story": "OCMS24.2",
+  "flow_ref": "User story (not in a flow deck, OCMS has none)",
+  "code_summary": "ocmsadminui NoticeSearch/hook/{useSearch.ts,useSearchParams.tsx}, Notice/context/NoticeContext.tsx, utils/models/Icourtcase.d.ts; ocmsadminapi crud/ocmsizdb/OcmsCourtCase (3 columns), workflows/cas_integration/service/CasIntegrationServiceImpl, crud/beans/SystemConstant, api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code",
+  "note": "The story asks the officer to set the court application indicator to Rejected and OCMS to revert the processing stage and clear the batch number. Only the generic notice search exists (Sebagian). There is no Rejected-indicator screen/endpoint, no stage-revert logic, and entity ocms_court_case only has notice_no, court_payment_due_date, reason, so there is no batch number to clear. The courtcase/courtmention resources are called by the UI but have no controller in ocmsadminapi. No maintenance ticket is specific to this feature. Role authorization: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the generic notice search exists; ask URA/the team in which repo the manual rejection is built, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "Officer opens the notice affected by the case-level rejection in the staff portal",
+      "detail": "A generic notice search exists (notice_no form in useSearchParams.tsx:167, list via validoffencenoticelist) and the detail page loads court data through the courtcase endpoint (NoticeContext.tsx:448-466). But courtcase/courtmention have no controller in ocmsadminapi (only the entity + repository OcmsCourtCase; /v1/courtcase only appears in api-authorization.properties:23), so court application data is never shown. A generic mechanism, not the court application screen the story names."
+    },
+    {
+      "step": "Officer manually updates the court application indicator to Rejected",
+      "detail": "No screen, button or endpoint sets a court application indicator. The fields court_reject/case_appl_status exist only as a TypeScript type (Icourtcase.d.ts:35,59; court_reject is only used by History.tsx:91 as a display column), and the backend entity ocms_court_case has no indicator column (OcmsCourtCase.java:24-31)."
+    },
+    {
+      "step": "OCMS reverts the processing stage of the affected notices",
+      "detail": "No stage-revert logic exists for a rejection. The only court-related stage writer is casUpdateCourtNotices, which overwrites last/prev/next_processing_stage with whatever CAS sends (CasIntegrationServiceImpl.java:96-119); OCMS does not compute the previous stage. The COURT_STAGES list (SystemConstant.java:94-97) is only used for other eligibility rules."
+    },
+    {
+      "step": "OCMS clears the court application batch number on the affected notices",
+      "detail": "The backend entity has no court application batch number column (OcmsCourtCase.java:24-31 has no csd_batch_no; the column only exists in the TypeScript type Icourtcase.d.ts:27-28) and no code nulls it."
+    }
+  ]
+}

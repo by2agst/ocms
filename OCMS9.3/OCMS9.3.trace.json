@@ -1,0 +1,55 @@
+{
+  "story": "OCMS9.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui src/App.tsx (route enotification/exclusion), pages/ENotifExclusion/{list/ExclusionList.tsx, form/ExclusionForm.tsx}, utils/data/LinkData.tsx; ocmsadminapi crud/ocmsizdb/enotificationexclusion/{EnotificationExclusionController, EnotificationExclusion}, crud/BaseImplement, api-authorization.properties; ocmsadminprivateapi crud/ocmsizdb/OcmsEnotificationExclusionList + NotificationSmsEmailHelper/LtaBusinessRulesChecker (pembaca list). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Staff bisa membuka halaman E-Notification Exclusion, mencari, membuat entri baru, dan mengedit remarks. Delete: endpoint POST enotificationexclusiondelete/{id} ada di ocmsadminapi, tetapi halaman daftar hanya punya tombol Edit dan resource delete tidak ada di tipe resource UI, jadi staff tidak bisa menghapus ID dari portal. Edit hanya mengubah remarks (id_no readonly di form dan PATCH_ALLOWED_FIELDS hanya remarks), jadi mengganti ID berarti harus hapus lalu buat (delete belum ada di UI). Ada tiga hal yang perlu diwaspadai: create dengan id_no yang sudah ada memanggil save() pada entity dengan ID assigned sehingga diam-diam menimpa remarks (tidak ada cek duplikat di UI maupun API, padahal endpoint exists tersedia tapi tidak dipanggil UI); kolom Update Date di list selalu menampilkan '-' (ExclusionList.tsx:176); entity ocmsadminapi membatasi id_no 12 karakter sedangkan form UI 20 dan entity ocmsadminprivateapi 20 (panjang kolom DB asli cannot verify from repo). Tabel ocms_enotification_exclusion_history punya entity dan controller CRUD, tetapi tidak ada code yang menulis ke sana; trigger DB cannot verify from repo. Otorisasi: fungsi OCMS_ENOTIF_EXCLUSION memetakan prefix /v1/enotificationexclusion sehingga delete dan exists ikut terbuka lewat startsWith. Tiket OCMS-SR-2026-039 (pen test, Closed) menambah PayloadSanitizer pada create/patch.",
+  "recommendation": "Klaim sebagian: create dan edit remarks jalan, delete hanya lewat API (tidak ada tombol di UI), edit ID tidak tersedia, dan create duplikat menimpa diam-diam",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuka halaman E-Notification Exclusion yang menampilkan dan bisa mencari daftar ID",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:302; ocmsadminui/src/utils/data/LinkData.tsx:162-166; ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:97-143; ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:83-93",
+      "fit": "Sesuai",
+      "detail": "Route enotification/exclusion memuat ExclusionList (App.tsx:302), tersedia di menu (LinkData.tsx:162-166). Datagrid memanggil resource enotificationexclusionlist dengan pencarian idNo dan remarks (ExclusionList.tsx:83-93,135-143) dan menampilkan ID, remarks, Create By/Date, Update By."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuat entri ID baru beserta remarks",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:128-132; ocmsadminui/src/pages/ENotifExclusion/form/ExclusionForm.tsx:76; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:45; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:50-66; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseImplement.java:131-133; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusion.java:26-30",
+      "fit": "Sebagian",
+      "detail": "Tombol Create membuka form (ExclusionList.tsx:128-132) yang POST ke enotificationexclusion (ExclusionForm.tsx:76); controller hanya menerima idNo dan remarks (EnotificationExclusionController.java:45) lalu service.save (:50-66). Karena id_no adalah @Id assigned tanpa @Version (EnotificationExclusion.java:26-30), save() adalah merge: ID yang sudah ada tidak ditolak tetapi remarks-nya ditimpa diam-diam, dan tidak ada cek duplikat di UI. Panjang id_no: form 20 (ExclusionForm.tsx:148), entity ocmsadminapi 12 (EnotificationExclusion.java:26)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff mengedit entri yang sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:179-188; ocmsadminui/src/pages/ENotifExclusion/form/ExclusionForm.tsx:149; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:100-128; ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:176",
+      "fit": "Sebagian",
+      "detail": "Tombol Edit di tiap baris membuka form dengan id_no readonly (ExclusionList.tsx:179-188; ExclusionForm.tsx:149). Endpoint patch hanya menerima remarks (PATCH_ALLOWED_FIELDS, EnotificationExclusionController.java:100-128), jadi yang bisa diedit hanya remarks; mengganti ID tidak bisa (harus delete lalu create, delete tidak ada di UI). Kolom Update Date di list selalu menampilkan '-' karena onFormat mengembalikan konstanta (ExclusionList.tsx:176)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff menghapus ID dari daftar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/enotificationexclusion/EnotificationExclusionController.java:163-197; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseImplement.java:221-229; ocmsadminui/src/pages/ENotifExclusion/list/ExclusionList.tsx:179-188; ocmsadminui/src/utils/models/Fapi.d.ts:273-275; ocmsadminapi/src/main/resources/api-authorization.properties:156",
+      "fit": "Sebagian",
+      "detail": "Endpoint POST enotificationexclusiondelete/{id} ada dan memanggil service.delete (EnotificationExclusionController.java:163-197; BaseImplement.java:221-229; terbuka lewat prefix di api-authorization.properties:156). Namun halaman daftar hanya punya tombol Edit (ExclusionList.tsx:179-188) dan resource delete tidak ada di tipe resource UI (Fapi.d.ts:273-275); tidak ada pemanggil enotificationexclusiondelete di ocmsadminui. Staff tidak bisa menghapus dari portal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan list langsung dipakai proses eNotification berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsEnotificationExclusionList/OcmsEnotificationExclusionList.java:18-24; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1214; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBusinessRulesChecker.java:53-62",
+      "fit": "Sesuai",
+      "detail": "ocmsadminprivateapi membaca tabel yang sama, ocms_enotification_exclusion_list (OcmsEnotificationExclusionList.java:18-24), langsung dari DB pada tiap run: loadAllExcludedIds (NotificationSmsEmailHelper.java:1207-1214) dan preloadExclusionList (LtaBusinessRulesChecker.java:53-62). Tidak ada cache lintas run, jadi create/edit/delete berlaku di run berikutnya."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,form/NoticeSearchAllForm,form/NoticeSearchOutstandingForm,list/NoticeSearchAllList,list/NoticeSearchOutstandingList,hook/useSearchParams}, App.tsx (route notices/search/:search_type). ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (POST /validoffencenoticelist, getAllWithOwnerInfo), api-authorization.properties (OCMS_NOTICE_SEARCH). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Status in stories.json is 'Fully paid' (there is no OCMS flow deck; Sesuai means the code does what the story text says). Notice search in the Staff Portal exists and works with the standard parameters (notice no, ID no, processing stage, dates). Gap: the story asks to search OUTSTANDING notices for permanent suspension, but the Outstanding Notices mode has no Notice No and Processing Stage fields, while All Notices mode has every parameter but is not limited to outstanding notices and also shows notices that are already PS or paid. The search is generic (not PS-specific). User roles (ACM JWT) and per-environment property values cannot be verified from repo. Maintenance ticket: OCMS-DF-2026-187 (sort of the Payment Status column in the search result, status Pending UAT Verification; the code on main already uses crsReasonOfSuspension at column/index.tsx:272, deployment cannot be verified from repo).",
+  "recommendation": "Claim partially (see Sebagian/Beda dari flow steps)",
+  "steps": [
+    {
+      "step": "Officer opens the Notice Search page and picks All Notices or Outstanding Notices mode",
+      "detail": "Route notices/search/:search_type renders NoticeSearch.Search (App.tsx:98-106) and the search_type dropdown switches between ALL and OUTSTANDING with navigate (NoticeSearchForm.tsx:126-141). The search API is guarded by functionId OCMS_NOTICE_SEARCH, which maps /v1/validoffencenoticelist (api-authorization.properties:21-26). Roles in ACM cannot be verified from repo."
+    },
+    {
+      "step": "The search form offers the standard parameters: notice number, ID number, current processing stage and dates",
+      "detail": "All Notices mode has Notice No (NoticeSearchAllForm.tsx:64), Processing Stage (:297), Offence Date From/To (:471) and ID No (:542), plus Vehicle No, Rule Code, Suspension Type/Date, Payment Status, Court dates, Summon/NTAC/Warrant No."
+    },
+    {
+      "step": "The search is limited to outstanding notices with the same standard parameters",
+      "detail": "Outstanding Notices mode has a built-in filter: not PS (except PS-FOR/DIP/MID/RIP/RP2 without payment) and not paid (defaultFilters, NoticeSearchOutstandingList.tsx:104-123). But the Outstanding form only contains ID No, Offender Name, Vehicle No, offence dates and court dates (NoticeSearchOutstandingForm.tsx:41,57,67,85); there is no Notice No and no Processing Stage. All Notices mode has every parameter but is not limited to outstanding. So no single screen combines 'outstanding' with notice number and processing stage as the story describes."
+    },
+    {
+      "step": "The Apply button validates the criteria and sends the query to the backend",
+      "detail": "onApply runs validate(), checkSearch() and getParams() and sets the advanceFilter on the grid (NoticeSearchForm.tsx:52-70). checkSearch rejects an empty form and a search with only one weak field (useSearchParams.tsx:45-101). Parameters are mapped to noticeNo[$in], vehicleNo, lastProcessingStage[$in], idNo (:322,325,521,530) and sent by POST /validoffencenoticelist, which builds dynamic JPQL with an offender join (OcmsValidOffenceNoticeServiceImpl.java:322-362). The filter operators were not tested one by one."
+    },
+    {
+      "step": "OCMS shows the matching notices on screen in a grid",
+      "detail": "Results from validoffencenoticelist are shown in a Datagrid with Notice No, Notice Type, offence date, place, rule code, processing stage, vehicle no, suspension type/reason, payment status, amount (NoticeSearchAllList.tsx:113-173). If there is no result, the grid shows 'No records to display' (TableBody.tsx:19)."
+    }
+  ]
+}

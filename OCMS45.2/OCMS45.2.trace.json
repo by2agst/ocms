@@ -1,0 +1,55 @@
+{
+  "story": "OCMS45.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/synctxndata/{CronSyncTxnData,AxsTransactionValidator}, crud/beans/SystemConstant, utilities/suspension_helpers/TemporarySuspensionHelper, framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper. ocmsadminapi workflows/notice_creation/core/helpers/AutoSuspensionHelper (triggerPamSuspension tanpa caller). ocmsadminui pages/Dashboard/Dashboard.tsx (kosong). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada TS-PAM atau work item",
+  "note": "Story minta notice yang tidak bisa di-update sebagai paid (contoh: mismatch amount) di-suspend sementara dengan suspension code khusus dan dibuatkan work item berisi detail di dashboard officer. Status story di sheet: Fully paid. Kode TS-PAM (Payment Amount Mismatch) ada (SystemConstant.java:49) dan dipasang lewat TemporarySuspensionHelper.processTS, tetapi satu-satunya pemicu di code adalah vehicle number AXS yang tidak cocok (CronSyncTxnData.java:459-499, AxsTransactionValidator.java:47-64). Mismatch amount tidak diperlakukan sebagai exception: bayar kurang jadi PS-PRA (permanent), bayar lebih jadi PS-FP plus refund (CronSyncTxnData.java:574-615, 640-646). triggerPamSuspension di ocmsadminapi tidak punya caller. Work item di dashboard tidak ada: Dashboard.tsx hanya merender div kosong (Dashboard.tsx:21-33) dan tidak ada entity/endpoint work item; informasi exception baru muncul di Excel/email harian (lihat OCMS45.4). Tiket OCMS-SR-2026-112 dan OCMS-SR-2026-190 menunjukkan exception dipantau lewat laporan, bukan work item. Isi data ocms_suspension_reason (hari revival PAM) cannot verify from repo.",
+  "recommendation": "Jangan klaim penuh. Yang ada: TS-PAM untuk vehicle mismatch AXS. Belum ada: TS untuk mismatch amount dan work item di dashboard. Minta URA/tim konfirmasi apakah laporan harian dianggap pengganti work item.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek pembayaran yang masuk dan menemukan yang tidak bisa di-update sebagai paid (contoh: mismatch amount)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:459-472; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/AxsTransactionValidator.java:47-64; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:568-598; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:419-433",
+      "fit": "Sebagian",
+      "detail": "Satu-satunya pengecekan yang melempar pembayaran ke jalur exception adalah vehicle number AXS tidak cocok (CronSyncTxnData.java:459-472, AxsTransactionValidator.java:47-64). Mismatch amount (contoh di story) tidak dideteksi sebagai exception: bayar kurang diproses otomatis sebagai PS-PRA, bayar lebih sebagai PS-FP plus refund (CronSyncTxnData.java:568-598). Pembayaran ke notice yang sudah lunas langsung jadi refund DBP (CronSyncTxnData.java:419-433)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS men-suspend notice sementara (temporary suspension) dengan suspension code khusus",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:486-499; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:49; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:506-518; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:202-205",
+      "fit": "Sebagian",
+      "detail": "Untuk vehicle mismatch AXS, tsHelper.processTS memasang TS dengan reason PAYMENT_AMOUNT_MISMATCH = 'PAM' (CronSyncTxnData.java:486-499, SystemConstant.java:49), lalu VON/eVON diset payment_acceptance_allowed='N' dan eservice message E14 (CronSyncTxnData.java:506-518); TS-PAM boleh ditumpuk pada notice yang sudah PS (TemporarySuspensionHelper.java:202-205). Untuk mismatch amount tidak ada TS: hasilnya PS-PRA/PS-FP (permanent). triggerPamSuspension di ocmsadminapi (AutoSuspensionHelper.java:172) tidak punya caller. Hari revival PAM di ocms_suspension_reason cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item untuk notice tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:486-499; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:632-635",
+      "fit": "Tidak ada code",
+      "detail": "Setelah TS-PAM, code hanya menulis suspended_notice sebagai audit (via processTS, CronSyncTxnData.java:486-499; saveAll di 632-635); tidak ada pembuatan work item/task. Grep work item, worklist, work_list, task, dashboard di ocmsadminapi, ocmsadminprivateapi dan ocmsadminui hanya menemukan dashboard Furnish dan konteks lain yang tidak terkait pembayaran."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item berisi detail: nomor notice, tanggal dan jam bayar, amount payable, amount paid, detail receipt, alasan mismatch",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/AxsTransactionValidator.java:132-135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:527-529; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:56-83",
+      "fit": "Sebagian",
+      "detail": "Tidak ada work item, tetapi sebagian detail tercatat di tempat lain. Remark TS-PAM berisi vehicle transaksi, vehicle notice dan nomor receipt (AxsTransactionValidator.java:132-135). Laporan exception harian punya kolom Transaction Date/Time, Notice No., Receipt No., Amount Paid, CRS/EPR Reason (PaymentExceptionReportHelper.java:527-529). Kolom Amount Payable dan alasan mismatch tidak ada di laporan. Detail ini hanya berupa Excel/email H+1, bukan work item."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item tampil di dashboard officer supaya bisa di-follow up",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-33; ocmsadminui/src/App.tsx:79-81",
+      "fit": "Tidak ada code",
+      "detail": "Dashboard staff portal adalah halaman kosong: Dashboard.tsx hanya merender DataForm dengan div row tanpa isi (Dashboard.tsx:21-33) dan menjadi route index serta fallback (App.tsx:79-81). Tidak ada API daftar work item. Sibling OCMS38.1 (single-page summary of work items) bergantung pada hal yang sama."
+    }
+  ]
+}

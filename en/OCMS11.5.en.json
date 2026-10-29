@@ -1,0 +1,21 @@
+{
+  "story": "OCMS11.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (combineNotices, getRecipientKey, generateMessages, sendEmail)}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. Other repos: no email sending code",
+  "note": "Story status 'Demo paid (50% of 75%)', demo_remark about Vault & email permission for the App Service. Companies (ID type B) are indeed routed to email and notices are merged per UEN+stage+due date (including ENA). But sending is off per the repo: cron.notification.enabled=false in dev, UAT and prod, and in prod email.enableSmtp=false with an email.smtp.allowedSources that does not contain ENOTIFICATION, so EmailService refuses. Driver notice stages (DN1, DN2, DR3) have no email template and are skipped. The email templates live in the DB, not in the repo. OCMS-DF-2026-180 (closed) fixed the ENA due date and waits for the cron to be active. Per-environment values, Vault and email permission cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence.",
+  "recommendation": "Claim partially. The unique company selection matches, but per the repo the job and email sending are off, stages DN1/DN2/DR3 have no email, and the templates live in the DB. Ask for evidence of the cron activation and templates in PRD.",
+  "steps": [
+    {
+      "step": "OCMS identifies the unique company owners (by UEN) per batch so one company gets one email summarising its NOPOs",
+      "detail": "getRecipientKey uses 'B_' + UEN for ID type B, and combineNotices merges company notices per UEN + stage + due date, including stage ENA (the ENA exception applies to individuals only, NotificationSmsEmailHelper.java:2169-2172). Companies are removed from the SMS batch and only get email (NotificationSmsEmailJob.java:274-277). This differs from individual ENA in OCMS11.4, which is deliberately not merged."
+    },
+    {
+      "step": "The email contains the details of the issued NOPOs (notice number, vehicle, fine amount, due date)",
+      "detail": "generateMessages uses the template {STAGE}_EMAIL_COMPANY (plus _COMBINED), split into subject and body, with prepareTemplateData fields (noticeNo, vehicleNo, amountPayable, noticeDateTime, paymentDueDate, combinedNotices). For DN1, DN2, DR3 the email is skipped because no company template exists (NotificationSmsEmailHelper.java:313-317). The template text lives in the DB (ocms_template_store), not seeded in the repo, so the wording cannot verify from repo. OCMS-DF-2026-180 (closed) fixed the ENA due date."
+    },
+    {
+      "step": "OCMS sends the email reminder/notification to company owners in the batch job",
+      "detail": "The job calls sendEmail per company (NotificationSmsEmailJob.java:378-390) through EmailService with source ENOTIFICATION. But the scheduler is skipped when cron.notification.enabled=false (NotificationJobsScheduler.java:48-52; false in dev, UAT, prod, cron-schedules-prod.properties:236). In prod email.enableSmtp=false and email.smtp.allowedSources does not contain ENOTIFICATION (application-prod.properties:80-81), so EmailService.sendEmail returns false (EmailService.java:65-72). In UAT ENOTIFICATION is in the allowlist (application-uat.properties:79) but the cron is off. Real activation in PRD, Vault and email permission cannot verify from repo."
+    }
+  ]
+}

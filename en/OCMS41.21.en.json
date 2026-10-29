@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.21",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. The story asks for a prompt on scheduled sending and update. There is no scheduling feature: the particulars update and the SMS/email sending run immediately when the OIC confirms, so the on-screen prompt only reports the result of the immediate execution. The success and failure prompts for the update exist and are clear; the send-result prompt is generic text only. To verify [Low confidence]: ManualReviewService.approveSubmission sets the status to 'A' (lines 363-366) before addFurnishedOffender (376) and changeProcessingStage (379), then catches every exception and returns failure without rethrowing (434-437); whether the early change is rolled back cannot be confirmed from the repo. Real email delivery over SMTP: cannot verify from repo; email.enableSmtp=true in ocmsadminapi/src/main/resources/application.properties:133 and there is no override in application-prod.properties. No relevant maintenance ticket.",
+  "recommendation": "Claim partially: the success and failure prompts for the particulars update exist, but scheduled sending is not built and the send-result prompt gives no detail. Ask URA whether immediate execution is accepted in place of scheduling.",
+  "steps": [
+    {
+      "step": "OIC confirms the decision in the Submit dialog, then the system runs the particulars update and the SMS/email sending (story: scheduled)",
+      "detail": "The confirmation dialog 'Do you wish to proceed ...' (ActionNotice.tsx:189-210) calls onSaveSubmit on OK (ActionNotice.tsx:313-317), which immediately calls approveFurnish/rejectFurnish and then composeFurnish in one chain (useNoticeSubmit.tsx:198-216). There is no send date/time or scheduled job: ManualReviewService.sendEmail calls notificationService.sendAndRecordEmail straight away (ManualReviewService.java:503), and a grep for 'schedul' in furnish/manualreview, approval, rejection, the Furnish pages and the Notice hooks of ocmsadminui finds nothing. The story asks for the sending and update to be scheduled; the code executes them at once."
+    },
+    {
+      "step": "OCMS shows an on-screen prompt that the particulars update succeeded",
+      "detail": "When the approve/reject succeeds, onSaveSubmit opens a non-error ModalAlert (isError false) with 'Furnished particulars has been saved as the Current Hirer/Driver.' or 'Furnish rejected successfully.' (useNoticeSubmit.tsx:210-212; ActionNotice.tsx:260-267). After the OIC closes it the page reloads (ActionNotice.tsx:268-272) so the latest status is read. The prompt reports the result of the immediate execution, not of a schedule."
+    },
+    {
+      "step": "OCMS shows a prompt with the SMS/email sending result",
+      "detail": "If a compose_list exists, composeFurnish is called and the success message gets '... email/SMS has been sent to the recipient' appended (useNoticeSubmit.tsx:223-225). If some or all sends fail, the UI only writes 'Email/SMS was not successfully sent to the recipient(s).' (useNoticeSubmit.tsx:218-220): the per-recipient error list collected by composeFurnish (useFurnishAPI.ts:193-197) is not shown, so the OIC does not know which recipient failed or why. This prompt is also not a 'schedule sent' status as in the story. The server records the send result in the email notification records with status S/E (FurnishNotificationService.java:50-90) but it is not shown in the prompt."
+    },
+    {
+      "step": "OCMS shows an error prompt when the particulars update fails, and the email/SMS is not sent",
+      "detail": "If the approve endpoint returns an error (e.g. 422 from approveSubmission, ManualReviewController.java:197-201), useNoticeSubmit writes 'Furnished particulars could not be saved as the Current <Hirer/Driver> due to <error>. Email/SMS was not sent.' and composeFurnish is not called (useNoticeSubmit.tsx:202-207). onSaveSubmit throws that error and opens an error ModalAlert (ActionNotice.tsx:243-245, 276-285)."
+    }
+  ]
+}

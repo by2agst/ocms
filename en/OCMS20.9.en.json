@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi agencies/mha/download (MhaNricDownloadHelper), workflows/unclaimedreport, workflows/autorevival, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, application-prod.properties. No code detects an address change and then resends the reminder. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "The story asks OCMS to resend the reminder to the individual (via PDF/data files to the vendor) when the registered address changed. There is no resend trigger: no address change detection (see OCMS20.8 step 5), and the unclaimed enquiry results only land in the temporary table ocms_temp_unc_hst_addr, not in the letter address. The regular MHA path does write the mha_reg address and letter_address on ONOD, and TS-UNC notices re-enter the regular enquiry, but that is not a resend trigger. A new reminder only comes from generic mechanics: TS-UNC auto revival followed by Toppan letter generation, whose day-end cron does not call the letter generator (commented out) and Toppan SFTP is switched off in the prod properties. Maintenance ticket: OCMS-DF-2026-192 (still open). Story status: Requirement given - Gen flow.",
+  "recommendation": "Do not claim in full. Address change detection and the resend trigger do not exist; only the generic Toppan letter generation and the regular MHA address write can be reused",
+  "steps": [
+    {
+      "step": "OCMS identifies that the registered address where the reminder was sent has changed",
+      "detail": "Same as OCMS20.8 step 5: no old-vs-new address comparison, the 15-column report has no caller (UnclaimedReportServiceImpl.java:110), the daily cron only makes the 11-column TS-UNC list (DailyReportJobsScheduler.java:100)."
+    },
+    {
+      "step": "The latest address is used as the individual's mailing address",
+      "detail": "The regular MHA path writes the mha_reg address on ONOD and marks letter_address='Y' when none exists yet (MhaNricDownloadHelper.java:2324), and TS-UNC notices are re-enquired (MhaNricDataHelper.java:182-217). The adhoc enquiry results from unclaimed only land in ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3223, 3248) and are not applied to the letter address. So the letter address may be refreshed by the regular path, not because a change was detected."
+    },
+    {
+      "step": "OCMS resends the reminder to the individual automatically",
+      "detail": "There is no resend trigger based on an address change. The only way a new reminder appears is the generic TS-UNC auto revival (code UNC is in the revival list, AutoRevivalHelper.java:70-72) followed by letter generation at the next stage; neither looks at the address enquiry result. There is no reminder resend function in ocmsadminapi/ocmsadminprivateapi/ocmsadminui (a grep for resend only finds furnish rejection, CES, notification retry, vhub)."
+    },
+    {
+      "step": "OCMS creates the PDF/data reminder file for the print vendor with the latest address",
+      "detail": "Same as OCMS20.7 step 4: the generic Toppan letter mechanism exists, but it does not run automatically. Letter generation by the day-end cron does not run: the call toppanLettersGeneratorService.executeJob() is commented out (ToppanUploadJobsScheduler.java:118), letters only come from the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34); ticket OCMS-DF-2026-192 (manual job failed in production, status Ready to UAT) is still open. The letter uses the letter address recorded at that moment."
+    },
+    {
+      "step": "The file is sent to the vendor for printing and postage to the latest address",
+      "detail": "Same as OCMS20.7 step 5. sftp.upload.disabledServers=toppan in application-prod.properties:86, so the SFTP upload to Toppan is switched off in prod; the delivery gate is bypassed and the stage still advances without delivery (OCMS-DF-2026-192); the real server value cannot be verified from the repo."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS16.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{TemporarySuspensionHelper,RevivalBaseHelper,TsDueDateRule}, workflows/payment_reduction/reduction/{ReductionServiceImpl,helpers/ReductionPersistenceService}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository. ocmsadminprivateapi OcmsValidOffenceNoticeRepository (findToppanNoticesForStage, findNoticesForMhaNricUpload), Toppan upload helper/job/scheduler, AutoRevivalHelper, NotificationSmsEmailHelper, MhaNricDataHelper, DataHiveUenFinService, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "The story is not in a flow deck; 'Sesuai' means the code does what the story text says. Story status: Demo paid (50% of 75%), a written requirement exists. The check 'is there a TS or not' is realised as the filter von.suspension_type IS NULL in the Toppan letter, MHA and DataHive queries, so a TS with any reason (and a PS) holds the notice. The reduction itself is TS-RED, so stories 16.16 and 16.17 use the same mechanism. But there's a catch: VON.suspension_type is a single column (the latest suspension), so correctness depends on VON being refilled from the remaining suspensions when one of them is revived; both revival routes (auto and manual) do this. Exceptions in the code: eNotification SMS/email still processes TS-HST (and one MHA path TS-HST/TS-UNC), so for those reasons 'no reminder during a TS' does not hold. Same as 16.16: Toppan letters only run manually (ToppanUploadJobsScheduler.java:118) and the SMS/email job is off in prod (cron.notification.enabled=false). Related tickets: OCMS-DF-2026-028, OCMS-DF-2026-072, OCMS-DF-2026-078 (Closed). Real server property values cannot verify from repo.",
+  "recommendation": "Claim most of it: the suspension_type IS NULL filter holds the notice during any TS or reduction, and both revival routes keep the status when another suspension is still active. Record the TS-HST exception in the notification path, Toppan letters being manual only, and the SMS/email job being off in prod.",
+  "steps": [
+    {
+      "step": "Another temporary suspension (not the reduction) can be applied to a notice that is still in its reduction period",
+      "detail": "TS validation only rejects a TS on top of a PS whose reason does not allow TS (validateOverlap, TemporarySuspensionHelper.java:159-176); a TS on top of TS-RED is not blocked. updateVON sets suspension_type='TS' with the latest TS reason (TemporarySuspensionHelper.java:124) and eVON is updated too (:127); the new ocms_suspended_notice TS row has its own due date."
+    },
+    {
+      "step": "A reduction can be applied to a notice that already has another TS, and the notice stays suspended",
+      "detail": "The reduction validation query only rejects status ALREADY_REDUCED (VON already TS-RED), PAID, or a stage/rule code that is not eligible (OcmsValidOffenceNoticeRepository.java:51-68 in ocmsadminapi); a notice with another TS passes. Persist sets suspension_type='TS' and the VON due date = the furthest of the existing TS and the reduction expiry (ReductionPersistenceService.java:101-106). Note: if VON is already TS-RED, a second reduction request is treated as idempotent and does not extend the expiry (ReductionServiceImpl.java:176-182)."
+    },
+    {
+      "step": "The reminder/demand letter job (RD1 to DR3) checks the suspension on the notice and skips any notice with a TS",
+      "detail": "findToppanNoticesForStage only selects notices with next_processing_stage = :stage, next_processing_date <= today, and von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611). A notice with any suspension (TS or PS) is not in the letter list, and stage/next_processing_date are only rewritten for notices in that list (ToppanUploadHelper.java:1887, bulk UPDATE :1514-1530). Note: the letter job only runs through POST /toppan/generate-letters (ToppanUnifiedController.java:34); the call in the day-end scheduler is commented out (ToppanUploadJobsScheduler.java:118), so 'automatically every day' is not true, but the notice selection rule the story asks for is correct. There is one thing to watch out for: the bulk UPDATE does not re-check suspension, so a notice suspended after the letter list was built in the same run still advances; how often this happens cannot verify from repo."
+    },
+    {
+      "step": "Preparation of next-stage data (MHA NRIC upload and DataHive UEN/FIN) also skips suspended notices",
+      "detail": "The MHA NRIC upload query (findNoticesForMhaNricUpload, called at MhaNricDataHelper.java:81) and the DataHive UEN/FIN query (DataHiveUenFinService.java:236-238) both require von.suspension_type IS NULL for stages RD1-DR3 (OcmsValidOffenceNoticeRepository.java:567). So preparation of data for the next stage also stops while TS-RED or another TS is active. One other path in MhaNricDataHelper (queryValidOffenceNoticesBasic, :196-216) only excepts TS-HST and TS-UNC, not TS-RED."
+    },
+    {
+      "step": "SMS/email reminders (eNotification) are not sent while a temporary suspension applies",
+      "detail": "The eNotification queries for ENA and RD1-DR3 reminders only let through suspension_type IS NULL or TS with reason HST (NotificationSmsEmailHelper.java:1034-1035 and :1120-1121), so TS-RED and other TS except HST get no SMS/email; TS-HST still passes, which differs from the story wording about temporary suspension. The job's own execution is switched off in prod: cron.notification.enabled=false (cron-schedules-prod.properties:236, comment 'Disabled in PROD' at :234). The real server value cannot verify from repo."
+    },
+    {
+      "step": "When one suspension ends but another TS or reduction is still active, the notice stays suspended",
+      "detail": "Auto revival only revives the TS rows that are due (AutoRevivalHelper.java:398); if other active suspensions remain, VON/eVON are filled from the remaining suspensions (latest suspension_type, furthest due date; :440-461), so suspension_type is not NULL and the notice is still held by the filter. Manual revival from the staff API does the same through updateVONWithRemainingSuspension (RevivalBaseHelper.java:400-441, called at :746 in ocmsadminapi)."
+    },
+    {
+      "step": "After all temporary suspensions and the reduction period end, the suspension is cleared so reminders can run again",
+      "detail": "AutoRevivalHelper revives TS rows whose due_date_of_revival is before the start of tomorrow (AutoRevivalHelper.java:398). When no suspension remains, the suspension fields on VON/eVON are cleared (:445-448) so the notice enters the letter query again; for TS-RED the amount_payable is reverted to composition plus admin fee or surcharge by stage (:467-490). This job runs in the day-end scheduler (ToppanUploadJobsScheduler.java:119) and cron.toppanupload.enabled=true (cron-schedules-prod.properties:62); the real server value cannot verify from repo. Notices whose last_processing_stage is outside REVIVAL_ALLOWED_STAGES are skipped, except court stages CSD/CSR/COS that have a TS-RED (:415-421). Tickets OCMS-DF-2026-028 and OCMS-DF-2026-072 (Closed, Prod deployed) fixed the amount source on revert; OCMS-DF-2026-078 is a data patch (Closed). After revival, the next letter is only issued when the letter job is triggered manually (see the letter step)."
+    }
+  ]
+}

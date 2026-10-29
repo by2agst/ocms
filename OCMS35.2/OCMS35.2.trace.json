@@ -1,0 +1,64 @@
+{
+  "story": "OCMS35.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/vhub/{upload/jobs/VhubEndDayFileJob, upload/helpers/{VhubNoticeQueryHelper,VhubViolationCaseXmlBuilder}, download/{jobs/VhubDownloadJob,helpers/VhubDownloadHelper}}, crud/ocmsizdb/{vhubquery/VhubOffenceQueryRepository,ocmsoffencevhub/OcmsOffenceVhub}, framework/schedulers/VhubJobsScheduler, framework/services/comcrypt/helper/{ComcryptCallbackHelper,ComcryptWorkflowConfigResolver}, resources/{cron-schedules-prod,application-prod,sftp/sftp-common,sftp/sftp-prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: bukan bagian alur kirim/terima (hanya laporan dan trigger, lihat OCMS35.4)",
+  "note": "Interface vHub dibangun di ocmsadminprivateapi: tiga cron (end-day 05:35, download 07:20, report 07:30, semua enabled=true di prod) memilih notice kendaraan asing PS-FOR, membuat XML, memasukkannya ke COMCRYPT, mencatat ocms_offence_vhub, lalu memproses ACK dan NTL. Pengiriman nyata ke vHub lewat COMCRYPT dan CFT SFTP tidak bisa dibuktikan dari repo, dan job melapor sukses saat file baru ter-stage di blob, jadi langkah kirim Sebagian. Daftar NTL dari vHub hanya disimpan sebagai file dan ditampilkan di laporan, tidak masuk database, jadi Sebagian. Code mengirim juga status Settled dan Cancelled (lebih luas dari story). Satu notice dengan field wajib kosong menggagalkan seluruh run (VhubNoticeQueryHelper.java:129-140). Tidak ada tiket maintenance khusus vHub; OCMS-DF-2026-122 (admin fee kendaraan asing, Closed) menyentuh amount yang dikirim. Status sheet 'Requirement given - Gen flow'. Nilai parameter FOR, kredensial SFTP, dan sisi vHub: cannot verify from repo.",
+  "recommendation": "Layak diklaim untuk pemilihan, pembuatan file, tracking, dan pemrosesan ACK. Pengiriman nyata ke vHub dan pemakaian daftar NTL perlu bukti dari environment (log COMCRYPT/SFTP dan ACK sungguhan) sebelum dianggap penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih nomor kendaraan asing yang punya parking offence outstanding",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/vhubquery/VhubOffenceQueryRepository.java:192-260; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/jobs/VhubEndDayFileJob.java:101-104",
+      "fit": "Sesuai",
+      "detail": "VhubEndDayFileJob memanggil querySettled, queryCancelled, dan queryOutstanding lalu menggabungkannya per notice (VhubEndDayFileJob.java:101-104). queryOutstanding memilih notice dengan vehicle_registration_type = 'F' (kendaraan asing), suspension PS dengan epr_reason 'FOR', crs_reason bukan 'FP' (belum lunas), dan notice_date_and_time minimal FOR hari lalu sesuai parameter PERIOD/FOR di ocms_parameter (VhubOffenceQueryRepository.java:221-229). Notice yang sudah pernah dikirim hanya dikirim ulang bila status berubah, belum di-ACK, atau amount/lokasi/deskripsi/nomor kendaraan berubah (baris 233-240); misalnya admin fee $15 setelah 90 hari (OCMS-DF-2026-122, Closed, Prod deployed). Code juga mengirim status Settled dan Cancelled (baris 39-131), jadi lebih luas dari story yang hanya menyebut outstanding. Nilai parameter FOR di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyusun file XML berisi nomor kendaraan dan detail offence",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/helpers/VhubViolationCaseXmlBuilder.java:50-83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/helpers/VhubNoticeQueryHelper.java:129-140",
+      "fit": "Sesuai",
+      "detail": "toViolationDetail mengisi ViolationReportNo (notice_no), VehicleRegistrationNumber dengan spasi dibuang (baris 53), VehicleType (54-56), tanggal dan lokasi offence (57-58), OffenceDetail berisi deskripsi, status O/S/C, dan fine amount (60-65). Blok PaymentDetails hanya untuk Settled dan dilewati bila tidak ada web transaksi sukses (69-80). Sebelum file dibuat, notice dengan location, offence_description, amount_payable, atau offence date kosong membuat seluruh run gagal (VhubNoticeQueryHelper.java:129-140): satu notice tidak lengkap menahan semua notice lain hari itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file ke vHub",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/jobs/VhubEndDayFileJob.java:120-137; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/jobs/VhubEndDayFileJob.java:170-192; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:162-163; ocmsadminprivateapi/src/main/resources/application-prod.properties:82; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:257-258",
+      "fit": "Sebagian",
+      "detail": "Cron cron.vhubupload.schedule=0 35 5 * * ? dengan enabled=true di prod (cron-schedules-prod.properties:162-163) dan sftp.enabled=true (application-prod.properties:82). Job memecah per 10.000 record (vhub.endday.maxRecordsPerFile, sftp-common.properties:79) dengan nama URA_VIOLATION_CASE_yyyyMMdd_##.xml (VhubEndDayFileJob.java:120-137, 248-250), menaruh file plaintext di Azure Blob (baris 171), lalu meminta token COMCRYPT (181-182). Enkripsi dan upload SFTP ke cftvhub dikerjakan callback COMCRYPT (ComcryptCallbackHelper.java:257-258), bukan oleh job. Jika token null atau error, job hanya log warn lalu lanjut dan tetap menyimpan tracking row serta melapor sukses (183-199), jadi 'sukses' berarti file ter-stage, bukan terkirim. Upload ke vHub dan penerimaan di sisi vHub: cannot verify from repo. Notice yang tidak di-ACK dikirim ulang pada run berikutnya (langkah 5)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat notice yang sudah dikirim ke vHub",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/jobs/VhubEndDayFileJob.java:194-199; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/upload/jobs/VhubEndDayFileJob.java:252-271; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/ocmsoffencevhub/OcmsOffenceVhub.java:18-69",
+      "fit": "Sesuai",
+      "detail": "Setelah tiap file, storeTrackingRows menyimpan satu baris per notice ke ocms_offence_vhub: offence_no, tanggal offence, lokasi, deskripsi, vehicle_no, vehicle_type, amount_payable, vhub_status (O/S/C), dan sent_vhub_datetime (VhubEndDayFileJob.java:252-271). Baris ini dipakai query berikutnya untuk membandingkan keadaan terakhir yang dikirim (VhubOffenceQueryRepository.java:12-23). Jika insert gagal, job hanya log warn (197-199) dan notice terpilih lagi di run berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima balasan vHub (ACK per notice) dan memperbarui status",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/download/jobs/VhubDownloadJob.java:71-75; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/download/jobs/VhubDownloadJob.java:93-95; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:171-172; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/download/helpers/VhubDownloadHelper.java:68-94; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:590-592",
+      "fit": "Sesuai",
+      "detail": "Cron cron.vhubdownload.schedule=0 20 7 * * ? enabled=true di prod (cron-schedules-prod.properties:171-172). Job melist folder SFTP cftvhub, memilih file yang namanya memuat VIOLATION_CASE_ACK atau NTL, lalu meminta token dekripsi COMCRYPT (VhubDownloadJob.java:71-75, 93-95); callback mendekripsi dan memanggil VhubDownloadHelper (ComcryptCallbackHelper.java:590-592). applyAck mengisi vhub_sftp_status_code '0' bila sukses, atau kode error dan alasannya bila gagal, dan melewati baris yang sudah punya kode (VhubDownloadHelper.java:74-90). Baris tanpa kode '0' dipilih lagi oleh query end-day (VhubOffenceQueryRepository.java:239). Satu hal yang perlu diperhatikan: file SFTP dihapus walau pemrosesan gagal (ComcryptCallbackHelper.java:697-712), jadi ACK yang gagal diproses hilang dan notice dikirim ulang ke vHub. File ACK sungguhan dari vHub: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima record kendaraan dari vHub (daftar NTL) untuk operasi vHub",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/download/helpers/VhubDownloadHelper.java:103-122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:138-165; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:314-354; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:711-712",
+      "fit": "Sebagian",
+      "detail": "File NTL (URA_NTL_yyyyMMdd_##.xml) didekripsi lalu hanya disimpan sebagai file di Azure Blob (blob.folder.vhub.ntl, sftp-common.properties:73); parser hanya dipakai menghitung jumlah baris (VhubDownloadHelper.java:103-122). Tidak ada tabel database atau aksi lanjutan atas kendaraan di NTL. Satu-satunya pemakai adalah sheet EBRNTL di laporan harian yang memuat file NTL terbaru hari itu, dan bila gagal dibaca sheet dibiarkan kosong dengan log warn saja (VhubReportHelper.java:138-165, 314-354). File SFTP dihapus walau staging gagal (ComcryptCallbackHelper.java:711-712). Isi NTL dan cara vHub memakainya: cannot verify from repo."
+    }
+  ]
+}

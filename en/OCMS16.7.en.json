@@ -1,0 +1,29 @@
+{
+  "story": "OCMS16.7",
+  "flow_ref": "User story (not in the flow deck of OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator,helpers/ReductionPersistenceService,helpers/ReductionRuleService,dto/ReductionRequest}, crud/beans/SystemConstant (hard-coded rule codes and stages), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findNoticeValidationStatus. ocmsadminui pages/NoticeSearch/list/NoticeValidList.tsx (amount_payable column), utils/models/Fnotice.d.ts:536. No reduction-formula parameter table or properties in ocmsadminapi/ocmsadminprivateapi",
+  "note": "Story status: Requirement given - Gen flow (5 points). OCMS only receives the reduction result from PLUS (external system) through POST /v1/plus-apply-reduction with amountReduced (dollars) and amountPayable. There is no percentage input (-X%), no formula in a parameter table (rule codes 30305/31302/30302/21300 and the stage list are hard-coded in SystemConstant.java and in the native query), and no calculation or display of the reduced amount in OCMS. The staff portal notice search exists and shows amount_payable, but it has no reduction action. Whether PLUS offers -$X/-X% and its formula: cannot verify from repo. No maintenance ticket changes the verdict.",
+  "recommendation": "Do not claim as complete. Only receiving the dollar reduction from PLUS and the amount_payable column in search exist; percentage, parameter table, and calculation/display in OCMS do not. Ask URA/the team to confirm whether this is built in PLUS.",
+  "steps": [
+    {
+      "step": "Searched notices are displayed with key details",
+      "detail": "Notice search in the staff portal exists and shows suspension type, suspension reason, payment status and amount_payable (ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:56-63). This is the generic search page, not a reduction flow: grep 'reduc' in ocmsadminui/src/pages/NoticeSearch finds nothing and there is no reduction action from the search results."
+    },
+    {
+      "step": "Officer applies a reduction of a fixed amount (-$X)",
+      "detail": "The API accepts amountReduced as a positive dollar value (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37) through POST /plus-apply-reduction (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29), so a fixed amount can be applied from PLUS. But there is no screen or action in the OCMS staff portal for the officer to enter -$X; input in PLUS: cannot verify from repo."
+    },
+    {
+      "step": "Officer applies a reduction of a fixed percentage (-X%)",
+      "detail": "ReductionRequest has no percentage field (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:30-82) and neither the service nor the validator computes a percentage. The type \"custom-precentage\" at ocmsadminui/src/utils/models/Fnotice.d.ts:536 is only an unused declaration. A percentage in PLUS: cannot verify from repo."
+    },
+    {
+      "step": "The reduction formula is maintained in a parameter table",
+      "detail": "The reduction rules are hard-coded: computer rule codes 30305, 31302, 30302, 21300 and the stage lists in ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:108-115 and :139-145, repeated in the native query (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:56-67). There is no entity, table or property for a -$X/-X% formula (grep 'reduc' in ocmsadminapi/src/main/resources finds nothing). ReductionValidator.validateAll/validateEligibility and ReductionRuleService.isNoticeEligibleForReduction are not called from ReductionServiceImpl (grep), so the live path uses the native query only."
+    },
+    {
+      "step": "OCMS automatically computes and displays the reduced composition amount for the reduction applied",
+      "detail": "OCMS does not compute: amountPayable comes from PLUS, is validated to equal current - amountReduced (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:188-195), and is stored as-is into amount_payable (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:109). There is no display of the reduced amount for verification (the field at ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:244-247 uses source \"UNKNOWN\"; see OCMS16.6)."
+    }
+  ]
+}

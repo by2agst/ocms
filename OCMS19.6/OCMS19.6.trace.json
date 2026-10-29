@@ -1,0 +1,46 @@
+{
+  "story": "OCMS19.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/NoticeSearchAllList,component/NoticeSearchSlot,component/NoticeSearchUploadSlot,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/{page/Revival,list/RevivalList}, utils/option.tsx, utils/constant.ts, App.tsx. ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility), api-authorization.properties (OCMS_APPLY_REVIVAL), config/WebConfig. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk story ini",
+  "note": "Status di sheet: Fully paid (1 point), tidak ada flow deck. Story: officer memilih notice dari hasil search/upload untuk revival. Code staff portal memenuhi seluruhnya: checkbox di daftar notice, opsi Apply Revival + tombol Select, cek kelayakan ke server, lalu notice terpilih masuk halaman Revival dan bisa dikeluarkan satu per satu. Dua hal yang perlu diperhatikan: (1) pembatasan 'hanya 1 notice sekaligus' hanya berlaku untuk PS di server (SuspensionProcessingController.java:400-410), notice TS boleh banyak; (2) bila request cek kelayakan error, daftar yang dibawa kosong dan halaman Revival tampil kosong tanpa pesan (useBatchOperation.ts:262-265, Revival.tsx:113). Tidak ada tiket maintenance yang mengubah langkah-langkah ini. Role yang memegang function OCMS_APPLY_REVIVAL: cannot verify from repo.",
+  "recommendation": "Layak diklaim penuh. Catatan teknis untuk tim: tampilkan pesan error bila cek kelayakan gagal (saat ini halaman kosong).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice hasil search atau upload ditampilkan dengan checkbox sehingga officer bisa memilihnya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:122-128; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:66-69; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchUploadSlot.tsx:47-50",
+      "fit": "Sesuai",
+      "detail": "Datagrid hasil search memakai checkbox={{select: {all: true, row: true}}} (NoticeSearchAllList.tsx:122-128). Baris terpilih dibaca dari checkbox.selected dan menentukan isSelected (NoticeSearchSlot.tsx:66-69). Halaman hasil upload daftar notice memakai mekanisme yang sama (NoticeSearchUploadSlot.tsx:47-50)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih operasi Apply Revival lalu menekan tombol Select",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:232-238; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:280-302; ocmsadminui/src/utils/option.tsx:314-319; ocmsadminui/src/utils/constant.ts:269; ocmsadminui/src/utils/constant.ts:278; ocmsadminapi/src/main/resources/api-authorization.properties:65-67; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:79",
+      "fit": "Sesuai",
+      "detail": "Dropdown Apply Operation berisi 'Apply Revival' (option.tsx:317) dan opsinya hanya tampil bila user punya function OCMS_APPLY_REVIVAL (hasFunction, NoticeSearchSlot.tsx:285-288; constant.ts:269,278). Tombol Select disabled sampai ada baris terpilih dan opsi dipilih (NoticeSearchSlot.tsx:298-302); onSubmit meneruskan baris terpilih (NoticeSearchSlot.tsx:232-238). Di server, function OCMS_APPLY_REVIVAL dipetakan ke /v1/staff-revive-suspension, /v1/suspendednoticelist dan lain-lain (api-authorization.properties:65-67) dan diperiksa OcmsAuthorizationInterceptor yang didaftarkan di WebConfig.java:79, jadi bukan hanya UI. Role/user mana yang diberi function itu ada di data user, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice terpilih dicek kelayakannya lalu dibawa ke halaman Revival",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:184-206; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:113-118; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:222-271; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:337-437; ocmsadminui/src/App.tsx:166; ocmsadminui/src/pages/Revival/page/Revival.tsx:113",
+      "fit": "Sesuai",
+      "detail": "handleRV memanggil validateRV yang POST staff-revive-eligibility (useBatchOperation.ts:238-241). Server menolak notice TS-HST, notice yang tidak punya TS/PS aktif, notice tidak ditemukan, dan lebih dari satu notice PS sekaligus (SuspensionProcessingController.java:378-410); notice TS non-HST boleh banyak sekaligus. Bila ada yang gagal, alert berisi daftar alasan muncul dan tidak ada notice yang dibawa (ApplyOperationAction.tsx:187-197). Bila semua lolos, notice disimpan ke batch REVIVAL dan UI pindah ke /notices/revival (ApplyOperationAction.tsx:199-205; useBatchOperation.ts:113-118; App.tsx:166). Teks 'hanya 1 notice sekaligus' (ApplyOperationAction.tsx:48-53) tidak ditemukan dipakai untuk memblokir; yang dibatasi server hanya PS. Edge case: bila request eligibility error, catch mengosongkan success dan failed (useBatchOperation.ts:262-265), handleRV tetap navigasi dengan daftar kosong dan halaman Revival tampil kosong tanpa pesan (Revival.tsx:113)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat mengeluarkan notice dari daftar terpilih sebelum lanjut",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/page/Revival.tsx:30-65; ocmsadminui/src/pages/Revival/page/Revival.tsx:77-103; ocmsadminui/src/pages/Revival/list/RevivalList.tsx:102-107",
+      "fit": "Sesuai",
+      "detail": "Halaman Revival mengambil ulang data notice terpilih per 30 notice lewat validoffencenoticelist (Revival.tsx:30-65,77-89). Setiap baris punya tombol Delete (RevivalList.tsx:102-107) yang membuang notice dari state dan dari batch REVIVAL (Revival.tsx:91-103). Bila daftar kosong, form tidak ditampilkan (Revival.tsx:113)."
+    }
+  ]
+}

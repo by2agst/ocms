@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "In ocmseserviceui: components/form/TextInput.ts (value into formData + sessionStorage), pages/Furnish/Form/{Particulars,Documents}.ts, pages/Furnish/{Furnish,API}.ts. Document upload to ocmseserviceapi workflows/uploadfile/FileUploadController (upload/temp). DB save happens only on Submit (workflows/furnish/FurnishSubmissionController, FurnishSubmissionServiceImpl). Other repos are not involved.",
+  "note": "Requirement is given and status is Fully paid. There is no separate Save button: values go straight into formData in the browser and sessionStorage, documents are uploaded to temp storage when attached, then the 'Proceed to review' button validates and opens the Review step. There is no draft on the server/DB; data is only stored permanently on Submit in the next step. That is why the 'save' step is only Sebagian. Azure Blob storage values per environment: cannot verify from repo.",
+  "recommendation": "Claim with a note: 'save' means kept in the browser (sessionStorage) and documents in temp storage, not a server draft. Permanent storage happens on Submit (another story).",
+  "steps": [
+    {
+      "step": "The hirer/driver details typed are saved so they can be carried to the summary page",
+      "detail": "TextInput.setValue writes the value into the shared formData object and calls setCache to sessionStorage (TextInput.ts:141-142; key FURNISH_NOTICE at Furnish.ts:54). There is no 'Save' button and no draft on the server/DB; the DB write only happens on Submit (FurnishSubmissionController.java:66, FurnishSubmissionServiceImpl.java:121). Data only lives in the browser tab and is wiped on a new login (Furnish.ts:126-129). Page reload behaviour: cannot verify from repo."
+    },
+    {
+      "step": "The supporting documents attached are saved along",
+      "detail": "When a file is attached, onUpload calls APIUploadDoc (Documents.ts:270-276), which sends multipart to VITE_FURNISH_UPLOAD_TEMP=v1/upload/temp (API.ts:738-742; .env.prod:56). The controller stores it in Azure Blob temp and returns tempFilePath (FileUploadController.java:18, 35); the UI keeps it in blob_name (API.ts:755). On Submit the file is moved to permanent storage (FurnishSubmissionServiceImpl.java:67). An upload failure shows an error modal (API.ts:766-775)."
+    },
+    {
+      "step": "The 'Proceed to review' button validates the data and only moves on when it passes",
+      "detail": "The button labelled 'Proceed to review' (Particulars.ts:113) runs ValidateALL, the 'Others' input check, the self-furnish check against the backend, then validateDoc, and only then calls stepper.show(3) (Particulars.ts:114-150)."
+    },
+    {
+      "step": "The saved details are passed to the summary page for confirmation",
+      "detail": "Particulars calls onUpdate(formData) (Particulars.ts:120), which in Furnish.onUpdate copies the data into summary.formData and re-initialises the HD, owner/company and document-table parts (Furnish.ts:158-168); then the stepper moves to step 3 Review (Particulars.ts:149)."
+    }
+  ]
+}

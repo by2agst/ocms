@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDParticulars,Documents,Particulars}.ts, pages/Furnish/NoticesTable/FurnishableNotices.ts, utils/option.ts. ocmseserviceapi workflows/furnish/FurnishRequestValidator (validateIdNumber, validateMandatoryDocuments). ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (checkFinPassportIdType), datahiveuenfin/jobs/DataHiveUenFinJob, services/datahive/nricFinUenDataRetrieval (batch, tidak dipanggil dari Furnish). Tidak ada code pengecekan live work pass di keenam repo.",
+  "note": "Story tidak ada di flow deck; status sheet 'Built - Ready for User Acceptance' dengan demo_remark 'No vault'. Yang dibangun hanya input particulars pemegang FIN (tipe ID FIN dengan validasi format+checksum, dokumen DL dan EP wajib). Inti story tidak ada di code: pengecekan live ke DOS, pesan work pass kedaluwarsa, dan pilihan lanjut-atau-bayar di titik itu. Tidak ada code untuk pengecekan live work pass FIN ke DOS: kata 'work pass' dan 'expired' (selain session timeout) tidak muncul di ocmseserviceui/ocmseserviceapi, tidak ada client DOS/MOM/DataHive di ocmseserviceapi, dan integrasi 'DOS' tidak terimplementasi di backend manapun (DOS = DataHive/LTA tidak bisa dikonfirmasi dari repo). Satu-satunya code work pass terkait adalah job batch DataHive FIN di ocmsadminprivateapi (DataHiveUenFinJob, DataHiveFINServiceImpl, FINDataResult.workPassStatus), yang tidak dipanggil dari alur Furnish. Sebagai gantinya portal mewajibkan upload dokumen Employment Pass/Work Permit (EP) untuk FIN dan cron approval menaruh semua FIN di review manual. Status 'Built' di sheet tidak didukung code untuk langkah inti. Perilaku nyata yang bisa saja ada di luar repo (API DOS, vault): cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya input particulars FIN yang ada; pengecekan live work pass ke DOS, pesan kedaluwarsa dan pilihan lanjut/bayar belum ada. Minta URA/tim konfirmasi di mana integrasi DOS dibangun.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilik/hirer mengisi particulars driver asing dengan tipe ID FIN (format valid, dokumen pendukung)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/utils/option.ts:14-30; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:126-146; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:308-345; ocmseserviceui/src/utils/option.ts:92-100",
+      "fit": "Sesuai",
+      "detail": "Pilihan tipe ID memuat FIN (option.ts:14-30). Server memvalidasi format FIN F/G/M + 7 digit + checksum lewat SingaporeIdValidator (FurnishRequestValidator.java:126-146) dan mewajibkan Driving Licence (DL) serta Employment Pass/Work Permit (EP) untuk FIN (FurnishRequestValidator.java:308-345; UI: option.ts:92-100). Berlaku untuk individu dan perusahaan (CorpPass memakai DocumentCPOptions). Catatan: tiket OCMS-DF-2026-098 (FIN prefix M berakhiran J ditolak di Staff Portal, Closed) hanya soal staff portal, bukan eservice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman mengecek status work pass pemegang FIN secara live lewat API dengan DOS",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:308-345; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:1; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/FINDataResult.java:98-104",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pemanggilan API DOS/MOM/DataHive dari ocmseserviceui maupun ocmseserviceapi saat FIN diisi atau disubmit: validator hanya memeriksa format FIN dan keberadaan dokumen EP (FurnishRequestValidator.java:308-345). Satu-satunya pembaca work pass adalah job batch DataHive FIN di ocmsadminprivateapi (DataHiveUenFinJob, field FINDataResult.workPassStatus/ipaExpiryDate di FINDataResult.java:98-104) yang berjalan terjadwal, tidak dipanggil dari alur Furnish dan tidak memberi respons ke halaman. Integrasi 'DOS' tidak terimplementasi di backend; DOS = DataHive/LTA cannot be confirmed from the repo. Grep 'workpass|work pass|expired|expiry' di ocmseserviceui dan ocmseserviceapi hanya menemukan label dokumen EP dan session timeout."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan jika work pass pemegang FIN sudah kedaluwarsa",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDParticulars.ts:1-372; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/exception/ValidationMessages.java:101",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada komponen, modal, atau string pesan work pass kedaluwarsa di ocmseserviceui (HDParticulars.ts, Documents.ts, error.ts). Satu-satunya pesan terkait FIN adalah 'Please submit a valid Employment Pass/Work Permit/SPass/Long-Term Visit Pass to proceed.' (ValidationMessages.java:101) yang muncul jika dokumen EP tidak diunggah, bukan karena status kedaluwarsa. Karena tidak ada hasil pengecekan, pesan ini tidak mungkin ditampilkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menunjukkan pilihan keputusan: lanjut submission atau melakukan pembayaran",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:203-208; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:113-150",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pilihan lanjut-atau-bayar pada titik setelah FIN diisi. Yang ada hanya dua tombol umum yang tidak terkait status FIN: 'Make payment' di langkah pemilihan notice yang membuka halaman Payment di tab baru (FurnishableNotices.ts:203-208) dan 'Proceed to review' di langkah particulars (Particulars.ts:113-150). Sesuai aturan konsistensi, mekanisme umum yang bukan yang disebut story paling tinggi Sebagian; fit sama dengan langkah pilihan bayar di OCMS42.20."
+    }
+  ]
+}

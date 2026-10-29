@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS35.2 Pertukaran Kendaraan Asing dengan vHub",
+    "locale": "en",
+    "output": "OCMS35.2.id.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "Cron vHub",
+      "sublabel": "ocmsadminprivateapi"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "DB OCMS",
+      "sublabel": "valid_offence_notice"
+    },
+    {
+      "id": "blob",
+      "type": "database",
+      "label": "Azure Blob",
+      "sublabel": "folder vhub"
+    },
+    {
+      "id": "cc",
+      "type": "backend",
+      "label": "COMCRYPT + SFTP",
+      "sublabel": "callback"
+    },
+    {
+      "id": "vhub",
+      "type": "external",
+      "label": "vHub",
+      "sublabel": "CFT SFTP"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 215,
+      "label": "Pilih"
+    },
+    {
+      "from": 217,
+      "to": 330,
+      "label": "Kirim dan catat"
+    },
+    {
+      "from": 332,
+      "to": 490,
+      "label": "Terima"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "cron",
+      "to": "db",
+      "y": 165,
+      "label": "Pilih notice asing PS-FOR (O/S/C)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m1",
+      "from": "db",
+      "to": "cron",
+      "y": 195,
+      "label": "Baris belum terkirim/berubah/belum ACK",
+      "variant": "return"
+    },
+    {
+      "id": "m2",
+      "from": "cron",
+      "to": "blob",
+      "y": 225,
+      "label": "Simpan XML, maks 10000 per file",
+      "variant": "default"
+    },
+    {
+      "id": "m3",
+      "from": "cron",
+      "to": "cc",
+      "y": 255,
+      "label": "Minta token enkripsi (null = hanya warn)",
+      "variant": "dashed"
+    },
+    {
+      "id": "m4",
+      "from": "cc",
+      "to": "vhub",
+      "y": 285,
+      "label": "Enkripsi + upload (kirim tak terbukti)",
+      "variant": "default"
+    },
+    {
+      "id": "m5",
+      "from": "cron",
+      "to": "db",
+      "y": 315,
+      "label": "Insert baris ocms_offence_vhub",
+      "variant": "dashed"
+    },
+    {
+      "id": "m6",
+      "from": "vhub",
+      "to": "cc",
+      "y": 345,
+      "label": "ACK + NTL ditaruh di SFTP",
+      "variant": "default"
+    },
+    {
+      "id": "m7",
+      "from": "cron",
+      "to": "cc",
+      "y": 375,
+      "label": "07:20 list file, minta dekripsi",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "cc",
+      "to": "db",
+      "y": 405,
+      "label": "ACK: isi sftp_status_code",
+      "variant": "dashed"
+    },
+    {
+      "id": "m9",
+      "from": "cc",
+      "to": "blob",
+      "y": 435,
+      "label": "NTL: hanya disimpan sebagai file",
+      "variant": "dashed"
+    },
+    {
+      "id": "m10",
+      "from": "cron",
+      "to": "db",
+      "y": 465,
+      "label": "Belum ACK = dipilih lagi run berikut",
+      "variant": "dashed"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "cron",
+      "from": 160,
+      "to": 470,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 160,
+      "to": 200,
+      "type": "database"
+    },
+    {
+      "participant": "db",
+      "from": 310,
+      "to": 320,
+      "type": "database"
+    },
+    {
+      "participant": "db",
+      "from": 370,
+      "to": 380,
+      "type": "database"
+    },
+    {
+      "participant": "cc",
+      "from": 250,
+      "to": 290,
+      "type": "backend"
+    },
+    {
+      "participant": "cc",
+      "from": 340,
+      "to": 410,
+      "type": "backend"
+    },
+    {
+      "participant": "blob",
+      "from": 220,
+      "to": 230,
+      "type": "database"
+    },
+    {
+      "participant": "blob",
+      "from": 400,
+      "to": 410,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Sesuai flow",
+      "items": [
+        "Notice asing outstanding dipilih",
+        "XML dibuat, baris dicatat",
+        "ACK memperbarui status"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Sukses = file siap, belum terkirim",
+        "NTL hanya jadi file",
+        "Satu notice rusak hentikan run"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Perlu verifikasi",
+      "items": [
+        "Pengiriman SFTP ke vHub",
+        "Nilai parameter FOR",
+        "File ACK dan NTL sungguhan"
+      ]
+    }
+  ]
+}

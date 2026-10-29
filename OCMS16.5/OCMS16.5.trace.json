@@ -1,0 +1,55 @@
+{
+  "story": "OCMS16.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{dto/ReductionRequest,helpers/ReductionValidator,helpers/ReductionPersistenceService,ReductionServiceImpl}, workflows/notice_creation/core/helpers/RevivalBaseHelper (revert saat revival). ocmsadminui utils/models/Fnotice.d.ts (TStageReductionType tidak terpakai), pages/Notice/detail/SuspensionDetail.tsx (field Reduced Amount source UNKNOWN). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code hitung stage reduction",
+  "note": "Status di stories.json: 'Requirement given - Gen flow' (tidak ada flow deck). Inti story (officer memilih jumlah stage, OCMS menghitung dan menampilkan hasilnya) tidak ada di repo. Endpoint PLUS /v1/plus-apply-reduction menerima amountReduced dan amountPayable dari pemanggil dan hanya memverifikasi amountPayable = amount payable sekarang - amountReduced (ReductionValidator.java:188-195); tidak ada tabel atau rumus stage ($55 ke $40 = 1-stage, $140 ke $40 = 2-stage). Perhitungan stage kemungkinan dikerjakan PLUS: cannot verify from repo. Masa berlaku (expiryDateOfReduction) wajib diisi, divalidasi setelah tanggal reduction, dan disimpan. Satu-satunya pemakaian 'stage' dengan reduction di OCMS adalah stage pemrosesan notice untuk kelayakan, bukan stage reduction. Tiket: OCMS-DF-2026-028 menyebut 'stage-based formula' lama di revival yang sudah diganti membaca nilai asli dari ocms_reduced_offence_amount (bukan perhitungan stage saat apply).",
+  "recommendation": "Jangan klaim penghitungan stage. Klaim hanya penyimpanan masa berlaku. Konfirmasi ke URA bahwa perhitungan stage dikerjakan PLUS (di luar repo).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menentukan jumlah stage reduction (1-stage atau 2-stage)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Fnotice.d.ts:536; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:43",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada input jumlah stage di staff portal maupun di request apply. ReductionRequest hanya membawa amountReduced dan amountPayable (ReductionRequest.java:37,43). Satu-satunya jejak adalah tipe TStageReductionType 'custom-dollar' | 'custom-precentage' (Fnotice.d.ts:536) yang dideklarasikan tanpa pemakai. Dicari lewat kata stage reduction, 1-stage, 2-stage, noOfStage di ocmsadminui, ocmsadminapi dan ocmsadminprivateapi; tidak ada hasil. Apakah PLUS punya input stage: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menentukan masa berlaku reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:55-57; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:264-271; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:90-96",
+      "fit": "Sebagian",
+      "detail": "Masa berlaku diterima sebagai expiryDateOfReduction yang wajib (@NotNull, ReductionRequest.java:55-57) dan divalidasi harus setelah dateOfReduction (ReductionValidator.java:264-271, dipanggil ReductionServiceImpl.java:90-96; salah = 400 'Invalid format'). Tetapi tidak ada input untuk officer di staff portal; nilainya datang dari payload PLUS. Layar input di PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghitung otomatis composition amount hasil reduction dari jumlah stage",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:177-195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/dto/ReductionRequest.java:43",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penghitungan. Validator menerima amountReduced dan amountPayable dari pemanggil lalu hanya memastikan amountReduced < amount payable sekarang dan amountPayable = amount payable sekarang - amountReduced (ReductionValidator.java:177-195). Tidak ada tabel atau rumus stage ($55 ke $40 = 1-stage, $140 ke $40 = 2-stage) di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi. Apakah PLUS yang menghitung: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan composition amount hasil reduction kepada officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:173-180; ocmsadminui/src/pages/Notice/detail/SuspensionDetail.tsx:246; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:178",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar yang menampilkan hasil hitung sebelum reduction diterapkan. Setelah reduction, amount payable baru hanya terlihat sebagai kolom amount_payable di list (NoticeSearchOutstandingList.tsx:178). Field 'Reduced Amount' di detail suspension tidak terhubung ke data: source-nya 'UNKNOWN' (SuspensionDetail.tsx:246) dan versi lain dikomentari (SuspensionDetail.tsx:173-180)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Masa berlaku reduction disimpan bersama reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:105-106; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:135; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:113",
+      "fit": "Sesuai",
+      "detail": "applyReduction menyimpan expiryDateOfReduction sebagai due_date_of_revival di VON (nilai terjauh terhadap TS lain, ReductionPersistenceService.java:105-106, aturan OCMS-DF-2026-184 di komentar baris 104), di ocms_suspended_notice (ReductionPersistenceService.java:135) dan di kolom expiry_date ocms_reduced_offence_amount (ReductionPersistenceService.java:168), dipanggil dari ReductionServiceImpl.java:113."
+    }
+  ]
+}

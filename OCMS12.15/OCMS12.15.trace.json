@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin (DataHiveUenFinService), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, crud OcmsValidOffenceNoticeRepository.findToppanNoticesForStage, workflows/agencies/toppan/upload (ToppanStage, ToppanUploadJob), application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story 1 point, status 'Requirement given - Gen flow' (tidak diverifikasi). Sama dengan OCMS12.14 tetapi untuk Owner/Partner dan stage RD2: tidak ada code yang mengganti pemilik notice atau mengembalikan stage ke RD2 dari hasil lookup UEN. Yang ada hanya penerimaan data DataHive (sebagian) dan pembuatan surat RD2 yang generik. Job UEN mati di prod; upload Toppan diblok config (OCMS-DF-2026-192).",
+  "recommendation": "Jangan klaim sebagai selesai. Logika ganti pemilik ke Owner/Partner dan revert ke RD2 belum ada; hanya surat RD2 generik.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima particulars Owner/Partner individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:196-210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS12.12 langkah 4: hasil DataHive memuat shareholderData dan boardData (BATCH:196-210). Shareholder disimpan (SVC:1442-1448) tanpa tanggal penunjukan; board hanya dilog dan tidak ditulis ke DB (OCMS-DEV-2026-231, SVC:1468-1478). Job UEN mati di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). Nama 'DOS' tidak ada di code: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilik kendaraan di notice diganti menjadi Owner/Partner individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1798-1814; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1480",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya patch aktif ke ocms_offence_notice_owner_driver dari alur UEN adalah updateCompanyName() yang hanya mengganti kolom name dengan entity name (SVC:1798-1814). Tidak ada code yang menulis id_no/nama/alamat Owner/Partner sebagai offender notice. grep director/partner di workflows/datahiveuenfin: tidak ada hasil."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dikembalikan ke stage RD2 (reminder kedua)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1480; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-21",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang mengubah next_processing_stage berdasarkan hasil lookup UEN: DataHiveUenFinService hanya menulis nama perusahaan, alamat, shareholder dan menerapkan suspension TS-ACR (de-registered, UEN not found, data wajib kosong) (SVC:1346-1480); next_processing_stage hanya dibaca (SVC:226, 310). Stage RD2 ada di ToppanStage (STAGE:19-21) tetapi hanya dicapai lewat urutan normal atau jalur lain (misalnya patch ENA ke RD1), bukan lewat hasil lookup UEN."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat reminder kedua (stage RD2) dibuat dan dikirim ke Owner/Partner individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:583-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-20; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:424-430; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Generasi surat untuk notice dengan next_processing_stage='RD2' ada (findToppanNoticesForStage, VonRepository:583-614; ToppanStage:19-20) dan jalan generik untuk offender mana pun. Tetapi surat hanya menuju offender yang sudah tercatat di notice; karena pemilik tidak pernah diganti (langkah 2), mekanisme ini tidak khusus untuk Owner/Partner. Upload ke Toppan diblok oleh sftp.upload.disabledServers=toppan (application-prod.properties:86; ticket OCMS-DF-2026-192 masih Ready to UAT). RD2 adalah stage registered mail (file return Toppan membawa postal_regn_no). Pengiriman nyata: cannot verify from repo."
+    }
+  ]
+}

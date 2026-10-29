@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.52",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController, workflows/furnish/stafffurnish/services/StaffFurnishService, workflows/furnish/helpers/FurnishabilityChecker, workflows/notice_management/ownerdriver/ownerdriver/{OwnerDriverControllerPlus,OwnerDriverServiceImplPlus}, auth/filter/JwtFilter, config/WebConfig. ocmsadminui, ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code penerima request PLUS ini",
+  "note": "Demo remark di sheet: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop.' Itu masalah environment/koneksi dan tidak bisa diverifikasi dari repo. Code menyediakan tiga endpoint PLUS: /plus-furnish, /plus-redirect, /plus-furnish-redirect-check (PlusIntegrationController) plus /plus-update-offence-notice-owner-driver (OwnerDriverControllerPlus). Semua per satu notice. Cek stage furnishable ada; cek 'particulars sudah ada' untuk jalur PLUS tidak ada (cakupan story 41.54 dan 41.56-41.58). Tidak ada tiket pemeliharaan yang mengubah verdict.",
+  "recommendation": "Klaim sebagian: penerimaan request PLUS dan cek stage furnishable ada, tetapi hanya per satu notice dan pengecekan particulars yang sudah ada untuk jalur PLUS tidak ada. Autentikasi PLUS (APIM) dan masalah koneksi DB di demo remark tidak bisa diverifikasi dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request update particulars hirer/driver untuk notice terpilih, dan OCMS menerimanya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:185-217; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:242-260; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:39-43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus.java:111-166; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83; ocmsadminapi/src/main/resources/application-prod.properties:60-61",
+      "fit": "Sebagian",
+      "detail": "OCMS menyediakan POST /v1/plus-furnish (hirer/driver baru jadi current offender; wajib noticeNo, ownerDriverIndicator, name, idType, idNo, PlusIntegrationController.java:136-168, 242-260), POST /v1/plus-redirect (pindah ke offender yang sudah ada, 185-217) dan POST /v1/plus-update-offence-notice-owner-driver (ubah field, OwnerDriverControllerPlus.java:39-43, OwnerDriverServiceImplPlus.java:111-166). Semuanya menerima SATU noticeNo per call; tidak ada endpoint list untuk 'notice terpilih' sekaligus, jadi PLUS harus memanggil berulang. Endpoint plus-* dilewatkan dari JwtFilter (JwtFilter.java:179) dan dari OcmsAuthorizationInterceptor (WebConfig.java:83). Flag ocms.plus.key.validation.enabled=false di application-prod.properties:61 dan properti itu tidak dibaca kode ocmsadminapi, jadi proteksi bergantung pada APIM di luar repo: cannot verify from repo. Demo remark tentang API PLUS tidak menarik data (koneksi DB) juga cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah notice berada di stage yang boleh di-furnish",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:181-183; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:326-328; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:51-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:118-126",
+      "fit": "Sesuai",
+      "detail": "plus-furnish memanggil staffFurnish yang lebih dulu menjalankan checkFurnishable (StaffFurnishService.java:181-183; plus-redirect di 326-328). FurnishabilityChecker menolak notice yang last processing stage-nya bukan salah satu NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC (FurnishabilityChecker.java:51-61, 118-126) dan tidak ada data yang diubah. PLUS juga bisa mengecek dulu lewat /plus-furnish-redirect-check (PlusIntegrationController.java:65-92). Daftar stage vs Appendix: cannot verify from repo. Catatan: /plus-update-offence-notice-owner-driver tidak menjalankan cek ini (lihat OCMS41.53)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah particulars hirer/driver untuk notice itu sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:175-231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:196-198; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:248-327; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:215; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:74",
+      "fit": "Tidak ada code",
+      "detail": "Jalur PLUS tidak melakukan pengecekan ini. staffFurnish hanya membaca current offender untuk menyimpan ID lama bagi logika HST (StaffFurnishService.java:196-198), lalu langsung menonaktifkan offender lama (201) dan menyimpan record baru (231). Logika 'particulars sudah ada' memang ada di tempat lain: FurnishabilityChecker.runAllChecksAndCollectFailures (FurnishabilityChecker.java:248-327) dipanggil dari ManualReviewService.java:215 untuk submission eService yang pending, dan ManualFurnishValidationService.checkExistingParticulars (ManualFurnishValidationService.java:74) untuk /furnish/officer/manual. Keduanya bukan endpoint plus-* dan tidak dipanggil dari PlusIntegrationController. Cakupan story 41.54 dan 41.56."
+    }
+  ]
+}

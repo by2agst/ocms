@@ -1,0 +1,33 @@
+{
+  "story": "OCMS17.20",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plusApplySuspension, processNoticeList, processSingleNotice),helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}}; VON, eVON and ocms_suspended_notice tables through the crud services. Mirror in ocmsadminprivateapi framework/workflows/plus/notice_creation/core and utilities/suspension_helpers. Other repos not relevant.",
+  "note": "After validation passes, POST /plus-apply-suspension applies the TS with the code and number of days from PLUS: due date = now + daysToRevive, VON and eVON are updated, one ocms_suspended_notice row is written (source PLUS, process_indicator Manual, a new sr_no per notice per OCMS-DF-2026-027, Closed), and PLUS is answered 'TS Success' with appCode OCMS-2000. For a notice that already has a TS, OCMS neither asks for nor stores PLUS confirmation: the new TS is stacked straight away (latest reason, furthest VON due date, TemporarySuspensionHelper.java:104-118). The eVON sync is best-effort: on failure it is only logged. A daysToRevive of 0 or below is replaced by the table/30-day default without an error. The ocms_suspension_reason values and the PLUS schedule cannot verify from repo.",
+  "recommendation": "Claim as done for applying the TS and the success message. Note that OCMS does not check the PLUS confirmation requirement for notices with an old TS, and the eVON sync is best-effort.",
+  "steps": [
+    {
+      "step": "Validation passes and the notice has no old TS, so the TS is ready to be applied",
+      "detail": "processSingleNotice (checking=false) calls TemporarySuspensionHelper.processTS, which runs mandatory fields, notice exists, source, stage, paid and PS (TemporarySuspensionHelper.java:54-96); passing means moving on to the write step. Same fact as the second step of OCMS17.18."
+    },
+    {
+      "step": "For a notice that already has a TS and PLUS has confirmed, OCMS still applies the new TS",
+      "detail": "The new TS is indeed applied on top of the old TS (VON reason = latest, VON due date = furthest; the suspended_notice row keeps that TS's own due date). But OCMS has no flag or check for PLUS confirmation: the same request is processed exactly the same with or without confirmation. Confirmation only exists if PLUS asks for it itself (cannot verify from repo). Same as the confirmation step in OCMS17.19."
+    },
+    {
+      "step": "OCMS calculates the revival due date from the number of days PLUS requested",
+      "detail": "daysToRevive (PLUS) or dueDateOfRevival (UI) is read by extractDaysToRevive; due date = LocalDateTime.now() + daysToRevive days (TemporarySuspensionHelper.java:188-190). Edge: 0 or a negative value is not rejected and falls to the default days in ocms_suspension_reason (OCMS source) or 30 days (TemporarySuspensionHelper.java:192-208)."
+    },
+    {
+      "step": "OCMS marks the notice (VON and eVON) as TS under the requested suspension code",
+      "detail": "updateVON sets suspension_type = TS, epr_reason_of_suspension = code, epr_date_of_suspension = now, due_date_of_revival (SuspensionBaseHelper.java:345-348) and saves. updateEVON copies the type and reason to eVON; if eVON fails or is not found it is only logged and the suspension still goes through (SuspensionBaseHelper.java:431-434), so the eVON sync is best-effort. The VON due date follows the furthest one (TemporarySuspensionHelper.java:104-118); ticket OCMS-DF-2026-184 (Pending UAT) concerns the separate TS-UNC path, not this one."
+    },
+    {
+      "step": "OCMS records the suspension in ocms_suspended_notice for the requested number of days",
+      "detail": "insertSuspendedNotice writes noticeNo, sr_no, suspension_source = PLUS, type TS, reason, officer, this TS's own due_date_of_revival, remarks, process_indicator = Manual and cre_user_id. sr_no comes from the SUSPENDED_NOTICE_SEQ sequence for every notice (SuspensionProcessingController.java:997), per the OCMS-DF-2026-027 fix (Closed, Prod deployed). Each notice is processed on its own so a batch can partly succeed."
+    },
+    {
+      "step": "OCMS sends a success message to PLUS",
+      "detail": "processTS returns {noticeNo, srNo, success:true, message:'TS Success'}; addAppCodeToResults adds appCode OCMS-2000 and the response goes out as HTTP 200. Mirror in ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:117). Receipt and display in PLUS cannot verify from repo."
+    }
+  ]
+}

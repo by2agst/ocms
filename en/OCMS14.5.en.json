@@ -1,0 +1,29 @@
+{
+  "story": "OCMS14.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (MID/DIP filter at RR3/DR3 + applyPsSuspensionForMidDipVehicles), utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}, crud/ocmsizdb/OcmsValidOffenceNotice (stage query), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, models/ToppanStage. Other repos: no code for this story.",
+  "note": "D and I notices are indeed stopped after RD2 automatically by the system with a specific code, DIP or MID, and do not move up to RR3. But the suspension type is Permanent (PS-DIP, PS-MID), not temporary with a set period as the story text says: PermanentSuspensionHelper is type PS and there are no days or revival date. It is applied inside the RR3/DR3 letter generation which only runs through the manual trigger (executeJob is commented out in the scheduler). The story text expects a temporary suspension; if URA accepts PS that is a requirement change. The SuspensionBaseHelper stage validation actually forbids DIP/MID at RR3/DR3, so this code only passes because the last stage of the notice is still RD2. VIP notices use TS-CLV with 21-day looping (not in scope of this story). Real server behaviour cannot verify from repo.",
+  "recommendation": "Claim partially. Automatic stop with code DIP/MID exists, but it is a permanent PS without period and only runs through the manual trigger. Do not claim temporary suspension with a period.",
+  "steps": [
+    {
+      "step": "Notices of special vehicles have been processed up to the Reminder 2 stage",
+      "detail": "D and I notices go RD1 then RD2 and are only recognised and stopped when RR3 is processed (ToppanStage.java:19-20; ToppanUploadHelper.java:1974-1977: notices with last stage RD2 are picked for RR3). Same as OCMS14.3 Reminder 2 step: letters only run through the manual trigger and the Toppan upload is blocked (ToppanUnifiedController.java:34; ToppanUploadJobsScheduler.java:118; application-prod.properties:86), fit Sebagian."
+    },
+    {
+      "step": "The system suspends the notice automatically without officer action",
+      "detail": "When stage RR3 or DR3 is processed, notices of type I or D are filtered out and applyPsSuspensionForMidDipVehicles calls psHelper.processPS with the system user (ToppanUploadHelper.java:1979-2015,749-797). It is automatic, but only runs inside letter generation that needs the manual trigger (ToppanUnifiedController.java:34); the executeJob call from the cron is commented out (ToppanUploadJobsScheduler.java:118). So without the manual trigger there is no automatic suspension."
+    },
+    {
+      "step": "The suspension uses a code specific to the vehicle type: DIP for diplomat and MID for military",
+      "detail": "The code is chosen from the vehicle type: I becomes MID, D becomes DIP (ToppanUploadHelper.java:764-768; SystemConstant.java:53-54), and stage validation limits DIP and MID to NPA, ROV, RD1, RD2, DN1, DN2 (SuspensionBaseHelper.java:80-83,205-208). Note: the suspension type and period part is judged in the next step."
+    },
+    {
+      "step": "The suspension is temporary with a set period",
+      "detail": "processPS in PermanentSuspensionHelper is type PS (PermanentSuspensionHelper.java:60-61) and is called without days or a revival date (ToppanUploadHelper.java:771-777). The result is a permanent PS-DIP or PS-MID, not a TS with a number of days. A TS code is only used for VIP (TS-CLV 21 days, ToppanUploadHelper.java:709-716), which is not in this story scope. No ticket changes this."
+    },
+    {
+      "step": "The suspended notice does not escalate to the next processing stage",
+      "detail": "The query that selects notices per stage only takes suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611), so a notice already under PS is no longer selected; and in the RR3/DR3 run, I and D notices are removed from the list so no RR3 letter is made and the stage is not advanced for them (ToppanUploadHelper.java:1984-2003). This holds while the suspension is active; when and by whom the PS is revived is not judged in this story."
+    }
+  ]
+}

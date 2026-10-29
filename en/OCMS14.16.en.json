@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Report/lists/ReportListRIP.tsx (date filter + Export), ocmsadminapi workflows/reports/system/rip/{RipReportController,RipReportServiceImpl,dto/RipReportRecord} (RIP Furnished Hirer/Driver Excel report), workflows/operational/cronproxy/CronProxyService (Toppan generate-letters trigger per stage). No code for ID selection, per-ID PDF letters, or a date-of-letter column in ocmsadminui, ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks OCMS to generate PDF letters for IDs the officer selected, plus a summary report (date of letter, ID, name, notice no, notice date/time, amount payable) that can be downloaded/printed. What exists is only the RIP Furnished Hirer/Driver Excel report: the ReportListRIP.tsx screen filters dateOfSuspension and exports through the reports/rip/export endpoint (ReportListRIP.tsx:51), and the backend builds an .xlsx file with a Summary sheet (generation date/time, date range, total records) plus a data sheet with ID, name, notice no, notice date/time, amount payable (RipReportServiceImpl.java:144-153, RipReportRecord.java:34-76). This report covers all furnished PS-RP2 notices in the date range, not the IDs an officer selected, has no date-of-letter column, and is Excel. There is no ID-selection screen or endpoint and no per-ID PDF letter generator; the only PDF letter producer is the Toppan batch per processing stage (CronProxyService.java:227). The story follows OCMS14.15 (select IDs on the DOS result screen); whether DOS = DataHive/LTA cannot be confirmed from the repo because the word DOS is not in the code. Status 'Requirement given - Gen flow' with no build status. Ticket OCMS-DF-2026-149 (Closed, Prod deployed) moved the Excel export of reports to the backend; it only changed how the file is built, not the content or any PDF output.",
+  "recommendation": "Do not claim as done. ID selection and per-ID PDF letter generation do not exist; the existing RIP Excel report can serve as a base for the summary report but has no date of letter and is not driven by the officer's selection. Ask URA/the team to confirm whether the RIP letter is built elsewhere.",
+  "steps": [
+    {
+      "step": "Officer selects the IDs to generate letters for from the result screen",
+      "detail": "The only RIP screen is ReportListRIP.tsx: just a dateOfSuspension filter and an Export button that calls reports/rip/export (line 51). There is no checkbox/list of IDs to pick and no Generate Letter button. Grep for selectedIds, generateLetter, GenerateLetters in ocmsadminui and ocmsadminapi found no ID-selection feature (only the Toppan cron trigger in CronList.tsx)."
+    },
+    {
+      "step": "OCMS generates a PDF letter for each selected ID",
+      "detail": "There is no endpoint or PDF letter template for selected IDs. The only PDF letter producer is Toppan generate-letters, which runs per processing stage (CronProxyService.java:227 forwards to /toppan/generate-letters), not per officer-selected ID and not a RIP letter. Grep for rip letter, RIP_LETTER in ocmsadminapi, ocmsadminprivateapi, ocmsadminui found nothing."
+    },
+    {
+      "step": "A summary report with date of letter, ID, name, notice no, notice date/time and amount payable",
+      "detail": "The RIP Excel report has a Summary sheet (title 'OCMS RIP HIRER/DRIVER FURNISHED REPORT', generation date and time, date range, total records: RipReportServiceImpl.java:144-153) and a data sheet with idNo, name, noticeNo, noticeDateAndTime, amountPayable (RipReportRecord.java:34-76). Differs from the story: no date-of-letter column, it lists all furnished PS-RP2 notices in the date range (not selected IDs), and it does not accompany any PDF letters."
+    },
+    {
+      "step": "The OIC can download or print the letters and the summary report",
+      "detail": "The Export button in ReportListRIP.tsx:51 calls POST reports/rip/export (RipReportController.java:66) and the browser saves the .xlsx file; this endpoint is in the authorization mapping at api-authorization.properties:124. Only the Excel summary report can be downloaded; there are no PDF letters to download or print. Ticket OCMS-DF-2026-149 (Closed) moved file building to the backend; it does not change the verdict."
+    }
+  ]
+}

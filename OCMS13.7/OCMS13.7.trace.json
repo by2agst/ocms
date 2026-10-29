@@ -1,0 +1,64 @@
+{
+  "story": "OCMS13.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui src/pages/NoticeUPL/{Form/EndorseForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeProcessingHelper}, crud/ocmsizdb/{OcmsValidOffenceNotice,OcmsChangeOfProcessing/ChangeOfProcessingService}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, framework/workflows/agencies/toppan/upload/{jobs/ToppanUploadJob,helpers/ToppanUploadHelper,models/ToppanStage}, resources/{application-prod,cron-schedules-prod}.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story minta: setelah compound di-endorse 2OIC, OCMS meng-update keputusan lalu mengirim surat ke-1 (PDF/data file) ke vendor. Status 'Requirement given - Gen flow'; demo remark 'Ask Rafif if this function is ready'. Bagian pengiriman surat memakai alur Toppan generik: stage DN1 ('Demand Notice 1') dikirim sebagai surat ke-1 UPL. Bagian keputusan tidak ada di server: endorsement hanya dikirim UI ke /workflow dan /approvalinbox tanpa controller (lihat OCMS13.6). Urutan dalam code berbeda dari story: notice UPL (vehicle registration type X) dibuat langsung dengan next_processing_stage DN1 dan composition $0 (NoticeProcessingHelper.java:400-409), jadi surat DN1 tidak digerbangi keputusan atau endorsement. Generate surat harian di-comment dan hanya jalan lewat trigger manual; upload SFTP ke Toppan diblokir config. Tiket yang dipakai: OCMS-SR-2026-185 ('UPL processing logic has not been developed in OCMS'), OCMS-SR-2026-101 dan OCMS-DF-2026-102 (default UPL: payment N, $0, E4), OCMS-SR-2026-113/-120/-189 dan OCMS-DF-2026-128 (composition amount UPL di-patch manual), OCMS-DF-2026-192 (Ready to UAT, generate letters gagal karena block Toppan). Vendor, SFTP dan COMCRYPT: cannot verify from repo.",
+  "recommendation": "Klaim hanya bagian pengiriman surat DN1 sebagai Sebagian. Update keputusan setelah endorsement belum ada, urutan stage berbeda dari story, dan nominal compound UPL masih di-patch manual. Konfirmasi dengan URA/tim apakah jalur Toppan generik diterima sebagai pengganti alur UPL di story",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "2OIC meng-endorse keputusan compound (Decision Y)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/EndorseForm.tsx:43-60; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:52; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:81; ocmsadminui/src/utils/data/LinkData.tsx:396-397",
+      "fit": "Sebagian",
+      "detail": "Form Endorse dengan Decision 'Y - Yes' / 'N - No' ada (EndorseForm.tsx:43-60) tetapi hanya dicapai dari daftar Endorsement yang di-render bila isAPIFound (EndorseList.tsx:52,81; build STAGING/LOCAL, env.ts:11) dan menunya di-comment UNCONFIRMED (LinkData.tsx:396-397). Tidak ada pembatasan role 2OIC (NoticeUPL.ts:30-33 hanya label). Fakta dan fit sama dengan langkah 2 OCMS13.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update keputusan pada notice (decision, composition amount, officer, tanggal)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/utils/mapping/NoticeUPL.ts:115-125; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:155-163; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:407-409",
+      "fit": "Tidak ada code",
+      "detail": "UI mengirim composition_amount, decision, decision_officer dan decision_date lewat POST /workflow command UPL_APPROVAL (NoticeUPL.ts:115-125; useEndorsement.tsx:155-163). Tidak ada handler di enam repo dan kolom decision di entity VON di-comment (OcmsValidOffenceNotice.java:165-175). Default notice UPL: payment_acceptance_allowed N, composition_amount 0, eservice_message_code E4 (NoticeProcessingHelper.java:407-409; OCMS-SR-2026-101, OCMS-DF-2026-102). Nominal UPL yang sebenarnya diisi lewat data patch manual (OCMS-SR-2026-113, -120, -189; OCMS-DF-2026-128), dan OCMS-SR-2026-185 menyebut UPL processing logic 'has not been developed in OCMS'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice masuk stage DN1 setelah endorsement",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:400-405; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1146-1147; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:188-217; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1312-1316",
+      "fit": "Beda dari flow",
+      "detail": "Notice UPL (vehicle registration type X) dibuat langsung dengan last_processing_stage NPA dan next_processing_stage DN1, next_processing_date = sekarang (NoticeProcessingHelper.java:400-405; dipanggil di CreateNoticeServiceImpl.java:1146-1147), tanpa menunggu keputusan atau endorsement. Perubahan stage dari UI (command CHANGE_STAGE ke /workflow, useEndorsement.tsx:188-217) tidak punya handler. Di jalur stage-change milik PLUS, offence type U ke DN1/DN2/DR3/CPC malah dilewati (ChangeOfProcessingService.java:1312-1316). Urutannya terbalik dari story: stage DN1 sudah terset sebelum ada endorsement."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice yang siap menerima surat ke-1 (stage DN1)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:583-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:22",
+      "fit": "Sebagian",
+      "detail": "findToppanNoticesForStage memilih notice dengan next_processing_stage = :stage, next_processing_date <= hari ini, suspension_type NULL, offender_indicator Y dan an_flag bukan Y (OcmsValidOffenceNoticeRepository.java:583-614), dipanggil per stage termasuk DN1 (ToppanUploadHelper.java:1887; ToppanStage.java:22). Tidak ada kondisi decision, endorsement atau offence type U, jadi notice UPL terpilih hanya karena stage dan tanggal, bukan karena sudah di-endorse."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file surat (PDF/data) berisi nominal compound",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2118-2125; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "Cron day-end 00:15 enabled=true (cron-schedules-prod.properties:61-62) tetapi pemanggilan toppanLettersGeneratorService.executeJob() di-comment (ToppanUploadJobsScheduler.java:118), jadi surat hanya dibuat lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34). Nominal surat = composition_amount untuk stage selain RR3/DR3 (ToppanUploadHelper.java:2118-2125); notice UPL dibuat dengan composition 0 (NoticeProcessingHelper.java:408), sehingga surat DN1 UPL membawa $0 sampai nominalnya di-patch manual (OCMS-SR-2026-113, -120, -189; OCMS-DF-2026-128). Isi template PDF/data: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim file ke vendor (Toppan) untuk dicetak dan dikirim pos",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:419-433",
+      "fit": "Sebagian",
+      "detail": "application-prod.properties:86 mengisi sftp.upload.disabledServers=toppan, jadi upload SFTP ke Toppan diblokir dari config. Dalam kondisi itu confirmDeliveryAndAdvanceStage melewati delivery gate dan stage tetap maju tanpa pengiriman (ToppanUploadJob.java:419-433). OCMS-DF-2026-192 (Ready to UAT) menulis block ini berlaku di PRD, UAT dan DEV dan manual generate gagal karenanya. Nilai di server asli, SFTP/COMCRYPT dan penerimaan oleh Toppan: cannot verify from repo."
+    }
+  ]
+}

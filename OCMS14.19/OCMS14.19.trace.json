@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.19",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (applyClvSuspensionForVipVehicles), framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper} (processTsClvLooping, processClvPostRevival), utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/agencies/lta/download/helpers/*, cron-schedules-prod.properties. ocmsadminapi hanya punya AutoSuspensionHelper.triggerClvSuspension yang tidak dipanggil. Tidak ada code relevan di ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story minta OCMS otomatis memperbarui vehicle registration type classified vehicle lalu menangguhkan notice di bawah suspension code tertentu selama X hari dari parameter. Code: tipe 'V' hanya diset saat notice dibuat (bukan update atas notice outstanding yang sudah ada). Suspension code CLV ada (TS-CLV) dengan jumlah hari dari kolom no_of_days_for_revival di tabel suspension_reason (default 30 hari kalau baris tidak ada), tetapi CLV hanya boleh dipasang di stage RR3/DR3 (SuspensionBaseHelper.java:181-184), bukan langsung setelah identifikasi. Dua pemicu: (1) ToppanUploadHelper setelah surat RR3/DR3 dibuat, tetapi memilih notice lewat regex plat '^V[A-Z0-9]+$', bukan tipe V atau daftar VIP, jadi plat classified asli (mis. SLB..., SPG...) tidak tertangkap di jalur ini; generate letters di cron day-end dalam keadaan di-comment, hanya lewat trigger manual (fakta addendum); (2) AutoRevivalJob (jalan di day-end 00:15, enabled=true di properties prod) memindai notice di RR3/DR3 bertipe V yang belum FP dan memasang CLV bila belum ada atau perlu loop ulang. Setelah revival, CLV dipasang ulang tanpa cek tipe V (lihat OCMS14.20). Nilai hari CLV di DB asli cannot verify from repo (komentar menyebut 21 hari). LTA download memakai tipe V untuk jalur RD1. Tiket relevan: OCMS-DF-2026-117 (Closed, tanpa perubahan code) soal loop re-apply TS-HST/CLV; tidak mengubah verdict.",
+  "recommendation": "Klaim sebagian: tipe V, suspension TS-CLV dengan hari dari parameter, dan jalur RD1 sudah ada. Update tipe untuk notice outstanding yang sudah ada tidak ada, CLV hanya di stage RR3/DR3, dan jalur Toppan salah memilih notice lewat regex plat. Perlu konfirmasi URA soal waktu penangguhan yang diharapkan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui vehicle registration type notice classified vehicle secara otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:86-90; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:707-714; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:135-161",
+      "fit": "Sebagian",
+      "detail": "Tipe 'V' diberikan otomatis, tetapi hanya saat notice dibuat (SpecialVehUtils.java:86-90 lalu CreateNoticeServiceImpl.java:707-714). Tidak ada job yang mengubah tipe notice outstanding yang sudah ada ketika kendaraan baru masuk daftar (refresh hanya menyentuh ocms_vip_vehicle, CasVipVehicleService.java:135-161), jadi 'update' hanya berlaku untuk notice baru."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menangguhkan sementara notice di bawah suspension code khusus (TS-CLV)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:67; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:181-184; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1126-1129; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:709-716",
+      "fit": "Sebagian",
+      "detail": "Code CLV ada dan dipasang lewat tsHelper.processTS(noticeNo, ..., 'CLV', null, ...) (AutoRevivalHelper.java:1126-1129, ToppanUploadHelper.java:709-716), tetapi SuspensionBaseHelper hanya mengizinkan CLV di stage RR3/DR3 (CLV_ALLOWED_STAGES baris 67, ditolak di baris 181-184). Jadi notice classified tidak ditangguhkan langsung setelah teridentifikasi, melainkan baru setelah mencapai akhir reminder. Story tidak menyebut stage; sebagian karena waktu penangguhan lebih sempit dari bunyi story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Lama penangguhan X hari dikonfigurasi lewat nilai parameter yang dikelola di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:228; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:232-248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1126-1129",
+      "fit": "Sesuai",
+      "detail": "Pemanggil CLV mengirim daysToRevive = null (AutoRevivalHelper.java:1127; ToppanUploadHelper.java:713), sehingga calculateRevivalDate mengambil no_of_days_for_revival dari baris CLV bertipe TEMPORARY di tabel ocms_suspension_reason (TemporarySuspensionHelper.java:232-243); kalau baris tidak ada dipakai default 30 hari (baris 246-248). Jadi X hari bisa diubah di data tabel tanpa deploy. Nilai CLV di DB asli (komentar Toppan menyebut 21 hari) cannot verify from repo; apakah ada layar untuk mengubahnya tidak diperiksa di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah surat reminder terakhir dibuat, notice classified dipilih untuk penangguhan lewat jalur Toppan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:332-335; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:705-709",
+      "fit": "Beda dari flow",
+      "detail": "Setelah stage RR3/DR3 diproses, applyClvSuspensionForVipVehicles memilih notice dengan vehicleNo.matches('^V[A-Z0-9]+$') (ToppanUploadHelper.java:706) yaitu plat yang berawalan huruf V, bukan vehicle_registration_type = 'V' atau daftar ocms_vip_vehicle. Plat classified asli di tabel (mis. SPG1790U pada tiket OCMS-SR-2026-051) tidak cocok regex ini, sebaliknya plat berawalan V yang bukan classified akan ikut ditangguhkan. Jalur ini juga hanya jalan lewat generate letters yang di cron day-end di-comment (fakta addendum), jadi praktisnya lewat trigger manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job harian memilih notice bertipe V yang belum lunas di tahap reminder terakhir dan memasang TS-CLV",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1048-1049; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111-1129; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:178; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sesuai",
+      "detail": "AutoRevivalJob memanggil processTsClvLooping (AutoRevivalJob.java:178) yang mengambil notice dengan last_processing_stage RR3/DR3 (AutoRevivalHelper.java:1048-1049), melewati yang bukan tipe 'V' atau sudah FP (baris 1111-1112), lalu memasang CLV bila belum ada CLV aktif atau perlu loop ulang (1117-1129). Job ini dipanggil dari executeDayEndJobs (ToppanUploadJobsScheduler.java:119, tidak di-comment) pada jadwal 0 15 0 * * ? dengan enabled=true (cron-schedules-prod.properties:61-62). Pemilihan memakai tipe V sehingga tepat; nilai flag server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemrosesan notice berbeda sesuai tipe kendaraan yang sudah diperbarui",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:484-490; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:119-127",
+      "fit": "Sesuai",
+      "detail": "Pada LTA download, detectVehicleType mengembalikan 'V' bila vehicle_registration_type notice = 'V' (LtaDownloadHelper.java:484-490); jalur VIP lalu menulis data owner dan set stage RD1 lewat processVipVehicle (LtaProcessingOrchestrator.java:119-127), berbeda dari jalur standard. Tipe V juga dipakai untuk TS-CLV looping (langkah di atas)."
+    }
+  ]
+}

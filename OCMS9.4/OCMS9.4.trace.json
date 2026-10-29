@@ -1,0 +1,55 @@
+{
+  "story": "OCMS9.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor, LtaSnowflakeProcessor}, framework/services/datahive/contact/{DataHiveContactServiceImpl, helpers/ContactQueryBuilder}, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}; properti cron-schedules-{dev,uat,prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Code tidak menyebut DOS. Sumber nomor mobile adalah DataHive (Snowflake) view V_DH_SNDGO_SINGPASSCONTACT_MASTER yang di-query dengan UIN = NRIC/FIN; apakah itu yang dimaksud 'DOS' dan apakah Vault/permission App Service sudah diberikan: cannot verify from repo. Ada dua jalur: LTA download (aktif di uat/prod; cek exclusion dulu, lalu lookup DataHive, tulis offender_tel_no dan stage ENA, atau RD1 bila tanpa nomor) dan eNotification cron (refresh kontak ulang). Jalur kedua dimatikan di ketiga file properti repo (cron.enareminder.datahive=false), dan cron.notification.enabled=false di dev/uat/prod (OCMS-DF-2026-180: masih menunggu aktivasi), jadi 'kirim SMS hari yang sama' tidak terbukti jalan di repo. Ada satu hal yang perlu diwaspadai: di eNotification cron, lookup DataHive (baris 185-187) dijalankan sebelum cek exclusion (baris 194-232), sehingga NRIC yang opt-out tetap dikirim ke DataHive bila flag dinyalakan; di jalur LTA urutannya benar. Selain itu update kontak LTA menimpa semua row owner_driver pada notice, bukan hanya offender saat ini (LtaBatchCode0Processor.java:1264-1266) [Medium confidence: bergantung ada tidaknya row driver saat LTA run]. SMS gateway dan status delivery cannot verify from repo.",
+  "recommendation": "Klaim sebagian: lookup kontak lewat DataHive di jalur LTA terbukti, tetapi 'DOS' tidak disebut di code, urutan exclusion di eNotification cron terbalik, dan SMS hari yang sama tidak terbukti (cron nonaktif di properti repo)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NRIC/FIN yang opt-out tidak dikirim keluar; hanya yang lolos cek exclusion yang di-lookup",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:685-691; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:706-708; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194-232",
+      "fit": "Sebagian",
+      "detail": "Di LTA download cek exclusion (LtaBatchCode0Processor.java:685-691) dijalankan sebelum lookupContact (:706-708), jadi ID yang opt-out tidak di-query. Di eNotification cron urutannya terbalik: batchPreloadContactInfo dan refreshContactInfo untuk semua record (NotificationSmsEmailJob.java:185-187) berjalan sebelum exclusion dibuang (:194-232), sehingga NRIC yang opt-out tetap dikirim ke DataHive bila flag cron.enareminder.datahive dinyalakan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim NRIC/FIN ke sumber data pemerintah (disebut DOS di story) untuk meminta nomor mobile",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:706-708; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/helpers/ContactQueryBuilder.java:28-33; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:59-110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1448-1450; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "lookupContact menjalankan SELECT UIN, CONTACT FROM V_DH_SNDGO_SINGPASSCONTACT_MASTER WHERE UIN = '<NRIC/FIN>' lewat DataHive (ContactQueryBuilder.java:28-33; DataHiveContactServiceImpl.java:59-110; dipanggil di LtaBatchCode0Processor.java:706-708). Code menyebut DataHive/Singpass contact, bukan DOS; kesetaraan keduanya cannot verify from repo. Di eNotification cron lookup yang sama (NotificationSmsEmailHelper.java:1448-1450) dikendalikan cron.enareminder.datahive yang false di dev, uat, dan prod (cron-schedules-prod.properties:48)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima nomor mobile terbaru dan menyimpannya ke record offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:773-796; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:1262-1275; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2738-2764",
+      "fit": "Sesuai",
+      "detail": "planContactUpdate membersihkan CONTACT menjadi angka, menyimpannya sebagai offender_tel_no dengan offender_tel_code 65 (LtaBatchCode0Processor.java:773-796) dan batchUpdateContacts meng-UPDATE ocms_offence_notice_owner_driver (:1262-1275, null tidak menimpa nilai lama). Di eNotification cron (bila flag aktif) nomor harus minimal 8 karakter lalu disimpan ke record dan ke DB (NotificationSmsEmailHelper.java:2738-2764). Catatan: UPDATE LTA mengenai semua row owner_driver pada notice (komentar di :1264-1266)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila nomor mobile tidak ditemukan atau tidak valid, SMS tidak dikirim dan notice dialihkan ke RD1 (surat)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:756-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2719-2730; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2741-2750; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:253-267",
+      "fit": "Sesuai",
+      "detail": "Di LTA download hasil tanpa kontak memanggil planStageToRD1 (LtaBatchCode0Processor.java:756-763). Di eNotification cron kontak tidak ditemukan atau format tidak valid memberi contactError dan, untuk ENA, patchNextStageToRd1NextDay (NotificationSmsEmailHelper.java:2719-2730,2741-2750); validateContactInfo menolak record tanpa nomor (NotificationSmsEmailJob.java:253-267)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim SMS notifikasi pada hari yang sama setelah nomor diterima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236-237; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:844-845; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1031-1032; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:287-293",
+      "fit": "Sebagian",
+      "detail": "Notice masuk ENA saat LTA download (cron 05:00 dan 21:00, enabled=true di prod: cron-schedules-prod.properties:148-149) dengan last_processing_date = sekarang (planStageToENA, LtaBatchCode0Processor.java:844-845). eNotification cron berjalan 11:00 (cron-schedules-prod.properties:237) dan mengambil ENA dengan last_processing_date <= sekarang (NotificationSmsEmailHelper.java:1031-1032), lalu sendBatchSms (NotificationSmsEmailJob.java:287-293). Jadi hanya notice dari run 05:00 yang bisa di-SMS hari itu; run 21:00 menunggu 11:00 esok. Selain itu cron.notification.enabled=false di dev/uat/prod (cron-schedules-prod.properties:236; OCMS-DF-2026-180 menyebut masih menunggu aktivasi), jadi pengiriman SMS tidak terbukti jalan dari repo. SMS gateway cannot verify from repo."
+    }
+  ]
+}

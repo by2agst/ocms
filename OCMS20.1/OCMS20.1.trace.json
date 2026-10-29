@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/UnclaimedReminders (UnclaimedRemindersPage, SubmitForm), App.tsx route unclaimed/reminders. ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedController,UnclaimedServiceImpl}, api-authorization.properties (OCMS_UNCLAIMED). ocmsadminprivateapi workflows/unclaimedreport (UnclaimedReportHelper, UnclaimedReportJob) + DailyReportJobsScheduler, MhaNricDataHelper. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status di stories.json 'Demo paid (50% of 75%)', demo_remark 'HST' (artinya tidak jelas dari repo, HST adalah fitur terpisah). Story minta staf menyuspend sementara notice yang reminder-nya kembali dengan kode suspension khusus. Code mengimplementasikan ini sebagai fitur Unclaimed Reminders dengan kode TS-UNC: staf upload Excel nomor notice, OCMS mengambil detail reminder/RDP/DN, staf mengisi alasan retur, lalu submit menyimpan record retur dan membuat suspension TS-UNC (default 30 hari dari setting noOfDaysForRevival) di ocms_suspended_notice dan VON. Suspension hanya dibuat untuk notice di stage non-court, bukan PS, dan hanya jika penerima surat masih current offender (UnclaimedServiceImpl.java:351-385); selain itu hanya RDP/DN yang diupdate. Hak akses staf diatur lewat mapping OCMS_UNCLAIMED di api-authorization.properties:106-108; nama role di sisi UI/Azure AD cannot verify from repo. Tiket pemeliharaan: OCMS-DF-2026-085/086/087/089/090/127 (UI dan data field Unclaimed, Closed), OCMS-DF-2026-133 (PS tidak boleh masuk antrean MHA, Closed, fix terlihat di UnclaimedServiceImpl.java:691-707), OCMS-DF-2026-184 (due_date_of_revival harus memakai TS terpanjang, status Pending UAT Verification; code sudah memakai TsDueDateRule.furthest di UnclaimedServiceImpl.java:421 tetapi hasil UAT belum bisa diverifikasi dari repo). Nilai flag cron di prod properties tidak membuktikan nilai di server nyata.",
+  "recommendation": "Layak diklaim: seluruh langkah story (suspend TS-UNC dan identifikasi notice) ada di code. Catat bahwa OCMS-DF-2026-184 masih menunggu UAT",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staf Notice Processing Officer membuka halaman Unclaimed Reminders di staff portal dan hanya API Unclaimed yang diizinkan untuk grup hak akses unclaimed",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:247; ocmsadminapi/src/main/resources/api-authorization.properties:106; ocmsadminapi/src/main/resources/api-authorization.properties:107",
+      "fit": "Sesuai",
+      "detail": "Route unclaimed/reminders membuka UnclaimedRemindersPage (App.tsx:247). Di server, grup OCMS_UNCLAIMED hanya memetakan /v1/check-unclaimed, /v1/submit-unclaimed, /v1/download/blob, /v1/standardcodelist, /v1/suspensionreasonlist (api-authorization.properties:106-107). Pemetaan user ke grup OCMS_UNCLAIMED ada di identity provider, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staf meng-upload nomor notice yang reminder-nya kembali dan OCMS mengambil detail notice, reminder letter (RDP/DN) dan suspension saat ini",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/UnclaimedReminders/page/UnclaimedRemindersPage.tsx:285; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:45; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:63",
+      "fit": "Sesuai",
+      "detail": "UI memanggil endpoint check-unclaimed (UnclaimedRemindersPage.tsx:285). UnclaimedController.checkUnclaimed (UnclaimedController.java:45) memanggil UnclaimedServiceImpl.checkUnclaimedNotices (UnclaimedServiceImpl.java:63) yang menggabungkan VON, ONOD, RDP/DN dan SuspendedNotice. Tiket OCMS-DF-2026-085 (duplikat nomor notice dalam Excel), -086 (reason of suspension notice lunas) dan -089 (label field) sudah Closed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staf mengisi alasan retur (misal unclaimed / no such person), tanggal retur dan remarks pada envelope, lalu OCMS menyimpannya di record reminder yang kembali",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx:239; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:519; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:550; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:439; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:442",
+      "fit": "Sesuai",
+      "detail": "SubmitForm memanggil submit-unclaimed (SubmitForm.tsx:239). processUnclaimedReminders memanggil updateRdpTables (UnclaimedServiceImpl.java:442) untuk reminder RDP dan updateDnTables (UnclaimedServiceImpl.java:439) untuk DN; keduanya menulis date of processing, date of return, alasan dan remarks on envelope (UnclaimedServiceImpl.java:519, 550). Nilai alasan 'no such person' berasal dari daftar REASON_OF_RETURN yang dikelola sebagai standard code; isi daftar di DB cannot verify from repo. Tiket OCMS-DF-2026-090 (remarks on envelope tidak tersimpan) sudah Closed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyuspend sementara notice dengan kode suspension khusus TS-UNC dan periode revival dari setting kode UNC",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:398; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:406; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:414; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:421; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:126",
+      "fit": "Sesuai",
+      "detail": "Untuk notice yang eligible, UnclaimedServiceImpl membuat SuspendedNotice dengan suspensionType TS dan reasonOfSuspension UNC (UnclaimedServiceImpl.java:406), dueDateOfRevival = sekarang + daysToRevive (default 30, baris 398), menyimpannya dengan retry 1x (baris 414) lalu mengisi field suspension di VON (baris 421 memakai TsDueDateRule.furthest, terkait OCMS-DF-2026-184 yang masih Pending UAT Verification). Controller menolak reasonOfSuspension selain 'UNC' untuk notice non-PS/non-court (UnclaimedController.java:126). Notice PS atau stage court tidak disuspend, hanya RDP/DN yang diupdate (UnclaimedServiceImpl.java:341-345)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS dapat mengidentifikasi notice yang sedang suspended karena retur reminder untuk pengecekan lanjutan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:158; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:69; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:100; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:266; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:211; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:213",
+      "fit": "Sesuai",
+      "detail": "Notice TS-UNC aktif bisa diidentifikasi lewat kode UNC: UnclaimedReportHelper.getUnclaimedNotices memilih ocms_suspended_notice dengan suspension_type TS, reason UNC dan date_of_revival NULL (UnclaimedReportHelper.java:134-160), dipakai job Unclaimed Batch Data Report di Daily Report Job (DailyReportJobsScheduler.java:100, cron.dailyreport.enabled=true dan jobs.5 di cron-schedules-prod.properties:256,266). Query MHA upload juga sengaja memasukkan notice TS-UNC (MhaNricDataHelper.java:211-213). Eksekusi cron di server nyata cannot verify from repo."
+    }
+  ]
+}

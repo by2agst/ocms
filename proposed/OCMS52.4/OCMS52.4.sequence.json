@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS52.4 Postal Registration Number from Toppan Return Files",
+    "output": "OCMS52.4.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "participants": [
+    {
+      "id": "sftp",
+      "type": "external",
+      "label": "Toppan SFTP",
+      "sublabel": "return files RD2/DN2"
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "Download job",
+      "sublabel": "ocmsadminprivateapi"
+    },
+    {
+      "id": "parser",
+      "type": "backend",
+      "label": "Parser + update",
+      "sublabel": "ToppanStageTransitionService"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Tracking tables",
+      "sublabel": "rdp / driver_notice"
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Staff portal",
+      "sublabel": "notice detail"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 250,
+      "label": "Read file"
+    },
+    {
+      "from": 252,
+      "to": 400,
+      "label": "Save number"
+    },
+    {
+      "from": 402,
+      "to": 500,
+      "label": "Show"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "cron",
+      "to": "sftp",
+      "y": 165,
+      "label": "List DPT-URA-RD2/DN2-D2-* (daily 01:30)",
+      "variant": "default"
+    },
+    {
+      "id": "m1",
+      "from": "sftp",
+      "to": "cron",
+      "y": 195,
+      "label": "Return file (needs Toppan to have letters)",
+      "variant": "return"
+    },
+    {
+      "id": "m2",
+      "from": "cron",
+      "to": "parser",
+      "y": 225,
+      "label": "Parse notice no + reg no (pos 223-237)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m3",
+      "from": "parser",
+      "to": "db",
+      "y": 255,
+      "label": "Check notice exists in VON",
+      "variant": "dashed"
+    },
+    {
+      "id": "m4",
+      "from": "parser",
+      "to": "cron",
+      "y": 285,
+      "label": "Missing in VON = job error",
+      "variant": "return"
+    },
+    {
+      "id": "m5",
+      "from": "parser",
+      "to": "db",
+      "y": 315,
+      "label": "JOIN UPDATE postal_regn_no (existing row only)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m6",
+      "from": "parser",
+      "to": "db",
+      "y": 345,
+      "label": "Blank value keeps old number",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "ui",
+      "to": "db",
+      "y": 385,
+      "label": "Notice detail reads postalRegnNo",
+      "variant": "default"
+    },
+    {
+      "id": "m8",
+      "from": "db",
+      "to": "ui",
+      "y": 415,
+      "label": "Shows Postal Reg. Number",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "cron",
+      "from": 160,
+      "to": 300,
+      "type": "backend"
+    },
+    {
+      "participant": "parser",
+      "from": 220,
+      "to": 360,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 250,
+      "to": 420,
+      "type": "database"
+    },
+    {
+      "participant": "ui",
+      "from": 380,
+      "to": 425,
+      "type": "frontend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches story",
+      "items": [
+        "Parse notice no + reg no",
+        "Blank never overwrites",
+        "Shown in notice detail"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Return files need the blocked upload",
+        "Missing tracking row: no write, no error",
+        "Upload blocked in prod"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "Real return file ever received",
+        "SFTP content and flags",
+        "Roles for notice detail"
+      ]
+    }
+  ]
+}

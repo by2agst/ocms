@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.2",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob,jobs/ToppanUploadJob,helpers/ToppanUploadHelper,models/ToppanStage}, framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl (createToppanRequestFileContent), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.findToppanNoticesForStage, utilities/sftpComponent/SftpUtil, application-{dev,uat,prod}.properties (sftp.upload.disabledServers), cron-schedules-prod.properties (toppanupload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Requirement diberikan di story text (status_with_ura: Demo paid 50% of 75%). 'Letter reminder pertama' di code adalah stage RD1 (ToppanStage.RD1) yang dibuat oleh cron Toppan Upload harian 00:15: file data fixed-width 719 karakter URA-DPT-RD1-D1-<timestamp> (bukan PDF; PDF hanya untuk stage ANL), dienkripsi lewat COMCRYPT lalu dikirim ke SFTP Toppan. Temuan penting: sftp.upload.disabledServers=toppan aktif di application-dev/uat/prod.properties (komentar prod: blokir upload Toppan saja), jadi di repo file tidak pernah sampai ke vendor; sejak penanganan OCMS-DF-2026-192 (Ready to UAT) gate pengiriman di-bypass dan stage tetap maju ke RD2 walaupun file tidak terkirim. Pemilihan RD1 tidak punya filter special vehicle/ID type; filter Foreign berlaku semua stage dan MID/DIP hanya di RR3/DR3. Isi Appendix C Annex 1A tidak ada di repo. Nilai property di environment nyata (bisa di-override): cannot verify from repo.",
+  "recommendation": "Jangan klaim pengiriman ke vendor sebagai selesai. Pembuatan data file RD1 terbukti, tetapi upload ke Toppan diblokir config di dev/uat/prod dan stage maju tanpa pengiriman. Minta URA konfirmasi nilai disabledServers di production dan definisi Appendix C.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice pemilik yang jatuh tempo untuk letter reminder pertama (stage RD1)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:583-614; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "findToppanNoticesForStage('RD1'): next_processing_stage = RD1, next_processing_date <= hari ini, suspension_type IS NULL, offender_indicator = 'Y', bukan Advisory Notice (an_flag != 'Y'). Cron toppanupload enabled=true, jadwal 00:15 harian di cron-schedules-prod.properties. Double check: jadwal 00:15 (process_dayend_jobs) memang ada dan enabled, tetapi pemanggilan toppanLettersGeneratorService.executeJob() di ToppanUploadJobsScheduler.executeDayEndJobs (baris 119) di-comment, jadi generate letter hanya jalan lewat trigger manual POST /toppan/generate-letters. Dinilai Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dengan special vehicle/ID type (Appendix C) tidak dikirimi letter ini",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1943-1971; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-2014; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:101-127",
+      "fit": "Sebagian",
+      "detail": "Hanya kendaraan Foreign (F) tanpa PS-FOR yang dikeluarkan di semua stage (TH:1943-1971). Military/Diplomatic (I/D) baru dikeluarkan dan di-PS-MID/PS-DIP pada stage RR3/DR3 saja (TH:1979-2014), dan Diplomat/VIP justru sengaja dikirim ke RD1 oleh LTA (Orchestrator:101-127), jadi mereka tetap menerima letter RD1. Daftar Appendix C Annex 1A tidak ada di repo, jadi kecocokan penuh tidak bisa dibuktikan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file data letter (nama, ID, alamat, tanggal letter, jumlah) untuk vendor",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:278-303; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl.java:564-600; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2099-2132",
+      "fit": "Sesuai",
+      "detail": "Setelah filter letter_address = 'Y', ToppanUploadJob membuat file URA-DPT-RD1-D1-<yyyyMMddHHmmss> lewat createToppanRequestFileContent: header H, detail 719 karakter per notice (diurut postal code), trailer T; letterDate, paymentDueDate dan amountPayable diisi di TH:2099-2132. Story menyebut 'PDF/data files', jadi data file memenuhi; PDF memang hanya dibuat untuk ANL. Isi kolom detail sesuai spesifikasi Toppan: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dikirim ke vendor untuk cetak dan pos (enkripsi COMCRYPT lalu SFTP)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:345-361; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/sftpComponent/SftpUtil.java:444-448; ocmsadminprivateapi/src/main/resources/application-prod.properties:84-86; ocmsadminprivateapi/src/main/resources/application-uat.properties:77; ocmsadminprivateapi/src/main/resources/application-dev.properties:77",
+      "fit": "Sebagian",
+      "detail": "Code meminta token enkripsi COMCRYPT dan upload ke SFTP Toppan, tetapi SftpUtil menolak upload untuk server yang ada di sftp.upload.disabledServers (SftpUtil:444-448) dan nilainya toppan di application-prod.properties:86 (juga uat:77, dev:77; komentar: blokir upload Toppan saja). Jadi di repo file tidak sampai ke vendor. Nilai di environment nyata bisa di-override: cannot verify from repo. Tiket OCMS-DF-2026-192 (Ready to UAT) menggambarkan masalah ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah letter terkirim notice maju ke stage berikutnya (RD2) dan pemilik jadi terinformasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:405-458; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1418-1420",
+      "fit": "Sebagian",
+      "detail": "confirmDeliveryAndAdvanceStage memanggil updateProcessingStage (last = RD1, next = RD2 dari ocms_stage_map). Namun karena upload Toppan diblokir, gateBypassed = true (TJ:424-448) dan stage tetap maju dengan penanda 'delivery-gate=bypassed(sftp-disabled)' walaupun file tidak terkirim. Jadi status 'letter terkirim' di database tidak berarti owner menerima letter. Perilaku bypass ini perlu konfirmasi bisnis (OCMS-DF-2026-192)."
+    }
+  ]
+}

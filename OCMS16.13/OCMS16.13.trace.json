@@ -1,0 +1,46 @@
+{
+  "story": "OCMS16.13",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/ReductionController (mapResultToResponse, mapValidationError, mapBusinessError, determineHttpStatus, handleValidationException), dto/ReductionResult, ReductionServiceImpl. Pesan error dikembalikan sebagai CrudResponse pada HTTP response request yang sama. Repo lain: tidak ada code",
+  "note": "Error ke PLUS dikirim sebagai HTTP response sinkron dari request yang sama (tidak ada push/callback terpisah): 409 'Notice is not eligible', 409 'Notice has been paid', 404 'Notice not found'. Gap utama: kegagalan validasi jumlah (reduced >= payable, jumlah tidak cocok, nol/negatif) dan tanggal salah semuanya dipetakan ke 400 'Invalid format' (ReductionController.java:140-142), sehingga pesan rinci yang disusun validator (mis. 'Amount reduced (x) must be less than current amount payable (y)') tidak sampai ke PLUS dan pengguna PLUS tidak diberi tahu bahwa jumlahnya yang tidak boleh. Kasus terkait: kode 'Missing data' tidak pernah muncul dari validasi body, karena handler memeriksa teks 'must not be null/blank' (ReductionController.java:202-206) sedangkan pesan constraint di ReductionRequest berbunyi '... is required'; semua field kosong menjadi 'Invalid format'. JSON yang tidak bisa dibaca (mis. format tanggal salah) kemungkinan jatuh ke handler Exception dan dijawab 500 'Reduction fail' (ReductionController.java:217-225) [Medium confidence: perilaku resolver Spring, tidak diuji]. Bagaimana PLUS menampilkan pesan ke penggunanya cannot verify from repo. Tidak ada tiket pemeliharaan yang menyentuh pemetaan pesan error ini.",
+  "recommendation": "Klaim sebagian. Error untuk notice tidak eligible dan sudah dibayar sesuai; error jumlah hanya muncul sebagai 'Invalid format' tanpa alasan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila jumlah pengurangan yang diminta tidak lolos validasi jumlah, OCMS mengirim pesan error yang menjelaskan bahwa jumlah tidak dapat diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:136-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:167-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:179-202",
+      "fit": "Sebagian",
+      "detail": "Error dari validateReductionAmounts (INVALID_REDUCTION_AMOUNT, INCONSISTENT_AMOUNTS, NEGATIVE_AMOUNT) dan INVALID_DATES dipetakan semuanya ke HTTP 400 'Invalid format' (ReductionController.java:136-144,167-168). Teks rinci validator (ReductionValidator.java:179-202) hanya masuk log, tidak ke response. PLUS tahu request ditolak tetapi bukan bahwa jumlahnya yang tidak boleh. Tampilan di PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila notice tidak memenuhi syarat untuk pengurangan, OCMS mengirim pesan error 'Notice is not eligible'",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:146-152; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:169-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:190-195",
+      "fit": "Sesuai",
+      "detail": "NOT_ELIGIBLE dipetakan ke CrudResponse error 'Notice is not eligible' dengan HTTP 409 (ReductionController.java:146-152,169-175; sumber status di ReductionServiceImpl.java:190-195)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila notice sudah dibayar, OCMS mengirim pesan error 'Notice has been paid'",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:146-150; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:173; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:184-189",
+      "fit": "Sesuai",
+      "detail": "NOTICE_PAID dipetakan ke 'Notice has been paid' dengan HTTP 409 (ReductionController.java:149,173; ReductionServiceImpl.java:184-189)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan error dikirim ke PLUS pada response request yang sama, dan tidak ada data notice yang diubah",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:59-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:120-134; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:73-113",
+      "fit": "Sesuai",
+      "detail": "Controller mengubah ReductionResult menjadi CrudResponse + HTTP status dan mengembalikannya sebagai response (ReductionController.java:59-68,120-134). Semua cek terjadi sebelum applyReduction (ReductionServiceImpl.java:73-113), jadi notice tidak berubah saat ditolak. Pengiriman ke pengguna PLUS cannot verify from repo."
+    }
+  ]
+}

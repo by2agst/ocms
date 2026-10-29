@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDQuests,Particulars}.ts, pages/Furnish/Furnish.ts (extractOffenceDate), utils/validation/Furnish/ValidHirerDriver.ts (ValidRentalPeriod), utils/map/MapFurnish.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}. Other tiers: no code for this step (the Internet-to-Intranet cron syncinternetintranet carries rental_period_from/to but does not validate the period).",
+  "note": "The story is not in any flow deck; Sesuai means the code does what the story text says. Sheet status is 'Fully paid'. Every step exists in code: the rental period fields appear when the relationship is 'Vehicle is leased', the UI rejects a period that does not cover the offence dates (start must not be after the earliest offence, end must not be before the latest offence of the selected notices), and then the 'Proceed to review' button moves on to the review step. The server repeats the validation per notice using the offence date from the DB, so bypassing the UI is still rejected. Tickets OCMS-DF-2026-110, -143 and -175 (generic error on Furnish submit, all Closed, -175 with no code change) do not change the verdict. Property values and behaviour on the real server cannot be verified from the repo.",
+  "recommendation": "Can be claimed. Every story step has code with validation in both the UI and the server.",
+  "steps": [
+    {
+      "step": "The rental period fields (start and end, date + time) appear when the owner/hirer selects the relationship 'Vehicle is leased'",
+      "detail": "relationship 'H' is labelled 'Vehicle is leased' (option.ts:39). When the relationship is chosen, isVehicleLeased = hdRelation === 'H' (HDQuests.ts:99), then InitRentalPeriod() creates the Start Date, Start Time, End Date and End Time inputs (HDQuests.ts:117-121, 418-434). The fields are required only when the relationship is H (ValidHirerDriver.ts:73-75, 105-107, 111-113, 157-159)."
+    },
+    {
+      "step": "The page checks that the rental period covers the offence dates of all selected notices (start not after the earliest offence, end not before the latest offence)",
+      "detail": "extractOffenceDate takes the earliest (offence_date) and latest (offence_date_latest) offence of the selected notices (Furnish.ts:383-410). ValidRentalPeriod rejects when startDateTime > earliest offence (ValidHirerDriver.ts:83-96) and when endDateTime < latest offence or end <= start (ValidHirerDriver.ts:123-141). Because start is tested against the earliest and end against the latest, a period that passes covers every selected offence. Error messages: error.ts rentalStartDate.after_offence / rentalEndDate.before_offence."
+    },
+    {
+      "step": "When the period covers the offence dates, the page lets the user proceed to the review/submission step",
+      "detail": "The 'Proceed to review' button runs ValidateALL (including ValidRentalPeriod); when there is no error and the documents are valid, onReview() is called and then stepper.show(3) (Particulars.ts:113-150). No rental period error blocks the user when the period is valid. The button can still be refused by other validations (for example self-furnish, documents) that are not part of this story."
+    },
+    {
+      "step": "On submit the server re-validates the period against each notice's offence date and saves the rental period with the particulars",
+      "detail": "POST /v1/furnishapplication loads the notices from the DB and then runs validateRentalPeriod: relationship H must have a start and an end, end must be after start, start must not be after each notice's offence, end must not be before each notice's offence (FurnishSubmissionController.java:170-178, FurnishRequestValidator.java:237-282). When it passes, rentalPeriodFrom/To is saved to eocms_furnish_application (FurnishSubmissionServiceImpl.java:196-197). The UI sends the period as date+time (MapFurnish.ts:80-81, 117-118). Tickets OCMS-DF-2026-110, -143, -175 report a generic error on Furnish submit; all are Closed and -175 had no code change, so they do not lower the fit. Behaviour on the real server: cannot verify from repo."
+    }
+  ]
+}

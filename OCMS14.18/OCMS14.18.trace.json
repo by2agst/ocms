@@ -1,0 +1,46 @@
+{
+  "story": "OCMS14.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils}, crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicleServiceImpl, framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator}. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/SpecialVehUtils}. Tidak ada code relevan di ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story minta OCMS mengidentifikasi notice classified vehicle dengan kriteria pre-defined termasuk offence date di dalam start-end date record kendaraan. Code mengidentifikasi saat notice dibuat: SpecialVehUtils.checkVehregistration mencocokkan vehicle number dengan baris aktif (status 'A') di ocms_vip_vehicle dan mengembalikan tipe 'V', dipakai oleh jalur notice creation REPCCS (ocmsadminprivateapi) dan staff create notice (ocmsadminapi). Kriteria hanya vehicle number + status aktif; tidak ada pengecekan offence date karena tabel tidak punya start/end date (lihat OCMS14.17). Pengecekan hanya sekali saat notice dibuat: notice lama tidak dicek ulang ketika daftar CAS berubah, dan kalau query gagal kendaraan dianggap non-VIP. Diplomat dan MID dicek lebih dulu sehingga plat itu tidak jadi 'V'. Tipe 'V' kemudian dibaca LTA download untuk jalur RD1. Kata FOMS tidak ada di repo (sumber di code bernama CAS).",
+  "recommendation": "Klaim sebagian: pencocokan vehicle number ke daftar aktif dan penandaan tipe V sudah ada dan dipakai proses berikutnya. Kriteria offence date dalam start-end date dan identifikasi ulang notice yang sudah terbit belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat notice dibuat, vehicle number dicocokkan dengan daftar classified vehicle yang aktif",
+      "repo": "ocmsadminprivateapi, ocmsadminapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:86-90; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:138-148; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicleServiceImpl.java:74-86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:707; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1032",
+      "fit": "Sesuai",
+      "detail": "CreateNoticeServiceImpl memanggil specialVehUtils.checkVehregistration (privateapi:707, adminapi:1032). Di SpecialVehUtils, isVip(vehNo) (baris 88) memanggil vipVehicleService.isVipVehicle (baris 142) yang mencari vehicle_no (trim + uppercase) dan hanya true kalau status = 'A' (OcmsVipVehicleServiceImpl.java:74-86). Urutan: source F, kosong/N.A, Diplomat, MID, baru VIP, lalu Singapore (SpecialVehUtils.java:59-95), jadi plat Diplomat/MID tidak pernah jadi 'V'. Edge case: kalau query error, catch mengembalikan false (baris 144-148) sehingga kendaraan diproses sebagai non-VIP tanpa tanda. Cocok exact, tidak ada kriteria lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offence date harus berada di antara start date dan end date record kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:57; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsVipVehicle/OcmsVipVehicle.java:28-36; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/models/CasVipVehicleResponse.java:29-42",
+      "fit": "Tidak ada code",
+      "detail": "checkVehregistration hanya menerima vehNo dan sourceProvidedType (SpecialVehUtils.java:57), tanpa offence date. Tabel/entity ocms_vip_vehicle tidak punya start/end date (OcmsVipVehicle.java:28-36) dan response CAS tidak membawanya (CasVipVehicleResponse.java:29-42). Jadi kendaraan yang ada di daftar aktif dianggap classified untuk semua tanggal offence."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil identifikasi ditandai pada notice (vehicle_registration_type = V) dan dipakai proses berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:714; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:484-490; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:119-127",
+      "fit": "Sesuai",
+      "detail": "Tipe hasil disimpan di DTO lalu notice lewat dto.setVehicleRegistrationType (CreateNoticeServiceImpl.java:714). Proses berikutnya membaca tipe itu: LTA download memakai vehicle_registration_type = 'V' dari VON untuk memilih jalur VIP (LtaDownloadHelper.java:484-490) yang menulis data owner lalu set stage RD1 (LtaProcessingOrchestrator.java:119-127; komentar baris 114 menegaskan tipe V sudah diset saat notice creation). Penandaan ini sama dengan yang dipakai OCMS14.19."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah terbit sebelum kendaraan masuk daftar ikut teridentifikasi saat daftar baru diterima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/casvipvehicle/services/CasVipVehicleService.java:135-161; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111",
+      "fit": "Tidak ada code",
+      "detail": "Refresh daftar hanya menyentuh tabel ocms_vip_vehicle (CasVipVehicleService.java:135-161); tidak ada job yang memindai notice outstanding lalu mengubah tipenya setelah daftar berubah. Grep setVehicleRegistrationType / vehicle_registration_type di ocmsadminprivateapi hanya menemukan notice creation dan sync, dan proses lain (mis. AutoRevivalHelper.java:1111) hanya membaca tipe 'V' yang sudah ada. Notice dari kendaraan yang baru masuk daftar tetap tipe lamanya."
+    }
+  ]
+}

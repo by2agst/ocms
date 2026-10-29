@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.28",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper (queryNoticesForRevival, processBatchRevivals, processClvPostRevival, processTsClvLooping)}, utilities/suspension_helpers/{TemporaryRevivalHelper,TemporarySuspensionHelper}, framework/schedulers/ToppanUploadJobsScheduler, resources/cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story status 'Requirement given - Gen flow'. The core mechanism exists and is enabled: the auto-revival cron revives TS that are due (reason SPO), then processClvPostRevival applies a new TS-CLV with the same code (CLV) to notices whose CLV was just revived, and processTsClvLooping catches RR3/DR3 notices that have no active CLV. 'Same period' is only true when the no_of_days_for_revival value in table ocms_suspension_reason does not change: the code calls processTS with days=null so the period is read again from the table, not copied from the old TS (TemporarySuspensionHelper.java:228-243); the DB value cannot be verified from the repo. Revival and re-apply now run in separate transactions after the fix of OCMS-DF-2026-032 (closed, prod deployed): if the re-apply fails the notice is already revived and is only retried on the next run. OCMS-DF-2026-117: users questioned the reapply of TS-HST/TS-CLV while another TS was still active; closed as an investigation with no code change. The job runs in the 00:15 day-end scheduler, enabled=true in the prod properties; the real server value cannot be verified from the repo.",
+  "recommendation": "Claim most of it. Re-applying CLV after revival exists and is enabled. Do not claim 'same period' (read again from a DB table) and do not claim no gap (revival and re-apply are separate transactions; failures are only logged).",
+  "steps": [
+    {
+      "step": "The auto-revival job runs on a daily schedule",
+      "detail": "runJob(job2Name, autoRevivalService.executeJob()) is in executeDayEndJobs (ToppanUploadJobsScheduler.java:119) and is not commented out, unlike the letter job at :118. Schedule 0 15 0 * * ?, enabled=true in prod (cron-schedules-prod.properties:61-62). The real server value cannot be verified from the repo. The job can also be triggered manually through AutoRevivalController."
+    },
+    {
+      "step": "OCMS picks up temporary suspensions that are due",
+      "detail": "queryNoticesForRevival takes TS suspensions with date_of_revival NULL and due_date_of_revival before the start of tomorrow (AutoRevivalHelper.java:117-125), one record per notice (:127-130). It applies to all TS codes including CLV; the job calls it at AutoRevivalJob.java:103."
+    },
+    {
+      "step": "The expired suspension is revived and recorded before it is re-applied",
+      "detail": "processBatchRevivals revives the TS (reason SPO) and returns the list of records that really succeeded; the re-apply steps only run for that list (AutoRevivalJob.java:135-141,153-160). OCMS-DF-2026-032 (closed, prod deployed): before the fix the revival data of TS-CLV/HST/PDP was overwritten during re-apply so the old TS stayed active; the revival is now committed first in a separate transaction."
+    },
+    {
+      "step": "OCMS applies the temporary suspension again under the same suspension code (CLV)",
+      "detail": "processClvPostRevival filters the revived records with reason CLV (AutoRevivalHelper.java:823), skips notices that are already paid (:828-831), then calls tsHelper.processTS(noticeNo, OCMS, \"CLV\", null, ...) (:834-837); once per notice (:824). processTsClvLooping catches type V notices at RR3/DR3 without an active CLV (:1111-1136) so a CLV that failed yesterday is still chased. The same path covers notices that also have a TS under another code (see OCMS14.27)."
+    },
+    {
+      "step": "The new suspension period equals the previous period",
+      "detail": "The re-apply calls processTS with days=null (AutoRevivalHelper.java:834-837), so the period is read again from ocms_suspension_reason.no_of_days_for_revival, or 30 days when empty (TemporarySuspensionHelper.java:228-248). The old TS duration is not copied. The result is the same as long as the table value is not changed; the DB value cannot be verified from the repo."
+    },
+    {
+      "step": "The notice keeps not escalating: no gap between revival and the new suspension",
+      "detail": "Revival and re-apply run one after another in a single job but in separate transactions (OCMS-DF-2026-032). When processTS fails the failure is only logged and failureCount goes up (AutoRevivalHelper.java:839-844); the notice stays revived without suspension until the next run (processTsClvLooping :1131-1136). The Toppan letter queue only takes suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), so a notice that is briefly empty can enter a letter run. There is no per-notice alert."
+    }
+  ]
+}

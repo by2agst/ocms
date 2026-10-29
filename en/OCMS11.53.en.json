@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.53",
+  "flow_ref": "User story (not in the flow deck)",
+  "code_summary": "ocmsadminprivateapi: crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findNoticesForDataHiveEnrichment), framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper, framework/workflows/datahiveuenfin, framework/schedulers/MhaDownloadJobsScheduler, notification_sms_email/jobs/NotificationSmsEmailJob, cron-schedules-prod.properties. Other repos not used",
+  "note": "Status in stories.json: Demo paid (50% of 75%), 1 point. Demo remark: Vault code split, the Vault connection is granted to the api App Service. The check and update of the driver's particulars before the 3rd letter (DR3) runs through the same MHA/DataHive crons as the owner (OCMS11.16), not triggered by the e-reminder result: selection is only by next_processing_stage and date. NRIC through MHA is active in prod; FIN and UEN through DataHive are off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52), so company or foreign-ID drivers are not checked. The update only touches the current offender (OCMS-DF-2026-177 is fixed). Epic OCMS8 was not supplied separately; steps are written from the story text. Tickets used: OCMS-DF-2026-177, OCMS-DF-2026-130, OCMS-DF-2026-176 (open, Ready to UAT). MHA/DataHive file contents, Vault and the timing between crons on the server: cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "recommendation": "Claim partially: the NRIC check through MHA and the driver data update exist and are active, but FIN/UEN through DataHive is off in prod and no gate waits for the e-reminder result. Ask URA to confirm the prod configuration",
+  "steps": [
+    {
+      "step": "After the e-reminder is sent, or the driver turns out to have opted out, the notice moves on to the particulars check before the 3rd letter (DR3)",
+      "detail": "Selecting notices for the particulars check (MHA enquiry) does not depend on the e-reminder result: findNoticesForMhaNricUpload picks next_processing_stage IN (RD1..DR3) with next_processing_date <= tomorrow, suspension_type NULL and offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:565-570), purely by date. An opted-out driver is only skipped in the eNotification job without changing the stage (NotificationSmsEmailJob.java:225-232), so the order 'e-reminder or opt-out first, then check' holds by schedule, not by a gate in the code. The eNotification job itself is off in prod (cron-schedules-prod.properties:236) but the particulars check runs without it. The cron timing order on the server: cannot verify from repo."
+    },
+    {
+      "step": "A driver with an NRIC is sent to MHA for the latest particulars",
+      "detail": "findNoticesForMhaNricUpload picks notices at stage RD1/RD2/RR3/DN1/DN2/DR3 with onod.id_type = 'N' (NRIC), offender_indicator = 'Y' (the driver once furnished), not yet in ocms_nro_temp and not HST (OcmsValidOffenceNoticeRepository.java:557-581). The MHA upload and download crons are enabled in prod (cron.mhaupload.enabled=true, cron-schedules-prod.properties:105-106; cron.mhadownload.enabled=true, :119-120). Same as OCMS11.16 step 3. MHA file contents and response: cannot verify from repo."
+    },
+    {
+      "step": "A driver with a foreign ID (FIN) or a company (UEN) is checked through DataHive",
+      "detail": "findNoticesForDataHiveEnrichment picks notices at stages RD1..DR3 with id_type IN ('F','B') and offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:528-554) and DataHiveUenFinService picks the same stages (:221-248). But the second job 'DH UEN and FIN' is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107) and the value is false in cron-schedules-prod.properties:52 (true in UAT). The DataHive step in ToppanLettersGeneratorJob is also commented out. DataHive results: cannot verify from repo. Fit aligned with OCMS11.16 step 4."
+    },
+    {
+      "step": "The check result updates the driver's particulars (mailing address) and only the current offender is changed",
+      "detail": "MhaNricDownloadHelper updates the owner_driver rows whose offender_indicator is still CURRENT (bulkUpdateOnod, :828-840 and :1337), then stores the new address as an mha_reg row: a new row insert (:1347) or a bulk UPDATE of the existing row (:1356). An MHA exception result only applies TS-NRO to notices where the ID is still the current offender (:1408-1417), so the update does not touch the old owner after a furnish to a driver. Two related defects are fixed on main: OCMS-DF-2026-177 (MHA result without offender indicator check, Closed) and OCMS-DF-2026-130 (old mha_reg address not cleared, Closed, Prod deployed). OCMS-DF-2026-176 (owner_driver timestamp not updated during MHA, Ready to UAT) is still open. MHA response contents: cannot verify from repo."
+    }
+  ]
+}

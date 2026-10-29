@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.29",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, workflows/furnish/helpers/{FurnishNotificationService,FurnishSyncHelper}, utilities/emailutility/EmailService, crud/ocmsizdb/OcmsEmailNotificationRecords, workflows/furnish/rejection/* (jalur kedua, tidak dipakai UI); ocmsadminui pages/Notice/hook/useNoticeSubmit.tsx. ocmsadminprivateapi (DailyOfficerNotificationJob hanya digest harian officer): bukan jadwal kirim email furnish",
+  "note": "Status: Demo paid (50% of 75%). Story minta OCMS menjadwalkan pengiriman email pada tanggal/jam yang ditentukan dan menolak update particulars. Reject berfungsi: status furnish application jadi R dan owner/driver notice tidak diubah. Penjadwalan tidak ada: email dikirim sinkron lewat EmailService.sendEmail saat endpoint send-email dipanggil, dan dicatat dengan date_sent = waktu sekarang; tidak ada kolom, antrean, atau cron yang menyimpan/mengirim email pada waktu nanti. Satu-satunya cron furnish (DailyOfficerNotificationJob) adalah digest harian ke officer, bukan pengiriman email OIC. Jalur kedua POST /v1/furnish/officer/reject (FurnishRejectionServiceImpl) mengirim email lalu reject, juga tanpa jadwal, dan tidak dipanggil UI. Properti email.enableSmtp=true di application.properties:133 (tidak ada override di application-prod.properties); bila false, EmailService.sendEmail mengembalikan false. Nilai di server nyata cannot verify from repo.",
+  "recommendation": "Klaim sebagian: reject sudah jalan. Penjadwalan kirim email belum ada code; email dikirim langsung. Jangan klaim langkah penjadwalan",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menolak update: status furnish application menjadi Rejected dengan remarks OIC",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:257-258; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:277-281; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:466-471",
+      "fit": "Sesuai",
+      "detail": "POST manual-review/reject memanggil ManualReviewService.rejectSubmission, yang set status R dan remarks OIC (atau 'Rejected by <user>' bila kosong), update, lalu sync ke PII (ManualReviewService.java:466-471). Request tanpa txnNo atau reviewedBy ditolak 400 (ManualReviewController.java:262-272)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars hirer/driver di notice tidak di-update",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:453-482; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:297-315",
+      "fit": "Sesuai",
+      "detail": "rejectSubmission hanya menyentuh furnish application (ManualReviewService.java:453-482). Update owner/driver hanya ada di approveHirer/approveDriver (ManualReviewService.java:297-315, 421). Jadi particulars yang di-furnish tidak dimasukkan ke notice saat reject."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan jadwal pengiriman email (tanggal dan jam)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/emailutility/EmailRequest.java:12-17; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsEmailNotificationRecords/OcmsEmailNotificationRecords.java:28-59",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada field atau parameter jadwal kirim di mana pun: EmailRequest hanya punya from/to/subject/htmlContent/cc/attachments (EmailRequest.java:12-17), tabel OcmsEmailNotificationRecords hanya menyimpan date_sent (OcmsEmailNotificationRecords.java:50), dan UI form email tidak punya input tanggal/jam (ReplyEmail.tsx:31-60). Grep scheduled/schedule/sendAt/sendLater di ocmsadminui, ocmsadminapi, ocmsadminprivateapi: 0 hasil relevan untuk email furnish."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim otomatis pada tanggal/jam terjadwal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:300-301; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:494-515; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/emailutility/EmailService.java:39-43",
+      "fit": "Beda dari flow",
+      "detail": "Email dikirim langsung: endpoint send-email memanggil ManualReviewService.sendEmail (ManualReviewService.java:494-515), lalu FurnishNotificationService.sendAndRecordEmail memanggil emailService.sendEmail saat itu juga (FurnishNotificationService.java:61). Tidak ada job atau scheduler yang menunda; satu-satunya cron furnish, DailyOfficerNotificationJob, mengirim digest harian ke officer, bukan email OIC. Properti email.enableSmtp=true (application.properties:133); bila false EmailService mengembalikan false (EmailService.java:40-43). Nilai di server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman email dicatat (status berhasil/gagal dan waktu)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:63-90; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsEmailNotificationRecords/OcmsEmailNotificationRecords.java:28-59",
+      "fit": "Sebagian",
+      "detail": "Tiap kiriman disimpan di OcmsEmailNotificationRecords: ref_no, stage, batch_id, service_type FURNISH, penerima, subject, content, status S/E, msg_error, dan date_sent (FurnishNotificationService.java:63-90). Pencatatan ada, tetapi date_sent = LocalDateTime.now() (FurnishNotificationService.java:77), yaitu waktu kirim, bukan jadwal yang dipilih OIC."
+    }
+  ]
+}

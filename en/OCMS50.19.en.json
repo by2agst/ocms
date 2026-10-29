@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.19",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentResult,PaymentSearchResult,API}.ts; ocmseserviceapi workflows/receipt/{controller/ReceiptController,service/ReceiptServiceImplement,service/TemplateService}, utilities/pdf/PdfGeneratorService, crud/ocmsezdb/eocmswebtxndetail. Other repos: no code",
+  "note": "The success page shows date-time, transaction number, method and amount, a per-notice table, and the Print button downloads the receipt. Differences from the story: the downloaded file is always a ZIP holding one PDF per notice, not a single PDF file (ReceiptController.java:51-61, PaymentResult.ts:138), and there is no in-browser receipt view (download only). The receipt-based request does not filter status S (ReceiptServiceImplement.java:150), so the receiptNo of a failed transaction also yields a PDF when called directly; the UI only offers the button on the success page. The PDF template content is read from the database (TemplateService, line 91) and cannot be verified from the repo. 'Amount Paid' is computed from the notices' amount_payable held in the UI, not from the amount confirmed by the PG (PaymentResult.ts:83-86). Ticket: OCMS-SR-2026-158 (Transaction Reference Number hidden only at step 3, still shown at step 4).",
+  "recommendation": "Claim the on-screen transaction details. Receipt PDF: claim partly (ZIP, not a single PDF; no in-browser view). Consider a status S filter on the receiptNo-based receipt",
+  "steps": [
+    {
+      "step": "The success page shows the transaction details: date-time, reference number, payment method, amount",
+      "detail": "TransactionSummary shows Date and Time, Transaction Reference Number, Payment Method and Amount Paid (PaymentResult.ts:99-117). The data comes from sessionStorage PAYMENT_RESULT filled by the processing page from the database (Payment.ts:248-287). The amount is summed from the notices' amount_payable held in the UI (PaymentResult.ts:83-86), not from PG confirmation."
+    },
+    {
+      "step": "The page shows a per-notice table of what was paid",
+      "detail": "TransactionSummaryTable uses uds-table-payment with ColumnsPayment, with pagination above 10 rows (PaymentResult.ts:151-174). Rows are mapped from eocms_web_txn_detail through MapDetailToMatrix (Payment.ts:211-228)."
+    },
+    {
+      "step": "Details and receipt are available for every payment mode (eNETS, card, PayNow)",
+      "detail": "The receipt maps ENETC to Credit Card, JX to eNets Debit and PYNOW to PayNow, any other mode becomes 'Online Payment' (ReceiptServiceImplement.java:233-248). The success page uses the same mode labels for the three modes (PaymentResult.ts:81-82, Payment.ts:202-209). The flow after the callback is the same for all modes."
+    },
+    {
+      "step": "The offender presses Print to download the receipt",
+      "detail": "The Print button calls APIPostPrintSlip({receiptNo}) then saves the blob as Receipts_<receiptNo>_<n>_notices.zip (PaymentResult.ts:132-138). What is downloaded is a ZIP, not a single PDF, and there is no option to view the receipt in the browser. The paid-notice tab also has 'Download Receipt(s)' (PaymentSearchResult.ts:798-830) with the same ZIP. If the download fails the catch block is empty (PaymentResult.ts:144), so the offender gets no message."
+    },
+    {
+      "step": "The system builds a receipt PDF from a template for each paid notice",
+      "detail": "POST /v1/printslip returns a ZIP (ReceiptController.java:38-66). Per notice: the HTML template from the database (ReceiptServiceImplement.java:91) is filled with date, receiptNo, method, notice, vehicle, offence date and amount (96-122) then rendered to PDF (127). Gap: the receiptNo path uses findByReceiptNo without a status filter (ReceiptServiceImplement.java:150; repository lines 35-36), while the notice path uses findByNotice with status 'S' (repository lines 17-18); so a receipt can be built for a failed transaction when the endpoint is called directly. A notice that fails to build is skipped with a log only (179-181). The template content in the database: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS5.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/validation/Notice/{index,ValidNotice,ValidNoticeO,ValidNoticeBasic,ValidVehicle}.ts (yup schema), pages/Notice/{hook/ActionNotice,form/Form,mode/create/CreateFrom}.tsx, components/form/FormErrorList.tsx. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeValidationHelper}. Other repos: not used",
+  "note": "stories.json status is 'Fully paid', demo_remark is empty. The main validation is in the UI (yup schema): required fields, date-time not in the future, vehicle number format, field lengths, and rule code/composition amount must come from the list. When Submit fails validation, the UI shows an error list and focuses the faulty field. Two gaps: the car park 'Other' accepts any code (max 5 characters) without a table check, and the backend /staff-create-notice only checks mandatory fields and that the rule code exists; PP code, composition amount, vehicle number format and future dates are not re-checked on the path I read (CreateNoticeServiceImpl, NoticeValidationHelper, NoticeRecordHelper, NoticeProcessingHelper). The regex inside Format('VEHICLE') was not audited. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim with a note: UI form validation is complete, but the car park 'Other' and re-validation in the backend are only partial. Ask URA whether 'Other' is meant to skip the table check",
+  "steps": [
+    {
+      "step": "An empty mandatory field raises an error prompt on Submit",
+      "detail": "onConfirmation calls validate() (ActionNotice.tsx:117). On failure a modal 'Failed to create the notice.' with a FormErrorList appears (ActionNotice.tsx:120-136; FormErrorList.tsx:57-67) and onClose moves focus to the error field (ActionNotice.tsx:137-139); the Offence Details tab flags errors through errorSources (Form.tsx:126-137). The CREATE schema is built by ValidNoticeInit (ValidNotice.ts:13-27) with required on notice type (ValidNoticeBasic.ts:19-36), vehicle type, vehicle no, vehicle category (ValidVehicle.ts:17-86), and offence date, offence time, rule code, PP code and composition amount (Notice/index.ts:16-169)."
+    },
+    {
+      "step": "An invalid offence date or time, or one in the future, is rejected",
+      "detail": "OffenceDate rejects a date after today and a format that is not DATE_TIME (index.ts:16-40). OffenceTime rejects a wrong time format and, when the offence date is today, a time later than now (index.ts:42-77). Changing the date re-validates the time field (NoticeOForm.tsx:80-88)."
+    },
+    {
+      "step": "Vehicle number format and field lengths (parking lot, warden, remark) are validated",
+      "detail": "For registration type S, the vehicle number must pass Format('VEHICLE'); other types are limited to 14 characters (ValidVehicle.ts:34-68). Parking lot max 5 and remark are limited by YupCharLimit (ValidNoticeO.ts:50-52), warden no max 5 (index.ts:231-236). The regex inside Format('VEHICLE') was not audited."
+    },
+    {
+      "step": "A rule code or composition amount that is not from the list is rejected",
+      "detail": "RuleCode passes only if the 5-digit format is correct and rule_code_data (set when picking from the list) is filled; otherwise a format or valid message appears (index.ts:102-128). CompositionAmount throws an error when composition_amount_data is empty, meaning the value did not come from the options (index.ts:79-100)."
+    },
+    {
+      "step": "An invalid car park is rejected",
+      "detail": "For a car park picked from the list, PPCode must match pp_code_data (index.ts:148-166) and PPName must equal carParkName (index.ts:189-205). If the officer picks 'Other' (pp_is_other), the rule is only required and max 5 characters for the code, max 100 for the name (index.ts:143-147, 185-188), with no check against the car park table, so a wrong car park code still passes. Whether 'Other' is meant to pass without a check: cannot verify from repo."
+    },
+    {
+      "step": "The backend re-validates the input and rejects wrong or incomplete data",
+      "detail": "/staff-create-notice rejects empty input or broken JSON with 400 (CreateNoticeServiceImpl.java:564-578), rejects a DTO without mandatory fields with 'Missing Mandatory Fields' (NoticeValidationHelper.java:112-160; CreateNoticeServiceImpl.java:526-529), and throws an error when computerRuleCode is not in the offence rule table (NoticeValidationHelper.java:315-352; CreateNoticeServiceImpl.java:967-980). On the path I read there is no re-check of PP code against the car park table, composition amount against the rule, vehicle number format (mandatory only for subsystem 005, NoticeValidationHelper.java:162-171) or future dates (only a non-null check, :135). Complete validation exists in the UI only."
+    }
+  ]
+}

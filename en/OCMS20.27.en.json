@@ -1,0 +1,37 @@
+{
+  "story": "OCMS20.27",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/{DailyReportJobsScheduler, MonthlyReportJobsScheduler}, framework/workflows/hstreport/{services/HstReportServiceImpl, helpers/HstReportHelper}, framework/workflows/agencies/mha/{upload/helpers/MhaNricDataHelper, download/helpers/MhaNricDownloadHelper}, crud/ocmsizdb/OcmsTempUncHstAddr, utilities/emailutility/EmailService, resources/{cron-schedules-prod, application-prod}.properties. ocmsadminui pages/Report/lists/{ReportList, ReportListHST}, pages/Dashboard/Dashboard. ocmsadminapi: no HST list endpoint for the report. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status 'Requirement given - Gen flow'. The code has an HST report chain: a monthly cron puts all HST IDs into ocms_adhoc_nro_temp (HstReportServiceImpl.java:152-202), MHA returns addresses into ocms_temp_unc_hst_addr, then the 08:00 daily job builds two Excel files (Data Report old vs new address, Work Items Report with 11 statistics) and uploads them to blob (HstReportServiceImpl.java:205-356). But the shape differs from the story: the check is monthly and only NRIC IDs (id_type N), not daily; the 'checked' figure is for the current month; there is no dashboard or work item for the OIC (Dashboard.tsx is empty); the HST Reports tab in the Report module is commented out (ReportList.tsx:147-201) and the email to the OIC is not sent in prod because email.enableSmtp=false with no source allowlist entry (application-prod.properties:80). One point to check: the report queries filter columns query_reason, report_generated, response_date_time on ocms_temp_unc_hst_addr, while the entity has no such columns and no code writes them (OcmsTempUncHstAddr.java:36-114, MhaNricDownloadHelper.java:3197-3260); whether the HST report ever finds a row cannot be verified from repo (depends on a DB default/trigger). The check of appeal addresses in PLUS (OCMS20.23/20.24) is not part of this report. ICA/DOS does not exist in code (DOS = DataHive/LTA cannot be confirmed from the repo). Ticket OCMS-DF-2026-126 (closed) touches the queueing of HST IDs to MHA.",
+  "recommendation": "Claim only a small part. Do not claim a daily report routed to a downloadable dashboard: what exists is an HST report job (Excel to blob and an OIC email that is off in prod) with a monthly, NRIC-only check. Ask the team who writes query_reason/report_generated on ocms_temp_unc_hst_addr and whether the OIC can fetch the files from blob",
+  "steps": [
+    {
+      "step": "The daily HST Report Generator job runs every day",
+      "detail": "Job 4 of the Combined Daily Report is called at DailyReportJobsScheduler.java:99 with cron.dailyreport.schedule=0 0 8 * * ? and enabled=true (cron-schedules-prod.properties:255-256, 265); the real server value cannot be verified from repo. But checkAndGenerateReports only builds a report when unprocessed ocms_temp_unc_hst_addr rows exist; otherwise it returns null and there is no report that day (HstReportServiceImpl.java:210-215). So it is not a report that exists every day."
+    },
+    {
+      "step": "Records checked: all HST IDs are sent for an address check",
+      "detail": "queueHstIdsForMonthlyCheck puts all IDs in ocms_hst into ocms_adhoc_nro_temp (HstReportServiceImpl.java:152-202), called from the Combined Monthly Report on day 1 at 08:30 (MonthlyReportJobsScheduler.java:76, cron-schedules-prod.properties:275-276), so monthly, not daily. The MHA upload only takes id_type N (MhaNricDataHelper.java:447); the FIN/UEN path through DataHive is off in prod (cron.mhadownload.uenfin.enabled=false, cron.mhadownload.datahive=false, cron-schedules-prod.properties:50-52). Deleting the adhoc rows after upload is disabled (MhaNricDataHelper.java:658-679). ICA/DOS does not exist in code; DOS = DataHive/LTA cannot be confirmed from the repo. Ticket OCMS-DF-2026-126 (closed) concerns FIN IDs stored as type N."
+    },
+    {
+      "step": "The report contains the number of records checked",
+      "detail": "The Work Items Report holds 11 statistics including 'HST IDs Checked This Month' (HstReportHelper.java:511-530), computed as COUNT DISTINCT id_no on ocms_temp_unc_hst_addr with response_date_time in the current month (:632-648). That is a monthly figure, not the number of records checked on the report day. The Excel is built and uploaded to blob (HstReportServiceImpl.java:304-336)."
+    },
+    {
+      "step": "The report lists records received from MHA/DataHive with their new address",
+      "detail": "The Data Report per ID holds the old HST address, the new MHA/DataHive address, Address Changed, Invalid Address and MHA/DataHive Response Date (HstReportHelper.java:446-484; HstReportServiceImpl.java:258-297). But its queries filter query_reason='HST', report_generated and response_date_time on ocms_temp_unc_hst_addr (HstReportHelper.java:353-374, 381-430), while the OcmsTempUncHstAddr entity has no such columns (OcmsTempUncHstAddr.java:36-114) and storeUncHstResults does not write them (MhaNricDownloadHelper.java:3197-3260); no other writer exists in the six repos. Whether HST rows ever pass the filter cannot be verified from repo (depends on a DB default/trigger). The file name is only yyyyMM (HstReportServiceImpl.java:278), so one blob path per month."
+    },
+    {
+      "step": "The report flags records where an address change was detected",
+      "detail": "The 'Address Changed' Yes/No column compares the old and new address text (HstReportHelper.java:470-472) and the 'Addresses Changed' statistic counts IDs whose street_name or postal_code differ (:526, 650-662). The logic exists, but it depends on the same ocms_temp_unc_hst_addr rows as the previous step (data source not proven), and the statistic is not limited to unprocessed rows."
+    },
+    {
+      "step": "The report is routed to the officer's dashboard",
+      "detail": "Dashboard.tsx only holds an empty container (Dashboard.tsx:21-32), the Inbox menu is commented out (LinkData.tsx:385), and there is no work item entity or screen for the HST report in ocmsadminui, ocmsadminapi or ocmsadminprivateapi. The only 'routing' is the blob upload and the OIC email (next step)."
+    },
+    {
+      "step": "The officer can download the summary report for reference",
+      "detail": "The reports are uploaded to blob /offence/reports/hst/ and the Work Items Report is sent as an email attachment to the OIC (HstReportServiceImpl.java:338-396). In prod email.enableSmtp=false (application-prod.properties:80) and EmailRequest sets no source, so the email is blocked (EmailService.java:65-70); the real server value cannot be verified from repo. The email table also reads camelCase keys (HstReportServiceImpl.java:434-444) while the helper stores keys like 'Total HST IDs' (HstReportHelper.java:513-570), so the numbers in the email body show 0 (the Excel attachment is correct). In the staff portal the HST Reports tab is commented out (ReportList.tsx:147-201) and its grid calls resource hst, which has no list endpoint in ocmsadminapi (only /hstlist and /hstexists). The Data Report goes to blob only; how the OIC fetches files from blob cannot be verified from repo."
+    }
+  ]
+}

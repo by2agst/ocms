@@ -1,0 +1,64 @@
+{
+  "story": "OCMS5.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui utils/validation/Notice/{index,ValidNotice,ValidNoticeO,ValidNoticeBasic,ValidVehicle}.ts (yup schema), pages/Notice/{hook/ActionNotice,form/Form,mode/create/CreateFrom}.tsx, components/form/FormErrorList.tsx. ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeValidationHelper}. Repo lain: tidak dipakai",
+  "note": "Status stories.json 'Fully paid', demo_remark kosong. Validasi utama ada di UI (yup schema): field wajib, tanggal-jam tidak boleh masa depan, format nomor kendaraan, panjang field, dan rule code/composition amount harus berasal dari list. Saat Submit gagal validasi, UI menampilkan daftar error dan fokus ke field bermasalah. Dua celah: car park 'Other' menerima kode apa pun (max 5 karakter) tanpa cek ke tabel, dan backend /staff-create-notice hanya mengecek field wajib dan keberadaan rule code; PP code, composition amount, format nomor kendaraan dan tanggal masa depan tidak dicek ulang di jalur yang dibaca (CreateNoticeServiceImpl, NoticeValidationHelper, NoticeRecordHelper, NoticeProcessingHelper). Isi regex Format('VEHICLE') tidak diaudit. Tidak ada maintenance ticket yang mengubah verdict.",
+  "recommendation": "Klaim dengan catatan: validasi form UI lengkap, tetapi car park 'Other' dan validasi ulang di backend hanya sebagian. Tanyakan ke URA apakah 'Other' memang boleh tanpa cek tabel",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Field mandatory yang kosong memunculkan prompt error saat Submit",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:114-141; ocmsadminui/src/components/form/FormErrorList.tsx:57-67; ocmsadminui/src/pages/Notice/form/Form.tsx:126-137; ocmsadminui/src/utils/validation/Notice/ValidNotice.ts:13-27; ocmsadminui/src/utils/validation/Notice/ValidVehicle.ts:17-86; ocmsadminui/src/utils/validation/Notice/ValidNoticeBasic.ts:19-36",
+      "fit": "Sesuai",
+      "detail": "onConfirmation memanggil validate() (ActionNotice.tsx:117). Bila gagal, muncul modal 'Failed to create the notice.' berisi FormErrorList (ActionNotice.tsx:120-136; FormErrorList.tsx:57-67) dan onClose mengarahkan fokus ke field error (ActionNotice.tsx:137-139); tab Offence Details menandai error lewat errorSources (Form.tsx:126-137). Schema CREATE dibangun ValidNoticeInit (ValidNotice.ts:13-27) dengan required untuk notice type (ValidNoticeBasic.ts:19-36), vehicle type, vehicle no, vehicle category (ValidVehicle.ts:17-86), serta offence date, offence time, rule code, PP code dan composition amount (Notice/index.ts:16-169)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tanggal atau jam offence yang tidak valid atau di masa depan ditolak",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Notice/index.ts:16-40; ocmsadminui/src/utils/validation/Notice/index.ts:42-77; ocmsadminui/src/pages/Notice/form/NoticeOForm.tsx:75-98",
+      "fit": "Sesuai",
+      "detail": "OffenceDate menolak tanggal setelah hari ini dan format yang bukan DATE_TIME (index.ts:16-40). OffenceTime menolak format jam yang salah dan, bila tanggal offence hari ini, jam yang lebih besar dari jam sekarang (index.ts:42-77). Perubahan tanggal memicu validasi ulang field jam (NoticeOForm.tsx:80-88)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Format nomor kendaraan dan panjang field (parking lot, warden, remark) divalidasi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Notice/ValidVehicle.ts:34-68; ocmsadminui/src/utils/validation/Notice/ValidNoticeO.ts:50-52; ocmsadminui/src/utils/validation/Notice/index.ts:231-236",
+      "fit": "Sesuai",
+      "detail": "Untuk registration type S, nomor kendaraan harus lolos Format('VEHICLE'); tipe lain dibatasi max 14 karakter (ValidVehicle.ts:34-68). Parking lot max 5 dan remark dibatasi YupCharLimit (ValidNoticeO.ts:50-52), warden no max 5 (index.ts:231-236). Isi regex Format('VEHICLE') tidak diaudit."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Rule code dan composition amount yang bukan dari list ditolak",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Notice/index.ts:79-100; ocmsadminui/src/utils/validation/Notice/index.ts:102-128; ocmsadminui/src/pages/Notice/component/RuleCodeInput.tsx:146-160",
+      "fit": "Sesuai",
+      "detail": "RuleCode lolos hanya jika format 5 digit benar dan rule_code_data (hasil pilih dari list) terisi, jika tidak muncul pesan format atau valid (index.ts:102-128). CompositionAmount melempar error bila composition_amount_data kosong, artinya nilai bukan dari opsi (index.ts:79-100)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Car park yang tidak valid ditolak",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Notice/index.ts:130-169; ocmsadminui/src/utils/validation/Notice/index.ts:171-210; ocmsadminui/src/pages/Notice/component/PPCodeInput.tsx:71-73",
+      "fit": "Sebagian",
+      "detail": "Untuk car park dari list, PPCode wajib cocok dengan pp_code_data (index.ts:148-166) dan PPName harus sama dengan carParkName (index.ts:189-205). Bila officer memilih 'Other' (pp_is_other), aturan hanya required dan max 5 karakter untuk kode, max 100 untuk nama (index.ts:143-147, 185-188), tanpa cek ke tabel car park, sehingga kode car park yang salah tetap lolos. Apakah 'Other' memang dimaksudkan lolos tanpa cek: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Backend memvalidasi ulang input dan menolak data yang salah atau tidak lengkap",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:564-578; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:112-160; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:526-529; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:315-352; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:967-980",
+      "fit": "Sebagian",
+      "detail": "/staff-create-notice menolak input kosong atau JSON rusak dengan 400 (CreateNoticeServiceImpl.java:564-578), menolak DTO tanpa field wajib dengan 'Missing Mandatory Fields' (NoticeValidationHelper.java:112-160; CreateNoticeServiceImpl.java:526-529), dan melempar error bila computerRuleCode tidak ada di tabel offence rule (NoticeValidationHelper.java:315-352; CreateNoticeServiceImpl.java:967-980). Di jalur yang dibaca tidak ada cek ulang PP code ke tabel car park, composition amount terhadap rule, format nomor kendaraan (wajib hanya untuk subsystem 005, NoticeValidationHelper.java:162-171) atau tanggal masa depan (hanya cek non-null, :135). Validasi yang lengkap hanya di UI."
+    }
+  ]
+}

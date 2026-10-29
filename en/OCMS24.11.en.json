@@ -1,0 +1,21 @@
+{
+  "story": "OCMS24.11",
+  "flow_ref": "There is no OCMS flow deck; steps are taken from the story text. Status in the sheet is blank and demo_remark is blank; the story is traced normally (2 points).",
+  "code_summary": "Only the Toppan path for parking letters (RD1, RD2, RR3, DN1, DN2, DR3, ANL) exists in ocmsadminprivateapi: the ToppanStage enum has no court stage, the letter generator call in the scheduler is commented out, and prod sets sftp.upload.disabledServers=toppan. ocmsadminui only has data types (Ibatchsummoncsmemo, Icsdbatch). There is no code for the merged memo + summons + charge sheet PDF, the settled-notice selection, or interfacing a court PDF to a vendor. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code.",
+  "note": "Status in the sheet is blank and demo_remark is blank; the story is traced normally. Earlier court epics also found no State Courts SFTP, court batch or court report in the six repos. No maintenance ticket is specific to court summons printing.",
+  "recommendation": "No code interfaces a court PDF to a vendor; the existing Toppan path is for parking letters only. Claim only if evidence exists outside these repos.",
+  "steps": [
+    {
+      "step": "Settled notices are excluded and the court memo is merged with the court summons and charge sheet into one PDF (precondition)",
+      "detail": "No code selects settled notices for a court batch or merges memo, summons and charge sheet into a PDF. Only type declarations exist in ocmsadminui (Ibatchsummoncsmemo.d.ts:1-18, Icsdbatch.d.ts:1-20) with no logic using them. The only job that reads ocms_court_case is the payment acceptance cutoff (PaymentAcceptanceCutoffServiceImpl.java:55, OcmsCourtCaseRepository.java:16-19), which is not a PDF builder; its call in the scheduler is also commented out (ToppanUploadJobsScheduler.java:123). Same finding as OCMS24.10."
+    },
+    {
+      "step": "OCMS interfaces the court PDF file to the vendor for printing and postage",
+      "detail": "The existing vendor path is Toppan, but only for parking letter stages: ToppanStage contains only RD1, RD2, RR3, DN1, DN2, DR3, ANL (ToppanStage.java:19-25); DR3/RR3 only point to next stage CPC as a fallback (ToppanUploadHelper.java:1818-1819) without producing a court file. The letter generator is not called from the 00:15 scheduler (ToppanUploadJobsScheduler.java:118, commented out; only via POST /generate-letters in ToppanUnifiedController.java:34), and prod uses sftp.upload.disabledServers=toppan (application-prod.properties:86; real server value cannot verify from repo; see OCMS-DF-2026-192 for the Toppan delivery gate). There is no State Courts SFTP or other court vendor in the six repos."
+    },
+    {
+      "step": "Court summonses are posted to defendants so they pay or attend court",
+      "detail": "Physical printing and posting is done by the vendor outside OCMS, so the outcome cannot verify from repo. On the OCMS side there is no code that sends court summonses: the existing letter generator is for parking letters only and its call in the scheduler is commented out (ToppanUploadJobsScheduler.java:118)."
+    }
+  ]
+}

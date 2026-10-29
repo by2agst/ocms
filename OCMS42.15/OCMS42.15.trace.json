@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui utils/validation/Furnish/ValidHirerDriver.ts, utils/validation/error.ts, pages/Furnish/Form/Particulars.ts, pages/Furnish/Confirmation.ts, pages/Furnish/Acknowledgement.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator}, crud/exception/ValidationMessages. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan.",
+  "note": "Story 3 points, status_with_ura 'Fully paid'. Jika periode sewa tidak mencakup offence date, UI menampilkan error di field tanggal dan 'Proceed to review' berhenti sehingga user tidak bisa lanjut submit. Server memblokir ulang (HTTP 400) bila UI dilewati. Catat: pesan berupa error inline di field ('Start date and time of rental period must be earlier than offence date.' / 'End date ... must be later than offence date.'), bukan kalimat 'submission is disallowed'; teks resmi dari URA tidak ada di repo. Kalau penolakan datang dari server, user hanya melihat halaman gagal generik (Confirmation.ts:193-196), bukan pesan spesifik. Edge case presisi menit UI vs detik server bisa membuat kombinasi lolos UI tapi ditolak server. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Bisa diklaim untuk pemblokiran di UI dan server. Catat bahwa pesan berupa error field (bukan kalimat 'submission disallowed') dan penolakan dari server tampil sebagai halaman gagal generik.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mendeteksi periode sewa yang tidak mencakup offence date notice yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:73-103; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:111-155; ocmseserviceui/src/pages/Furnish/Furnish.ts:383-411",
+      "fit": "Sesuai",
+      "detail": "Start date+time lebih besar dari offence paling awal ditolak (ValidHirerDriver.ts:91-98), end date+time lebih kecil dari offence paling akhir ditolak (ValidHirerDriver.ts:128-137), dan end <= start juga ditolak (ValidHirerDriver.ts:140-148). Offence paling awal/akhir berasal dari semua notice yang dipilih (Furnish.ts:383-411). Jika notice tidak punya tanggal offence, cek dilewati (ValidHirerDriver.ts:86, 128)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan prompt bahwa periode sewa tidak valid sehingga submission ditolak",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/error.ts:491-516; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:91-98; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:128-148; ocmseserviceui/src/components/form/DatetimeInput.ts:155-160",
+      "fit": "Sesuai",
+      "detail": "Field tanggal menampilkan error inline: 'Start date and time of rental period must be earlier than offence date.' dan 'End date and time of rental period must be later than offence date.' (error.ts:495, 508-509), langsung saat nilai berubah (DatetimeInput.ts:155-160). Ini error validasi di field, bukan modal atau kalimat 'submission is disallowed'; wording resmi dari URA tidak ada di repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User tidak bisa melanjutkan atau mengirim particulars",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:114-128",
+      "fit": "Sesuai",
+      "detail": "'Proceed to review' menjalankan ValidateALL dan langsung return jika ada error (Particulars.ts:114-128), sehingga stepper tidak pindah ke halaman review/submit selama periode sewa tidak valid."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Server menolak submission jika periode sewa tidak mencakup offence date",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:170-177; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:257-283; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/exception/ValidationMessages.java:88-93; ocmseserviceui/src/pages/Furnish/Confirmation.ts:141-146; ocmseserviceui/src/pages/Furnish/Confirmation.ts:193-196",
+      "fit": "Sebagian",
+      "detail": "Jika UI dilewati, validateRentalPeriod menolak end <= start, start setelah offence, dan end sebelum offence untuk tiap notice (FurnishRequestValidator.java:257-283) dan controller membalas HTTP 400 tanpa menyimpan (FurnishSubmissionController.java:170-177). Namun pesan spesifik itu dilempar sebagai error lalu ditangkap, dan user hanya melihat halaman gagal generik via InitFailure (Confirmation.ts:141-146, 193-196). UI membandingkan sampai menit, server sampai detik, jadi kombinasi tertentu lolos UI tapi ditolak server dengan halaman generik tadi."
+    }
+  ]
+}

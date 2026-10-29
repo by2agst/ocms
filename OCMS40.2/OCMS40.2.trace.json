@@ -1,0 +1,46 @@
+{
+  "story": "OCMS40.2",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari), ocmsadminprivateapi workflows/agencies/mha/{upload,download} (batch MHA NRIC tiap 09:00/14:00/21:00 dan 11:30/16:30/23:30, MhaNricController manual), services/datahive/nricFinUenDataRetrieval (NRIC/FIN DataHive; enrichment dimatikan di prod), ocmsadminui pages/Notice/detail/OwnerDetails.tsx (Registered Address per notice)",
+  "note": "Story minta officer mengirim ID number + offence date ke ICA/DOS dan menerima info (mis. address). Status story kosong (tidak ada requirement/status yang diberikan), jadi ditrace normal. Layar ad-hoc tidak bisa diakses (route/menu dikomentari, folder epic40 tidak ada). Yang ada: batch MHA NRIC Upload/Download untuk notice di stage RD1/RD2/RR3/DN1/DN2/DR3; mapping upload hanya membawa noticeNo, idNo, stage, next processing date dan tidak ada offence date (MhaNricDataHelper.java:91-94). Jalur DataHive untuk NRIC/FIN dimatikan di prod (cron.mhadownload.datahive=false, cron.mhadownload.uenfin.enabled=false). Bahwa MHA = ICA dan DOS = DataHive/LTA cannot be confirmed from the repo; nilai properties di server asli dan SFTP MHA cannot verify from repo. Tidak ada tiket maintenance yang spesifik ke fitur ad-hoc ini.",
+  "recommendation": "Klaim hanya sebagai Sebagian: ID dikirim ke MHA lewat batch dan address disimpan per notice, tetapi layar ad-hoc dan query per officer belum ada, offence date tidak ikut dikirim di file MHA, dan jalur DataHive dimatikan di prod. Minta URA konfirmasi apakah MHA = ICA, DOS = DataHive dan apakah batch cukup.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman query ad-hoc di staff portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:331; ocmsadminui/src/utils/data/LinkData.tsx:255-259; ocmsadminui/src/utils/data/LinkData.tsx:405; ocmsadminui/src/utils/Meta/SearchVault.ts:1-12",
+      "fit": "Tidak ada code",
+      "detail": "Path /search-vault (judul 'Agencies Information') dan item menu 'Ad-hoc Vault Query' didefinisikan (SearchVault.ts:1-12, LinkData.tsx:255-259), tapi route di App.tsx:331 dan menu.push di LinkData.tsx:405 dikomentari, begitu juga import Epic40 (App.tsx:54); folder pages/epic40 tidak ada di ocmsadminui. Halaman tidak bisa dibuka dari staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) hanya daftar laporan tanpa controller atau authorization mapping, bukan form query; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi ID number dan offence date, UI mengirim ke API",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/UPLOffender.tsx:11; ocmsadminui/src/utils/mapping/index.ts:37; ocmsadminui/src/utils/validation/index.ts:43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:33-34",
+      "fit": "Tidak ada code",
+      "detail": "Komponen form SearchVaultUEN/SearchVaultUIN hanya tersisa sebagai import yang dikomentari (UPLOffender.tsx:11, ReportListDOS.tsx:25); mapping dan validation epic40 juga dikomentari (utils/mapping/index.ts:37, utils/validation/index.ts:43). Di ocmsadminapi tidak ada endpoint yang menerima ID number + offence date untuk satu query; yang berbau enquiry hanya trigger batch tanpa parameter POST /lta-enquiry/trigger (CronProxyController.java:33-34), dan ocmsadminapi tidak punya proxy ke /v1/datahive/query di ocmsadminprivateapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim ID number dan offence date ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:91-94; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/MhaNricController.java:34-36; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:751-760",
+      "fit": "Sebagian",
+      "detail": "Batch MHA NRIC Upload aktif di prod (cron.mhaupload.enabled=true, 09:00/14:00/21:00 Senin-Sabtu, cron-schedules-prod.properties:105-106) dan mengambil ID dari notice stage RD1/RD2/RR3/DN1/DN2/DR3; mapping record hanya noticeNo, idNo, nextProcessingStage, nextProcessingDate (MhaNricDataHelper.java:91-94), tanpa offence date. Trigger manual POST /mha/upload (MhaNricController.java:34-36) tanpa parameter ID. Jalur DataHive: offence date dipakai untuk FIN (DataHiveUenFinService.java:751-760, dari nextProcessingDate), tetapi cron.mhadownload.datahive=false (cron-schedules-prod.properties:50) dan sync UEN/FIN dimatikan (:52); nilai server asli cannot verify from repo. MHA = ICA dan DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima info individu (mis. address) dan menampilkannya ke officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:792-795; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:120; ocmsadminui/src/pages/Notice/detail/OwnerDetails.tsx:286-287",
+      "fit": "Sebagian",
+      "detail": "Batch MHA NRIC Download aktif (cron.mhadownload.enabled=true, 11:30/16:30/23:30, cron-schedules-prod.properties:119-120); hasilnya memperbarui data owner/driver termasuk tanggal ganti address (MhaNricDownloadHelper.java:792-795) dan Notice detail menampilkan 'Registered Address' (OwnerDetails.tsx:286-287). Info muncul per notice setelah batch, bukan jawaban langsung ke officer. Info DataHive (NRIC/FIN) tidak terisi selama cron.mhadownload.datahive=false dan uenfin.enabled=false di prod."
+    }
+  ]
+}

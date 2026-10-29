@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts; ocmseserviceapi workflows/urapg/service/UraPaymentService, crud/beans/SystemConstant. No QR code in any of the six repos",
+  "note": "The portal only lets the offender choose PayNow (code PYNOW), creates the transaction and sends the browser to a URL owned by the URA Payment Gateway. QR generation and its validity period are not in any repo: there is no QR library (qrcode/zxing) in package.json or build.gradle, no code that draws or receives a QR, and no validity-minutes setting. ura.payment.transaction.timeout=300 (application-prod.properties:35) is not read by any Java class; the 300 seconds the code does use is the 'payment still processing' threshold in ParkingFinesServiceImplement.java:34, not a QR validity. So the QR and the X minutes may be built on the PG side; that cannot be verified from the repo. The only QR-related item in the portal is the how-to-pay infographic modal for PayNow (PaymentSearchResult.ts:496-520). No maintenance ticket touches the QR.",
+  "recommendation": "Do not claim in full. Claim only PayNow mode selection and transaction creation. QR generation and the X-minute validity must be proven on the PG side (outside the repo) or marked as a gap",
+  "steps": [
+    {
+      "step": "Offender chooses PayNow on the payment page",
+      "detail": "A PayNow radio exists (PaymentSearchResult.ts:633-640) and is mapped to paymentMethod PYNOW (API.ts:176). The info icon opens a 'Make Payment using PayNow QR Code' guide modal with a static infographic image (lines 496-520); that is not a QR code."
+    },
+    {
+      "step": "System creates the PayNow transaction and asks the URA Payment Gateway for the payment page address",
+      "detail": "PYNOW uses prefix DICNOC (SystemConstant.java:18, 24; UraPaymentService.java:96-97). The transaction is sent to PG storePG/v1 and the paymentUrl is returned (lines 224-246). Saving the status I record uses the same code as OCMS50.16, including the gap: a save failure is only logged (286-288). Whether the PG response carries a QR: cannot verify from repo."
+    },
+    {
+      "step": "After Pay Now, the offender's browser lands on the PayNow payment page",
+      "detail": "The portal has no PayNow page of its own; the Pay Now button only builds a hidden POST form to paymentUrl and calls submit() (PaymentProcess.ts:86-91). What the destination page shows, including whether a QR appears there, belongs to the PG: cannot verify from repo. This generic redirect is the same for all three modes, so it is Sebagian at best for the QR story."
+    },
+    {
+      "step": "The page shows a PayNow QR code that can be scanned or uploaded from a bank app",
+      "detail": "No code creates or draws a QR in the six repos: searches for qrcode, qr_code, zxing and 'QR' in ocmseserviceui, ocmseserviceapi, thirdpartyapi, ocmsadminapi, ocmsadminprivateapi and ocmsadminui only find the guide modal title (PaymentSearchResult.ts:502) and the infographic image (line 514). package.json and build.gradle have no QR library. There is no button to download or upload a QR image."
+    },
+    {
+      "step": "The QR code is valid for X minutes",
+      "detail": "There is no QR validity setting or logic. ura.payment.transaction.timeout=300 (application-prod.properties:35) is not read by any Java class (searched src of ocmseserviceapi and ocmseserviceui). The 300 seconds in the code is PAYMENT_PROCESSING_THRESHOLD_SECONDS (ParkingFinesServiceImplement.java:34, 461-465), which blocks repeat payment on a notice for 5 minutes after a transaction starts, not a QR validity. The real value of X: cannot verify from repo."
+    }
+  ]
+}

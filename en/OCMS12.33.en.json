@@ -1,0 +1,33 @@
+{
+  "story": "OCMS12.33",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, utilities/{smsutility/SmsUtil, emailutility/EmailService}, properties cron-schedules-prod, application-prod and application-uat. Other repos: no related code. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: Vault & SMS, Code Split, SMS permission for the api App Service (cannot verify from repo). There is no flow deck. The hirer's 3rd letter = stage RR3 (OCMS-DF-2026-170 says 'RR3 for hirers / DR3 for drivers'; see OCMS12.31). The same eNotification cron as OCMS9.7/9.8 and OCMS12.19 sends SMS reminders for stages RD1 to DR3 including RR3: notices are picked through the due-date window, combined per ID, and the template is chosen from the stage (RR3_SMS_INDIVIDUAL). Not proven: the sentence that refers to the 3rd letter (it lives in the DB template) and real delivery, because in PROD cron.notification.enabled=false and sms.enable=false with no sms.allowedSources. Fetching the numbers from 'DOS' is covered by OCMS12.32; DOS = DataHive/LTA cannot be confirmed from the repo. The fit of the combining step equals OCMS9.7 and OCMS12.19.",
+  "recommendation": "Claim partially. Selecting RR3 hirers, combining, and choosing the SMS template exist in code, but cron.notification.enabled and sms.enable are off in PROD and the template text is not in the repo. Switch them on in UAT and show one RR3 hirer SMS that lists the notices and refers to the 3rd letter",
+  "steps": [
+    {
+      "step": "OCMS collects the outstanding notices of individual hirers already at stage RR3 for the day's batch",
+      "detail": "The eNotification job calls queryRecordsForReminder() (NotificationSmsEmailJob.java:162) and sets the stage from last_processing_stage on each row (NotificationSmsEmailJob.java:170-182). The query picks notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, id_no not in the exclusion list, no SMS/email record yet for the same stage, not suspended (except TS-HST), and a due date (last_processing_date + parameter POS + PDD) inside the ENOTEDAYS window (NotificationSmsEmailHelper.java:1109-1114, 1135-1160). A hirer at RR3 is included because the query does not tell owner and hirer apart (hirer 3rd letter = RR3, see OCMS12.31); vehicle types I, D, V are excluded. The ENOTEDAYS/POS/PDD parameters are in the DB, cannot verify from repo. The word 'DOS' is not in the code (DOS = DataHive/LTA cannot be confirmed from the repo); fetching the numbers is covered by OCMS12.32. Same fit as OCMS12.19."
+    },
+    {
+      "step": "OCMS identifies the unique individual hirers among the notices in the batch",
+      "detail": "combineNotices(records) (NotificationSmsEmailJob.java:191) groups by getRecipientKey: for an individual the key is 'I_' + ID number (NotificationSmsEmailHelper.java:2230-2250). But compositeKey = recipientKey + '_' + stage + '_' + paymentDueDate (NotificationSmsEmailHelper.java:2178), so the same individual hirer with a different due date or stage becomes a separate group and can still get more than one SMS on the same day. The story asks for one unique recipient per batch. Same fit as OCMS12.19 and OCMS9.7."
+    },
+    {
+      "step": "Only individual hirers get the SMS; companies do not enter the SMS batch",
+      "detail": "The SMS channel is chosen for any idType other than B (NotificationSmsEmailHelper.java:443-453). Company records (idType B) do not enter the SMS batch (NotificationSmsEmailJob.java:269-277) and sendBatchSms also rejects companies (NotificationSmsEmailHelper.java:1540-1546). Before the SMS is prepared, IDs on the exclusion list are skipped (NotificationSmsEmailJob.java:226) and passports are skipped (NotificationSmsEmailJob.java:237). One thing to watch out for: loadAllExcludedIds returns an empty set when reading the exclusion list fails (fail-open), so an opted-out ID could still get an SMS when the read fails. That is outside the story text, so the fit of this step stays Sesuai. Same fit as OCMS12.19."
+    },
+    {
+      "step": "The SMS lists the outstanding notices combined per hirer",
+      "detail": "Non-ENA notices with the same key are combined: combinedNotices is joined with '.', amountPayable is summed (NotificationSmsEmailHelper.java:2182-2200). prepareTemplateData passes noticeCount, combinedNotices, amountPayable, paymentDueDate, vehicleNo to the template (NotificationSmsEmailHelper.java:410-433). generateMessages picks template <STAGE>_SMS_INDIVIDUAL and adds _COMBINED when there is more than one notice (NotificationSmsEmailHelper.java:274-301, 459-475), so for RR3: RR3_SMS_INDIVIDUAL[_COMBINED]. The template content is in ocms_template_store, not in the repo (cannot verify from repo). Same fit as OCMS12.19."
+    },
+    {
+      "step": "The SMS refers to the 3rd letter reminder/notification",
+      "detail": "The code only picks the template name from the stage: for an RR3 notice it becomes RR3_SMS_INDIVIDUAL or RR3_SMS_INDIVIDUAL_COMBINED (NotificationSmsEmailHelper.java:459-475). No code inserts a letter reference (number/date of the 3rd letter); whether the text mentions the third letter depends only on the template content in the DB. The template is not in the repo, cannot verify from repo. Same fit as OCMS12.19."
+    },
+    {
+      "step": "OCMS sends the SMS reminder through the batch SMS",
+      "detail": "The job calls sendBatchSms (NotificationSmsEmailJob.java:289-291), which calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NotificationSmsEmailHelper.java:1611-1612; SmsUtil.java:572-601). But in PROD cron.notification.enabled=false (cron-schedules-prod.properties:236; the scheduler returns right away in NotificationJobsScheduler.java:49-52), sms.enable=false (application-prod.properties:87) and sms.allowedSources is not set in application-prod.properties, so SmsUtil returns status 'disabled' (SmsUtil.java:398-409). In UAT sms.enable is also false but sms.allowedSources=ENOTIFICATION (application-uat.properties:82), so UAT can send when the job is run manually. Ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. The real PROD server values, the SMS permission for the api App Service (demo_remark) and the actual SMS delivery by the provider cannot verify from repo. Same fit as OCMS12.19."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS43.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/schedulers/DailyReportJobsScheduler, framework/workflows/paymentReport/{services/DailyPaidReportServiceImpl,jobs/DailyPaidReportJob,helpers/DailyPaidReportHelper,helpers/PaymentExceptionReportHelper}, framework/workflows/synctxndata/CronSyncTxnData, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminui pages/Cron/list/CronList.tsx (trigger only). ocmsadminapi cronproxy, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story.",
+  "note": "Story status: Fully paid (status_with_ura). The Daily Paid Report runs every day at 08:00 for yesterday and is sent as an Excel attachment (sheets Summary, eService, AXS, Offline, JTC, Refund). Gaps: (a) the query selects notices by crs_date_of_suspension = report date (DailyPaidReportHelper.java:88-89), so a manual payment with a backdated date does not appear on the day it was keyed in (ticket OCMS-SR-2026-106, Closed with the decision to keep the current logic); only the latest transaction per notice is used (lines 96-123) and URA records with an unknown sender land in no sheet (line 186); (b) 'errors, if any' are not in this report: per-notice CronSyncTxnData failures only go to the log (CronSyncTxnData.java:240), while PS-PRA/TS-PAM/refund are in a separate Payment Exception Report; (c) there is no download screen, the staff portal can only trigger the email (CronList.tsx:53), so 'download' means opening the email attachment. Other tickets: OCMS-DF-2026-013 (JTC total $0), OCMS-SR-2026-088 (JTC vs URA category), OCMS-DF-2026-104 (duplicate emails), OCMS-SR-2026-153 (ATOMS columns), OCMS-SR-2026-016 (recipients); all Closed/Prod deployed. email.enableSmtp=false in prod, but DAILY_PAID_REPORT is in email.smtp.allowedSources (application-prod.properties:80-81) so this email still goes out; real SMTP delivery and recipients: cannot verify from repo.",
+  "recommendation": "Claim partially (see the Sebagian steps). The daily report and email delivery exist; coverage of 'notices updated as paid' depends on the suspension date, and 'errors' are not in this report.",
+  "steps": [
+    {
+      "step": "OCMS generates the daily report automatically every day",
+      "detail": "cron.dailyreport.schedule=0 0 8 * * ? and enabled=true in prod (job 2 = Daily Paid Report); DailyReportJobsScheduler runs the jobs in sequence (line 97) and the default report date is yesterday (DailyPaidReportServiceImpl.java:42). Real server value: cannot verify from repo. Ticket OCMS-DF-2026-104 (duplicate emails) is Closed/Prod deployed."
+    },
+    {
+      "step": "The report lists notices updated as paid on that day",
+      "detail": "The query selects von.crs_reason_of_suspension IN ('PRA','FP') and CAST(crs_date_of_suspension AS DATE) = report date (lines 88-89). That is the suspension date, not the date the notice was updated: a manual payment with a backdated date does not appear on the day it is keyed in (OCMS-SR-2026-106, Closed, logic kept). Results are deduplicated per notice keeping only the latest transaction (lines 96-123), so several partial payments on one notice become one row, and a record with a URA PP code but a sender other than URA/AXS/OCMS falls into no category (comment at line 186)."
+    },
+    {
+      "step": "The report is an Excel file with a summary and transaction details per payment channel",
+      "detail": "generateExcelReport builds the sheets Summary, eService Successful Txns, AXS Successful Txns, Offline Payments, JTC Collections, and Refund (lines 247-264); the channel sheets contain receipt, amount, payment date/time, Vehicle No, and Offence Date and Time (lines 473-474). Tickets OCMS-DF-2026-013, OCMS-SR-2026-088, and OCMS-SR-2026-153 (JTC total, category, ATOMS columns) are Closed/Prod deployed."
+    },
+    {
+      "step": "The report also includes errors (if any) in the paid-status update process",
+      "detail": "The Daily Paid Report itself has no error sheet or section. The closest is the Payment Exception Report (job 1 in the same scheduler, DailyReportJobsScheduler.java:96) which lists PS-PRA, TS-PAM, and refunds (PaymentExceptionReportHelper.java:70-86); those are payment exceptions, not processing errors. A per-notice update failure in CronSyncTxnData only goes to the log and is retried (CronSyncTxnData.java:240), it does not reach any report. Ticket OCMS-SR-2026-112 (exception report columns, Closed)."
+    },
+    {
+      "step": "The report is sent to officers as a downloadable Excel attachment (with separate emails for no data or failure)",
+      "detail": "DailyPaidReportJob builds the Excel bytes (line 150) and sends them through EmailService to email.report.paymentreport.daily.recipients (application-prod.properties:74) with the attachment OCMS_Daily_Paid_Report_yyyyMMdd.xlsx and source DAILY_PAID_REPORT (lines 201, 213); with no data a 'no data' email is sent (line 144), on failure a failure email is sent (line 156). email.enableSmtp=false in prod, but DAILY_PAID_REPORT is in email.smtp.allowedSources (lines 80-81), so it is not held back. There is no download screen in the staff portal, only a trigger button (CronList.tsx:53); download = opening the email attachment. Real recipients and SMTP: cannot verify from repo."
+    }
+  ]
+}

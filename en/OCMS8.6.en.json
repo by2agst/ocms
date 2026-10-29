@@ -1,0 +1,29 @@
+{
+  "story": "OCMS8.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin/services/DataHiveUenFinService (storeFinDataResult, processPRSCGrantFlow, applyTSOLD, saveGrantDataToPass, createWorkItemForPRSC which is still a PLACEHOLDER), services/datahive/.../DataHiveFINBatchService (PR/SC status query), schedulers/MhaDownloadJobsScheduler + cron-schedules-*.properties (DH UEN/FIN job flag). ocmsadminui: utils/data/LinkData.tsx (Work Items menu commented out), utils/Meta/WorkItem.ts. ocmsadminapi: TemporaryRevivalHelper (generic revival). ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: 'Requirement given - Gen flow'. What exists in code: when DataHive shows a FIN already converted to PR/SC, the cron applies TS-OLD without a revival date and saves the previous FIN, new NRIC and grant date to ocms_dh_mha_pass. The core of this story, a work item for the OIC inbox, is not built: createWorkItemForPRSC only writes the log '[PLACEHOLDER] ... feature not ready' (DataHiveUenFinService.java:2920-2924), there is no entity/repository/SQL for work item tables in the six repos, and the Work Items menu in the staff portal is commented out (LinkData.tsx:396-398) with no page behind it. The URA demo remark 'Really no Vault or unsure about handling?' does not change this finding. The DH UEN/FIN job is false in cron-schedules-prod.properties:52 (deployed value cannot verify from repo). No maintenance ticket touches work items or the PR/SC TS-OLD conversion.",
+  "recommendation": "Do not claim the work item, inbox routing and OIC decision steps. Only detection of the FIN to PR/SC conversion, storing the conversion data and TS-OLD can be claimed (Sebagian because the job flag is false in PROD). Needs a work item entity, an OIC inbox page and filling in the details (previous FIN, new NRIC, address, conversion date)",
+  "steps": [
+    {
+      "step": "The notice is already temporarily suspended (TS-OLD) after the FIN is found converted to PR/SC",
+      "detail": "storeFinDataResult sets prScConverted (DataHiveUenFinService.java:1504) and calls processPRSCGrantFlow (:1579), which calls applyTSOLD (:3256). applyTSOLD applies TS-OLD through tsHelper.processTS with daysToRevive null, so there is no auto-revival (:2815-2821). Only a FIN to PR/SC conversion from DataHive is handled; other status changes have no TS-OLD path, and if a death is detected first the grant flow is skipped (:1577-1578). The DH UEN/FIN job is false in cron-schedules-prod.properties:52 (the file comment says it is off until the DataHive view names are verified); the value on the server cannot verify from repo. Sebagian because of scope and the PROD flag."
+    },
+    {
+      "step": "OCMS records the conversion details: previous FIN, new NRIC and conversion date",
+      "detail": "saveGrantDataToPass saves previousFin, newNricNo, datePrGranted or scGrantDate to ocms_dh_mha_pass (DataHiveUenFinService.java:2855-2877). The data only goes into the pass table, not into a work item the OIC can read. The address is not updated for an already converted FIN because updateAddressForFIN is skipped (:1557-1560), so the 'address' in the story is not met."
+    },
+    {
+      "step": "OCMS creates a work item holding those conversion details",
+      "detail": "createWorkItemForPRSC only writes the log '[PLACEHOLDER] Work item creation skipped ... feature not ready' (DataHiveUenFinService.java:2920-2924); its javadoc names ocms_work_item, ocms_work_item_allocation, ocms_work_item_notices but there is no entity, repository or SQL for those tables in the six repos (grep work_item, workitem, work item, inbox in all repos). The test path DataHiveFINServiceImpl only adds a string to the generatedWorkItems list without writing to the DB (:213-214). processPRSCGrantFlow still calls it (:3259)."
+    },
+    {
+      "step": "The work item is routed to the OIC's inbox",
+      "detail": "The 'Work Items' menu exists in LinkData.tsx but the line menu.push(LinkWorkItem) is commented out under the label '//! UNCONFIRMED' (LinkData.tsx:396-398). WorkItem.ts only holds a path and title for the breadcrumb (HST.tsx:30); there is no page component, route, endpoint or allocation-to-OIC code. The only work item creation in the UI is MapPostApprovalWorkItem for UPL (NoticeUPL.ts:171-196, work_ref 'UPL Endorsement'), not for a residential status change."
+    },
+    {
+      "step": "The OIC decides whether to keep following up the offender under the new status",
+      "detail": "Because TS-OLD is applied without a revival date (DataHiveUenFinService.java:2819), the notice stays held until staff revive the TS manually through the generic Revival feature in the staff portal (TemporaryRevivalHelper.java:42; endpoint /v1/staff-revive-eligibility in api-authorization.properties:24). This feature is generic and not the one the story names: the OIC does not see a work item, previous FIN, new NRIC or conversion date on the decision screen. Sebagian at best for a generic mechanism."
+    }
+  ]
+}

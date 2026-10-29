@@ -1,0 +1,25 @@
+{
+  "story": "OCMS32.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (/plus-apply-suspension), workflows/payment_reduction/payment/PaymentUpdateServiceImpl (PS-APP); cas_integration/CasIntegrationController (plus-get-court-case-info, not credited). No OCMS-to-PLUS check and no court report.",
+  "note": "The story asks OCMS to check cases against PLUS for appeals received and the decision, and indicate this in the report. There is no OCMS-to-PLUS check (no outbound PLUS client/URL in properties; every PLUS integration is PLUS calling OCMS) and no court report. The opposite direction exists: PLUS pushes the appeal outcome into OCMS as a suspension via POST /plus-apply-suspension, and payments after PS-APP are handled in PaymentUpdateServiceImpl. That only puts an appeal status into the notice data; it is not a check for a report. Related PLUS tickets (OCMS-SR-2026-146, OCMS-DF-2026-060/070/075) are Closed and do not change the verdict; they show APP data via PLUS had defects. The story status is blank, so the requirement is not given; traced normally. plus-get-court-case-info is not credited (PLUS asks for the court payment due date, not appeals).",
+  "recommendation": "Claim only the appeal (APP) data pushed from PLUS into OCMS. The check against PLUS and the report indication are not built.",
+  "steps": [
+    {
+      "step": "Officer confirms the report generation",
+      "detail": "There is no screen/action to confirm court report generation (Report/index.tsx:61-76 path \"\", ActionReport.tsx:33-62 resource commented out). See OCMS32.1 and OCMS32.3."
+    },
+    {
+      "step": "OCMS checks each case against PLUS for appeals received",
+      "detail": "The integration direction is reversed: every PLUS endpoint in ocmsadminapi (/plus-*) is called by PLUS into OCMS; there is no outbound PLUS client/URL in application-*.properties (only ocms.plus.key.validation for inbound key validation, application-dev.properties:53) and no per-case check from OCMS. plus-get-court-case-info (CasIntegrationController.java:167-171) returns court_payment_due_date to PLUS, not appeals. The real PLUS server cannot be verified from the repo."
+    },
+    {
+      "step": "Appeal and its decision are available in OCMS data per notice",
+      "detail": "PLUS pushes the appeal outcome into OCMS as a suspension via POST /plus-apply-suspension (SuspensionProcessingController.java:485-500, payload suspensionType/reasonOfSuspension/suspensionRemarks); payments after PS-APP (appeal accepted) are handled in PaymentUpdateServiceImpl.java:98-103. So the APP status exists on the notice, but there is no per-case 'appeal received + decision' list for the mention date. Tickets OCMS-SR-2026-146, OCMS-DF-2026-060, -070, -075 (all Closed/Prod) touch the TS-APP/PS-APP logic via PLUS; they do not change the verdict."
+    },
+    {
+      "step": "Appeals and decisions are indicated in the report",
+      "detail": "There is no court report, so no appeal column/indicator. No code generates a court report from the mention date. Report/index.tsx:61-76 only declares 4 titles (Court Application Vault, Court Application Submit, Court Summon, Court Rejected) with path \"\"; their resource is commented out (ActionReport.tsx:33-62); they are not rendered in ReportList.tsx:11-32; there is no court report controller in ocmsadminapi/workflows/reports (only daily, agency mha/ps/toppan, system rip/notification/noticecreated/plusnotification/hst)."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.54",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController, workflows/furnish/stafffurnish/services/StaffFurnishService (staffFurnish menimpa tanpa cek), workflows/furnish/helpers/FurnishabilityChecker.runAllChecksAndCollectFailures dan workflows/furnish/manual/helpers/ManualFurnishValidationService (ada tapi bukan jalur PLUS). Repo lain: tidak ada code",
+  "note": "Demo remark di sheet (API PLUS tidak menarik data, dugaan koneksi DB drop) cannot verify from repo. Pencarian dilakukan di kedua layer dan lima repo: PlusIntegrationController, StaffFurnishService, OwnerDriverServiceImplPlus, plus semua kemunculan checkExistingParticulars/runAllChecksAndCollectFailures. Logika 'particulars sudah ada' hanya dipakai jalur eService review (ManualReviewService) dan /furnish/officer/manual, bukan endpoint plus-*. Sebaliknya, /plus-furnish selalu mengganti current offender. Langkah selanjutnya di story 41.56-41.58 (overwrite setelah konfirmasi PLUS) juga tidak punya handshake di jalur PLUS.",
+  "recommendation": "Jangan klaim sebagai selesai. Request PLUS tidak diperiksa terhadap particulars yang sudah ada; datanya langsung diganti. Logika pengecekan ada di jalur lain (review eService dan manual furnish) dan bisa dipakai ulang.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat request PLUS masuk, OCMS membaca record hirer/driver yang sudah ada untuk notice itu",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:175-231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:196-198; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:350-362",
+      "fit": "Tidak ada code",
+      "detail": "/plus-furnish langsung ke staffFurnish. Satu-satunya pembacaan record lama adalah findCurrentOffender untuk menyimpan ID lama bagi logika HST (StaffFurnishService.java:196-198), bukan untuk menilai apakah particulars sudah ada. /plus-redirect membaca record target per noticeNo + role + idNo (350-362) tetapi hanya untuk gagal bila tidak ditemukan atau ID tidak cocok, bukan untuk memberi tahu 'sudah ter-update'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan hirer/driver yang diminta dengan yang sudah ada (ID dan role sama berarti sudah ter-update)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:248-327; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:280-293; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:215; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:74",
+      "fit": "Tidak ada code",
+      "detail": "Logika pembanding ada di FurnishabilityChecker.runAllChecksAndCollectFailures: ID dan role sama dengan current offender menghasilkan HIRER_ALREADY_UPDATED atau DRIVER_ALREADY_UPDATED (FurnishabilityChecker.java:280-293), ID ada di role lain menghasilkan FURNISHED_ID_EXISTS (303-306), dan record lain di role yang sama menghasilkan PREVIOUS_RECORDS_EXIST (311-314). Fungsi ini hanya dipanggil dari ManualReviewService.java:215 (submission eService yang pending). ManualFurnishValidationService.checkExistingParticulars (ManualFurnishValidationService.java:74) hanya dipakai /furnish/officer/manual. Tidak ada pemanggilan dari endpoint plus-*, dan endpoint non-plus butuh JWT staf (JwtFilter.java:179), jadi PLUS tidak bisa memakainya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila particulars yang sama sudah ada, OCMS tidak menerapkan request itu lagi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:201; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:206; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:236; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:240-262",
+      "fit": "Beda dari flow",
+      "detail": "staffFurnish tidak berhenti bila ID dan role yang sama sudah menjadi current offender. Ia menonaktifkan offender lama (StaffFurnishService.java:201), menghapus alamat lama untuk role itu (206), menyimpan record baru dengan key noticeNo + role (231), membuat alamat furnished_mail (236), lalu menetapkan ulang stage ke RD1/DN1 dan menghitung ulang amount (240-262). Jadi request kedua untuk orang yang sama diproses ulang, termasuk reset stage, bukan ditolak."
+    }
+  ]
+}

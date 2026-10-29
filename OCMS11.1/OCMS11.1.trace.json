@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (streamLtaUploadData), framework/workflows/agencies/lta/{upload/helpers/LtaUploadHelper, download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator,LtaDatabaseOperations,LtaIdTypeUtil}}, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "Status story 'Fully paid'. Story ini hanya merujuk Epic OCMS7 (cek dan update detail pemilik kendaraan), jadi dinilai lewat job LTA Upload/Download di ocmsadminprivateapi (stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti). Story menyebut DOS, code memakai LTA untuk data pemilik; apakah DOS sama dengan LTA cannot verify from repo. Query upload memilih ROV, type O/E, bukan PS, bukan kendaraan asing; hasil LTA mengisi owner/driver dan ID type (N/F/P/B). Bagian ID type berfungsi sesuai story. Namun loop ROV masih punya defect yang belum ditutup: OCMS-DF-2026-160 (Pending Closure, 894 notice keluar dari ROV tanpa ownership dan resend TS-ROV tidak konsisten) dan OCMS-SR-2026-182 (Pending UAT, 1.367 notice menggantung di ENA/RD1 tanpa offender details), jadi langkah update dan TS-ROV hanya Sebagian. OCMS-DF-2026-118 (exclude foreign vehicle) dan OCMS-DF-2026-052 (patch Diplomat) sudah closed. Isi file LTA dan jadwal per environment cannot verify from repo.",
+  "recommendation": "Boleh diklaim untuk bagian identifikasi ID type dan pemilihan notice. Update particulars dan loop TS-ROV baru bisa dianggap selesai setelah OCMS-DF-2026-160 dan OCMS-SR-2026-182 ditutup dan diverifikasi.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih NOPO kendaraan lokal yang berada di stage ROV untuk ditanyakan ke agency (kendaraan asing dan notice PS dikecualikan)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:88-93; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135",
+      "fit": "Sesuai",
+      "detail": "Query streamLtaUploadData mengambil notice dengan next_processing_stage = 'ROV', next_processing_date <= hari ini, offence_notice_type IN ('O','E'), suspension_type bukan PS, dan vehicle_registration_type != 'F' (kendaraan asing dikeluarkan, lihat OCMS-DF-2026-118 closed). Ada satu edge case: di SQL, != 'F' membuang baris yang vehicle_registration_type-nya NULL. LTA Upload cron enabled=true di prod (cron-schedules-prod.properties:135). Story menyebut DOS, code mengirim ke LTA; cannot verify from repo apakah keduanya sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima hasil dari agency dan meng-update particulars pemilik kendaraan (owner/driver, detail notice, alamat)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:416; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:181-200; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sebagian",
+      "detail": "LtaDownloadHelper.processRecord memanggil updateNoticeWithOwnerData (baris 416) yang meng-update ocms_valid_offence_notice, ocms_offence_notice_detail dan ocms_offence_notice_owner_driver; LTA Download cron enabled=true di prod. Tapi OCMS-DF-2026-160 (Pending Closure) mencatat 894 notice sudah maju ke ENA/RD1 tanpa ownership pernah diterima, dan OCMS-SR-2026-182 (Pending UAT) mencatat 1.367 notice menggantung di ENA/RD1 tanpa offender details, sehingga update belum bisa diandalkan penuh. OCMS-DF-2026-052 (Diplomat salah di-patch ke ENA) sudah closed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika agency tidak menemukan data pemilik (error code 1-4), OCMS menerapkan TS-ROV supaya notice diulang lewat siklus enquiry",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:366-400; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:88",
+      "fit": "Sebagian",
+      "detail": "Untuk error code 1, 2, 3, 4, processRecord memanggil applyTsRovStatus (LtaDownloadHelper.java:400) lalu berhenti. Rancangannya sesuai, tetapi OCMS-DF-2026-160 (Pending Closure) melaporkan loop ini tidak andal: 24 notice ber-TS-ROV dikirim ulang tidak konsisten (ada yang 2-24+ hari tanpa resend). OCMS-SR-2026-182 (Pending UAT) menunjuk masalah yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan dan menyimpan ID type pemilik (NRIC, FIN, passport, company) dari tipe ID yang dikirim agency",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-57; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDatabaseOperations.java:140-145",
+      "fit": "Sesuai",
+      "detail": "LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms memetakan tipe LTA ke N (NRIC, kode 1), F (FIN, kode D), P (passport, kode 2 dan 3) dan B (company, kode 4-9, A-C); LtaDatabaseOperations menyimpannya ke kolom idType di owner/driver (baris 142-144). Catatan: tipe yang tidak dikenal atau kosong jatuh ke N (baris 56), jadi tipe baru dari LTA akan diperlakukan sebagai NRIC. Fakta yang sama dinilai Sesuai di OCMS8.1."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS19.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,page/upload/Upload,page/upload/UploadResult,context/NoticeSearchUploadContext,component/NoticeSearchUploadSlot}, components/SheetUpload.tsx, context/SheetContext.tsx, utils/validation/Format/ValidFile.ts, utils/data/SheetData.ts; ocmsadminapi validoffencenoticelist. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai",
+  "note": "Fitur upload ada dan berfungsi sebagai alternatif search, tetapi formatnya XLSX, bukan CSV seperti di story. Pembaca CSV masih ada di SheetContext.tsx tetapi daftar format yang diterima hanya xlsx (ValidFile.ts:154, csv di-comment), jadi CSV tidak bisa diunggah dari UI. Template bukan hanya daftar notice number: kolomnya Notice No, Summon No, Vehicle No, ID No. Upload ini generik (halaman Notice Search), bukan khusus revival; revival dipilih sesudah hasil tampil. Teks hint SheetUpload menulis 10 MB sedangkan batas yang dijalankan FileInput adalah maxsize 2 MB dari config (FileInput.tsx:160-164). Tiket OCMS-DF-2026-187 (Pending UAT, bulk search sort) tidak mengubah fit.",
+  "recommendation": "Klaim upload sebagai alternatif search dengan catatan format XLSX menggantikan CSV. Minta URA konfirmasi bahwa XLSX diterima; jika tidak, CSV perlu diaktifkan kembali.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman upload dari Notice Search sebagai alternatif search",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:179-182; ocmsadminui/src/App.tsx:107-118",
+      "fit": "Sesuai",
+      "detail": "Accordion Search Notices punya tombol XLSX File Upload yang menuju route upload (NoticeSearchForm.tsx:179-182); route notices/search/:search_type/upload dan /result ada di App.tsx:107-118. Tombol dan route sama untuk tipe All dan Outstanding."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memakai template berisi daftar notice number",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/SheetData.ts:531-536; ocmsadminui/src/context/SheetContext.tsx:103-111; ocmsadminui/src/context/SheetContext.tsx:211-229",
+      "fit": "Sesuai",
+      "detail": "Template Search-Notices-Template berisi kolom Notice No., Summon No., Vehicle No., ID No. (SheetData.ts:531-536; SheetContext.tsx:103-111). Header file yang diunggah dicek terhadap template; jika kolom atau label beda, upload ditolak dengan pesan template tidak cocok (SheetContext.tsx:211-229). Kolom Notice No. ada sehingga daftar notice number bisa dipakai; kolom lain opsional."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File daftar notice number diunggah dalam format CSV",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Format/ValidFile.ts:154; ocmsadminui/src/components/SheetUpload.tsx:206; ocmsadminui/src/context/SheetContext.tsx:183-193; ocmsadminui/src/components/form/FileInput.tsx:148-154",
+      "fit": "Beda dari flow",
+      "detail": "Format yang diterima hanya XLSX: FileTypeFormat.Sheet berisi FileExt xlsx saja dan csv/xls di-comment (ValidFile.ts:154), dipakai oleh upload_notices (ValidFile.ts:167-170) dan NOTICE_SEARCH_ALL (SheetContext.tsx:103-111). Hint di layar: Accepted file format is only .xlsx (SheetUpload.tsx:206), tombol dan judul memakai kata XLSX (NoticeSearchForm.tsx:181). Parser CSV masih ada (SheetContext.tsx:183-193) tetapi tidak terjangkau karena FileInput menolak ekstensi di luar daftar format dengan pesan File format is not acceptable (FileInput.tsx:107, 148-154). Batas ukuran yang dipakai FileInput adalah maxsize config 2 MB (FileInput.tsx:160-164, ValidFile.ts:167-169); teks hint 10 MB di SheetUpload.tsx:206 tidak sesuai config."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tiap baris diperiksa formatnya lalu dicari di database",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:90-101; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:106-121; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchUpload.ts:8-16",
+      "fit": "Sesuai",
+      "detail": "Setiap baris divalidasi yup (notice no, summon no, ID no; NoticeSearchUploadContext.tsx:90-101, ValidNoticeSearchUpload.ts:8-16). Baris yang lolos dikirim ke validoffencenoticelist dengan noticeNo/vehicleNo/idNo dan offenderIndicator Y, baris duplikat berbagi satu request lewat cache (NoticeSearchUploadContext.tsx:106-121)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan notice hasil upload di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-76; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:142-151",
+      "fit": "Sesuai",
+      "detail": "Setelah proceed, onSearch mengisi hasil (NoticeSearchUploadContext.tsx:142-151) dan UploadResult menampilkan NoticeValidList beserta daftar baris gagal (UploadResult.tsx:64-76). Satu baris bisa menghasilkan banyak notice (mis. cari per ID). Tiket OCMS-DF-2026-187 (Pending UAT) tentang sort kolom Payment Status pada hasil bulk search: source kolom di commit ini sudah crsReasonOfSuspension (components/datagrid/column/index.tsx:270-272), isi tampilan tidak berubah."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dari hasil upload officer bisa lanjut memilih notice untuk revival",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchUploadSlot.tsx:126-146; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:70-73",
+      "fit": "Sesuai",
+      "detail": "UploadResult memasang NoticeSearchUploadSlot yang punya dropdown Apply Operation dengan opsi yang sama (termasuk Apply Revival) dan tombol Select (NoticeSearchUploadSlot.tsx:126-146), memakai ApplyOperationAction yang sama dengan hasil search (NoticeSearchUploadSlot.tsx:39)."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS19.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Revival/form/RevivalForm, utils/mapping/Revival/Revival.ts. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-revive-suspension), helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}}, api-authorization.properties. Other repos: not relevant",
+  "note": "Sheet status: Fully paid (2 points); no flow deck. After the officer presses OK in the confirmation modal, the UI immediately calls POST staff-revive-suspension (one request for PS notices, one for TS) and the server processes synchronously: validation, marking all active suspensions as revived (current date, reason, remarks, officer), then clearing or repopulating the suspension fields on VON/eVON. No cron is involved. Notes: (1) revive closes ALL active TS and PS suspensions, not only the chosen type; (2) a failure in the VON/eVON update stage is returned as an error message without an exception, so the earlier suspended_notice update probably stays committed (from code reading, not tested) [Medium confidence]; (3) restoring amount payable for TS-RED is best-effort (errors are only logged, 'Revival succeeded but compo revert failed') and depends on data migrated for OCMS-DF-2026-072/028, production data state cannot be verified from repo; (4) the an_flag='N' reset for PS-ANS (PermanentRevivalHelper.java:222,232) differs from what ticket OCMS-DF-2026-129 expects (an_flag stays Y), which is final cannot be verified from repo. Tickets used: OCMS-DF-2026-029 and OCMS-DF-2026-028 (Closed, Prod deployed) for payment and reduction logic on revive.",
+  "recommendation": "Can be claimed; the core revive runs immediately and persists. Keep three notes: revive closes all suspensions, the TS-RED amount restore is best-effort, and the PS-ANS an_flag conflict with OCMS-DF-2026-129.",
+  "steps": [
+    {
+      "step": "The officer confirms the revival in the confirmation modal",
+      "detail": "The 'Revival Confirmation' modal asks for confirmation (RevivalForm.tsx:85-92). The OK button calls handleComModalOk, closes the modal and runs onSubmit (RevivalForm.tsx:269-272; modal rendered at :284-292). The Close button just hides the modal without any request."
+    },
+    {
+      "step": "After confirmation the UI sends the revive request straight to the API, separately for PS and TS notices",
+      "detail": "onAPI splits the notices by suspensionType (RevivalForm.tsx:106-107) then POSTs staff-revive-suspension for the PS group (:109-123) and the TS group (:137-151), each carrying noticeNo[], reason, remarks and the officer ID (Revival.ts:17-23). The request is sent synchronously inside the OK click, not scheduled. Per-notice results (success/failed) are collected and the notices are re-read from validoffencenoticelist (RevivalForm.tsx:125-134,165-188). This endpoint is protected by the OCMS_APPLY_REVIVAL function (api-authorization.properties:65-67)."
+    },
+    {
+      "step": "The API validates reason, remarks, officer, notice existence and suspension type before reviving",
+      "detail": "staffReviveSuspension uses source 'OCMS' and calls processRevivalList -> reviveTS or revivePS per notice (SuspensionProcessingController.java:622-668,802-826,833-863). The helper checks reason, officer, remark length 200, an active reason code for source OCMS, that the notice exists, and that it really has the requested TS or PS type (TemporaryRevivalHelper.java:107-134; PermanentRevivalHelper.java:118-148; RevivalBaseHelper.java:114-207). Note: the rules 'no TS-HST' and 'only 1 PS' are checked only at the eligibility endpoint (SuspensionProcessingController.java:378-410) and are not repeated in this execution endpoint."
+    },
+    {
+      "step": "The system immediately marks the notice's active suspensions as revived (date, reason, remarks, officer)",
+      "detail": "For each notice the helper finds all active suspensions (empty date_of_revival) of type TS and PS (RevivalBaseHelper.java:217-262; TemporaryRevivalHelper.java:157-166), then a native UPDATE sets date_of_revival = now, revival_reason, revival_remarks and officer_authorising_revival on every row (RevivalBaseHelper.java:278-299,718-724). It runs synchronously inside the request (the endpoint is @Transactional, SuspensionProcessingController.java:623), not in a cron. Note: because ALL active TS and PS suspensions are revived, choosing a 'TS' notice also closes an active PS on the same notice (log 'reviving ALL (TS and PS)')."
+    },
+    {
+      "step": "The notice data (VON and eVON) is updated: suspension fields are cleared or refilled from any remaining suspension",
+      "detail": "After the suspended_notice rows are updated, the server checks for remaining active suspensions (RevivalBaseHelper.java:726-733). If any remain, VON/eVON are filled from them; if none, suspension_type, epr_*, due_date_of_revival (and crs_* for PS) are cleared (:742-757; clearVONSuspension :320-358). For a PS revival payment_acceptance_allowed is set to Y and eservice_message_code to E1 or E1/E4 by stage; PS-FP/PRA/VST/APP/CAN/CFA also clear payment_status (RevivalBaseHelper.java:335-350; fix from OCMS-DF-2026-029, Closed). Next processing date is deliberately left unchanged (:758-759). Edge case from code reading: a failure at this stage is returned as an error response, not an exception (RevivalBaseHelper.java:763-766), so the earlier suspended_notice update probably stays committed and the notice would still look suspended [Medium confidence, not tested]. PS-ANS: an_flag is set to 'N' (PermanentRevivalHelper.java:222,232) while OCMS-DF-2026-129 (Closed) says an_flag must stay Y; which one is final cannot be verified from repo."
+    },
+    {
+      "step": "A reduction (TS-RED) is revived too: amount payable is restored to the pre-reduction value",
+      "detail": "When one of the active suspensions is a TS-RED, revertCompositionAmountIfReduced restores VON and eVON amount_payable to the pre-reduction value from ocms_reduced_offence_amount, allows payment and sets eservice_message_code by stage (RevivalBaseHelper.java:860-915; OCMS-DF-2026-028 and OCMS-DF-2026-029, Closed). It is best-effort: it is skipped when the notice is already FP, there is no reduction record, or the value is empty, and an exception is only logged as 'Revival succeeded but compo revert failed' (RevivalBaseHelper.java:867-891,919-922) while the revive is still reported as successful. OCMS-DF-2026-028 notes that old reduction rows need a data migration for the revert to be correct; whether that migration ran in production cannot be verified from repo."
+    }
+  ]
+}

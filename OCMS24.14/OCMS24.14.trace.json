@@ -1,0 +1,46 @@
+{
+  "story": "OCMS24.14",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "Tidak ada flow deck OCMS; langkah diambil dari teks story. Status sheet kosong; demo_remark: 'No vault' (klaim, bukan bukti).",
+  "code_summary": "Pengecekan kontak ada di job eNotification (ocmsadminprivateapi): refreshContactInfo dipanggil untuk semua record, memakai DataHive (Singpass untuk individu, Corppass untuk perusahaan) hanya bila flag cron.enareminder.datahive=true; di prod nilainya false sehingga kontak yang tersimpan di owner/driver dipakai apa adanya. Record tanpa kontak valid dilewati. Semua ini untuk record reminder parking, bukan batch court summons. DOS = DataHive/LTA tidak bisa dipastikan dari repo.",
+  "note": "Status sheet kosong; demo_remark 'No vault' menunjukkan lookup vault belum ada. Fit mengikuti sibling OCMS9.4 (Sebagian) untuk fakta kontak yang sama dan OCMS24.13 untuk batch court. Tiket OCMS-DF-2026-180 hanya petunjuk bahwa cron eNotification belum aktif.",
+  "recommendation": "Sebagian: pengecekan kontak ala OCMS9 ada untuk reminder parking, tapi tidak terhubung ke batch court summons dan lookup DataHive mati di konfigurasi prod repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan kontak dijalankan untuk defendant yang court summons-nya belum dibayar X hari sebelum due date",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162",
+      "fit": "Tidak ada code",
+      "detail": "Job eNotification memanggil refreshContactInfo untuk record hasil queryRecordsForEna dan queryRecordsForReminder (NotificationSmsEmailJob.java:161-162, :187), yang terbatas pada stage parking RD1 sampai DR3 (NotificationSmsEmailHelper.java:1114). Tidak ada seleksi batch court summons, sama dengan OCMS24.13 langkah 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa nomor mobile/email terbaru sesuai Epic OCMS9",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2475",
+      "fit": "Sebagian",
+      "detail": "refreshContactInfo memakai DataHive (refreshIndividualContactInfo untuk Singpass, :2710-2716; refreshCompanyContactInfo untuk Corppass, :2496) hanya bila statusGetDatahive = true; kalau tidak, hanya menormalkan nomor yang sudah tersimpan (NotificationSmsEmailHelper.java:2461-2475). Di prod cron.enareminder.datahive=false (cron-schedules-prod.properties:48), jadi tanpa lookup DataHive; nilai server asli cannot verify from repo. DOS = DataHive/LTA tidak bisa dipastikan dari repo. Sama dengan OCMS9.4 (Sebagian)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Defendant tanpa mobile/email valid tidak dikirimi reminder elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:252-266",
+      "fit": "Sebagian",
+      "detail": "Record dengan kontak tidak valid dilewati (NotificationSmsEmailJob.java:252-266); untuk ENA di-patch ke RD1, untuk stage reminder hanya di-skip dengan log. Berlaku untuk reminder parking, tidak untuk court summons."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim reminder elektronik untuk court summons yang masih outstanding",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459",
+      "fit": "Tidak ada code",
+      "detail": "Template dipilih per stage reminder lewat determineTemplateName (NotificationSmsEmailHelper.java:459), tanpa jalur atau konten court summons; tidak ada kata court di helper maupun job. Template court hanya placeholder di UI ManageTemplate (lihat OCMS24.16). Cron juga mati di prod (cron-schedules-prod.properties:236, cannot verify the real server value)."
+    }
+  ]
+}

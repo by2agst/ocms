@@ -1,0 +1,25 @@
+{
+  "story": "OCMS48.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "Staff UI (ocmsadminui): no multi-select court notice screen and no bulk decision form; the payment acceptance flag is display-only (pages/Notice/detail/PaymentDetails.tsx). Only machine-to-machine APIs in ocmsadminapi workflows/cas_integration (CasIntegrationController: /casUpdateCourtNotices, /plus-payment-activation) exist, filled by the CAS/PLUS systems, plus a cron in ocmsadminprivateapi workflows/paymentcutoff (PaymentAcceptanceCutoffServiceImpl) whose scheduler call is commented out. The UPL Decision Request form (ocmsadminui pages/NoticeUPL) is similar but per notice and for UPL notices.",
+  "note": "Story is Removed (status_with_ura). The story asks the officer to select court notices and fill in composition amount, payment due date and payment acceptance flag for bulk apply. The staff portal has no multi-select court notice screen and no bulk decision form (grep for bulk/court/composition in ocmsadminui finds only the unrelated hideBulkDownload in DecissionDetails.tsx:297 and Furnish/form/DecisionForm.tsx:397). payment_acceptance_allowed is display-only (PaymentDetails.tsx:61). These values can only enter through other systems' APIs: /casUpdateCourtNotices (CAS, max 500, sets amount_payable and payment_acceptance_allowed, not composition amount and not due date) and /plus-payment-activation (PLUS, max 10, sets amount_payable, the flag, and the court payment due date in ocms_court_case). Both endpoints skip JWT (JwtFilter.java:183, WebConfig.java:83-85), so protection depends on APIM, which is not visible in the repo. casUpdateCourtNotices rejects FULL_PAYMENT notices (CasIntegrationServiceImpl.java:336). The payment acceptance cutoff cron (sets the flag to N after the due date) only writes VON (PaymentAcceptanceCutoffServiceImpl.java:77-83), not the eVON that the public portal reads, and its call is commented out (ToppanUploadJobsScheduler.java:123). The verdict stays Removed; none of the code above is claimed. Ticket: OCMS-SR-2026-155 (UPL decision workflow has no backend).",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Officer selects several court notices for a bulk decision",
+      "detail": "There is no multi-select court notice screen. The only list with an action button (UPL RequestList) uses a per-row Propose button, one notice per submit (RequestList.tsx:59-68). The word bulk in ocmsadminui only appears as hideBulkDownload (DecissionDetails.tsx:297). Searched court, bulk, courtcase, selection in ocmsadminui; no relevant hit."
+    },
+    {
+      "step": "Officer enters the composition amount for the selected notices",
+      "detail": "There is no composition amount input for court notices. CompositionAmountInput only exists in the per-notice UPL Decision Request form (RequestForm.tsx:116, shown for stage DN1); that is a different feature and not bulk. The CAS API never touches composition_amount: its SET clause only has amount_payable, payment_acceptance_allowed and similar (CasIntegrationServiceImpl.java:103-117). The UPL form is logged as an orphan (Removed but similar)."
+    },
+    {
+      "step": "Officer sets the payment due date for the selected notices",
+      "detail": "There is no officer input. The court payment due date can only be filled by the PLUS system through /plus-payment-activation (stored in ocms_court_case, CasIntegrationServiceImpl.java:805-823). The payment acceptance cutoff cron uses the due date to find overdue notices (PaymentAcceptanceCutoffServiceImpl.java:55), but its call is commented out (ToppanUploadJobsScheduler.java:123), so it only runs via the manual endpoint POST /payment-acceptance-cutoff. The admin Court Payment Due Date page only has a Meta path and no route (Meta/System.ts:20, absent from App.tsx). Partial because due date data exists, but it is not an officer input and not bulk from the staff portal. The real server cron property value: cannot verify from repo."
+    },
+    {
+      "step": "Officer enables or disables payment acceptance for the selected notices",
+      "detail": "The flag can be set in bulk, but not by an officer: /casUpdateCourtNotices (CasIntegrationController.java:101, max 500) and /plus-payment-activation (CasIntegrationController.java:220, max 10, setPaymentAcceptanceAllowed at CasIntegrationServiceImpl.java:801) accept the flag from CAS/PLUS. The staff portal only displays the flag (PaymentDetails.tsx:61) with no control to change it. Both endpoints skip JWT (JwtFilter.java:183, WebConfig.java:83-85); APIM protection: cannot verify from repo. Related tickets OCMS-SR-2026-179 (payment_acceptance_allowed stuck blank for NRO/CSD/CSR after a CAS stage transition, On Hold) and OCMS-DF-2026-173 (settled cases still flagged Y). Partial because a bulk flag mechanism exists, but the actor is another system."
+    }
+  ]
+}

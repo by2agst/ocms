@@ -1,0 +1,64 @@
+{
+  "story": "OCMS19.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Revival/form/RevivalForm, utils/mapping/Revival/Revival.ts. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-revive-suspension), helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}}, api-authorization.properties. Repo lain: tidak relevan",
+  "note": "Status di sheet: Fully paid (2 point); tidak ada flow deck. Setelah officer menekan OK di modal konfirmasi, UI langsung memanggil POST staff-revive-suspension (satu request untuk notice PS, satu untuk TS) dan server memproses secara sinkron: validasi, menandai semua suspension aktif sebagai revived (tanggal sekarang, reason, remarks, officer), lalu membersihkan atau mengisi ulang field suspension di VON/eVON. Tidak lewat cron. Catatan: (1) revive menutup SEMUA suspension aktif TS dan PS, bukan hanya jenis yang dipilih; (2) kegagalan di tahap update VON/eVON dikembalikan sebagai pesan error tanpa exception, jadi kemungkinan update suspended_notice sebelumnya tetap ter-commit (dari pembacaan code, tidak diuji) [Medium confidence]; (3) pengembalian amount payable untuk TS-RED bersifat best-effort (error hanya di-log, 'Revival succeeded but compo revert failed') dan bergantung pada data hasil migrasi OCMS-DF-2026-072/028, kondisi data produksi cannot verify from repo; (4) reset an_flag='N' pada PS-ANS (PermanentRevivalHelper.java:222,232) berbeda dari harapan tiket OCMS-DF-2026-129 (an_flag tetap Y), mana yang final cannot verify from repo. Tiket dipakai: OCMS-DF-2026-029 dan OCMS-DF-2026-028 (Closed, Prod deployed) untuk logika payment dan reduction saat revive.",
+  "recommendation": "Layak diklaim; inti revive langsung berjalan dan tersimpan. Jaga tiga catatan: revive menutup semua suspension, pengembalian amount TS-RED best-effort, dan konflik an_flag PS-ANS vs OCMS-DF-2026-129.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengonfirmasi revival lewat modal konfirmasi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:85-92; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:269-272; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:284-292",
+      "fit": "Sesuai",
+      "detail": "Modal 'Revival Confirmation' meminta konfirmasi (RevivalForm.tsx:85-92). Tombol OK memanggil handleComModalOk, menutup modal lalu menjalankan onSubmit (RevivalForm.tsx:269-272; modal dirender di :284-292). Tombol Close hanya menutup modal tanpa request."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah konfirmasi, UI langsung mengirim request revive ke API, terpisah untuk notice PS dan TS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:96-163; ocmsadminui/src/utils/mapping/Revival/Revival.ts:17-23; ocmsadminapi/src/main/resources/api-authorization.properties:65-67",
+      "fit": "Sesuai",
+      "detail": "onAPI memisahkan notice berdasarkan suspensionType (RevivalForm.tsx:106-107) lalu POST staff-revive-suspension untuk kelompok PS (:109-123) dan kelompok TS (:137-151), masing-masing membawa noticeNo[], reason, remarks dan ID officer (Revival.ts:17-23). Request dikirim sinkron di dalam klik OK, tidak dijadwalkan. Hasil per notice (success/failed) dikumpulkan lalu dibaca ulang dari validoffencenoticelist (RevivalForm.tsx:125-134,165-188). Endpoint ini dilindungi function OCMS_APPLY_REVIVAL (api-authorization.properties:65-67)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "API memvalidasi reason, remarks, officer, keberadaan notice dan jenis suspension sebelum revive",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:622-668; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:833-863; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:107-134; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:118-148; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:114-207",
+      "fit": "Sesuai",
+      "detail": "staffReviveSuspension memakai sumber 'OCMS' dan memanggil processRevivalList -> reviveTS atau revivePS per notice (SuspensionProcessingController.java:622-668,802-826,833-863). Helper memeriksa reason, officer, panjang remark 200, kode reason aktif untuk sumber OCMS, notice ada, dan notice memang bertipe TS atau PS yang diminta (TemporaryRevivalHelper.java:107-134; PermanentRevivalHelper.java:118-148; RevivalBaseHelper.java:114-207). Catatan: aturan TS-HST tidak boleh dan 'hanya 1 PS' hanya dicek di endpoint eligibility (SuspensionProcessingController.java:378-410), tidak diulang di endpoint eksekusi ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem langsung menandai suspension aktif notice sebagai sudah direvive (tanggal, alasan, remarks, officer)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:217-262; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:278-299; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:718-724; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:157-166; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:623",
+      "fit": "Sesuai",
+      "detail": "Untuk tiap notice, helper mencari semua suspension aktif (date_of_revival kosong) bertipe TS dan PS (RevivalBaseHelper.java:217-262; TemporaryRevivalHelper.java:157-166), lalu native UPDATE mengisi date_of_revival = sekarang, revival_reason, revival_remarks dan officer_authorising_revival pada setiap baris (RevivalBaseHelper.java:278-299,718-724). Berjalan sinkron di dalam request (endpoint ber-@Transactional, SuspensionProcessingController.java:623), bukan di cron. Catatan: karena yang direvive SEMUA suspension aktif TS dan PS, memilih notice 'TS' juga menutup PS aktif pada notice yang sama (log 'reviving ALL (TS and PS)')."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data notice (VON dan eVON) diperbarui: field suspension dibersihkan atau diisi dari suspension yang tersisa",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:726-766; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:320-358; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:335-350; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:205-248",
+      "fit": "Sesuai",
+      "detail": "Setelah baris suspended_notice diupdate, server mengecek suspension aktif yang tersisa (RevivalBaseHelper.java:726-733). Bila ada, VON/eVON diisi dari sisanya; bila tidak, suspension_type, epr_*, due_date_of_revival (dan crs_* untuk PS) dibersihkan (:742-757; clearVONSuspension :320-358). Untuk PS revival payment_acceptance_allowed diset Y dan eservice_message_code E1 atau E1/E4 menurut stage; PS-FP/PRA/VST/APP/CAN/CFA juga mengosongkan payment_status (RevivalBaseHelper.java:335-350; perbaikan OCMS-DF-2026-029, Closed). Next processing date sengaja tidak diubah (:758-759). Edge case dari pembacaan code: kegagalan pada tahap ini dikembalikan sebagai error response, bukan exception (RevivalBaseHelper.java:763-766), sehingga update suspended_notice sebelumnya kemungkinan tetap ter-commit dan notice tampak masih suspended [Medium confidence, tidak diuji]. PS-ANS: an_flag diset 'N' (PermanentRevivalHelper.java:222,232) sedangkan OCMS-DF-2026-129 (Closed) menyebut an_flag harus tetap Y; mana yang final cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reduction (TS-RED) ikut direvive: amount payable dikembalikan ke nilai sebelum reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporaryRevivalHelper.java:170-177; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:186-195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:860-922",
+      "fit": "Sebagian",
+      "detail": "Bila salah satu suspension aktif adalah TS-RED, revertCompositionAmountIfReduced mengembalikan amount_payable VON dan eVON ke nilai pra-reduction dari ocms_reduced_offence_amount, memperbolehkan payment dan mengisi eservice_message_code menurut stage (RevivalBaseHelper.java:860-915; OCMS-DF-2026-028 dan OCMS-DF-2026-029, Closed). Bersifat best-effort: dilewati bila notice sudah FP, tidak ada record reduction, atau nilainya kosong, dan exception hanya di-log dengan pesan 'Revival succeeded but compo revert failed' (RevivalBaseHelper.java:867-891,919-922) sementara revive tetap dilaporkan sukses. OCMS-DF-2026-028 mencatat baris reduction lama butuh migrasi data agar revert benar; apakah migrasi itu sudah dijalankan di produksi cannot verify from repo."
+    }
+  ]
+}

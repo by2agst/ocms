@@ -1,0 +1,46 @@
+{
+  "story": "OCMS41.56",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/{plusintegration/controllers/PlusIntegrationController (plus-furnish-redirect-check), helpers/FurnishabilityChecker.checkFurnishability, stafffurnish/services/StaffFurnishService.staffFurnish, manual/helpers/ManualFurnishValidationService.checkExistingParticulars, dto/ExistingParticularsResponse}, workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus (plus-offence-notice-owner-driver). ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk cek particulars-tertimpa dari PLUS",
+  "note": "Status story: Requirement given - Gen flow. Demo remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (klaim dari sheet, tidak dinilai dari code). Yang ada di jalur PLUS hanya cek furnishable (PS, Advisory Notice, stage). Cek 'ada particulars lama yang akan tertimpa' ada di jalur staff manual furnish (checkExistingParticulars), tapi tidak dipanggil oleh endpoint plus-*, dan ocmsadminui tidak memanggilnya. Saat PLUS memanggil /plus-furnish, offender lama diturunkan ke indicator N dan semua address record untuk role itu dihapus (OCMS-DF-2026-024, Closed, Prod deployed), serta record owner_driver dengan key (notice_no, owner_driver_indicator) yang sama ditimpa karena primary key-nya sama. Jadi syarat 'tanpa menghapus record lama' tidak terpenuhi. Alert ke PLUS: cannot verify from repo, tidak ada kode outbound ke PLUS.",
+  "recommendation": "Klaim sebagian saja (cek furnishable dari PLUS jalan). Cek 'particulars akan tertimpa' belum ada di jalur PLUS, dan penghapusan address lama bertentangan dengan 'tanpa menghapus record lama'. Perlu tambahan: cek existing particulars di plus-furnish-redirect-check dan keputusan soal history record.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS menanyakan ke OCMS apakah notice bisa di-furnish/redirect (POST /plus-furnish-redirect-check)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:91-129",
+      "fit": "Sesuai",
+      "detail": "plusFurnishRedirectCheck menerima noticeNo (wajib, baris 71-75) lalu memanggil staffFurnishService.checkFurnishable (baris 78) yang mendelegasikan ke FurnishabilityChecker.checkFurnishability: notice harus ada, tidak ada PS aktif (baris 107), bukan Advisory Notice (baris 113), dan last processing stage termasuk daftar furnishable NPA sampai CPC (baris 120). Hasil dikembalikan 'Notice is furnishable' atau alasan penolakan (baris 80-84). Sesuai dengan prasyarat story 'sudah mengecek notice furnishable'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah sudah ada particulars hirer/driver yang akan tertimpa untuk notice itu",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/helpers/ManualFurnishValidationService.java:74-125; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/ManualFurnishController.java:72-95; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:65-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:27-31",
+      "fit": "Sebagian",
+      "detail": "Logika cek ada di ManualFurnishValidationService.checkExistingParticulars (baris 74-125): membaca semua record ocms_offence_notice_owner_driver untuk notice dan mengembalikan hasExistingParticulars plus daftar hirer/driver (ExistingParticularsResponse.java:18-47). Tetapi endpoint-nya GET /furnish/officer/manual/notice/{noticeNo}/check-existing (ManualFurnishController.java:72) milik jalur staff manual furnish, bukan plus-*; ocmsadminui tidak memanggilnya (grep 'check-existing' di ocmsadminui/src kosong). Endpoint plus-furnish-redirect-check (PlusIntegrationController.java:65-92) hanya cek PS/AN/stage dan tidak melihat tabel owner_driver. PLUS hanya bisa menarik data lama sendiri lewat POST /plus-offence-notice-owner-driver (OwnerDriverControllerPlus.java:27-31); OCMS tidak menilai 'akan tertimpa'. Sebagian: logika ada, tidak terpasang di jalur PLUS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record hirer/driver yang lama tidak dihapus saat diganti",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:201-211; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver/OcmsOffenceNoticeOwnerDriverId.java:19-20",
+      "fit": "Beda dari flow",
+      "detail": "StaffFurnishService.staffFurnish (dipakai /plus-furnish) menurunkan offender lama ke indicator N (baris 201) lalu MENGHAPUS semua address record untuk notice + role itu (deleteAllByNoticeNoAndOwnerDriverIndicator, baris 206-211; fix OCMS-DF-2026-024, Closed, Prod deployed, supaya address lama tidak terbawa ke orang baru). Record owner_driver baru memakai key (noticeNo, ownerDriverIndicator) yang sama dengan record lama (OcmsOffenceNoticeOwnerDriverId.java:19-20), jadi offenderService.save (baris 231) menimpa baris H/D yang ada; tidak ada tabel history owner_driver yang ditemukan di ocmsadminapi (grep owner_driver_hist/OwnerDriverHist kosong). Hanya offender dari role lain yang tetap tersimpan sebagai indicator N. Ini berlawanan dengan 'tanpa menghapus record lama'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil cek (ada particulars yang tertimpa) dikembalikan ke PLUS sebagai dasar alert",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:80-84; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/dto/FurnishResponse.java:294-310",
+      "fit": "Tidak ada code",
+      "detail": "Response plus-furnish-redirect-check hanya membawa furnishable true/false, reasonCode dan reasonMessage (PlusIntegrationController.java:80-84; FurnishResponse.checkSuccess/checkFailure baris 294-310). Tidak ada field atau flag 'existing particulars', 'willOverwrite' atau daftar particulars lama, dan tidak ada panggilan outbound ke PLUS di semua repo (properties hanya memuat ocms.plus.key.validation, application-prod.properties:60-61). Cara PLUS menampilkan alert: cannot verify from repo."
+    }
+  ]
+}

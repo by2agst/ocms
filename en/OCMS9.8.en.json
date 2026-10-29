@@ -1,0 +1,29 @@
+{
+  "story": "OCMS9.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailRetryJob, jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (sendBatchSms, saveSendStatus, queryRecordsForRetry, isSmsRetryNeeded, isEmailRetryNeeded)}, schedulers/NotificationJobsScheduler, controllers/NotificationSmsEmailController, cron-schedules-prod.properties. Other repos: no code",
+  "note": "Status in stories.json is 'Demo paid (50% of 75%)'; the demo remark asks to check the 2pm SMS retry logic. The retry job exists and is scheduled at 14:00 (cron.notification.retry.schedule=0 0 14 * * ?). But the story asks for retries up to X times from an OCMS parameter, while the code is a single pass: it takes today's records with status != 'S', resends once (SMS: one new batch plus one retryBatch if the whole batch failed), and notices that still fail are moved to the RD1 letter track. The fields maxSmsRetries/maxEmailRetries (default 3, @Value notification.sms.retry.max / notification.email.retry.max) and isSmsRetryNeeded/isEmailRetryNeeded are never called, the properties are not in any resources file, and they do not come from ocms_parameter. So the 'configurable X times' does not work. The scheduler is also cron.notification.enabled=false in every environment.",
+  "recommendation": "Claim partially. A single retry at 14:00 is proven in code; retrying up to X times from a parameter does not exist, and the scheduler is still off in every environment. Ask URA whether one retry is acceptable.",
+  "steps": [
+    {
+      "step": "OCMS records the SMS/email sends that failed that day",
+      "detail": "The SMS result (sendBatchSms, batch status mapped in mapBatchStatusToRecords) and the email result (emailService.sendEmail returns a boolean) go to saveSendStatus, which stores a record with status 'E' through recordFailedNotificationForSingleNotice on failure (H:601-624, H:766). The retry job reads these records."
+    },
+    {
+      "step": "OCMS re-attempts the sending on the same day",
+      "detail": "The retry job (send_ena_reminder_retry) is scheduled at 14:00 (prod:242) and only takes records with CAST(date_sent AS DATE) = today and status != 'S' (H:214-216; RJ:226-247), so it is indeed same-day. But runNotificationRetryJobs returns when enabled=false (SCH:72) and cron.notification.enabled=false in dev/uat/prod (prod:236); a manual endpoint POST /notification-sms-email/retry exists. The flow only runs when triggered manually."
+    },
+    {
+      "step": "Re-attempts are limited to X times, with the value set by a parameter in OCMS",
+      "detail": "The retry is a single pass: each record is resent once (RJ:220-268); for SMS there is one retryBatch if the whole batch failed (RJ:531-536). maxSmsRetries/maxEmailRetries (@Value default 3, H:62-66) and isSmsRetryNeeded/isEmailRetryNeeded (H:843-866) are never called anywhere, the properties notification.sms.retry.max / notification.email.retry.max are not in resources, and the value does not come from table ocms_parameter (only ENOTEDAYS and PDD are used). There is no attempt counter."
+    },
+    {
+      "step": "Failed SMS records are resent and the result is recorded",
+      "detail": "processResendSms resends SMS records that are not 'S' in a new batch, polls until a terminal status, retries once if the whole batch failed, then INSERTs new records with the resulting status (RJ:333-345, RJ:500-576) and sends a resend summary email (RJ:570). Real SMS delivery through the provider cannot be verified from the repo."
+    },
+    {
+      "step": "Failed email records are resent and the result is recorded",
+      "detail": "processResendEmail resends the email using the stored subject/content (RJ:1133-1168), marks status 'S' on success or 'E' with remark 'Email retry failed' on failure (RJ:1176-1196) and batch-updates the record table (RJ:1203-1210). Notices whose SMS and email both failed are routed to the RD1 letter (RJ:1218-1270)."
+    }
+  ]
+}

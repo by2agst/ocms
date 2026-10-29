@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/UnclaimedReminders (UnclaimedRemindersPage, SubmitForm), App.tsx route unclaimed/reminders. ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedController,UnclaimedServiceImpl}, api-authorization.properties (OCMS_UNCLAIMED). ocmsadminprivateapi workflows/unclaimedreport (UnclaimedReportHelper, UnclaimedReportJob) + DailyReportJobsScheduler, MhaNricDataHelper. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status in stories.json is 'Demo paid (50% of 75%)', demo_remark 'HST' (meaning unclear from the repo; HST is a separate feature). The story asks staff to temporarily suspend notices whose reminders came back under a specific suspension code. The code implements this as the Unclaimed Reminders feature with code TS-UNC: staff upload an Excel of notice numbers, OCMS retrieves the reminder/RDP/DN details, staff fill in the return reason, and submit saves the return record and creates a TS-UNC suspension (default 30 days from the noOfDaysForRevival setting) in ocms_suspended_notice and VON. The suspension is only created for notices in a non-court stage, not PS, and only if the letter recipient is still the current offender (UnclaimedServiceImpl.java:351-385); otherwise only RDP/DN are updated. Staff authorization is set by mapping OCMS_UNCLAIMED in api-authorization.properties:106-108; the role name on the UI/Azure AD side cannot verify from repo. Maintenance tickets: OCMS-DF-2026-085/086/087/089/090/127 (Unclaimed UI and data fields, Closed), OCMS-DF-2026-133 (PS must not enter the MHA queue, Closed, fix visible in UnclaimedServiceImpl.java:691-707), OCMS-DF-2026-184 (due_date_of_revival must use the longest TS, status Pending UAT Verification; the code already uses TsDueDateRule.furthest at UnclaimedServiceImpl.java:421 but the UAT result cannot be verified from the repo). Cron flag values in the prod properties do not prove the real server value.",
+  "recommendation": "Can be claimed: every step of the story (TS-UNC suspension and identification of notices) exists in code. Note that OCMS-DF-2026-184 is still awaiting UAT",
+  "steps": [
+    {
+      "step": "Staff Notice Processing Officer opens the Unclaimed Reminders page in the staff portal, and only the Unclaimed APIs are permitted for the unclaimed access group",
+      "detail": "Route unclaimed/reminders opens UnclaimedRemindersPage (App.tsx:247). On the server, group OCMS_UNCLAIMED maps only /v1/check-unclaimed, /v1/submit-unclaimed, /v1/download/blob, /v1/standardcodelist, /v1/suspensionreasonlist (api-authorization.properties:106-107). Mapping users to group OCMS_UNCLAIMED lives in the identity provider, cannot verify from repo."
+    },
+    {
+      "step": "Staff upload the notice numbers whose reminders came back and OCMS retrieves the notice, reminder letter (RDP/DN) and current suspension details",
+      "detail": "The UI calls endpoint check-unclaimed (UnclaimedRemindersPage.tsx:285). UnclaimedController.checkUnclaimed (UnclaimedController.java:45) calls UnclaimedServiceImpl.checkUnclaimedNotices (UnclaimedServiceImpl.java:63) which merges VON, ONOD, RDP/DN and SuspendedNotice. Tickets OCMS-DF-2026-085 (duplicate notice numbers in Excel), -086 (reason of suspension for paid notices) and -089 (field label) are Closed."
+    },
+    {
+      "step": "Staff enter the return reason (e.g. unclaimed / no such person), date of return and remarks on envelope, and OCMS saves them on the returned reminder record",
+      "detail": "SubmitForm calls submit-unclaimed (SubmitForm.tsx:239). processUnclaimedReminders calls updateRdpTables (UnclaimedServiceImpl.java:442) for RDP reminders and updateDnTables (UnclaimedServiceImpl.java:439) for DN; both write date of processing, date of return, reason and remarks on envelope (UnclaimedServiceImpl.java:519, 550). The 'no such person' value comes from the REASON_OF_RETURN list managed as a standard code; the DB content of that list cannot verify from repo. Ticket OCMS-DF-2026-090 (remarks on envelope not persisted) is Closed."
+    },
+    {
+      "step": "OCMS temporarily suspends the notice under the specific suspension code TS-UNC with a revival period taken from the UNC code setting",
+      "detail": "For an eligible notice, UnclaimedServiceImpl creates a SuspendedNotice with suspensionType TS and reasonOfSuspension UNC (UnclaimedServiceImpl.java:406), dueDateOfRevival = now + daysToRevive (default 30, line 398), saves it with 1 retry (line 414) and then fills the suspension fields on VON (line 421 uses TsDueDateRule.furthest, related to OCMS-DF-2026-184 which is still Pending UAT Verification). The controller rejects any reasonOfSuspension other than 'UNC' for non-PS/non-court notices (UnclaimedController.java:126). PS notices or court stages are not suspended, only RDP/DN are updated (UnclaimedServiceImpl.java:341-345)."
+    },
+    {
+      "step": "OCMS can identify notices suspended because of returned reminders for further checks",
+      "detail": "Active TS-UNC notices can be identified through code UNC: UnclaimedReportHelper.getUnclaimedNotices selects ocms_suspended_notice with suspension_type TS, reason UNC and date_of_revival NULL (UnclaimedReportHelper.java:134-160), used by the Unclaimed Batch Data Report job in the Daily Report Job (DailyReportJobsScheduler.java:100, cron.dailyreport.enabled=true and jobs.5 in cron-schedules-prod.properties:256,266). The MHA upload query also deliberately includes TS-UNC notices (MhaNricDataHelper.java:211-213). Cron execution on the real server cannot verify from repo."
+    }
+  ]
+}

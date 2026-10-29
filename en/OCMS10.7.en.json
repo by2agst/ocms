@@ -1,0 +1,37 @@
+{
+  "story": "OCMS10.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, utilities/emailutility/EmailService, crud/ocmsizdb/OcmsEmailNotificationRecords, properties application-{uat,prod} and cron-schedules-prod. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no AN email sending code",
+  "note": "Sheet status: Demo paid (50% of 75%). No flow deck. The AN email is sent by the same eNotification job as normal ENA: owners with idType 'B' (UEN) get an email, a notice with an_flag='Y' uses the AN_EMAIL template (NotificationSmsEmailHelper.java:279-281, 380), sent through EmailService SMTP (:578). Company notices are merged per UEN so one email per unique company (:2178-2218, UEN key :2241), but the key includes stage and due date, and the merged record copies the flags of the first record, so an AN merged with a non-AN notice of the same UEN can use the wrong template and only the first notice gets PS-ANS (:2210; NotificationSmsEmailJob.java:400-402). Real sending is blocked by config in the repo: cron.notification.enabled=false (cron-schedules-prod.properties:236) and prod email.enableSmtp=false with an allowlist without ENOTIFICATION (application-prod.properties:80-81), so EmailService returns false (EmailService.java:65-72); UAT opens ENOTIFICATION (application-uat.properties:79). Notice selection, vehicle type I/D/V and PS-ANS notices are the same as OCMS10.6. The AN_EMAIL template text is in the database: cannot verify from repo. The SMTP server and the email permission on the App Service: cannot verify from repo. Ticket: OCMS-DF-2026-180 (Closed, Prod deployment) changed the ENA payment due date; whether AN_EMAIL uses that placeholder: cannot verify.",
+  "recommendation": "Claim partially. The AN email path exists (AN_EMAIL template, SMTP, status recording, retry), but in the repo prod config eNotification email is blocked and the cron is off; fix merging of AN with non-AN notices and confirm the environment flags",
+  "steps": [
+    {
+      "step": "The company owner's email address has been obtained from DOS before the email is sent",
+      "detail": "For idType 'B', refreshContactInfo calls refreshCompanyContactInfo (CorpPass DataHive) only when cron.enareminder.datahive=true (NotificationSmsEmailHelper.java:2461-2476, :2496); the value is false in every environment (cron-schedules-prod.properties:48), so the email_addr already stored on the owner/driver is used. The 'DOS' source: cannot verify from repo. Obtaining the address is the scope of OCMS10.5. Same fit as OCMS10.6 step 1."
+    },
+    {
+      "step": "The batch job picks the AN notices that are ready to be notified to the owner",
+      "detail": "Same query as OCMS10.6: queryRecordsForEna is generic for ENA notices (not AN-specific), drops vehicle_registration_type I/D/V (NotificationSmsEmailHelper.java:1061) and PS-ANS notices (:1062), called at NotificationSmsEmailJob.java:161. The scheduler has cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236). Same fit as OCMS10.6 step 2."
+    },
+    {
+      "step": "Company owners (UEN) are identified and routed to the email channel",
+      "detail": "determineDeliveryChannel returns EMAIL for idType 'B' (NotificationSmsEmailHelper.java:443-451) and the job sets sendEmail = idType 'B' (NotificationSmsEmailJob.java:353-354); companies stay out of the SMS batch (:271-277). Exclusion-list IDs are removed first (:226-232)."
+    },
+    {
+      "step": "Each unique company owner in a batch receives only one email",
+      "detail": "Company notices are merged per recipientKey 'B_'+UEN, stage and paymentDueDate into one record with combinedNotices and a summed amountPayable (NotificationSmsEmailHelper.java:2178-2218; UEN key :2230-2241), called at NotificationSmsEmailJob.java:191. One UEN with the same due date gets one email, but a different due date still produces a separate email. The merged record copies the first record (:2210), so an AN and a non-AN of the same UEN with the same stage and due date become one email carrying the an_flag and noticeNo of the first record; the template chosen and PS-ANS (NotificationSmsEmailJob.java:400-402) follow only the first notice. Same as the OCMS1.7 fit."
+    },
+    {
+      "step": "The AN email (subject and body) is built from the AN_EMAIL template",
+      "detail": "A notice with an_flag='Y' goes to generateAnMessages (NotificationSmsEmailHelper.java:279-281), loads the 'AN_EMAIL' template from the database and splits subject and body (:380-386). If the template is missing it only logs an error and returns empty (:387-390); the job then skips that email without sending (NotificationSmsEmailJob.java:381-386). The AN_EMAIL template is not in the repo; its existence and content: cannot verify from repo."
+    },
+    {
+      "step": "The email is sent to each company owner",
+      "detail": "The job sends one email per record through sendEmail (NotificationSmsEmailJob.java:386-390; NotificationSmsEmailHelper.java:556-578) using EmailService with source ENOTIFICATION. But EmailService returns false straight away when email.enableSmtp=false and the source is not in the allowlist (EmailService.java:65-72). Prod: enableSmtp=false and an allowlist without ENOTIFICATION (application-prod.properties:80-81); UAT includes ENOTIFICATION (application-uat.properties:78-79); cron.notification.enabled=false (cron-schedules-prod.properties:236). So under the repo prod config eNotification email is not sent. Actual per-environment values, the SMTP server and the email permission on the App Service: cannot verify from repo."
+    },
+    {
+      "step": "The email send status is stored and failures are retried",
+      "detail": "saveSendStatus stores a record per notice in ocms_email_notification_records (a company counts as successful when the email was sent; NotificationSmsEmailHelper.java:641-675), called at NotificationSmsEmailJob.java:396. The retry job resends failed emails and applies PS-ANS when an AN is resent successfully (NotificationSmsEmailRetryJob.java:1170-1185)."
+    }
+  ]
+}

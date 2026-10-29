@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: staff/cron/agency side, not used by the steps of this story (only the Intranet-to-eVON sync cron feeds the data, not traced)",
+  "note": "Status 'Fully paid'. The Pending Submissions tab exists and shows notice number, offence date/time, car park, the name of the person furnished and the submission date. Gap: the offence committed and amount payable columns do not exist (the pending list does not join eVON and the furnish_application entity does not store them), and Pending submissions older than 6 months drop off the tab while their notices stay hidden from the furnishable list. No maintenance ticket changes this verdict.",
+  "recommendation": "Claim partially: notice, date, car park, name and furnish date are met. Offence committed and amount payable are not built; the 6-month limit needs confirmation with URA.",
+  "steps": [
+    {
+      "step": "After login, the customer opens the Pending Submissions tab on the furnish page",
+      "detail": "The notice page has a 'Pending Submissions' tab (Notices.ts:306-309). Clicking tab index 2 calls fetchPendingNotices (Notices.ts:198-204, 247-254) -> APIGetFurnishNoticesByStatus({status:'P'}), which POSTs to v1/furnishapplicationlist (API.ts:604-624). The screen shows 'N submission(s) pending approval found' (PendingNotices.ts:73) or 'No submission(s) pending approval found' (PendingNotices.ts:57)."
+    },
+    {
+      "step": "The system fetches the furnish submissions of the logged-in ID that are still Pending",
+      "detail": "The controller uses the ID from the JWT session (FurnishApplicationListController.java:80-83) and passes status 'P' to getSubmittedApplications, which calls findSubmittedApplicationsByIdNoAndStatuses(idNo, ['P'], sixMonthsAgo) (FurnishApplicationListServiceImpl.java:163-178). The query reads eocms_furnish_application with decrypted owner_id_no = ID, status IN ('P') and cre_date >= 6 months ago (EocmsFurnishApplicationRepository.java:66-68). Gap: Pending submissions older than 6 months disappear from this tab, while their notices are still filtered out of the furnishable list with no date limit (FurnishApplicationListServiceImpl.java:104-112; EocmsFurnishApplicationRepository.java:33-39), so such a notice shows up in no tab. The story does not mention a 6-month limit."
+    },
+    {
+      "step": "The table shows the notice number, offence date and time, and car park",
+      "detail": "PendingColumns contains 'Notice Number' (Column.ts:6), 'Offence Date & Time' (8-12, filled from app.getOffenceDate in FurnishApplicationListServiceImpl.java:201) and 'Place of Offence' = pp_code - pp_name (Column.ts:14-21; ServiceImpl:202-203) (column list in Column.ts:77-85). Submission Ref Number and Vehicle Number are shown as extras."
+    },
+    {
+      "step": "The table shows the offence committed and the amount payable",
+      "detail": "PendingColumns has no offence or amount column (Column.ts:77-85). The DTO for Pending submissions only gets noticeNo, vehicleNo, date, ppCode/ppName, stage, txnNo, furnishName, furnish ID, status, submittedAt, updatedAt (FurnishApplicationListServiceImpl.java:197-213); the eocms_furnish_application entity only has offence_date, no amount or offence (EocmsFurnishApplication.java:36-37). The UI mapping reads amountPayable/computerRuleCodeDescription (API.ts:94-111) but they are never filled for the Pending list. Searched for amount, offence, rule, due in the Furnish UI folder and workflows/furnish."
+    },
+    {
+      "step": "The table shows the person furnished and the date furnished",
+      "detail": "The column 'Furnished Hirer/Driver Name' (Column.ts:43-46) is filled from app.getFurnishName() (FurnishApplicationListServiceImpl.java:206) taken from the decrypted furnish_name column (EocmsFurnishApplicationRepository.java:43-44). The 'Submission Date' column (Column.ts:37-41) is filled from submittedAt = cre_date (FurnishApplicationListServiceImpl.java:211), formatted as date and time. Both are in PendingColumns (Column.ts:77-85)."
+    }
+  ]
+}

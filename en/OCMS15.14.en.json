@@ -1,0 +1,21 @@
+{
+  "story": "OCMS15.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingService.processPlusChangeStage/processPlusNoticeWithStageNewFlow/updateVonStage/syncCpsFieldsToInternetDb, ChangeOfProcessingController.plusChangeProcessingStage (SUCCESS response). Other repos: no code",
+  "note": "Story status: Requirement given - Gen flow (no OCMS flow deck). The PLUS path changes the VON stage with the same pattern as the staff portal, recalculates the amount, syncs to eVON, writes an audit row (reason PLS), then answers 200 SUCCESS. Two gaps: (1) the PLUS path does not store the VON surcharge column for court stages as the staff path does (OCMS-SR-2026-107), (2) SUCCESS is also answered when nothing was changed (offenceType U case) and the response only carries a notice count, with no per-notice status. Tickets: OCMS-DF-2026-170 and OCMS-DF-2026-097 are already reflected in the PLUS path; OCMS-DF-2026-173 (payment flag) Closed; OCMS-SR-2026-107 is only visible in the staff path.",
+  "recommendation": "Claim the VON stage update from PLUS. The success message to PLUS is Sebagian because it is also sent when nothing changed; the court-stage surcharge is not written on the PLUS path",
+  "steps": [
+    {
+      "step": "OCMS updates the notice stage in VON to the stage PLUS requested (prev, last, next stage and dates)",
+      "detail": "processPlusNoticeWithStageNewFlow calls updateVonStage(von, nextStageName, true) then vonService.save (ChangeOfProcessingService.java:1498-1501): prev = old last, last = the nextStageName from PLUS, next stage = nextStageName, next date = now (:1104-1115). The NEXT_STAGE_* and STAGEDAYS parameters are validated at :1324-1346 but not used by the manual branch."
+    },
+    {
+      "step": "Amount payable, admin fee, payment flag, sync to Internet DB (eVON) and the audit trail are updated too",
+      "detail": "Amount via calculateAmountPayable, admin fee via applyAdministrationFeeForStage (OCMS-DF-2026-170), payment_acceptance_allowed = Y unless an_flag = Y (OCMS-DF-2026-097) (ChangeOfProcessingService.java:1484-1491); eVON is synced (:1510, soft failure at :1219); audit row in ocms_change_of_processing with reason PLS, officer = the source value, creUserId SYSTEM (:1519-1530). However the VON surcharge for CPC/CSD/CSR/COS/COM is stored only on the staff path (:1015-1024), not on the PLUS path (OCMS-SR-2026-107), although the amount already includes the surcharge via calculateAmountPayable."
+    },
+    {
+      "step": "OCMS sends a success status to PLUS after the stage change succeeded",
+      "detail": "When all notices pass, the controller answers 200 {status:SUCCESS, message, noticeCount} (ChangeOfProcessingController.java:505-515). But the same reply is also sent when processPlusChangeStage returns early for offenceType U (ChangeOfProcessingService.java:1311-1317) although no notice was changed, and the response carries no per-notice status. If a single notice fails, the whole request is answered FAILED (:1389-1392) even though other notices were already saved."
+    }
+  ]
+}

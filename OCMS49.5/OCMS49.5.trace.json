@@ -1,0 +1,82 @@
+{
+  "story": "OCMS49.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story OCMS49.5 (tidak ada di flow deck OCMS; langkah dipecah dari teks story)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult,PaymentProcess,API}.ts, route/route.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}. Tidak ada kode Clearance Slip di keenam repo.",
+  "note": "Story minta halaman Clearance Slip memberi prompt dan mengarahkan offender membayar warrant of arrest yang belum lunas sebelum dapat clearance slip. Layanan Clearance Slip sendiri tidak ada di repo (grep 'clearance' di enam repo kosong; route ocmseserviceui hanya payment dan furnish-particulars). Yang ada adalah alur Payment biasa: login Singpass/Corppass, pencarian notice lewat JWT, daftar notice belum dibayar, tombol Pay. Layar T&C warrant (PaymentProcess.ts:159-199) ada tetapi tidak pernah muncul karena UI membaca last_processing_stage yang tidak dikirim API (API.ts:49-74, ParkingFinesController.java:365-379), jadi hasWarrant selalu false (PaymentSearchResult.ts:771-777). Evidence 43.75% dihitung dari 8 langkah dan menyesatkan: dua langkah inti story (pilih layanan Clearance Slip, pesan bayar dulu sebelum clearance slip) tidak ada, dan deteksi warrant tidak jalan. Perlu verifikasi: (1) apakah URA menganggap halaman Payment sebagai halaman tujuan story ini; (2) isi pesan E4/E1 di tabel user message (database, bukan repo); (3) Singpass/Corppass dan payment gateway di luar repo; (4) perilaku runtime belum dijalankan, kesimpulan hasWarrant=false dari membaca code; (5) status 'Built - Has gap' di sheet cocok dengan temuan ini; test case dan UAT tidak diperiksa. Tidak ada flow deck OCMS.",
+  "recommendation": "Jangan klaim penuh: layanan Clearance Slip dan pesan bayar-dulu tidak ada, dan deteksi warrant di alur Payment tidak jalan. Klaim sebagian atau perbaiki: kirim lastProcessingStage dari API ke UI, dan tambahkan halaman Clearance Slip yang menahan clearance slip sampai warrant lunas.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender login ke Online Customer Portal dengan Singpass atau Corppass",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:336-350; ocmseserviceui/src/hooks/Auth.ts",
+      "fit": "Sebagian",
+      "detail": "Tombol SPLoginBtn dan CPLoginBtn memanggil onSingpass() / onCorppass() (PaymentSearch.ts:341,350) lalu token disimpan lewat setAuthToken. Ini login di halaman Payment; layanan Clearance Slip sendiri tidak punya halaman login. Verifikasi Singpass/Corppass di sisi penyedia cannot verify from repo (itu bagian story 49.1). Diturunkan ke Sebagian setelah double check: ini login halaman Payment, bukan login layanan Clearance Slip (konsisten dengan OCMS49.1)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih layanan Clearance Slip di portal",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:16-42",
+      "fit": "Tidak ada code",
+      "detail": "Route yang ada hanya payment, payment/processing, payment/success, payment/failure dan furnish-particulars (route.ts:16-42). Grep 'clearance' di keenam repo tidak menemukan halaman, endpoint, atau teks Clearance Slip di ocmseserviceui maupun ocmseserviceapi. Layanan yang diminta story tidak ada di repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengenali ID offender dari sesi login",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:284-310",
+      "fit": "Sesuai",
+      "detail": "Pencarian searchType=id wajib membawa Bearer JWT (ParkingFinesController.java:284-289); token divalidasi (:291), sesi dicari di eocms_temp_pii_session (:299), lalu idNo diambil dari entityId (UEN, idType B) atau userId (NRIC/FIN, idType N,F) di :309-310. Tanpa token atau sesi, API jawab 401. jwt.auth.enabled=true (application.properties:77)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengambil semua notice di bawah ID offender dan memisahkan yang belum dan sudah dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:312-358; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:142-150",
+      "fit": "Sesuai",
+      "detail": "findParkingFinesByIdNo mencari notice number lewat ID di PII database (ParkingFinesServiceImplement.java:150) lalu mengambil notice tanpa filter CRS. Controller menghitung totalOutstanding dan totalPaid (ParkingFinesController.java:325-331), memfilter 'outstanding' dan menandai paymentAcceptanceAllowed=Y sebagai allPayableNotices (:346-358). Notice pada stage pengadilan (termasuk stage warrant) ikut terambil; tidak ada query atau penanda khusus warrant."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem menentukan offender masih punya warrant of arrest yang belum dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:771-777; ocmseserviceui/src/pages/Payment/API.ts:49-74; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:365-379",
+      "fit": "Beda dari flow",
+      "detail": "Penentu warrant ada di UI: warrantStages COW/CWW/CWM/CTW/CWT dicocokkan dengan item.notice.last_processing_stage (PaymentSearchResult.ts:771-776). Tapi mapToMatrix (API.ts:49-74) tidak mengisi last_processing_stage, dan mapToIdSearchDTO (ParkingFinesController.java:365-379) tidak mengirim lastProcessingStage. Hasilnya stage selalu string kosong, hasWarrant selalu false, jadi warrant tidak pernah terdeteksi di alur ini. Dibaca dari code; perilaku runtime belum dijalankan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman memberi prompt bahwa ada warrant of arrest yang harus dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentProcess.ts:159-199,210-215; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:418-430",
+      "fit": "Sebagian",
+      "detail": "Teks peringatan warrant ada: 'Terms and Conditions for Compounding of Offence(s) with Warrant(s) of Arrest' (PaymentProcess.ts:159-199) lewat InitPaymentWarrant (:210). Tapi muncul hanya setelah offender memilih notice dan menekan Pay (PaymentSearchResult.ts:777), isinya soal syarat compounding (pembayaran tidak otomatis membatalkan warrant), bukan 'bayar dulu sebelum dapat clearance slip', dan cabangnya tidak terjangkau karena hasWarrant selalu false (langkah 5). Pada notice stage pengadilan yang tidak bisa dibayar online, API mengirim pesan E4 dari tabel user message (ParkingFinesServiceImplement.java:426); isi teks E4 ada di database, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman mengarahkan offender memilih notice yang belum dibayar dan melanjutkan ke pembayaran",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:728-790,1028-1045; ocmseserviceui/src/pages/Payment/API.ts:179-200",
+      "fit": "Sebagian",
+      "detail": "Untuk offender yang login, InitPaymentSPCPUnpaid menampilkan tabel notice belum dibayar dengan checkbox, pilihan payment mode (eNETS, Visa/MasterCard, PayNow) dan tombol Pay (PaymentSearchResult.ts:1028-1045). PayButton memanggil APIPostGenerateTransaction (:752) lalu membuka layar ringkasan pembayaran (:777-780). Ini arah pembayaran yang benar, tetapi dari halaman Payment, bukan dari halaman Clearance Slip. Sisi payment gateway URA cannot verify from repo. Diturunkan ke Sebagian setelah double check: ini daftar notice umum di halaman Payment, bukan prompt khusus warrant dari layanan Clearance Slip."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menyatakan pembayaran wajib dilakukan sebelum offender bisa mendapat copy clearance slip",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:146-170 (hanya catatan status pembayaran, tidak menyebut clearance slip)",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada teks, pengecekan, atau gate yang mengaitkan pembayaran warrant dengan clearance slip. Catatan di halaman hanya soal status 'Not Paid', tab Paid, dan riwayat 6 bulan (PaymentSearchResult.ts:146-170). Tidak ada code yang menahan atau melepas clearance slip berdasarkan status warrant di ocmseserviceapi (tidak ada controller clearance) dan tidak ditemukan di repo lain."
+    }
+  ]
+}

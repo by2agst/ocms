@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/daily_reports/{jobs/ClassifiedVehicleReportJob,helpers/ClassifiedVehicleReportHelper,models/ClassifiedVehicleReportRecord}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAllTypeVNotices, findTypeVAmendedToS), utilities/emailutility/EmailService, cron-schedules-prod.properties, application-prod.properties. ocmsadminui pages/Dashboard/Dashboard.tsx, utils/mapping/Notice/Notice.ts. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this report",
+  "note": "Status 'Requirement given - Gen flow'. The report exists: job 7 'Classified Vehicle (VIP) Report' in the combined daily report cron at 08:00 (cron-schedules-prod.properties:255-256, 268; DailyReportJobsScheduler.java:102) runs ClassifiedVehicleReportJob, which builds a 3-sheet Excel file. Three things differ from the story. (1) Columns: vehicle no, offence date-time, offence code, car park and amount payable are there, but the owner name and furnished driver name are not (the query reads only ocms_valid_offence_notice, no owner/driver or furnish join). (2) Scope: the query takes all type V notices with no date filter (OcmsValidOffenceNoticeRepository.java:728), not only those issued that day. (3) Destination: the report is sent by email to email.report.recipients, not to an OIC dashboard; Dashboard.tsx is empty (lines 21-32). Furthermore, ClassifiedVehicleReportJob builds the EmailRequest without a source (ClassifiedVehicleReportJob.java:126-139), while application-prod.properties:80-81 sets email.enableSmtp=false with an allowlist that does not include this report, so EmailService.sendEmail returns false (EmailService.java:65-71), the job ends FAILED and even the failure email is blocked. This is the value in the properties file; the real server value cannot be verified from the repo. A failed job is only logged by runJob (DailyReportJobsScheduler.java:105-112). No relevant maintenance tickets. The 'Amended Notices (V to S)' sheet and the summary are beyond the story text (logged in orphans).",
+  "recommendation": "Claim partially only: generating a daily report for type V exists. Do not claim the owner/furnished driver names or the routing to an OIC dashboard. Do not claim delivery of the report until URA/the team confirms email.enableSmtp and the allowlist on the server (the prod properties show email is blocked).",
+  "steps": [
+    {
+      "step": "A daily scheduler runs the Classified Vehicle report job",
+      "detail": "The Combined Daily Report cron '0 0 8 * * ?' with enabled=true (cron-schedules-prod.properties:255-256) calls executeDailyReportJobs; job 7 = dailyReportService.executeClassifiedVehicleReport() (DailyReportJobsScheduler.java:102, job name in CRONP:268). ClassifiedVehicleReportJob.initialize sets reportDate to today (lines 286-291). A failure of one job is only logged by runJob. The cron value on the server cannot be verified from the repo."
+    },
+    {
+      "step": "The report selects notices issued to classified vehicles (type V)",
+      "detail": "findAllTypeVNotices selects notices with vehicle_registration_type = 'V' (OcmsValidOffenceNoticeRepository.java:728) with no date filter, so it returns all type V notices of all time including Settled ones, not the notices issued that day; the story names no time window, hence only Sebagian. The second query findTypeVAmendedToS (lines 733-754) adds V notices changed to S after TS-CLV was revived, beyond the story text."
+    },
+    {
+      "step": "The report contains vehicle number, offence date-time, offence, car park and amount payable",
+      "detail": "The 'Type V Notices Detail' sheet has the columns Vehicle No, Notice Date, Offence Code, Place of Offence, Composition Amount, Amount Payable, Payment Status, Suspension Type/Reason (ClassifiedVehicleReportHelper.java:179-183, 198-208). Notice Date = notice_date_and_time (query line 714), which the staff portal fills from offence date + offence time (Notice.ts:25-30, Overview.tsx:270-284). The offence is only the computer_rule_code (line 715), without a description; car park = pp_name (line 721)."
+    },
+    {
+      "step": "The report contains the owner name and the furnished driver name",
+      "detail": "There is no owner name or furnished driver name column: the sheet header does not include them (ClassifiedVehicleReportHelper.java:179-183), the ClassifiedVehicleReportRecord model has no such field (ClassifiedVehicleReportRecord.java:24-60) and the query only reads ocms_valid_offence_notice with no join to the owner/driver or furnish tables (OcmsValidOffenceNoticeRepository.java:711-731). grep for 'owner', 'furnish', 'driver' in the three Classified* files finds nothing; searching ocmsadminapi and ocmsadminui also found no other classified report."
+    },
+    {
+      "step": "OCMS produces the daily report file",
+      "detail": "generateExcelReport builds a 3-sheet workbook: Summary, Type V Notices Detail and Amended Notices (ClassifiedVehicleReportHelper.java:89-126); the job names the file OCMS_Classified_Vehicle_Report_yyyyMMdd.xlsx (ClassifiedVehicleReportJob.java:114). When there is no data, the job sends a 'No Data' email (lines 94-99)."
+    },
+    {
+      "step": "The report is routed to the OIC dashboard for follow-up",
+      "detail": "The report is sent as an email attachment to email.report.recipients (ClassifiedVehicleReportJob.java:34-38, 126-139), not to a dashboard; Dashboard.tsx only renders an empty div (lines 21-32) and there is no route/endpoint for this report in ocmsadminui or ocmsadminapi. In addition the EmailRequest is built without a source, while application-prod.properties:80-81 sets email.enableSmtp=false with an allowlist that does not include this report, so EmailService.sendEmail returns false (EmailService.java:65-71), the job ends FAILED (lines 141-147) and the failure email is blocked too. Prod recipients: 3 ura.gov.sg addresses (application-prod.properties:57); whether they are the OIC cannot be verified from the repo, and the real server value cannot be verified from the repo."
+    }
+  ]
+}

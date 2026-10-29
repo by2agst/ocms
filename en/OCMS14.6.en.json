@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (countOutstandingNoticesByIdNo, per ID) and workflows/furnish/stafffurnish/StaffFurnishService; ocmsadminprivateapi toppan/upload/helpers/ToppanUploadHelper (MID/DIP skipped and PS-ed at RR3/DR3) and schedulers/ToppanUploadJobsScheduler; ocmsadminui pages/Dashboard (empty), utils/data/LinkData (WorkItem/Embassy commented out). No code for threshold X, per-entity counting or DIP/MID reminder letters in the six repos.",
+  "note": "The story asks OCMS to find entities with at least X outstanding notices (X from a parameter) under predefined conditions, then decide on reminder letters routed to the OIC dashboard. No code for this was found: no read of parameter X, no per-entity count across all vehicles, no letter decision based on the count, and the OIC dashboard is empty. The words diplomat/embassy only appear in vehicle number detection, the commented-out Embassy menu (App.tsx:203-214, LinkData.tsx:404) and an exclusion in Toppan. The story premise (notices already TS-ed) also differs: DIP/MID use PS-MID/PS-DIP in code, not TS. The search used synonyms diplomat, embassy, DIP, MID, outstanding, threshold, minimum, quarterly in UI and API. Story status: Requirement given - Gen flow. No maintenance ticket is relevant (no ticket for this feature).",
+  "recommendation": "Do not claim as done. The per-entity threshold X feature and DIP/MID reminder letters are not in the code; the TS premise also does not match (code uses PS). Confirm with URA whether this scope was moved or not built yet.",
+  "steps": [
+    {
+      "step": "DIP/MID notices are already automatically temporarily suspended under a specific suspension code and period (result of OCMS14.5)",
+      "detail": "There is no temporary suspension for DIP/MID. At the Toppan RR3/DR3 stage, vehicles with vehicleRegistrationType I (Military) or D (Diplomatic) are removed from the letter run (ToppanUploadHelper.java:1979-1993), then applyPsSuspensionForMidDipVehicles calls psHelper.processPS (PermanentSuspensionHelper) with code PS-MID or PS-DIP (ToppanUploadHelper.java:749-777, called at :2014). That is a permanent suspension with no period or duration parameter. MID/DIP are also treated as PS reasons (SuspensionProcessingHelper.java:111-113). Same fact as OCMS14.5 (sibling story)."
+    },
+    {
+      "step": "OCMS reads value X (a configurable parameter) as the minimum number of outstanding notices per entity",
+      "detail": "A generic parameter maintenance screen exists (OCMS_SYSTEM_PARAMETER, api-authorization.properties:166-167), but no code reads any parameter as a threshold for the number of outstanding notices per entity. Grepping outstanding/threshold/minimum in ocmsadminapi, ocmsadminprivateapi and thirdpartyapi only finds the per-ID outstanding search for furnish (StaffFurnishService.java:747), which is not compared with X. Parameter values in the database: cannot verify from repo."
+    },
+    {
+      "step": "OCMS counts the outstanding notices of an entity across all its vehicles",
+      "detail": "The only outstanding count is countOutstandingNoticesByIdNo: COUNT of notices with a given id_no, offender_indicator = 'Y' and suspension_type not PS (OcmsValidOffenceNoticeRepository.java:220-229). It runs for one ID when an officer searches on the furnish screen (StaffFurnishService.java:742-760); it is not a batch job that sweeps every entity and its vehicles, and it does not restrict to DIP/MID notices."
+    },
+    {
+      "step": "Notices are selected by predefined conditions (suspension status, suspension code, suspension type)",
+      "detail": "The only suspension condition in the outstanding count query is (v.suspension_type != 'PS' OR v.suspension_type IS NULL) (OcmsValidOffenceNoticeRepository.java:202 and :227). There is no suspension code filter (DIP/MID or TS codes) and no active-suspension status filter, so it is not the set of predefined conditions the story names."
+    },
+    {
+      "step": "OCMS decides whether to generate reminder letters, based on the outstanding count versus X",
+      "detail": "No code compares the outstanding count with X. The Toppan decision to produce a letter depends only on the notice stage (RD1...DR3); for MID/DIP vehicles at RR3/DR3 the letter is skipped and replaced by PS (ToppanUploadHelper.java:1979-2014). Daily letter generation through the day-end cron is also switched off in code (ToppanUploadJobsScheduler.java:118, runJob job1 is commented out)."
+    },
+    {
+      "step": "The reminder letters are routed to the OIC dashboard for follow-up",
+      "detail": "The staff portal Dashboard page is empty: only a row div with no content (Dashboard.tsx:21-31). The WorkItem and Embassy menus are commented out (LinkData.tsx:398 and :404). There is no work item or routing of reminder letters to the OIC for this case; work items that exist in code (for example PS-RP2 in DataHiveUenFinService) are unrelated."
+    }
+  ]
+}

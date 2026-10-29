@@ -1,0 +1,73 @@
+{
+  "story": "OCMS41.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/{schedulers/SyncIntranetInternetJobsScheduler, workflows/syncintranetinternet/SyncIntranetInternetService}, agencies/lta/upload/helpers/LtaUploadHelper; ocmseserviceapi workflows/furnish/{FurnishApplicationListController, FurnishApplicationListServiceImpl, FurnishValidationServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver, crud/ocmsezdb/eocmsvalidoffencenotice, auth/filter/JwtFilter; ocmseserviceui pages/Furnish/{Furnish, API, NoticesTable/*}, route/route.ts; ocmsadminapi workflows/furnish/helpers/FurnishabilityChecker (pembanding). ocmsadminui, thirdpartyapi: tidak terlibat",
+  "note": "Status Demo paid (50% of 75%); demo: cron aktif lalu sync Internet-Intranet. Code membuktikan alur: cron Intranet ke Internet (tiap 10 menit di prod) menyalin VON ke eVON dan ONOD ke eONOD, lalu eService API mencocokkan ID dari session login dan hanya mengembalikan notice Eligible. Yang tidak sesuai kata-kata story: kondisi pre-defined tidak diterapkan saat 'mengirim' (sync menyalin semua VON), tapi saat daftar dibaca di eService API; daftar stage berbeda antara eService (ROV/ENA/RD1/RD2), cek staff (NPA sampai CPC) dan pasangan stage cron, dan isi kondisi per jenis notice dari spesifikasi tidak ada di repo. Tiket yang dipakai: OCMS-DF-2026-067 dan OCMS-DF-2026-077 (notice tidak muncul karena is_sync tidak di-set 'N' oleh cron LTA Upload; keduanya Closed, Prod deployed, dan LtaUploadHelper.java:217 sekarang set is_sync='N'; jalur lain yang mengubah stage belum diaudit di sini), OCMS-DF-2026-168 (konteks: kolom pembayaran tidak ditimpa oleh sync). Login Singpass/Corppass, nilai property di server asli, dan spesifikasi kondisi: cannot verify from repo.",
+  "recommendation": "Klaim dengan catatan. Alur sync dan tampil di eService terbukti; minta URA konfirmasi daftar kondisi per jenis notice (stage, status) karena tiga tempat di code memakai daftar stage yang berbeda, dan konfirmasi cron Intranet ke Internet aktif di server prod",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron Intranet ke Internet berjalan berkala dan mengambil VON/ONOD dengan is_sync = 'N'",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncIntranetInternetJobsScheduler.java:39; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/SyncIntranetInternetJobsScheduler.java:46; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:291-292; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:101; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:130; ocmsadminprivateapi/src/main/resources/application-prod.properties:100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:217",
+      "fit": "Sesuai",
+      "detail": "SyncIntranetInternetJobsScheduler dijadwalkan tiap 10 menit di prod (cron-schedules-prod.properties:291-292, enabled=true; SyncIntranetInternetJobsScheduler.java:39,46). syncIntranetToInternet() hanya jalan kalau payment.sync.enabled=true (SyncIntranetInternetService.java:101; application-prod.properties:100) lalu membaca VON dengan is_sync='N' (:130). Nilai property di server asli cannot verify from repo. Defect lama OCMS-DF-2026-067/077: cron LTA Upload menaikkan stage NPA ke ROV tanpa set is_sync='N', jadi notice tidak muncul di eService; UPDATE di LtaUploadHelper.java:217 sekarang mengisi is_sync='N' (tiket Closed, Prod deployed). Jalur lain yang mengubah stage tanpa flag itu belum diaudit (cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data notice (VON) disalin ke eVON di Internet DB termasuk processing stage dan suspension",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:272-293; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:295-313; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:430",
+      "fit": "Sesuai",
+      "detail": "executeEvonMerge() menjalankan MERGE ke ocmsezmgr.eocms_valid_offence_notice: cabang UPDATE menyalin last/next_processing_stage, epr_reason_of_suspension, offence_notice_type, an_flag, payment_acceptance_allowed; cabang INSERT membuat baris baru lengkap (SyncIntranetInternetService.java:295-313). Kolom pembayaran (amount_paid, payment_status, suspension_type, crs_*) sengaja tidak ditimpa saat UPDATE (komentar OCMS-DF-2026-168, :272-293). Setelah sukses, is_sync di Intranet diubah ke 'Y' (:430)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data owner/hirer (ONOD) disalin ke eONOD di PII DB supaya ID bisa dicocokkan saat login",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:437-440; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:563-570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/syncintranetinternet/SyncIntranetInternetService.java:605",
+      "fit": "Sesuai",
+      "detail": "syncOffenceNoticeOwnerDriver() membaca ONOD is_sync='N' (SyncIntranetInternetService.java:440), MERGE ke ocmspiiezmgr.eocms_offence_notice_owner_driver (:563-570), lalu menandai is_sync='Y' (:605). Tabel ini yang dicari eService API saat mencocokkan ID login dengan offender (langkah 5)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner/hirer login ke Online Customer Portal dan identitas (NRIC/UEN) diambil dari session",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Furnish.ts:121-123; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:79; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:113-114; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:81-83",
+      "fit": "Sesuai",
+      "detail": "Halaman Furnish punya langkah login sendiri (Furnish.ts:121-123). eService API menolak request tanpa Bearer token (JwtFilter.java:79) dan mengisi userId/entityId dari session (:113-114); controller memakai UEN bila entityId ada, kalau tidak NRIC (FurnishApplicationListController.java:81-83), jadi FE tidak mengirim ID sendiri. Handshake Singpass/Corppass cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Portal mencari notice yang offender-nya adalah ID yang login (bukan Driver)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:50-59; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:97; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:106",
+      "fit": "Sesuai",
+      "detail": "findOffenderRecordsByIdNoAndIdType hanya mengambil baris eONOD dengan offender_indicator='Y' dan ID + id_type cocok (EocmsOffenceNoticeOwnerDriverRepository.java:50-59, dipanggil di FurnishApplicationListServiceImpl.java:85). Notice dianggap furnishable hanya kalau owner_driver_indicator bukan 'D' (:97) dan notice yang masih punya aplikasi Pending dibuang (:106)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kondisi pre-defined per jenis notice (processing stage, status notice) dievaluasi",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:177-182; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:192; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:201; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:206; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:211; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/beans/SystemConstant.java:108-113; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:109-118; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:129-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:51-61; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:237-244",
+      "fit": "Sebagian",
+      "detail": "Kondisi ada di eService API saat daftar dibaca: lolos kalau crs_reason_of_suspension null (FurnishValidationServiceImpl.java:192), bukan PS dengan reason RIP/MID/RP2/DIP/FOR (:201; SystemConstant.java:108-111), bukan UPL offence_notice_type 'U' (:206), dan last_processing_stage ada di ROV/ENA/RD1/RD2 atau next_processing_stage RD1/RD2 (:177-182,211; SystemConstant.java:112-113). Query eVON juga membuang an_flag 'Y' (EocmsValidOffenceNoticeRepository.java:109-118) dan service membuang PRA atau payment_acceptance_allowed 'N' (FurnishApplicationListServiceImpl.java:129-130). Sebagian karena: (1) kondisi diterapkan saat baca, bukan saat sync 'mengirim' (sync menyalin semua VON); (2) daftar stage berbeda dari cek staff NPA sampai CPC (FurnishabilityChecker.java:51-61) dan pasangan stage cron auto-approval (ocmsadminprivateapi SystemConstant.java:237-244); (3) hanya UPL dan AN yang membedakan jenis notice, dan daftar kondisi per jenis notice dari spesifikasi tidak ada di repo (cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang eligible ditampilkan kepada owner/hirer untuk submit particulars",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:117-125; ocmseserviceui/src/pages/Furnish/API.ts:564-575; ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:84; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:56; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:74; ocmseserviceui/src/route/route.ts:38-40",
+      "fit": "Sesuai",
+      "detail": "Controller hanya meneruskan baris berstatus Eligible dan menghitung totalEligible/totalNotEligible (FurnishApplicationListController.java:117-125). UI memanggil APIGetFurnishNotices (Notices.ts:84; API.ts:564-575), mengisi tabel (FurnishableNotices.ts:56) dan menampilkan 'No furnishable notice(s) found' bila kosong (FurnishableNotices.ts:74). Route furnish-particulars ada di route.ts:38-40. Bukti dampak nyata: OCMS-DF-2026-067, user melihat pesan kosong karena eVON tertinggal di stage NPA (diperbaiki lewat OCMS-DF-2026-077)."
+    }
+  ]
+}

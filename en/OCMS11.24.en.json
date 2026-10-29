@@ -1,0 +1,21 @@
+{
+  "story": "OCMS11.24",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, generateMessages, prepareTemplateData, sendBatchSms, saveSendStatus), utilities/smsutility/SmsUtil (sendBatchSmsSimple, sendBatchSms), application-prod.properties, application.properties, cron-schedules-prod.properties. Other repos: no code specific to this story.",
+  "note": "The story asks for an SMS to each unique individual owner listing the outstanding NOPOs and referring to the 3rd letter. In code: combineNotices merges notices per recipient (I_<idNo>) + stage + due date into one record with a combinedNotices list, then sendBatchSms sends through Postman2/APIM in batches of up to 1000. Three things lower the claim: (1) the eNotification job is off in prod (cron-schedules-prod.properties:236, ticket OCMS-DF-2026-180 awaits the cron being activated); (2) even if the job is switched on, no SMS goes out because sms.enable=false at application-prod.properties:87 and sms.allowedSources is not set in prod (only in UAT/dev), while SmsUtil blocks the batch when source ENOTIFICATION is not in the allowlist (SmsUtil.java:401-410); (3) uniqueness is per stage + due date combination only, so an owner with different due dates can get more than one SMS. The RR3_SMS_INDIVIDUAL(_COMBINED) template text lives in the database (ocms_template_store), not in the repo: whether the text refers to the 3rd letter: cannot verify from repo. Postman2 gateway: cannot verify from repo.",
+  "recommendation": "Claim partially. The notice-merging and batch SMS logic exists, but the eNotification job is off and SMS is disabled in prod. Ask URA to confirm the prod configuration and the RR3 template text before claiming in full.",
+  "steps": [
+    {
+      "step": "Unique individual owners are identified and their outstanding notices are merged per recipient",
+      "detail": "combineNotices groups records by recipient key 'I_<idNo>' + stage + paymentDueDate; notices with the same key are merged (combinedNotices separated by '.', amountPayable summed) so one recipient gets one record (NotificationSmsEmailHelper.java:2151-2210, key at :2230-2246; called at NotificationSmsEmailJob.java:191). Companies (id_type B) are left out of the SMS batch (:269-281). Uniqueness is per stage + due date, not per batch job, and sits in the job that is off in prod (cron-schedules-prod.properties:236). Mobile number from DataHive: see OCMS11.23 (refresh is off in prod)."
+    },
+    {
+      "step": "The SMS lists the outstanding NOPOs and refers to the 3rd reminder letter",
+      "detail": "generateMessages picks a template named <stage>_SMS_INDIVIDUAL[_COMBINED] (for RR3: RR3_SMS_INDIVIDUAL_COMBINED when there are several notices) and fills it with combinedNotices, noticeCount, amountPayable, paymentDueDate, vehicleNo (NotificationSmsEmailHelper.java:274-310, :410-430, :459-476). So the NOPO list is included. The template text is in ocms_template_store (DB), not in the repo: whether the wording refers to the 3rd letter: cannot verify from repo. If the template is missing the SMS is skipped with an error log (:308)."
+    },
+    {
+      "step": "The SMS is sent to each individual owner in the batch job",
+      "detail": "The job calls sendBatchSms when notification.sms.enabled=true (application.properties:176) (NotificationSmsEmailJob.java:289-291); sendBatchSms splits by 1000 and calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NotificationSmsEmailHelper.java:1527, :1611-1612). SmsUtil blocks when sms.enable=false and the source is not in sms.allowedSources (SmsUtil.java:401-410). In prod sms.enable=false (application-prod.properties:87) and sms.allowedSources is not set (only UAT/dev), so no SMS is sent in the repo configuration. The job is also off (cron-schedules-prod.properties:236). Postman2/APIM gateway and delivery result: cannot verify from repo."
+    }
+  ]
+}

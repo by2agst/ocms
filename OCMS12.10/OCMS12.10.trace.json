@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, resources/{cron-schedules-prod.properties, application-{dev,uat,prod}.properties}. Repo lain: tidak dipakai. Copy lama ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "note": "Status di stories.json: Demo paid (50% of 75%); demo_remark: Vault & email Code Split, mungkin perlu cek izin email ke App Service. Tidak ada flow deck. Alur email company (id_type B) untuk last stage RD2 sama dengan story OCMS11.10 (stage RD1): notice digabung per UEN + stage + due date, template RD2_EMAIL_COMPANY[_COMBINED], kirim per record lewat EmailService dengan source ENOTIFICATION. Celah: (1) cron.notification.enabled=false di dev/UAT/prod; (2) di prod email.enableSmtp=false dan email.smtp.allowedSources tidak memuat ENOTIFICATION, sehingga EmailService menolak; (3) refresh email dari CorpPass DataHive/DOS mati (cron.enareminder.datahive=false); (4) kunci penggabungan memuat tanggal jatuh tempo; (5) isi template ada di DB, tidak bisa dipastikan merujuk 2nd letter. Vault, DOS dan izin email cannot verify from repo. Tiket: OCMS-DF-2026-180 (Closed; menunggu cron eNotification aktif).",
+  "recommendation": "Klaim sebagian (60%). Alur email RD2 untuk company ada dan opt-out dihormati, tetapi di properties prod email eNotification dan cronnya dimatikan, refresh DOS mati, dan isi template tidak terverifikasi. Minta bukti cron aktif, template RD2 dan izin email di PRD.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil alamat email terbaru pemilik company dari DOS (DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2325-2340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2485; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496-2598; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2676-2703; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Company dicari di DataHive CorpPass lewat UEN (kolom CP_ACCOUNT_EMAIL, hanya akun admin A01 yang ACTIVE; refreshCompanyContactInfo, NotificationSmsEmailHelper.java:2496-2598) dan email baru disimpan lewat updateOcmsCompanyContactInfo (NotificationSmsEmailHelper.java:2676-2703), dipanggil dari NotificationSmsEmailJob.java:185-188. Tetapi refreshContactInfo hanya jalan bila cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:92-93, 2325-2340, 2461-2485) dan properties-nya false di dev, UAT dan prod (cron-schedules-prod.properties:48), jadi email yang tersimpan di ocms_offence_notice_owner_driver yang dipakai. DataHive = DOS di story: cannot verify from repo; sama dengan OCMS11.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi pemilik company yang unik (UEN) dan menggabungkan NOPO outstanding-nya dalam satu email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2227; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191",
+      "fit": "Sebagian",
+      "detail": "combineNotices memakai kunci penerima B_<UEN> + stage + tanggal jatuh tempo, menjumlahkan amount_payable dan mengisi combinedNotices (NotificationSmsEmailHelper.java:2151-2227; getRecipientKey 2230-2250; dipanggil NotificationSmsEmailJob.java:191). Sebagian karena kunci memuat tanggal jatuh tempo, jadi satu perusahaan dengan notice RD2 berbeda tanggal jatuh tempo menerima lebih dari satu email. Sama dengan OCMS11.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perusahaan yang opt-out atau tanpa alamat email valid tidak dikirimi email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-266; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134",
+      "fit": "Sesuai",
+      "detail": "UEN yang ada di ocms_enotification_exclusion_list dilewati (NotificationSmsEmailJob.java:226-232; query reminder juga membuangnya, NotificationSmsEmailHelper.java:1131-1134). validateContactInfo untuk id_type B hanya lolos bila email terisi (NotificationSmsEmailHelper.java:2259-2290); record yang gagal dilewati (NotificationSmsEmailJob.java:254-266). Isi exclusion list adalah data DB: cannot verify from repo. Sama dengan OCMS11.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email berisi NOPO yang masih outstanding dan merujuk pada 2nd letter reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-345; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-437; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:174-182",
+      "fit": "Sebagian",
+      "detail": "Untuk reminder, nextProcessingStage diisi last stage (RD2) (NotificationSmsEmailJob.java:174-182) sehingga determineTemplateName menghasilkan RD2_EMAIL_COMPANY atau RD2_EMAIL_COMPANY_COMBINED (NotificationSmsEmailHelper.java:459-476); template dipecah jadi subject dan body (274-345) dengan data noticeNo, combinedNotices, noticeCount, amountPayable, paymentDueDate (410-437). Email stage DN1/DN2/DR3 sengaja dilewati karena tidak ada template (NotificationSmsEmailHelper.java:313-316), tidak berlaku untuk RD2. Teks template ada di ocms_template_store (DB), jadi apakah isinya menyebut 2nd letter reminder: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim email reminder/notification ke pemilik company dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353-354; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-388; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-590; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:33-37; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:64-72; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/resources/application-uat.properties:78-79; ocmsadminprivateapi/src/main/resources/application-dev.properties:81-82; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Job mengirim email hanya untuk id_type B (NotificationSmsEmailJob.java:353-354) lewat sendEmail dengan source ENOTIFICATION (NotificationSmsEmailJob.java:378-388; NotificationSmsEmailHelper.java:556-590). Scheduler melewati eksekusi bila cron.notification.enabled=false (NotificationJobsScheduler.java:30-31, 48-52) dan nilainya false di dev, UAT dan prod (cron-schedules-prod.properties:236). EmailService menolak kirim bila email.enableSmtp=false kecuali source ada di email.smtp.allowedSources (EmailService.java:33-37, 64-72). Prod: enableSmtp=false dan allowlist tanpa ENOTIFICATION (application-prod.properties:80-81); UAT: enableSmtp=false tetapi allowlist memuat ENOTIFICATION (application-uat.properties:78-79); dev: enableSmtp=true (application-dev.properties:81-82). Jadi di konfigurasi prod di repo, email tidak terkirim. Tiket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'. Pengiriman SMTP sebenarnya, Vault dan izin email App Service cannot verify from repo."
+    }
+  ]
+}

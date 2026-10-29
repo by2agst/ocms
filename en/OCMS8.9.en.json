@@ -1,0 +1,25 @@
+{
+  "story": "OCMS8.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/agencies/mha/download/{helpers/MhaNricRecordValidator (selectMostRecentRecord: only one row is kept), helpers/MhaNricDownloadHelper (TS-NRO batch)}. ocmsadminui: pages/Dashboard/Dashboard.tsx, utils/data/LinkData.tsx (Work Items menu commented out), utils/Meta/WorkItem.ts. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: 'Requirement given - Gen flow'. URA demo remark: 'Work Item not ready', and the code confirms it. Only the precondition exists: a notice with two addresses of the same date is suspended with TS-NRO (same as OCMS8.8). The OIC work item does not exist: there is no work item entity/repository/SQL in the six repos, the Work Items menu in the staff portal is commented out (LinkData.tsx:396-398), and Dashboard.tsx has nothing about work items or addresses. The address that is not chosen is dropped during dedup (only the first row is kept), so the 'addresses returned' are not stored anywhere to display; only the remark 'Duplicate same date: <date>' remains on the suspension. No maintenance ticket touches this work item.",
+  "recommendation": "Claim only the suspend step (precondition). Do not claim the work item creation, routing to the OIC dashboard and the address review. Needs storing both addresses with their dates, a work item entity and an OIC dashboard page",
+  "steps": [
+    {
+      "step": "The notice with 2 different addresses that cannot be decided is already temporarily suspended",
+      "detail": "Same as the suspend step in OCMS8.8: two duplicate rows with the same date are flagged, then the notice is suspended with TS-NRO through tsHelper.processTSBatch (MhaNricRecordValidator.java:347-356; MhaNricDownloadHelper.java:1137-1146, 2745-2755). Only applies when the notice has no other suspension."
+    },
+    {
+      "step": "OCMS creates a work item with the returned addresses and their update dates",
+      "detail": "No work item is created on the duplicate-address path: selectMostRecentRecord returns only one row (duplicates.get(0)) and sets a text reason (MhaNricRecordValidator.java:341-356); the other rows are dropped. The only work item stub on the address path is createWorkItemForNoAlternativeAddress for a FIN without address, and that is only a PLACEHOLDER log (DataHiveUenFinService.java:3697-3701). There is no work item entity/repository/SQL in the six repos (grep work_item, workitem, work item, inbox)."
+    },
+    {
+      "step": "The work item is routed to the OIC's dashboard",
+      "detail": "Dashboard.tsx (34 lines) has nothing about work items, suspensions or addresses. The Work Items menu is commented out under '//! UNCONFIRMED' (LinkData.tsx:396-398) and WorkItem.ts only holds a path/title for the breadcrumb. There is no endpoint or allocation to the OIC."
+    },
+    {
+      "step": "The OIC reviews both addresses and decides the address for the letter notification",
+      "detail": "No screen shows both addresses and their dates for the OIC's decision. Only one address is stored (the first row, which is also written as the letter address) and the remark 'Duplicate same date: <date>' (MhaNricRecordValidator.java:352-356). The generic notice edit in the staff portal does not replace the decision screen the story means, because the OIC never sees the second address."
+    }
+  ]
+}

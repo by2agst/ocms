@@ -1,0 +1,55 @@
+{
+  "story": "OCMS39.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/System/{list/ParameterList,form/ParameterForm}.tsx + App.tsx route /system/parameter; ocmsadminapi crud/ocmsizdb/parameter/ParameterController (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_PARAMETER); ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper,jobs/ToppanUploadJob,models/ToppanStage}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, furnish_processing/helpers/FurnishApprovalHelper, notification_sms_email/helpers/NotificationSmsEmailHelper; ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreServiceImpl. ocmseserviceapi, ocmseserviceui: tidak ada code terkait",
+  "note": "Status story: Fully paid. Requirement text diberikan. Post-dating letter reminder disimpan sebagai parameter POS per stage di ocms_parameter dan bisa diubah lewat halaman generik Parameter (tidak ada halaman khusus Post Dated). Perhitungan letter date ada di Toppan upload (processingDate + POS, default 14), tetapi basisnya waktu run job, pembuatan letter harian hanya lewat trigger manual (panggilan scheduler dikomentari), dan prod properties memblok upload Toppan (sftp.upload.disabledServers=toppan); nilai server asli cannot be verified from repo. Court summons tidak punya pencetakan atau parameter POS di repo mana pun. Baris POS di DB: cannot verify from repo. Ticket yang dipakai: OCMS-DF-2026-180 (POS tetap dipakai di stage reminder, tidak untuk eNA) dan OCMS-SR-2026-039 (hardening edit Parameter: patch hanya description/value, HTML-escape).",
+  "recommendation": "Klaim sebagian: konfigurasi POS lewat halaman Parameter berfungsi dan rumus letter date ada untuk reminder dan demand letter. Court summons tidak ada code. Konfirmasi ke URA bahwa basis tanggal = tanggal generate dan bahwa pembuatan letter manual serta upload Toppan dimatikan di prod bisa diterima",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman konfigurasi di System Admin untuk mengatur post-dating letter reminder dan court summons",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:377-399; ocmsadminui/src/utils/Meta/System.ts:49; ocmsadminui/src/utils/Meta/System.ts:65; ocmsadminui/src/pages/System/list/ParameterList.tsx:137-152; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:81-88",
+      "fit": "Sebagian",
+      "detail": "Tidak ada halaman khusus post-dating: POST_DATING di System.ts:65 path-nya null, dan LETTER_REMINDER punya path /system/letter-reminder (System.ts:49) tetapi tidak ada Route-nya; App.tsx:375-500 hanya mendaftarkan parameter, standardcode, computer-rule-code, suspension-reason, schedule-public-holiday. Yang bisa dipakai adalah halaman generik Parameter (/system/parameter, App.tsx:377-399) yang menampilkan semua baris ocms_parameter lewat POST /parameterlist (ParameterList.tsx:137-152, ParameterController.java:81-88). Authorization function OCMS_SYSTEM_PARAMETER (api-authorization.properties:166-167) dicek di server oleh OcmsAuthorizationInterceptor (OcmsAuthorizationInterceptor.java:57-74)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengubah jumlah hari post-dating (X hari) per jenis surat",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/ParameterForm.tsx:72-82; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:48-76; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:90-134; ocmsadminui/src/utils/validation/System/ValidParameter.ts:44-47; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:196-208",
+      "fit": "Sesuai",
+      "detail": "Edit memanggil POST /parameterpatch/{parameterId}/{code} (ParameterForm.tsx:72-82) dengan parameterId POS dan code = stage (RD1, RD2, RR3, DN1, DN2, DR3), sama dengan pembaca nilainya di ToppanUploadHelper.java:197. Controller hanya mengizinkan description dan value (ParameterController.java:90-107) dan meng-escape HTML (komentar OCMS-DEV-2026-039, ticket OCMS-SR-2026-039). Baris baru bisa dibuat lewat POST /parameter (ParameterController.java:48-76). Catatan: validasi hanya 'wajib diisi' (ValidParameter.ts:46), nilai non-angka diterima dan diam-diam jatuh ke default 14 hari (ToppanUploadHelper.java:199-207). Baris POS per stage ada di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tanggal surat reminder dihitung X hari dari tanggal file diinterface ke printing vendor",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:196-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2060-2061; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-24; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Rumus ada: calculateLetterDate = processingDate + parameter POS per stage, default 14 (ToppanUploadHelper.java:196-208), dipanggil di ToppanUploadHelper.java:2060 untuk RD1, RD2, RR3, DN1, DN2, DR3 (ToppanStage.java:19-24); surat ANL tidak memakai POS, tanggalnya = tanggal run (ToppanUploadHelper.java:2612). Tetapi basis tanggalnya adalah LocalDateTime.now() saat job jalan (ToppanUploadJob.java:232,248), bukan waktu file benar-benar dikirim ke vendor. Pembuatan letter harian juga tidak otomatis: panggilan toppanLettersGeneratorService.executeJob() di scheduler dikomentari (ToppanUploadJobsScheduler.java:118), hanya lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34-40). Di application-prod.properties:86 sftp.upload.disabledServers=toppan, jadi upload ke Toppan diblok; nilai di server asli cannot be verified from repo. Ticket OCMS-DF-2026-180 (closed, prod deployed) mengonfirmasi POS tetap dipakai untuk tanggal bayar di stage reminder."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Post-dating juga berlaku untuk court summons",
+      "repo": "ocmsadminprivateapi, thirdpartyapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:18-25; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1815-1819; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:795",
+      "fit": "Tidak ada code",
+      "detail": "Stage yang dicetak Toppan hanya RD1, RD2, RR3, DN1, DN2, DR3 dan ANL (ToppanStage.java:19-25); tidak ada generator court summons dan tidak ada parameter POS untuk stage court. COS (Court Summons) hanya muncul sebagai kode stage di flag pembayaran AXS (AxsNopoServiceImpl.java:795) dan CPC hanya sebagai next stage cadangan (ToppanUploadHelper.java:1815-1819). Pencarian synonym (summons, summon, court letter) di enam repo tidak menemukan pencetakan summons. Kemungkinan dicetak sistem lain (State Courts/CAS): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan nilai berlaku di run berikutnya tanpa perubahan code",
+      "repo": "ocmsadminprivateapi, ocmsadminapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:177-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:817-821; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreServiceImpl.java:238-243; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1103-1106",
+      "fit": "Sesuai",
+      "detail": "getParameterValue memanggil parameterRepository.findById setiap kali dipakai, tanpa cache (ToppanUploadHelper.java:177-188), jadi nilai POS yang diubah langsung terbaca di run berikutnya tanpa deploy. Nilai POS yang sama juga dipakai tanggal bayar di furnish approval (FurnishApprovalHelper.java:817-821), preview template (OcmsTemplateStoreServiceImpl.java:238-243) dan query reminder SMS/email (NotificationSmsEmailHelper.java:1103-1106). Efek di letter nyata bergantung pada langkah 3."
+    }
+  ]
+}

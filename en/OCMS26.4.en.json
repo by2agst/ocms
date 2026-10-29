@@ -1,0 +1,21 @@
+{
+  "story": "OCMS26.4",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "Batch SMS sending exists in NotificationSmsEmailJob, but for ENA/RD*/DN* reminders; there is no SMS with court summons details.",
+  "note": "Story: send an SMS reminder with court summons details to unique individual defendants. Status blank, demo_remark 'Check with Rafif if function is ready. I recall seeing a court SMS on test phone' (a claim, not proof). Synonyms tried: state court, adjudicat, court mention, mention_date, hearing, court_case, courtreminder; in all six repos. DOS = DataHive/LTA cannot be confirmed from the repo; the code only uses DataHive (NotificationSmsEmailHelper). Batch SMS infrastructure exists but is used for ENA/RD*/DN* reminders, not court summonses. The existing eNotification mechanism (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java) selects notices at stages ENA/RD1/RD2/RR3/DN1/DN2/DR3 using the ENOTEDAYS parameter per stage (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1108-1114), not court notices by court mention date; it is switched off in prod (cron.notification.enabled=false, ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236); the real server value cannot be verified from the repo. notification.sms.enabled defaults to true (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:53), sms.enable=false in application-prod.properties:87 (whether that property gates this path cannot be verified from the repo).",
+  "recommendation": "Evidence 33%. Do not claim the State Courts/court reminder feature; only the generic eNotification mechanism exists.",
+  "steps": [
+    {
+      "step": "Defendant mobile numbers are obtained from DOS",
+      "detail": "The code refreshes contacts from DataHive (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461, called at ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:186-188). DOS = DataHive/LTA cannot be confirmed from the repo; only for ENA/RD*/DN* notices, not court notices."
+    },
+    {
+      "step": "The system identifies unique individual defendants for the SMS of each batch",
+      "detail": "combineNotices merges notices for the same recipient (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151, called at ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191) and idType other than B is treated as SMS (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353). But ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:249 says each notice still gets its own SMS with no phone deduplication, and the input is non-court notices only."
+    },
+    {
+      "step": "The system sends an SMS containing the court summons details",
+      "detail": "The batch SMS is sent via sendBatchSms (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289-291), but the template is chosen per ENA/RD*/DN* stage (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-468) and there is no court summons/mention date field; DB template content cannot be verified from the repo. The job is switched off in prod (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236)."
+    }
+  ]
+}

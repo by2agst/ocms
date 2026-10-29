@@ -1,0 +1,55 @@
+{
+  "story": "OCMS36.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/ManageTemplate/{form/EditTemplateForm,hooks/useAPITemplate}, utils/mapping/ManageTemplate/ManageTemplateMap.ts. ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/{OcmsTemplateStoreController,OcmsTemplateStore} (kolom: template_name, remarks, template_type, template_content; tidak ada kolom tanggal berlaku). ocmsadminprivateapi crud/ocmsizdb/templatestore/TemplateProcessingService (cache in-memory), NotificationSmsEmailHelper, AnLetterPdfService. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status 'Demo paid (50% of 75%)'. Simpan perubahan template SMS/email ada dan berfungsi (Update -> confirm -> templatestorepatch, langsung menimpa template_content). Pilihan 'berlaku segera atau pada tanggal tertentu' tidak ada: form edit tidak punya field tanggal berlaku (DateInput/TimeInput hanya dipakai untuk tanggal create/update readonly), payload patch hanya remarks/templateType/templateContent, dan entity ocms_template_store tidak punya kolom tanggal berlaku atau versi, jadi tidak ada penjadwalan. Dampak tambahan yang perlu dicek: TemplateProcessingService di ocmsadminprivateapi menyimpan isi template di cache in-memory (ConcurrentHashMap) tanpa kedaluwarsa, dan clearCache()/refreshTemplate() tidak dipanggil dari mana pun, sedangkan editing berjalan di proses ocmsadminapi yang berbeda; akibatnya cron notifikasi dan letter dapat terus memakai teks lama sampai proses private API restart (Medium confidence: dibaca dari code, belum diuji di server). Letter tidak bisa disimpan dari UI karena tidak terjangkau (lihat OCMS36.1/36.3). Tidak ada ticket maintenance yang menyangkut tanggal berlaku template.",
+  "recommendation": "Klaim hanya bagian simpan perubahan SMS/email. Pilihan berlaku segera/tanggal tertentu belum dibangun, dan perubahan bisa tidak langsung terpakai oleh cron karena cache. Minta URA konfirmasi dan tim memeriksa perilaku cache di server",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menyimpan perubahan template SMS atau email",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/ManageTemplate/form/EditTemplateForm.tsx:90-97; ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx:192-217; ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx:104-110; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:222-256",
+      "fit": "Sesuai",
+      "detail": "Tombol Update memvalidasi form lalu menampilkan confirm (useAPITemplate.tsx:192-217), kemudian POST templatestorepatch/{templateName} (useAPITemplate.tsx:104-110). Backend menimpa template_content dan mengembalikan UPDATE_SUCCESS (OcmsTemplateStoreController.java:222-256). Nama template tidak bisa diubah dan templateType divalidasi SMS|EMAIL|LETTER (OcmsTemplateStoreController.java:211,230-245)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menyimpan perubahan template letter",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/ManageTemplate/form/EditTemplateForm.tsx:156-202; ocmsadminui/src/utils/mapping/ManageTemplate/ManageTemplateMap.ts:222-227; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:211",
+      "fit": "Sebagian",
+      "detail": "Jalur simpan generik menerima LETTER (ManageTemplateMap.ts:222-227; OcmsTemplateStoreController.java:211), tetapi template letter tidak bisa dipilih dari layar dan EditTemplateForm error tanpa state dari list (EditTemplateForm.tsx:228-229; lihat OCMS36.1 dan OCMS36.3). Kodenya ada, jalur UI ke sana tidak. Fit sama dengan OCMS36.3 langkah edit teks letter."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat menandai perubahan berlaku segera",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/ManageTemplate/form/EditTemplateForm.tsx:108-202; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:206",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pilihan atau flag 'segera' di form maupun payload. Patch hanya menerima field remarks, templateType dan templateContent (OcmsTemplateStoreController.java:206; ManageTemplateMap.ts:218-230). Perubahan memang tersimpan langsung ke DB saat Update, tetapi itu perilaku default, bukan pilihan yang bisa ditandai officer."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat menentukan tanggal (dan jam) mulai berlaku, perubahan dijadwalkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/ManageTemplate/form/EditTemplateForm.tsx:13-19; ocmsadminui/src/pages/ManageTemplate/form/EditTemplateForm.tsx:118-133; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStore.java:31-48",
+      "fit": "Tidak ada code",
+      "detail": "DateInput dan TimeInput di-import (EditTemplateForm.tsx:13-19) tetapi hanya dipakai untuk Create Date dan Update Date yang readonly (EditTemplateForm.tsx:118-133). Entity OcmsTemplateStore hanya punya template_name, remarks, template_type, template_content (OcmsTemplateStore.java:31-48), tanpa kolom tanggal berlaku atau versi, dan tidak ada job yang mengaktifkan template pada tanggal tertentu (cron membaca template by name saja, NotificationSmsEmailHelper.java:301-305)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Template baru dipakai pengiriman sesuai pilihan berlaku",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/templatestore/TemplateProcessingService.java:25; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/templatestore/TemplateProcessingService.java:54-57; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/templatestore/TemplateProcessingService.java:64; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/templatestore/TemplateProcessingService.java:245-258; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:305",
+      "fit": "Sebagian",
+      "detail": "Saat Update, ocms_template_store langsung berubah. Namun TemplateProcessingService membaca template lewat cache ConcurrentHashMap yang diisi pada pembacaan pertama dan tidak pernah kedaluwarsa (TemplateProcessingService.java:25,54-57,64). clearCache()/refreshTemplate() ada (TemplateProcessingService.java:245-258) tetapi tidak dipanggil dari mana pun di ocmsadminprivateapi maupun ocmsadminapi (grep), dan dipakai notifikasi lewat getAndProcessTemplate (NotificationSmsEmailHelper.java:305). Jadi cron yang sudah memuat template dapat terus memakai teks lama sampai proses restart [Medium confidence: dibaca dari code, tidak diuji di server]. Pembacaan langsung dari DB tanpa cache hanya di render Furnish (OcmsTemplateStoreServiceImpl.java:67-68). Tidak ada penjadwalan tanggal berlaku (langkah sebelumnya)."
+    }
+  ]
+}

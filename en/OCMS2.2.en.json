@@ -1,0 +1,25 @@
+{
+  "story": "OCMS2.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi cronservice: framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsOffenceRuleServiceImpl, utilities/repccs/RepcssOffenceRuleDatFileGenerator, crud/ocmsizdb/offencerulecode/OffenceRuleCodeRepository (findActiveRepOffenceRules), framework/services/comcrypt/helper/ComcryptCallbackHelper (encrypt + SFTP), src/main/resources cron-schedules-*.properties, sftp/sftp-common.properties. Other repos: no code sending offence rules to REPCCS",
+  "note": "There is no OCMS flow deck; steps come from the story text. The demo remark mentions SFTP and 'code split': the job, file generation and SFTP upload are all in ocmsadminprivateapi (cron/backend tier), not in the staff API; SFTP permission for the App Service cannot be proven from the repo. The job sends a full snapshot of the rules in effect each day (not a delta), with one hardcoded 'U' rule (10400) and exclusions through the EXCL_RULE_O/REP parameter. One invalid amount cancels the whole file (RepccsOffenceRuleServiceImpl.java:129-145). As with OCMS2.1, in prod cron.repupload.enabled=false (cron-schedules-prod.properties:194), so per the repo the automatic schedule is inactive. REPCCS spec, partner SFTP, and parameter values: cannot verify from repo. The ocmsadminprivateapi/cronservice folder at the repo root is an old copy that is not part of the build; src/main/java is what is used. No relevant maintenance ticket.",
+  "recommendation": "Claim with conditions: the file generation and sending code exists and matches the story. First confirm that cron.repupload.enabled is on in prod and that SFTP to REPCCS is permitted; without that, the daily run is not proven in prod.",
+  "steps": [
+    {
+      "step": "The REPCCS Generate File job runs automatically every day through the scheduler",
+      "detail": "@Scheduled reads cron.repupload.schedule (prod: 0 1 0 * * ? = 00:01 every day) with ShedLock (RepUploadJobsScheduler.java:38). However cron-schedules-prod.properties:194 sets cron.repupload.enabled=false, so RepUploadJobsScheduler.java:45-48 returns immediately in prod; only uat (cron-schedules-uat.properties:196) and dev are true. A manual trigger POST /crontest/repccs/execute-scheduled-job exists (RepccGenerateFilesController.java:33,53). Whether prod is overridden through an environment variable / App Setting: cannot verify from repo. Offence rule is the 2nd service in this job (RepccsGenerateFileJob.java:147). Same fact as OCMS2.1 step 1, same fit."
+    },
+    {
+      "step": "OCMS selects the offence rule codes that are in effect today",
+      "detail": "findActiveRepOffenceRules() takes rules with effective_start_date <= today <= effective_end_date (OffenceRuleCodeRepository.java:60-61): one hardcoded offence_type 'U' rule (computer_rule_code 10400, category C, composition_amount 0) (OffenceRuleCodeRepository.java:63-66) plus all offence_type 'O' rules of category C/H/M except codes in the EXCL_RULE_O/REP parameter (OffenceRuleCodeRepository.java:67-81); category H is mapped to 'HV' (OffenceRuleCodeRepository.java:56-58). What is sent is a full snapshot of the rules in effect each day, not only changes; this is read as the 'updated list'. EXCL_RULE_O content in ocms_parameter: cannot verify from repo."
+    },
+    {
+      "step": "OCMS builds the offence rule file (fixed-format .DAT) and rejects the whole file if any amount is invalid",
+      "detail": "Each row is converted and amounts are checked: more than 6 total digits or more than 2 decimals counts as an error (RepccsOffenceRuleServiceImpl.java:94-120); a single error fails the whole offence rule job with no file (:129-145). If valid, generateDatFileContent (RepcssOffenceRuleDatFileGenerator.java:85) writes the header, details (amount %07.2f, :185-196) and trailer (:218-221); file name REPCCS-OCMS-IN-OFFCD-<timestamp> without extension (:229-233). Match with the REPCCS spec: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the offence rule file to REPCCS (blob, PGP encryption through COMCRYPT, SFTP upload)",
+      "detail": "Upload a copy to blob (RepccsOffenceRuleServiceImpl.java:166), direct SFTP is skipped (:175-176), then COMCRYPT requestToken (:180-192); PGP encryption and the SFTP upload to /REP_IN happen in the callback (ComcryptCallbackHelper.java:255-258, ComcryptWorkflowConfigResolver.java:134, sftp-common.properties:32). There is no 'already sent' flag on rules; because a full snapshot is sent every day, a failure on one day is corrected by the next run. The job status SUCCESS only means the token request was sent, not that SFTP finished. SFTP access from the App Service, the REPCCS account, and receipt at REPCCS: cannot verify from repo."
+    }
+  ]
+}

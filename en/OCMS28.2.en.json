@@ -1,0 +1,25 @@
+{
+  "story": "OCMS28.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl (ocms_adhoc_nro_temp queue). ocmsadminprivateapi framework/schedulers/MhaDownloadJobsScheduler, workflows/datahiveuenfin/services/DataHiveUenFinService (adhoc UEN), workflows/unclaimedreport/helpers/UnclaimedReportHelper, cron-schedules-prod.properties. No DOS integration and no automatic address comparison.",
+  "note": "The story asks OCMS to send the UEN to DOS, receive the latest registered address, and identify whether it changed from the address the letter was sent to. DOS is not implemented as an integration in the backend; DOS = DataHive/LTA cannot be confirmed from the repo. What exists: the DataHive UEN/FIN job reads ocms_adhoc_nro_temp rows with id_type F/B (DataHiveUenFinService.java:324-328), calls DataHive for company data and stores the address in ocms_temp_unc_hst_addr without a notice (DataHiveUenFinService.java:1056, 565-595). The job is switched off in prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52), skipped in MhaDownloadJobsScheduler.java:103-106; the real server value cannot be verified from the repo. UAT is true (cron-schedules-uat.properties:52). The address is only listed in the Unclaimed report for staff to read (UnclaimedReportHelper.java:336-339); no code compares the new address with the old one. Status blank; traced normally.",
+  "recommendation": "Do not claim as complete. Fetching a UEN address through DataHive exists but is off in prod (config) and no address comparison exists. DOS needs URA confirmation.",
+  "steps": [
+    {
+      "step": "OCMS recognises the returned record belongs to a company (UEN)",
+      "detail": "The ocms_adhoc_nro_temp queue stores id_no and id_type from the reminder/DN data (UnclaimedServiceImpl.java:222-223, 753-762); the DataHive job only picks id_type F and B (DataHiveUenFinService.java:324-328), so a UEN (B) is recognised. But this comes from a reminder letter, not a court summons."
+    },
+    {
+      "step": "OCMS sends the UEN to DOS",
+      "detail": "The DH UEN and FIN job calls DataHive for the UEN (DataHiveUenFinService.java:1040-1056). DOS is not in the code; DOS = DataHive cannot be confirmed from the repo. The job is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-106) and in prod the value is false (cron-schedules-prod.properties:52); the real server value cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS receives the latest registered address of the company",
+      "detail": "For adhoc records, storeAdhocUenAddressToUncHstAddr reads companyInfo (block, level, unit, street, building, postal code) and saves it to ocms_temp_unc_hst_addr (DataHiveUenFinService.java:565-595). The address goes to a temp table and does not change the notice address. It applies only when the job runs (off in prod, cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "OCMS identifies whether the registered address changed from where the letter was sent",
+      "detail": "No address comparison exists. The result is only shown in the Unclaimed Batch Data Report (UnclaimedReportHelper.java:336-339, Last Change Date column at line 420) for staff to read themselves. Searched: compare, differ, changed, same in DataHiveUenFinService and UnclaimedReportHelper; no logic compares the new address with the ONOD_addr address."
+    }
+  ]
+}

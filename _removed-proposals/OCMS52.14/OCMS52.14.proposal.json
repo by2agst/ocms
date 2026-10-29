@@ -1,0 +1,102 @@
+{
+  "id": "OCMS52.14",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "steps": [
+    {
+      "step": {
+        "en": "The Toppan stage update that sets the fee actually runs (day-end schedule or a trigger)",
+        "id": "Stage update Toppan yang mengisi fee benar-benar jalan (jadwal day-end atau trigger)"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "detail": {
+        "en": "updateProcessingStage (the code that writes administration_fee) is reached only through ToppanLettersGeneratorService.executeJob. In ToppanUploadJobsScheduler.executeDayEndJobs that call is commented out (line 118), so the 00:15 schedule (cron-schedules-prod.properties:61-62, enabled=true) does not generate letters or advance stages. The job runs only through the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34), reachable from the staff UI Cron page 'Toppan Generate Letters' (ocmsadminui/src/pages/Cron/list/CronList.tsx:45, proxied by CronProxyService.java:227). The demo wording 'run the Toppan Day-End job' therefore does not exercise the fee. The stage also advances only after the delivery gate in ToppanUploadJob.confirmDeliveryAndAdvanceStage; prod sets sftp.upload.disabledServers=toppan (application-prod.properties:86), so the gate is bypassed and the fee is written although the letter is not delivered (OCMS-DF-2026-192). The real server value cannot be verified from the repo.",
+        "id": "updateProcessingStage (code yang menulis administration_fee) hanya dicapai lewat ToppanLettersGeneratorService.executeJob. Di ToppanUploadJobsScheduler.executeDayEndJobs panggilan itu di-comment (baris 118), jadi jadwal 00:15 (cron-schedules-prod.properties:61-62, enabled=true) tidak membuat letter dan tidak memajukan stage. Job hanya jalan lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34), yang bisa dipanggil dari halaman Cron di staff UI 'Toppan Generate Letters' (ocmsadminui/src/pages/Cron/list/CronList.tsx:45, di-proxy oleh CronProxyService.java:227). Jadi kalimat demo 'run the Toppan Day-End job' tidak menjalankan logic fee. Stage juga baru maju setelah delivery gate di ToppanUploadJob.confirmDeliveryAndAdvanceStage; prod memakai sftp.upload.disabledServers=toppan (application-prod.properties:86), jadi gate di-bypass dan fee tetap ditulis walau letter tidak terkirim (OCMS-DF-2026-192). Nilai asli di server cannot be verified from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "At stage RR3 or DR3 the fee is read from ocms_parameter ADM for that stage and amount_payable = composition_amount + administration_fee",
+        "id": "Di stage RR3 atau DR3 fee dibaca dari ocms_parameter ADM untuk stage itu dan amount_payable = composition_amount + administration_fee"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1396-1403",
+      "detail": {
+        "en": "resolveStageContext (lines 1810-1847) calls getParameterValue(\"ADM\", currentStage) only when the stage is RR3 or DR3 and parses it with Double.parseDouble. bulkUpdateVonStage then, when isRR3orDR3 and the fee resolved, sets administrationFeeToWrite = fee and amountPayable = compositionAmount + fee (lines 1396-1403), and one JOIN UPDATE writes administration_fee and amount_payable to ocmsizmgr.ocms_valid_offence_notice (lines 1522-1523). The per-notice eVON payload carries the same amountPayable. The ADM rows and the real fee value live in the database, so the $15 amount cannot be verified from the repo (tickets OCMS-DF-2026-170 describe it as $15).",
+        "id": "resolveStageContext (baris 1810-1847) memanggil getParameterValue(\"ADM\", currentStage) hanya kalau stage RR3 atau DR3, lalu parse dengan Double.parseDouble. bulkUpdateVonStage kemudian, kalau isRR3orDR3 dan fee ketemu, mengisi administrationFeeToWrite = fee dan amountPayable = compositionAmount + fee (baris 1396-1403), dan satu JOIN UPDATE menulis administration_fee dan amount_payable ke ocmsizmgr.ocms_valid_offence_notice (baris 1522-1523). Payload eVON per notice membawa amountPayable yang sama. Row ADM dan nilai fee asli ada di database, jadi angka $15 cannot be verified from repo (ticket OCMS-DF-2026-170 menyebut $15)."
+      }
+    },
+    {
+      "step": {
+        "en": "At any other stage administration_fee is written as 0 and amount_payable stays at composition_amount",
+        "id": "Di stage lain administration_fee ditulis 0 dan amount_payable tetap composition_amount"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1404-1412",
+      "detail": {
+        "en": "In the else branch of isRR3orDR3, administrationFeeToWrite = 0.0 and amountPayable keeps the default compositionAmountAsDouble (lines 1395, 1404-1412). The SQL CASE WHEN only preserves the old value when the new value is null, so 0 overwrites a stale fee. This is the OCMS-DF-2026-170 fix (closed, 'Prod deployed' per ticket; the deployed version cannot be verified from the repo). If compositionAmount is null, amount_payable is preserved, not zeroed.",
+        "id": "Di cabang else dari isRR3orDR3, administrationFeeToWrite = 0.0 dan amountPayable tetap default compositionAmountAsDouble (baris 1395, 1404-1412). CASE WHEN di SQL hanya mempertahankan nilai lama kalau nilai baru null, jadi 0 menimpa fee lama yang salah. Ini fix OCMS-DF-2026-170 (closed, 'Prod deployed' menurut ticket; versi yang ter-deploy cannot be verified from repo). Kalau compositionAmount null, amount_payable dipertahankan, tidak jadi 0."
+      }
+    },
+    {
+      "step": {
+        "en": "If the ADM parameter is missing or not a number, the fee is not written and a warning is logged",
+        "id": "Kalau parameter ADM tidak ada atau bukan angka, fee tidak ditulis dan warning di-log"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1834-1845",
+      "detail": {
+        "en": "A missing value logs 'Administration fee not found in parameter table' (line 1841); a NumberFormatException logs 'Invalid administration fee value' (line 1840). administrationFee stays null, administrationFeeToWrite stays null and the SQL CASE WHEN keeps the existing administration_fee. Side effect to note: in this case amount_payable is still overwritten with composition_amount alone (line 1395), so an existing fee column can stay while amount_payable has no fee. The separate letter-payload query at ToppanUploadHelper.java:2068-2077 treats a missing or invalid ADM as 0.0 and logs a warning only for the invalid case.",
+        "id": "Nilai yang hilang mencatat log 'Administration fee not found in parameter table' (baris 1841); NumberFormatException mencatat 'Invalid administration fee value' (baris 1840). administrationFee tetap null, administrationFeeToWrite tetap null dan CASE WHEN di SQL mempertahankan administration_fee yang sudah ada. Efek samping: dalam kasus ini amount_payable tetap ditimpa dengan composition_amount saja (baris 1395), jadi kolom fee lama bisa tersisa sementara amount_payable tanpa fee. Query payload letter terpisah di ToppanUploadHelper.java:2068-2077 menganggap ADM hilang atau invalid sebagai 0.0 dan hanya menulis warning untuk kasus invalid."
+      }
+    },
+    {
+      "step": {
+        "en": "Cron auto-approve of a furnish submission (back to DN1 / RD1) sets administration_fee to 0 and amount_payable to composition_amount",
+        "id": "Auto-approve furnish oleh cron (kembali ke DN1 / RD1) mengisi administration_fee 0 dan amount_payable = composition_amount"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:644-676",
+      "detail": {
+        "en": "changeProcessingStage sets newStage RD1 (hirer) or DN1 (driver); for any other owner_driver_indicator it logs a warning and returns before any change. It then calls setAdministrationFee(BigDecimal.ZERO) and, when compositionAmount is not null, setAmountPayable(compositionAmount) (lines 672-675), saves the notice and syncs the eVON amount (line 699). It is reached from the approval flow at line 458. FurnishProcessingService runs inside cron.syncinternetintranet (cron-schedules-prod.properties:305-306, every 10 minutes, enabled=true).",
+        "id": "changeProcessingStage mengisi newStage RD1 (hirer) atau DN1 (driver); untuk owner_driver_indicator lain hanya log warning lalu return sebelum mengubah apa pun. Setelah itu memanggil setAdministrationFee(BigDecimal.ZERO) dan, kalau compositionAmount tidak null, setAmountPayable(compositionAmount) (baris 672-675), menyimpan notice dan sync amount eVON (baris 699). Dipanggil dari flow approval di baris 458. FurnishProcessingService berjalan di dalam cron.syncinternetintranet (cron-schedules-prod.properties:305-306, tiap 10 menit, enabled=true)."
+      }
+    },
+    {
+      "step": {
+        "en": "Staff furnish and staff redirect set administration_fee to 0 and recalculate amount_payable to composition_amount",
+        "id": "Staff furnish dan staff redirect mengisi administration_fee 0 dan menghitung ulang amount_payable = composition_amount"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:243-262",
+      "detail": {
+        "en": "In both staffFurnish (lines 243-262) and staffRedirect (lines 407-426) the new stage comes from determineNewStage, amount_payable from AmountPayableCalculationService.calculateAmountPayable(previousStage, newStage, compositionAmount) and administration_fee is set to BigDecimal.ZERO (lines 251 and 415) before noticeService.update and syncVonToInternet. For targets DN1/RD1 every matching rule in AmountPayableCalculationService.applyCalculationRules (rules 5-11 and the default, lines 132-170) returns composition only, so the result equals composition_amount. A null composition_amount is treated as 0.00 there, not as 'reset to composition_amount'.",
+        "id": "Baik di staffFurnish (baris 243-262) maupun staffRedirect (baris 407-426), stage baru datang dari determineNewStage, amount_payable dari AmountPayableCalculationService.calculateAmountPayable(previousStage, newStage, compositionAmount) dan administration_fee diisi BigDecimal.ZERO (baris 251 dan 415) sebelum noticeService.update dan syncVonToInternet. Untuk target DN1/RD1 semua rule di AmountPayableCalculationService.applyCalculationRules (rule 5-11 dan default, baris 132-170) mengembalikan composition saja, jadi hasilnya sama dengan composition_amount. composition_amount null di sana dianggap 0.00, bukan 'reset ke composition_amount'."
+      }
+    },
+    {
+      "step": {
+        "en": "Manual review approval of a furnish sets administration_fee to 0 and amount_payable to composition_amount",
+        "id": "Approval furnish lewat manual review mengisi administration_fee 0 dan amount_payable = composition_amount"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:915-927",
+      "detail": {
+        "en": "ManualReviewService.changeProcessingStage maps the role to the new last/next stage, validates it in ocms_stage_map, then sets amount_payable through calculateAmountPayable(oldLastStage, newLps, compositionAmount) and administration_fee to BigDecimal.ZERO (lines 918-924), updates the notice and syncs to the Internet VON (line 927). Same calculation rules as the previous step apply. UAT/prod data was not checked; cannot verify from repo that notices at RR3/DR3 reach this path in practice.",
+        "id": "ManualReviewService.changeProcessingStage memetakan role ke stage last/next baru, memvalidasinya di ocms_stage_map, lalu mengisi amount_payable lewat calculateAmountPayable(oldLastStage, newLps, compositionAmount) dan administration_fee = BigDecimal.ZERO (baris 918-924), update notice dan sync ke Internet VON (baris 927). Rule kalkulasi sama dengan step sebelumnya. Data UAT/prod tidak dicek; cannot verify from repo apakah notice di RR3/DR3 benar-benar lewat jalur ini."
+      }
+    }
+  ],
+  "note": {
+    "en": "The fee arithmetic and the reset on furnish redirect are in code in all four places the proposal names. Gaps: the Toppan stage update runs only through a manual trigger (day-end call commented out) and, in prod properties, advances stages without delivery; the fee value (ADM rows) and what is deployed on the real servers cannot be verified from the repo; OCMS-DF-2026-170 and -122 are defect tickets, so URA may treat the fee as already covered. The foreign-vehicle admin fee (day-end job 5, ticket -122) is not traced here. Confidence stays Low until business confirms this is not part of earlier paid scope.",
+    "id": "Hitungan fee dan reset saat furnish redirect ada di code pada keempat tempat yang disebut proposal. Gap: stage update Toppan hanya jalan lewat trigger manual (panggilan day-end di-comment) dan, di prod properties, memajukan stage tanpa delivery; nilai fee (row ADM) dan versi yang ter-deploy di server asli cannot be verified from repo; OCMS-DF-2026-170 dan -122 adalah ticket defect, jadi URA bisa menganggap fee ini sudah masuk scope lama. Admin fee foreign vehicle (day-end job 5, ticket -122) tidak ditelusuri di sini. Confidence tetap Low sampai bisnis memastikan ini bukan bagian scope yang sudah dibayar."
+  },
+  "corrections": [
+    "Acceptance 1: it is the stage the letter was generated for (last_processing_stage becomes RR3/DR3 in updateProcessingStage), and it only runs via manual POST /toppan/generate-letters; the day-end schedule does not call letter generation.",
+    "Demo step 2 'Run the Toppan Day-End job' does not trigger the fee: use the Cron page 'Toppan Generate Letters' (POST /toppan/generate-letters).",
+    "Acceptance 3: when ADM is missing, administration_fee is preserved but amount_payable is still overwritten with composition_amount alone.",
+    "Acceptance 4: staff furnish and manual review do not set amount_payable = composition_amount directly; they call AmountPayableCalculationService, which returns composition only for DN1/RD1 targets (a null composition becomes 0.00).",
+    "Evidence list: entries without the repo folder (src/main/java/..., src/pages/Cron/list/CronList.tsx, application-prod.properties:86) belong to ocmsadminprivateapi / ocmsadminui; ToppanUploadHelper.java:1396-1411 is the arithmetic (1834 is only the parameter read), and CronList.tsx:45 is only the manual trigger button, not fee logic.",
+    "Risks: the sentence 'fee amount lives in the database' is correct; add that in prod properties the Toppan delivery gate is bypassed (sftp.upload.disabledServers=toppan), so the fee is applied to notices whose letter was not delivered."
+  ]
+}

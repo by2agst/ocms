@@ -1,0 +1,29 @@
+{
+  "story": "OCMS13.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx, utils/data/LinkData.tsx, pages/NoticeUPL/{List/RequestList,Form/RequestForm,Form/ModalForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, utils/config/env.ts, envConfig/.env.*. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (decision columns commented out). The workitem, approvalinbox and workflow endpoints: not found in the six repos",
+  "note": "Status 'Demo paid (50% of 75%)'. The story asks that the officer can mark the decision (offer composition with the amount payable, or charge in court) and forward it to the 2OIC. The form exists in the UI (RequestForm: Is Compoundable Y -> DN1 with rule code and composition amount, N -> CPC), but nothing can save it: the decision/decision_date/decision_officer/decision_remark columns in the OcmsValidOffenceNotice entity are commented out, there is no workitem/approvalinbox/workflow endpoint in the six repos, and the approvalinbox resource is only called when isAPIFound (VITE_ENV STAGING or LOCAL), while the DEV/UAT/PRO builds use DEV/UAT/PRO (envConfig/.env.*). So in deployed builds the workitem call fails and the decision is not saved. The UPL menu is commented out; the route is reachable only by URL. There is no 2OIC role concept in the code ('2OIC' appears in no repo) and the work item gets allocated_to = its creator. Tickets: OCMS-SR-2026-166, OCMS-SR-2026-189 (Closed) and OCMS-SR-2026-193 (Ready to UAT, 'UPL processing logic has not been implemented in OCMS') are manual data patches of UPL composition amounts, which shows composition decisions are not processed in the system. The API host the UI calls (VITE_API_OCMS_HOST) and any other backend outside the six repos: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the decision form in the UI exists, hidden from the menu; saving the decision and routing to the 2OIC are not in the repo. Ask the team to confirm the workitem/approvalinbox/workflow backend and show evidence that a decision is stored in the database",
+  "steps": [
+    {
+      "step": "The officer opens the UPL decision screen from the work item on the dashboard",
+      "detail": "The route /upl/decision-request and the Propose button exist (App.tsx:83-85, RequestList.tsx:59-70), but the UPL menu is commented out (LinkData.tsx:396-398) so the page is reachable only by URL, and the screen opens from a notice list, not from a work item on a dashboard (OCMS13.3). There is no officer role restriction in the UI (the pages/NoticeUPL folder checks no role); there is no server authorization annotation/mapping for UPL endpoints (api-authorization.properties has no UPL mapping)."
+    },
+    {
+      "step": "The officer marks the decision: offer composition or charge in court",
+      "detail": "The 'Is Compoundable' Y/N select sets the target processing stage: Y -> DN1 (composition), N -> CPC (court) (RequestForm.tsx:62-75; the CPC/DN1 stage options at :49). The form exists, but its result cannot be saved (step 4), hence Sebagian. The target stage choice is hardcoded to CPC/DN1; there is no other code for a 'charge in court' condition beyond the CPC stage."
+    },
+    {
+      "step": "The officer enters the composition amount payable (and rule code) when composition is offered",
+      "detail": "When the stage is DN1 the form shows a Computer Rule Code lookup (resource offencerulecode, offence_type U, by vehicle category) and CompositionAmountInput (RequestForm.tsx:93-116); the offencerulecodelist lookup exists in the backend. The entered values are only sent in the approvalinbox/workitem body, which has no backend (step 4), so the amount is not applied to the notice. Sebagian."
+    },
+    {
+      "step": "The decision is stored on the notice (decision, officer, date, remark)",
+      "detail": "In the UI, onRequestAPI POSTs to approvalinbox only when isAPIFound (= STAGING or LOCAL, env.ts:11; the prod build uses VITE_ENV=PRO, envConfig/.env.prod:2, dev/uat are similar), then always POSTs workitem (useEndorsement.tsx:104-121). The backend has no approvalinbox or workitem endpoint/entity, and the decision, decision_date, decision_officer, decision_remark columns in the OcmsValidOffenceNotice entity are commented out (OcmsValidOffenceNotice.java:165-175). So in deployed builds the decision is not stored and the UI shows an error. Tickets: OCMS-SR-2026-166, -189 (manual UPL composition patch, Closed), OCMS-SR-2026-193 (Ready to UAT: 'UPL processing logic has not been implemented in OCMS')."
+    },
+    {
+      "step": "The decision is routed to the 2OIC for endorsement",
+      "detail": "The work item the UI creates gets allocated_to = the logged-in user (hard-coded, NoticeUPL.ts:194), not the 2OIC; there is no '2OIC' concept or role in the code ('2OIC' appears in none of the six repos), no recipient list, and no backend that accepts the work item (useEndorsement.tsx:119-121 POSTs to a resource that does not exist). A separate endorsement page exists (OCMS13.5) but it is not connected to this decision because the decision is not stored."
+    }
+  ]
+}

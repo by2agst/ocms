@@ -1,0 +1,55 @@
+{
+  "story": "OCMS7.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper, LtaBatchTsRovProcessor, LtaProcessingOrchestrator, LtaProcessingStageManager, LtaBatchCode0Processor}, upload/helpers/LtaUploadHelper, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status di sheet: 'Fully paid'. Story menyebut DOS (Department of Statistics), sedangkan code dan OCMS-DF-2026-194 (merujuk OCMS 7 functional document) memakai LTA VRLS sebagai sumber data pemilik kendaraan. Apakah DOS sama dengan LTA tidak bisa dipastikan dari repo (cannot verify from repo); semua step ditulis berdasarkan perilaku code terhadap LTA VRLS. Untuk respons yang datang dengan error code 1, 2, 4, TS-ROV terpasang dan notice dikirim ulang lewat siklus upload. Bagian yang meleset: interval kirim ulang tidak dikendalikan hari revival (dan ada defect OCMS-DF-2026-160), serta kasus tidak ada respons/file rusak malah tidak di-suspend. Tiket dipakai: OCMS-DF-2026-160, OCMS-SR-2026-182, OCMS-DF-2026-052 (Closed, bug cache pada LTA download).",
+  "recommendation": "Klaim deteksi error code, pencatatan, dan pemasangan TS-ROV. Interval kirim ulang dan kasus tanpa respons tidak diklaim penuh sampai OCMS-DF-2026-160 diverifikasi URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mendeteksi agency tidak bisa memberi particulars (Record Not Found, Invalid Offence Date, Reserved)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:260-268; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:446-462; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:504-517",
+      "fit": "Sesuai",
+      "detail": "hasErrorCode menganggap error code 1 sampai 4 sebagai kegagalan (DLH:446-462); record itu dipisah dari record sukses (DLH:260-268). Deskripsi: 1 Reserved, 2 Record Not Found, 3 Deregistered Vehicle, 4 Invalid Offence Date (DLH:504-517)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Error code dan waktu pemrosesan agency dicatat di notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:73-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:384-389; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:572-577",
+      "fit": "Sesuai",
+      "detail": "Untuk error code 1, 2, 4, Phase 0 memanggil updateOffenceNoticeLtaDatetimeErrorCode (TSR:79-81) yang menulis processing_date_time dan error_code ke owner_driver_addr tipe lta_reg (ORCH:384-389, 572-577). Catatan ini yang dipakai report LTA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di-suspend sementara dengan kode suspension khusus (TS-ROV)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:218-236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:262-272; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:277-287; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:97-98",
+      "fit": "Sesuai",
+      "detail": "Sama dengan OCMS7.2: notice PS, paid, dan yang last stage-nya bukan ROV dilewati (TSR:218-236); sisanya dapat suspended_notice TS/ROV (TSR:262-272) dan VON suspension_type TS, epr_reason ROV, next stage ROV, due_date_of_revival (TSR:277-287). Cabang lain: kalau penyimpanan owner_driver gagal pada code 0 atau 3, TS-ROV juga dipasang (C0:307-315). Jumlah hari revival dari ocms_suspension_reason cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Vehicle number dikirim lagi ke agency pada interval yang sudah ditentukan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:277-287; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:175-179",
+      "fit": "Sebagian",
+      "detail": "Notice TS-ROV punya next stage ROV (TSR:277-287), jadi query upload memilihnya lagi di siklus 03:00/19:00 (REPO:70-74). Query itu tidak membaca due_date_of_revival, jadi interval kirim ulang ditentukan jadwal cron dan data stage, bukan lamanya hari revival; dan upload memajukan stage lagi (UPHELP:175-179). Nilai hari revival cannot verify from repo. OCMS-DF-2026-160 (Pending Closure, Prod deployed) mencatat 24 notice TS-ROV dengan kadens kirim ulang tidak konsisten (dua kali sehari, sekali sehari, sampai 24+ hari tanpa kirim ulang); OCMS-SR-2026-182 mem-patch ulang 1,367 notice ke stage ROV. Fix di repo ini tidak bisa dipastikan dari ticket saja."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kalau agency tidak bisa dihubungi atau file hasil rusak, notice tetap di-suspend dan dikirim ulang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:139-153; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:208-222; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:463-470",
+      "fit": "Beda dari flow",
+      "detail": "Untuk file integrity error A/B/C, download berhenti dan justru memberi komentar 'Do NOT apply TS-ROV' (DLH:139-153). applyTsRovForFileIntegrityError ada tetapi tidak dipanggil dari mana pun (STG:463-470; grep 1 hasil, definisi saja). Karena upload sudah memajukan stage ke RD1/ENA (UPHELP:208-222), notice yang tidak mendapat respons keluar dari loop ROV tanpa suspension. Ini penjelasan yang konsisten dengan OCMS-DF-2026-160 (894 notice ENA/RD1 tanpa ownership dan tanpa riwayat TS-ROV). Kasus 'tidak ada file sama sekali' hanya dicatat sebagai job sukses (LtaDownloadJob 'No LTA response files found')."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS7.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload/jobs/LtaUploadJob, upload/helpers/LtaUploadHelper, download/helpers/{LtaDownloadHelper,LtaResponseFileParser,LtaBatchCode0Processor,LtaIdTypeUtil}}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, cron-schedules-prod.properties (ltaupload, ltadownload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Story status di sheet: 'Fully paid' (status_with_ura); text requirement jelas. Story menyebut DOS (Department of Statistics), sedangkan code dan OCMS-DF-2026-194 (merujuk OCMS 7 functional document) memakai LTA VRLS sebagai sumber data pemilik kendaraan. Apakah DOS sama dengan LTA tidak bisa dipastikan dari repo (cannot verify from repo); semua step ditulis berdasarkan perilaku code terhadap LTA VRLS. Alur upload-download ini berjalan sebagai cron di ocmsadminprivateapi tanpa layar untuk Reminder Processing Officer. Query, file, dan update particulars cocok dengan story; yang meleset adalah frekuensi (dua kali sehari) dan stage yang dimajukan saat upload sebelum respons datang. Tiket dipakai: OCMS-DF-2026-118, OCMS-DF-2026-160, OCMS-SR-2026-182, OCMS-DF-2026-194.",
+  "recommendation": "Klaim langkah query, kirim file, dan update particulars/alamat. Langkah 'notice lanjut setelah particulars masuk' dikonfirmasi dulu dengan URA karena stage dimajukan saat upload (OCMS-DF-2026-160, OCMS-SR-2026-182). Nama agency (DOS vs LTA) perlu dikonfirmasi.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron memilih notice yang perlu ditanyakan ke agency: stage ROV, tipe O/E, bukan PS, bukan kendaraan asing",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:87-90",
+      "fit": "Sesuai",
+      "detail": "Cron LTA Upload di prod aktif (cron.ltaupload.schedule=0 0 3,19 * * ?, enabled=true, CRON:134-135), jadi jalan dua kali sehari, lebih sering dari 'daily' di story. queryLtaUploadData memanggil streamLtaUploadData: next_processing_stage='ROV', next_processing_date <= hari ini, offence_notice_type IN ('O','E'), suspension_type bukan 'PS', vehicle_registration_type != 'F' (REPO:70-74). Pengecualian kendaraan asing sesuai OCMS-DF-2026-118 (Closed). Zona waktu cron dan nilai per environment cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Vehicle number dikirim ke agency lewat request file",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:165; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:186-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:211; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:231-235",
+      "fit": "Sesuai",
+      "detail": "LtaUploadJob.doExecute membuat request file dari hasil query (createRequestFileContent, UPJOB:186-188), mengunggahnya ke Azure Blob (UPJOB:211), lalu meminta token COMCRYPT (UPJOB:231-235). Enkripsi dan unggah ke SFTP dikerjakan callback COMCRYPT di luar job ini; apakah file sampai dan diterima agency cannot verify from repo (SFTP partner)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan membaca file hasil dari agency (owner, alamat, error code)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:204-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaResponseFileParser.java:255-259; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:258-270",
+      "fit": "Sesuai",
+      "detail": "Cron LTA Download aktif di prod 05:00 dan 21:00 (CRON:148-149). LtaResponseFileParser membaca record fixed-width: ownerId/ownerName (PARSER:204-208), deregistrationDate dan errorCode (PARSER:255-259). LtaDownloadHelper memisahkan record error code 1-4 dari error code 0 (DLH:258-270). Pengambilan file dari SFTP dan dekripsi COMCRYPT cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars pemilik (ID number, ID type, nama) di-update ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:434-440; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:454-481; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-56",
+      "fit": "Sesuai",
+      "detail": "planOffenceNoticeOwnerDriver membersihkan ownerId (sanitizeIdNumber), memetakan ownerIdType LTA ke ID type OCMS (IDT:42-56), lalu insert owner_driver kalau belum ada atau update idNo, idType, name kalau sudah ada (C0:454-481). Record tanpa ownerId dilewati (C0:435-438)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat pemilik (registered dan mailing) di-update ke notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:549-558; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:601-628",
+      "fit": "Sesuai",
+      "detail": "Alamat registrasi (street, floor, unit, building, postal code) ditulis sebagai address type lta_reg (C0:549-558). Alamat mailing ditulis sebagai lta_mail hanya bila field mailing terisi (C0:601-628)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice bisa ditindaklanjuti vehicle owner setelah particulars masuk (stage maju ke ENA/RD1)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:175-179; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:208-222; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:756-763",
+      "fit": "Sebagian",
+      "detail": "Setelah respons code 0, notice dimajukan ke ENA atau RD1 (planStageToENA/planStageToRD1, C0:756-763). Masalahnya, stage juga sudah dimajukan saat upload, sebelum respons agency datang: updateProcessingStage mengisi next_processing_stage = RD1 (TS) atau ENA (lainnya) untuk semua notice yang dikirim (UPHELP:175-179, 208-222). Kalau respons tidak datang atau gagal, notice lanjut tanpa owner. Bukti di maintenance: OCMS-DF-2026-160 (Pending Closure, 894 notice di ENA/RD1 tanpa ownership) dan OCMS-SR-2026-182 (Pending UAT, 1,367 notice stuck tanpa offender details)."
+    }
+  ]
+}

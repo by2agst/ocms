@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.26",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Confirmation.ts (review page + declaration checkbox + Submit button), Summary.ts, API.ts (APIPostFurnish)}; ocmseserviceapi workflows/furnish/{FurnishSubmissionController (POST /v1/furnishapplication), FurnishSubmissionServiceImpl (txnNo + save to PII DB)}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant to this story.",
+  "note": "Status Fully paid; 1 point. UI flow: the review page (Confirmation) shows the selected notices + summary, then the declaration, then Submit. The declaration checkbox exists and Submit only becomes enabled after it is ticked, then POST /v1/furnishapplication creates records with a txnNo. Two things to watch: (1) the UI has TWO checkboxes (true/accurate statement and understanding of Section 13(3) Parking Places Act) and both must be ticked, stricter than the story which names one checkbox; (2) the checkbox value is not sent to the backend and not stored (no declaration field in FurnishSubmissionRequestDTO), so proof that the user ticked it is not recorded in the database. Maintenance tickets OCMS-DF-2026-110, OCMS-DF-2026-143, OCMS-DF-2026-175 (submission failed with a generic error screen, all Closed) do not change the verdicts below. Singpass/Corppass login: cannot verify from repo.",
+  "recommendation": "Can be claimed in full. Note that the declaration is only enforced in the UI and is not stored.",
+  "steps": [
+    {
+      "step": "After filling the particulars, the user reaches a review page showing the selected notices and the summary of the keyed-in details",
+      "detail": "Confirmation render() includes selected-notices-section and furnish-summary (Confirmation.ts:243-245); Summary shows the hirer/driver particulars, questions and documents (Summary.ts:296-316). This is also covered by story OCMS42.24; here it is only the precondition. Data is filled from Furnish.onUpdate (Furnish.ts:158-167)."
+    },
+    {
+      "step": "The review page shows a checkbox declaring the submission is true and accurate",
+      "detail": "InitDeclaration creates a uds-check-input of type checkbox labelled 'I declare that the information given by me is true and accurate.' (Confirmation.ts:206-214), rendered under the header 'My Declaration of Truthful and Accurate Submission' (Confirmation.ts:247-255). There is a second checkbox about Section 13(3) Parking Places Act (Confirmation.ts:215-225) that the story does not mention; both are required."
+    },
+    {
+      "step": "After the checkbox is ticked, the user presses Submit and the particulars are sent",
+      "detail": "Submit starts disabled (Confirmation.ts:118); onSelect enables it only when both values 1 and 2 are selected (Confirmation.ts:234-238). Clicking Submit calls APIPostFurnish (Confirmation.ts:138), which POSTs once for all selected notices (API.ts:640-656). The declaration value is not sent and has no field in FurnishSubmissionRequestDTO, so the declaration is not recorded. The Submit handler also refuses to continue when hdQ1=Y and hdQ1Yes=N (Confirmation.ts:127-132)."
+    },
+    {
+      "step": "URA receives and records the submission (acknowledges it) with a reference number",
+      "detail": "POST /v1/furnishapplication (FurnishSubmissionController.java:66-70) validates and then calls submitFurnishApplication (:179-183), which generates a txnNo per notice (FurnishSubmissionServiceImpl.java:51-56) and batch-saves EocmsFurnishApplication (:119-123); the response carries noticeCount, submittedAt and the txnNo list (:208-212). An acknowledgement email is also sent to the owner when an owner email is given (FurnishEmailService.java:107-111), but real delivery (SMTP) cannot verify from repo. The acknowledgement page is covered in OCMS42.28."
+    }
+  ]
+}

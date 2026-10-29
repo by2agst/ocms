@@ -1,0 +1,37 @@
+{
+  "story": "OCMS39.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/System/{list/SuspensionReasonList,form/SuspensionReasonForm}.tsx + App.tsx route /system/suspension-reason + utils/constant.ts (SUSPENSION_TYPE); ocmsadminapi crud/ocmsizdb/suspensionreason/{SuspensionReason,SuspensionReasonController,SuspensionReasonServiceImpl} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_SUSPENSION_REASON), workflows/notice_creation/core/helpers/{SuspensionBaseHelper,TemporarySuspensionHelper,RevivalBaseHelper,SuspensionProcessingHelper,NoticeRecordHelper}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no configuration code",
+  "note": "Story status: Fully paid. Requirement text is given. The Suspension Reason page is complete (list, create, edit) for types TS, PS and RV, and the codes in the table are used when a suspension is applied, when a revival is validated and for the TS revival period; authorization is enforced on the server (OCMS_SYSTEM_SUSPENSION_REASON). Gaps: revival from the PLUS source only accepts CSR and OTH (hardcoded), suspension types are only TS/PS/RV (constant), other per-code rules (allowed stages, PS reasons that allow TS on top) are hardcoded, and a 30-day default is used silently when no row exists. DB row contents and the real role assignment: cannot verify from repo. No maintenance ticket changes this assessment.",
+  "recommendation": "Claim: maintaining suspension codes, revival codes, reasons and periods works and is used by the suspension/revival logic. Note the hardcoded PLUS revival limit (CSR, OTH) to URA",
+  "steps": [
+    {
+      "step": "Officer opens the Suspension Reason page and sees the list of suspension codes and revival codes",
+      "detail": "Route /system/suspension-reason (App.tsx:452-474) calls POST /suspensionreasonlist (SuspensionReasonList.tsx:66-79, SuspensionReasonController.java:117-127) and shows rows per suspension type (TS, PS, RV), code, source, description, period and status. Authorization function OCMS_SYSTEM_SUSPENSION_REASON (api-authorization.properties:172-174) is enforced on the server by OcmsAuthorizationInterceptor (OcmsAuthorizationInterceptor.java:57-74)."
+    },
+    {
+      "step": "Officer adds a new suspension code for Temporary Suspension (TS) with its reason and period",
+      "detail": "The create form sends POST /suspensionreason (SuspensionReasonForm.tsx:68-82) with suspensionType (TS/PS/RV, fixed constant in constant.ts:199-203), suspensionSource, reasonOfSuspension (3 characters), description, noOfDaysForRevival and status (SuspensionReasonForm.tsx:125-258); the period field only shows for types other than PS and RV (SuspensionReasonForm.tsx:229-239). Entity SuspensionReason.java:25-53 stores all of them and duplicates are checked through /suspensionreasonexists (SuspensionReasonController.java:56-83). Adding a type other than TS/PS/RV needs a code change."
+    },
+    {
+      "step": "Officer adds a new revival code with its reason",
+      "detail": "Selecting type RV changes the form labels to Revival Source and Revival Code (SuspensionReasonForm.tsx:121, 157-160, 187-190), then saves through the same POST /suspensionreason (SuspensionReasonController.java:85-115). A revival code is stored as an RV row in ocms_suspension_reason, not in a separate table."
+    },
+    {
+      "step": "Officer changes the description, suspension period or status (Active/Defunct) of a code",
+      "detail": "Edit calls POST /suspensionreasonpatch/{type}/{code}/{source} (SuspensionReasonForm.tsx:84-100). The controller accepts only description, noOfDaysForRevival, status (SuspensionReasonController.java:129-190); type, code and source are locked in the form (SuspensionReasonForm.tsx:215) and @NonEditable in SuspensionReason.java:28-41. Active/Defunct is set by a toggle (SuspensionReasonForm.tsx:241-258). There is no delete endpoint."
+    },
+    {
+      "step": "When a TS is applied, the code is accepted only if it is Active for the calling source",
+      "detail": "TemporarySuspensionHelper calls checkSourcePermissionTS (TemporarySuspensionHelper.java:73-76, 152-156), which queries ocms_suspension_reason by suspensionType, reasonOfSuspension, suspensionSource and status='A' (SuspensionBaseHelper.java:294-312); with no row, it is rejected with 'Source not authorized to use this Suspension Code' (SuspensionBaseHelper.java:323-336). So a new code is usable at once and a Defunct code is rejected without a deploy. Other per-code rules (e.g. the list of PS reasons that allow TS on top) stay hardcoded (TemporarySuspensionHelper.java:30-34)."
+    },
+    {
+      "step": "When a notice is revived, the revival code is validated against the configured list",
+      "detail": "For the OCMS staff/cron source, the revival code must exist in ocms_suspension_reason with status A, source OCMS and type RV (RevivalBaseHelper.java:84-97, 177-183; SuspensionReasonServiceImpl.java:20-22), so a new revival code is effective at once. But for the PLUS source the list is hardcoded to only CSR and OTH (PLUS_ALLOWED_REVIVAL_CODES, RevivalBaseHelper.java:74-80, 163-171) and does not follow the configuration. If the revival source is empty, the source validation is skipped (RevivalBaseHelper.java:160-164); the table validation still runs."
+    },
+    {
+      "step": "The configured suspension period decides the TS revival date",
+      "detail": "If the request carries no number of days, the revival date = now + noOfDaysForRevival from the TS row of source OCMS (TemporarySuspensionHelper.java:182-203; SuspensionProcessingHelper.java:1043-1072; NoticeRecordHelper.java:683-695). If no row is found, a default of 30 days is used silently with a warning log (TemporarySuspensionHelper.java:206-208). The period lookup in TemporarySuspensionHelper does not filter on status A, but a Defunct code is already rejected in step 5."
+    }
+  ]
+}

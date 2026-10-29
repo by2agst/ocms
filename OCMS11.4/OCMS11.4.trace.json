@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (combineNotices, generateMessages, sendBatchSms)}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, application-prod.properties, cron-schedules-prod.properties. Repo lain: tidak ada code kirim SMS ini",
+  "note": "Status story 'Demo paid (50% of 75%)', demo_remark soal Vault & SMS permission untuk App Service. Code pengirim SMS ada (batch ke Postman2 lewat APIM, maksimal 1000 per batch, polling status), tetapi di repo tidak aktif: cron.notification.enabled=false di dev, UAT dan prod (cron-schedules-prod.properties:236), dan di prod sms.enable=false tanpa sms.allowedSources sehingga SmsUtil menolak pengiriman bersumber ENOTIFICATION. Tiket OCMS-DF-2026-180 (closed, deploy PRD) menunggu cron eNotification diaktifkan. Pembedaan pemilik unik: reminder digabung per pemilik+stage+due date, tetapi notice ENA individu sengaja tidak digabung (satu SMS per notice). Isi template ada di DB (ocms_template_store), tidak ada di repo. Nilai per environment, Vault, dan izin SMS cannot verify from repo. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian. Code kirim SMS ada, tapi job nonaktif di semua environment (dan SMS ditolak di prod) menurut repo, penggabungan pemilik unik tidak berlaku untuk ENA, dan template ada di DB. Minta bukti aktivasi cron dan template di PRD sebelum diklaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi pemilik individu yang unik per batch supaya satu pemilik mendapat satu SMS yang merangkum NOPO-nya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2145-2182; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191",
+      "fit": "Sebagian",
+      "detail": "combineNotices menggabungkan notice per kunci pemilik (I_ + ID) + stage + due date, sehingga reminder RD1-DR3 milik satu orang jadi satu SMS. Tetapi untuk stage ENA, notice individu sengaja tidak digabung dan diberi kunci unik per notice (NotificationSmsEmailHelper.java:2169-2172), jadi satu orang dengan beberapa notice ENA menerima beberapa SMS. Tidak ada dedup nomor telepon di level batch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS berisi detail NOPO yang diterbitkan (nomor notice, kendaraan, jumlah denda, jatuh tempo)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-310; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-440; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2178-2182",
+      "fit": "Sebagian",
+      "detail": "generateMessages memilih template ENA_SMS_INDIVIDUAL / RD1_SMS_INDIVIDUAL dst. (plus _COMBINED) dan prepareTemplateData mengisi name, noticeNo, vehicleNo, amountPayable, noticeDateTime, paymentDueDate, dan daftar combinedNotices. Teks template ada di DB (ocms_template_store) dan tidak di-seed di repo, jadi isi pesan cannot verify from repo; kalau template tidak ada, SMS dilewati dengan log error (baris 308). OCMS-DF-2026-180 (closed) memperbaiki due date ENA menjadi eNA date + PDD tanpa post-dating days."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim SMS reminder/notifikasi ke pemilik individu dalam batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289-292; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527-1535; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1611-1613; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:30-31; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:48-52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:401-410",
+      "fit": "Sebagian",
+      "detail": "Job mengirim lewat sendBatchSms (maksimal 1000 per batch, Postman2 via APIM, polling status, retry sekali kalau seluruh batch gagal) dengan source ENOTIFICATION. Tetapi scheduler melewati eksekusi kalau cron.notification.enabled=false (NotificationJobsScheduler.java:48-52), dan nilainya false di dev, UAT, dan prod (cron-schedules-prod.properties:236). Di prod juga sms.enable=false (application-prod.properties:87) tanpa sms.allowedSources, sehingga SmsUtil.sendBatchSms menolak (SmsUtil.java:401-410). Di UAT ENOTIFICATION ada di sms.allowedSources (application-uat.properties:82), tetapi cron tetap off. Aktivasi nyata di PRD, Vault, dan izin SMS cannot verify from repo; OCMS-DF-2026-180 menyebut cron eNotification masih menunggu diaktifkan."
+    }
+  ]
+}

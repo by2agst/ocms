@@ -1,0 +1,29 @@
+{
+  "story": "OCMS24.4",
+  "flow_ref": "User story (not in a flow deck, OCMS has none)",
+  "code_summary": "ocmsadminprivateapi sftp-prod.properties (no State Courts); ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}, auth/filter/JwtFilter, crud/ocmsizdb/OcmsCourtCase (3 columns), workflows/furnish/stafffurnish/services/StaffFurnishService (summonNo placeholder); ocmsadminui Report/{index.tsx,action/ActionReport.tsx}, Notice/detail/Overview.tsx, utils/models/{Icsdbatch,Icourtoutcomeapproval}.d.ts. ocmsadminprivateapi (other than properties), ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code",
+  "note": "The story asks OCMS to process State Courts return files: receive summonses/charge sheets, update summons number, stage, court mention, approved/rejected indicator, then produce a summary report. Only one step has partial code: processing stage writing through the REST casUpdateCourtNotices (per-notice push from CAS, no return file and no approved/rejected derivation). The rest is missing: no file receiver, no summon_no field in the backend (TODO placeholder at StaffFurnishService.java:1567), no court mention entity or indicator, and the Court Summon Reports/Court Rejected Reports menus are titles with an empty path. Ticket OCMS-SR-2026-164 (notices closed in CAS as WWP but still outstanding in OCMS, patched manually) hints that court results do not reach OCMS automatically; hint only. The sheet status 'Demo paid' is not supported by code. State Courts file contents, SFTP permission, and APIM protection of casUpdateCourtNotices: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only stage writing through casUpdateCourtNotices is related (Sebagian); ask URA/the team in which repo State Courts return-file processing and the summons report are built, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives summonses and charge sheets from the State Courts return file for approved applications",
+      "detail": "There is no State Courts SFTP server (sftp-prod.properties:57-107) and no summons or charge sheet receiver/parser. The fields filename_chargesheet/b_lob_chargesheet are only a TypeScript type in the UI (Icsdbatch.d.ts:1-11). SFTP permission for the api App Service server (demo remark): cannot verify from repo."
+    },
+    {
+      "step": "OCMS updates the summons number on the notices",
+      "detail": "No summon_no field exists in the backend entities (grep summon_no/summonNo in crud of ocmsadminapi and ocmsadminprivateapi: zero hits). Furnish uses a placeholder: 'this.summonNo = null; // TODO: Add when summon_no field is available in database' (StaffFurnishService.java:1567). /v1/summon only appears in api-authorization.properties:23 with no controller."
+    },
+    {
+      "step": "OCMS updates the processing stage of the notices according to the outcome",
+      "detail": "Stage writing to VON/eVON exists via casUpdateCourtNotices: last/prev/next_processing_stage, suspension_type, amount_payable are overwritten from the CAS JSON (CasIntegrationServiceImpl.java:96-119); notices already FP are rejected (CasIntegrationServiceImpl.java:322-344). This is a per-notice push from an external caller, not the result of processing a State Courts return file, and OCMS does not derive the stage from an approved/rejected result. The endpoint bypasses JwtFilter (JwtFilter.java:183); APIM protection: cannot verify from repo. Sebagian because it is a generic mechanism, not the path the story names."
+    },
+    {
+      "step": "OCMS updates court mention details and the approved/rejected indicator",
+      "detail": "The backend has no court mention entity/table or approved/rejected indicator: only ocms_court_case with notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31). The UI shows 'Summary of Court Mention Date' from COURT.mention_date (Overview.tsx:337-341) but the data comes from the courtcase endpoint that has no controller; type Icourtoutcomeapproval (Icourtoutcomeapproval.d.ts:1-27) is only TypeScript."
+    },
+    {
+      "step": "OCMS generates summary reports on the summonses updated",
+      "detail": "The 'Court Summon Reports' and 'Court Rejected Reports' menus are only titles with an empty path (Report/index.tsx:69-72) and the courtcasesummary resource is commented out (ActionReport.tsx:50-56). There is no report/summon endpoint in ocmsadminapi or summons report generator in ocmsadminprivateapi, and api-authorization.properties has no summons report mapping (the word summon only appears on line 23)."
+    }
+  ]
+}

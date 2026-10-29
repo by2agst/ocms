@@ -1,0 +1,29 @@
+{
+  "story": "OCMS1.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (ENA contact check, DataHive refresh, SMS/email sending), framework/schedulers/NotificationJobsScheduler, cron-schedules-{prod,uat,dev}.properties (cron.notification.enabled=false, cron.enareminder.datahive=false). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'User Story Removed': the verdict stays Removed, not claimed. The mobile number/email check exists in the eNotification job (only at stage ENA, SMS for individuals, email for companies, empty contact moved to RD1) and SMS/email sending exists, but cron.notification.enabled=false in prod, uat and dev, and so is the DataHive refresh (cron.enareminder.datahive=false). Epic OCMS9 referred to by the story is not in the inputs. The admin fee on the notification is generally not there yet because it is only applied at RR3/DR3 or for foreign vehicles. The SMS/email providers and the runtime flag values: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed). The contact check and notification sender exist but the scheduler is switched off in every environment in the repo.",
+  "steps": [
+    {
+      "step": "After the owner particulars are obtained, OCMS checks whether the owner has a mobile number or email address",
+      "detail": "The eNotification job reads the owner contact from ocms_offence_notice_owner_driver (offender_tel_no, offender_tel_code, email_addr; NotificationSmsEmailHelper.java:1016-1017) and checks for empty values only at stage ENA: without a number (individual) or without an email (company) the notice is moved to RD1 (NotificationSmsEmailJob.java:356-368). The check is part of the notification sending job, not a separate step right after the owner particulars are obtained. The content of Epic OCMS9 is not in the inputs."
+    },
+    {
+      "step": "Individuals are checked for a mobile number and companies for an email address",
+      "detail": "sendSms = idType is not 'B' and sendEmail = idType 'B' (NotificationSmsEmailJob.java:352-353): individuals are only checked for a mobile number, companies only for an email. The story says 'mobile number/email' without this split, and Epic OCMS9 that it refers to is not in the inputs, so a full match cannot be proven."
+    },
+    {
+      "step": "Contact details are refreshed from the government data source when available",
+      "detail": "refreshContactInfo only calls DataHive (Singpass/CorpPass) when cron.enareminder.datahive=true; in prod it is false (cron-schedules-prod.properties:48), and also false in uat/dev, so only the contact already on the record is used (NotificationSmsEmailHelper.java:2461-2475). The DataHive contact refresh therefore exists in code but is off in every environment in the repo. This step is not stated explicitly in the story; it is listed because it is part of the contact check."
+    },
+    {
+      "step": "OCMS sends the SMS or email notification to the owner",
+      "detail": "The sending code exists (NotificationSmsEmailJob.java:289 for the SMS batch, email per record), but the scheduler is switched off: cron.notification.enabled=false in prod (cron-schedules-prod.properties:236), uat (cron-schedules-uat.properties:238) and dev (cron-schedules-dev.properties:239), and NotificationJobsScheduler.java:49 stops when the flag is false. Notices at ENA are also skipped when the ID is in ocms_enotification_exclusion_list. Ticket OCMS-DF-2026-180 (Closed) says the eNotification cron is waiting to be activated. Whether the job is run manually or the flag is changed in the runtime environment: cannot verify from repo."
+    },
+    {
+      "step": "The notification covers the outstanding parking charge and admin fee",
+      "detail": "The notification query reads von.amount_payable (NotificationSmsEmailHelper.java:1010) and puts it in the message data (:417). amount_payable already includes administration_fee when a fee is applied (AdminFeeHelper.batchUpdateAdminFee: amount_payable = composition_amount + administration_fee), but at stage ENA a REPCCS notice has no admin fee yet (see OCMS1.3), so the amount shown is generally just the composition amount. The message template text was not read in this story. Ticket OCMS-DF-2026-180 fixed the eNA payment due date (7 days)."
+    }
+  ]
+}

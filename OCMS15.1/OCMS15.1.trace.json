@@ -1,0 +1,46 @@
+{
+  "story": "OCMS15.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui App.tsx (route cps/search), utils/data/LinkData.tsx, pages/CPS/page/CPSSearch.tsx (form pencarian + Datagrid), utils/validation/CPS/ValidCPSSearch.ts; ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController.searchNotices, ChangeOfProcessingService.searchNotices/searchByIdNumber/searchByVonCriteria/applySearchFilters, dto/SearchChangeProcessingStageRequest}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Story 1 poin: officer bisa mencari notice dengan parameter standar (notice no, current processing stage, tanggal). Code punya halaman Change Processing Stage (menu Notices) dengan lima parameter: Notice No, Vehicle No, ID No, Current Processing Stage, Date of Current Processing Stage, lebih banyak dari contoh di story. UI menolak kombinasi yang tidak lengkap (stage saja butuh field lain, tanggal butuh stage), sedangkan API hanya meminta minimal satu kriteria. Pencarian ID No hanya mengambil current offender (offender_indicator = Y). Siapa yang memegang role OCMS_CPS (api-authorization.properties:69-70) cannot verify from repo, jadi 'Notice Processing Officer' tidak bisa dipastikan dari code. Tiket maintenance: tidak ada yang mengubah pencarian ini (grep CPS / change processing stage hanya menemukan tiket sisi submit dan report).",
+  "recommendation": "Boleh diklaim: semua langkah Sesuai (Evidence 100%). Role Notice Processing Officer perlu dikonfirmasi di data role, tidak terlihat di repo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuka halaman Change Processing Stage lewat menu Notices",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:53; ocmsadminui/src/App.tsx:168; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:333-345",
+      "fit": "Sesuai",
+      "detail": "Menu 'Change Processing Stage' menunjuk ke /notices/cps/search (LinkData.tsx:53). App.tsx:168 memetakan route itu ke CPS.CPSSearch, yang merender Datagrid untuk resource change-processing-stage/search (CPSSearch.tsx:333-345)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Form pencarian menyediakan notice number, current processing stage, dan tanggal (plus vehicle no dan ID no)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:160-225",
+      "fit": "Sesuai",
+      "detail": "Accordion 'Search Notice for Change Processing Stage' berisi TextInput noticeNo (max 10), vehicleNo (max 14), idNo (max 20), DropdownInput currentProcessingStage (opsi dari CPS_NEW_PROCESSING_STAGES) dan DateInput dateOfCurrentProcessingStage (CPSSearch.tsx:160-225). Tiga parameter yang disebut story semuanya ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UI mengecek input sebelum search: format notice no/vehicle no dan kombinasi kriteria",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:248-304; ocmsadminui/src/utils/validation/CPS/ValidCPSSearch.ts:14-21",
+      "fit": "Sesuai",
+      "detail": "formSearchToParams melempar pesan jika hanya stage yang diisi (baris 270-275), jika tanggal diisi tanpa stage (278-283), atau jika tidak ada field sama sekali (286-290). ValidCPSSearch memasang validasi format NoticeNo dan VehicleNo (ValidCPSSearch.ts:18-19). Param yang lolos dikirim dengan tanggal diformat YYYY-MM-DD (293-303)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "API mencari notice berdasarkan notice no, ID no, vehicle no, stage, dan tanggal stage",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:223-259; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:351-359; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:575-599; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:608-640; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:650-683; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/SearchChangeProcessingStageRequest.java:148-154; ocmsadminapi/src/main/resources/api-authorization.properties:69-70",
+      "fit": "Sesuai",
+      "detail": "POST /v1/change-processing-stage/search menolak request tanpa kriteria (Controller:233-248) lalu memanggil searchNotices. Jalur ID: ONOD dengan offender_indicator='Y' lalu VON (Service:575-599). Jalur lain: VON by noticeNo, lalu vehicleNo, lalu stage (+ tanggal) (608-640). Kriteria sisanya dipakai sebagai filter AND di memori; tanggal dibandingkan dengan lastProcessingDate, bukan tanggal offence (650-683). Endpoint ini ada di mapping role OCMS_CPS (api-authorization.properties:69-70); pemegang role cannot verify from repo."
+    }
+  ]
+}

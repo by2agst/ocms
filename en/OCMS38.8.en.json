@@ -1,0 +1,33 @@
+{
+  "story": "OCMS38.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui: pages/Report (ReportList tabs per function ID, ReportListLTA/MHA/ENOTIF/VHUB/Reminder/DHFin/DHUen as file lists with a Download button, ReportListNoticeCRE/NoticeFE/RIP/PS/CPS as data grids with .xlsx Export), hook/useDownloadReport (file and ZIP download), pages/Dashboard/Dashboard.tsx (empty). ocmsadminapi: workflows/reports/{daily,system/*,agency/*} (search and xlsx export), workflows/notice_management/filedownload/downloadfile/FileDownloadController (POST download/blob), api-authorization.properties (OCMS_REPORT_*). No PDF export and no routing of reports to the dashboard.",
+  "note": "The story asks for reports routed to the dashboard to be clickable, shown on screen and exportable to Excel/PDF. The staff portal Dashboard is empty and there is no mechanism that routes reports to an officer's dashboard (the daily/monthly reports checked are emailed to fixed recipient lists). What exists is the Report module (Report menu) where the officer opens report tabs: 5 data-based reports show as a grid and can be exported to .xlsx built by the backend (OCMS-DF-2026-149, closed), while file-based reports only show a list of file names and sizes with Download and ZIP buttons; the report content is not displayed on screen. There is no PDF export in the UI or in the backend report code. The Reminder Letter tab has no /v1/download/blob in the OCMS_REPORT_REMINDER mapping and the DataHive FIN/UEN tabs have no mapping at all (api-authorization.properties:144-145), so downloads on those tabs depend on another function ID of the user; the real function IDs per user: cannot verify from repo. Ticket OCMS-DF-2026-194 (Open) records differences between report format/export and URA expectations.",
+  "recommendation": "Claim only part: the Report module with grid view and .xlsx export/file download. Routing reports to the dashboard, clicking from the dashboard and PDF export do not exist. Fix the OCMS_REPORT_REMINDER, DH_FIN and DH_UEN mappings before claiming.",
+  "steps": [
+    {
+      "step": "OCMS routes reports to the officer's dashboard",
+      "detail": "The Dashboard only renders a DataForm with an empty div (Dashboard.tsx:17-31); there is no report list or report notification. There is no table or endpoint that marks a report for a specific officer. Reports produced by cron are sent as email attachments to fixed recipient lists, for example the Monthly Paid Report (MonthlyPaidReportJob.java:212-227)."
+    },
+    {
+      "step": "The officer clicks a report on the dashboard to open it",
+      "detail": "Since the Dashboard has no report items (Dashboard.tsx:17-31), nothing can be clicked there. Reports are only opened through the Report menu (menu.push(LinkReport), LinkData.tsx:390) to route report/* (App.tsx:317) and then selecting a tab, not from the dashboard."
+    },
+    {
+      "step": "The report is displayed on screen",
+      "detail": "Data-based tabs show rows in a grid: Notices Created in Backend (resource validoffencenoticelist, ReportListNoticeCRE.tsx:84-100), RIP (reports/rip/furnished-driver-hirer, ReportListRIP.tsx:72-87), Notices Created by Enforcement Systems, PS and CPS. File-based tabs (LTA, MHA, eNotification, vHub, Reminder Letter, DataHive) only list fileName and fileSize from blob via daily-report/search or toppan-report/search (ReportListLTA.tsx:56-95; ReportListReminder.tsx:73-100); the report content is not shown on screen, it can only be downloaded. The commented-out tabs (HST, TS, DOS, SMS, Email, Letter, AN, Workorder) are not shown (ReportList.tsx:147-201)."
+    },
+    {
+      "step": "The officer can export the report to Excel",
+      "detail": "The Export button builds an .xlsx file in the backend for Notices Created in Backend (reports/notice-created/export), Notices Created by Enforcement Systems (enforcement-report/export), RIP (reports/rip/export, RipReportController.java:66) and PS (ps-report/by-system|by-officer/export, PsReportController.java:96-104); client-side export was moved to the backend by OCMS-DF-2026-149 (Closed, Prod deployed). The LTA/MHA/eNotification/vHub/DataHive tabs export a ZIP of the files in the list, the file type depends on the source (useDownloadReport.ts:72-90). The Reminder Letter tab has no export (onExport is commented out, ReportListReminder.tsx:84-85). Ticket OCMS-DF-2026-194 (Open, Not Started) records remaining differences: the report generation date/time is not uniform and the manual LTA report accepts a single date only. Because not every report has an Excel export and an open defect remains, Sebagian."
+    },
+    {
+      "step": "The officer can export the report to PDF",
+      "detail": "The only export control is a single Export button (ActionReport.tsx:224-228) that calls each tab's onExport, which produces .xlsx or a ZIP. Grep pdf in ocmsadminui/src/pages/Report, utils/mapping/Report and workflows/reports in ocmsadminapi finds only Toppan letter file names (DPT-URA-PDF-D2, DailyReportServiceImpl.java:27); there is no report PDF generator and no format choice in the UI."
+    },
+    {
+      "step": "The officer downloads/saves a copy of the report",
+      "detail": "The Download button calls POST /v1/download/blob with source and fileName; the backend reads the file from the blob path per sourcePathMap with path traversal validation (FileDownloadController.java:89-99, 114-121) and the browser saves it with saveAs (useDownloadReport.ts:22-40). But OCMS_REPORT_REMINDER does not contain /v1/download/blob (api-authorization.properties:144-145) and OCMS_REPORT_DH_FIN and OCMS_REPORT_DH_UEN have no mapping, so a user holding only those functions gets 403 (OcmsAuthorizationInterceptor.java:58-72). The real function IDs per user: cannot verify from repo."
+    }
+  ]
+}

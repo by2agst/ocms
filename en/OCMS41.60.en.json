@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.60",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/stafffurnish/services/StaffFurnishService (stage RD1/DN1 + next_processing_date after furnish), ocmsadminprivateapi src/main/java/.../agencies/mha/upload/{jobs/MhaNricUploadJob,helpers/MhaNricDataHelper}, agencies/mha/download/helpers/MhaNricDownloadHelper, framework/schedulers/MhaDownloadJobsScheduler, datahiveuenfin/jobs/DataHiveUenFinJob; src/main/resources/cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, thirdpartyapi: no trigger for the address check",
+  "note": "Story status: Requirement given - Gen flow. Sheet demo remark: 'Vault Code Split. Vault needs to run as notice needs to get vehicle and owner info for ANS Code split required. Permission for Vault connection is granted to the api App Service server' (sheet claim, does not match the story text and is not judged). There is no direct trigger: furnish (PLUS or staff) only sets the stage to RD1/DN1 and next_processing_date to tomorrow 00:00, then the MHA upload cron (09:00, 14:00, 21:00 Mon-Sat) picks up notices with that stage and offender_indicator=Y, id_type=N, and the results are processed by the download cron (11:30, 16:30, 23:30). So 'same day' depends on the time of furnishing and does not hold on Sunday. Only NRIC individuals are covered; the UEN/FIN (DataHive) check is off in prod (cron.mhadownload.uenfin.enabled=false). Real server value: cannot verify from repo. MHA/SFTP partner: cannot verify from repo. The content of Epic OCMS8 was not re-read here.",
+  "recommendation": "Claim partly: updates from PLUS/staff automatically enter the MHA NRIC check queue at the next cron run. There is no direct 'same day' trigger, Sunday does not run, and the company (UEN) check is off in prod. Do not claim in full.",
+  "steps": [
+    {
+      "step": "Hirer/driver particulars are updated from PLUS or by manual staff update in OCMS",
+      "detail": "Both routes named in the story exist: PLUS via /plus-furnish and /plus-redirect, staff via /staff-furnish using the same StaffFurnishService (PlusIntegrationController.java:148, 197; StaffFurnishController.java:36-37). The result is a new current offender (indicator Y), stage RD1/DN1 and next_processing_date set (StaffFurnishService.java:223, 240, 257-260). The Online Customer Portal route is not checked in this story."
+    },
+    {
+      "step": "The newly updated record enters the registered-address check queue on the same day",
+      "detail": "There is no direct trigger from furnish to the address check. Furnish only sets next_processing_stage RD1/DN1 and next_processing_date = max(notice + 7 days, tomorrow 00:00) (StaffFurnishService.java:144-157, 254-260). The MHA upload cron selects notices with stage RD1/RD2/RR3/DN1/DN2/DR3, next_processing_date <= tomorrow and suspension_type null (MhaNricDataHelper.java:186-199) plus offender_indicator=Y and id_type=N (lines 345-346), so the furnished record enters the next run. Prod schedule: cron.mhaupload.schedule=0 0 9,14,21 ? * MON-SAT, enabled=true (cron-schedules-prod.properties:105-106). A furnish after 21:00 or on Sunday is only picked up on the next working day, so 'same day' is not guaranteed. Value on the real server: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the latest registered address of the individual (NRIC) with MHA and processes the result",
+      "detail": "For individuals with an NRIC, the MHA enquiry file is built (MhaNricDataHelper.java:29-44) and the result file is processed by the download cron (prod schedule 11:30, 16:30, 23:30 Mon-Sat, enabled=true, cron-schedules-prod.properties:119-120) which writes/updates address type mha_reg (MhaNricDownloadHelper.java:630-648). Why Sebagian: (1) OCMS-DF-2026-176 (status Ready to UAT, not yet deployed) fixes the date/time stamps on owner_driver and owner_driver_addr not updated during MHA result processing; (2) OCMS-DF-2026-177 (Closed) showed MHA results previously updated records without checking the offender indicator; (3) the file exchange with MHA via SFTP/COMCRYPT: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the latest registered address of the company (UEN/FIN) for the furnished particulars",
+      "detail": "The MHA upload cron only takes id_type=N (MhaNricDataHelper.java:345-346), so companies (UEN) and FIN are not included. A separate DataHiveUenFinJob exists but is switched off in prod: cron.mhadownload.uenfin.enabled=false with the comment 'Keep disabled in PROD until DataHive view names are verified' and cron.mhadownload.datahive=false (cron-schedules-prod.properties:50-52; MhaDownloadJobsScheduler.java:43, 104). Value on the real server: cannot verify from repo. The code exists, its execution is off per the repo."
+    }
+  ]
+}

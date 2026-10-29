@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/urapg/service/EPaymentCallbackService, workflows/parkingfines/ParkingFinesServiceImplement, crud/ocmsezdb/eocmswebtxndetail; ocmseserviceui pages/Payment/{PaymentProcessing,PaymentResult,Payment}.ts. Repo lain: tidak ada code",
+  "note": "Transaksi gagal dicatat dengan status E dan halaman gagal tampil dengan pesan merah. Dua perbedaan dari story: (1) tombol di halaman gagal hanya 'Close' yang membuka /car-parks-portal/ocms/payment, yaitu awal pencarian denda, bukan daftar mode bayar, dan sessionStorage dihapus sehingga pilihan hilang (PaymentResult.ts:50-56); (2) pembayaran ulang atas notice yang sama diblokir 300 detik sejak transaksi dimulai karena transaksi terakhir berstatus E dianggap 'sedang diproses' (ParkingFinesServiceImplement.java:332-345, 34), sehingga offender tidak bisa mengulang segera. OCMS-DF-2026-026 (closed, prod deployed) memperbaiki blokir yang bocor lewat 5 menit, tetapi blokir dalam 5 menit pertama tetap ada di code. Pesan gagal generik dan tidak memuat nomor transaksi atau alasan. Catatan kesamaan dengan OCMS50.18: pencatatan status E lewat failure callback tidak memverifikasi ke PG.",
+  "recommendation": "Klaim sebagian. Tambah tombol kembali ke daftar mode bayar dan lepaskan blokir 5 menit untuk transaksi berstatus E agar bisa dicoba ulang segera, atau minta URA mengonfirmasi perilaku saat ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Transaksi gagal dicatat sebagai gagal di database",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:160-213; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:511-537; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:96-137",
+      "fit": "Sebagian",
+      "detail": "Failure callback dan success callback yang gagal verifikasi sama-sama menulis status E dan error_remarks 'Code: <ResponseCode> - Failed' (EPaymentCallbackService.java:135, 208, 519-526). Celah yang sama dengan OCMS50.18: jalur failure tidak memakai hasil verifikasi PG dan idempotency hanya cek 'sudah E' (168-178, 207), jadi callback failure yang telat dapat menimpa transaksi S."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman processing mengarahkan transaksi yang tidak berhasil ke halaman gagal",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentProcessing.ts:32-67; ocmseserviceui/src/pages/Payment/PaymentProcessing.ts:74-77",
+      "fit": "Sebagian",
+      "detail": "Hanya status 'S' menuju /payment/success; semua lainnya, termasuk E, data kosong atau error jaringan, menuju /payment/failure (PaymentProcessing.ts:57-65). Untuk transaksi E ini benar; untuk status I/P atau gagal baca, halaman gagal juga muncul walau pembayaran mungkin sukses (lihat OCMS50.18)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pesan error bahwa transaksi tidak berhasil",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Payment.ts:289-294; ocmseserviceui/src/pages/Payment/PaymentResult.ts:47-72; ocmseserviceui/src/pages/Payment/PaymentResult.ts:226-249",
+      "fit": "Sesuai",
+      "detail": "InitTransactionFailed menampilkan alert merah dengan ikon silang dan teks 'Error occured while processing payment.' plus info kontak dan jam operasional URA Car Parks Division (PaymentResult.ts:58-68, 226-248). Pesan generik: tidak ada nomor transaksi atau alasan penolakan, dan ada typo 'occured'. Teks pesan sama dengan langkah terkait di OCMS50.18."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender diarahkan ke daftar mode pembayaran",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentResult.ts:47-56; ocmseserviceui/src/pages/Payment/PaymentResult.ts:70; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:589-640",
+      "fit": "Beda dari flow",
+      "detail": "Satu-satunya tombol di halaman gagal adalah 'Close' yang menjalankan sessionStorage.clear() lalu window.location.href = '/car-parks-portal/ocms/payment' (PaymentResult.ts:50-56), yaitu awal pencarian denda, bukan daftar mode bayar. Daftar mode (PaymentSearchResult.ts:589-640) baru terlihat setelah offender mencari ulang dan memilih notice. Tombol 'Back to View Fines' hanya ada di step 3 sebelum bayar (PaymentProcess.ts:45-60). Path ke halaman payment ditulis tetap di code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender dapat mengulang pembayaran dengan mode yang sama atau berbeda",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:34; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:317-351; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:273-292; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:461-465; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:139-145",
+      "fit": "Sebagian",
+      "detail": "Transaksi baru bisa dibuat dengan mode apa pun (UraPaymentService.java:139-145, ID baru tiap kali). Tetapi pencarian denda membaca transaksi terakhir per notice dan semua yang bukan 'S', termasuk 'E', dianggap sedang diproses selama 300 detik sejak transaction_date_and_time (ParkingFinesServiceImplement.java:332-345, 34, 461-465): pesan E10 muncul dan paymentAcceptanceAllowed dipaksa N (273-279). Setelah 5 menit pesan E11 muncul dan notice bisa dibayar lagi (346-349, 281-292). Jadi retry langsung setelah gagal diblokir sampai 5 menit. OCMS-DF-2026-026 (Closed) memperbaiki kebocoran blokir setelah 5 menit, bukan blokir di dalam 5 menit."
+    }
+  ]
+}

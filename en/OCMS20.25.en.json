@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.25",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/HST/revival/{HSTRevival,form/HSTRevivalForm} + hooks/useHST.tsx (Revive HST); ocmsadminapi HstManagementController (POST /v1/revive-hst) and HstManagementServiceImpl.reviveHst/updateMailingAddress; api-authorization.properties OCMS_HST_REVIVAL. No work item screen",
+  "note": "Story status 'Demo paid (50% of 75%)'. The 'lift indicator' decision can be done through the HST Revival page (confirmation dialog, revive all TS-HST, delete the ocms_hst row, save the new address as furnished_mail). Gap: there is no work item to review (the OIC types the ID and sees the old address), no recorded 'keep' path, no separate 'resend reminder' choice (only implied by revive; the daily letter generation is commented out, ToppanUploadJobsScheduler.java:118, manual trigger only), and officerAuthorisingRevival is filled with the system user so the OIC identity is not recorded in suspended_notice (HstManagementServiceImpl.java:529, GAP-011). The actual resending of the reminder is OCMS20.26. Relevant maintenance tickets: none changes a verdict (OCMS-DF-2026-093 and -117 concern the furnish and looping paths, not this screen). The actual access roles cannot verify from repo (only the OCMS_HST_REVIVAL mapping).",
+  "recommendation": "Claim partially (~50%): the lift action plus confirmation exist. Do not claim work item review, recording of a 'keep' decision, or a separate resend-reminder choice.",
+  "steps": [
+    {
+      "step": "The OIC opens and reviews the work item (existing address vs new address)",
+      "detail": "There is no HST work item screen. The staff UI has no HST work item concept; the only work item there is 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). What exists: after the OIC types an ID on the Revival page, check-hst in revival mode returns the name and address from ocms_hst, i.e. the OLD address (HstManagementServiceImpl.java:157-164), not the new one; the new address is typed manually in the form (HSTRevivalForm.tsx:153-229)."
+    },
+    {
+      "step": "The OIC states the decision: lift the indicator or keep it",
+      "detail": "The 'lift' path exists: the 'Revive HST' button (HSTRevivalForm.tsx:252-254) -> onRevive (:52) -> POST revive-hst (useHST.tsx:139) -> reviveHst (HstManagementServiceImpl.java:419-466): revives all TS-HST of the ID (reviveHstSuspension, revival reason 'HAV', remarks 'HST Revival - New address obtained', :528-530) and then deletes the ocms_hst row (:466). Authorization comes from the OCMS_HST_REVIVAL mapping (api-authorization.properties:102-103). Gap: the 'keep' path has no action or record (the OIC simply does not press the button), the decision is not attached to a work item, and officerAuthorisingRevival is filled with DEFAULT_SYSTEM_USER_ID, not the OIC user (HstManagementServiceImpl.java:529, marked GAP-011), so who decided is not recorded in suspended_notice. The remarks always say 'New address obtained' even though no new address is validated."
+    },
+    {
+      "step": "The OIC states the decision to resend the reminder to the new/alternative address",
+      "detail": "There is no 'resend reminder' option in the form. Revive writes the form address to the furnished_mail address record and marks it letter_address='Y' (updateMailingAddress, HstManagementServiceImpl.java:572-614, called from :455), so the next letter goes to the new address, and the screen says 'notices will resume processing' (HSTRevivalForm.tsx:126). The reminder is only actually sent if the Toppan pipeline runs; the daily letter generator call is commented out (ToppanUploadJobsScheduler.java:118) and only runs through the manual trigger POST /toppan/generate-letters. Explicit resending is the scope of OCMS20.26 and is not checked here; this story only asks for the decision to be stated, and that decision is implied only by pressing Revive."
+    },
+    {
+      "step": "OCMS confirms the OIC's decision",
+      "detail": "Before execution the OIC sees the dialog 'Are you sure you want to revive HST for <ID>? This will delete the HST ID and revive all TS-HST suspensions' (HSTRevivalForm.tsx:73); after success a modal shows the server message or 'HST revived successfully.' (:94-106). This confirms the lift decision only; there is no confirmation for a 'keep' decision because there is no action for it (see the decision step)."
+    }
+  ]
+}

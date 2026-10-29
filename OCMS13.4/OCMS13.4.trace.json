@@ -1,0 +1,55 @@
+{
+  "story": "OCMS13.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui App.tsx, utils/data/LinkData.tsx, pages/NoticeUPL/{List/RequestList,Form/RequestForm,Form/ModalForm,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, utils/config/env.ts, envConfig/.env.*. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (kolom decision di-comment). Endpoint workitem, approvalinbox dan workflow: tidak ditemukan di keenam repo",
+  "note": "Status 'Demo paid (50% of 75%)'. Story minta officer bisa menandai keputusan (tawarkan composition dengan jumlah yang harus dibayar, atau charge in court) lalu meneruskannya ke 2OIC. Form-nya ada di UI (RequestForm: Is Compoundable Y -> DN1 dengan rule code dan composition amount, N -> CPC), tetapi tidak ada yang bisa menyimpannya: kolom decision/decision_date/decision_officer/decision_remark di entity OcmsValidOffenceNotice di-comment, tidak ada endpoint workitem/approvalinbox/workflow di enam repo, dan resource approvalinbox hanya dipanggil bila isAPIFound (VITE_ENV STAGING atau LOCAL), sedangkan build DEV/UAT/PRO bernilai DEV/UAT/PRO (envConfig/.env.*). Jadi di build deployed pemanggilan workitem gagal dan keputusan tidak tersimpan. Menu UPL di-comment, rute hanya lewat URL. Tidak ada konsep role 2OIC di code ('2OIC' tidak muncul di repo mana pun) dan work item diberi allocated_to = user pembuatnya. Tiket: OCMS-SR-2026-166, OCMS-SR-2026-189 (Closed) dan OCMS-SR-2026-193 (Ready to UAT, 'UPL processing logic has not been implemented in OCMS') adalah patch data manual composition amount UPL, yang menunjukkan keputusan composition belum diproses di sistem. Host API yang dipanggil UI (VITE_API_OCMS_HOST) dan kemungkinan backend lain di luar enam repo: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya form keputusan di UI yang ada dan tersembunyi dari menu; penyimpanan keputusan dan routing ke 2OIC tidak ada di repo. Minta tim konfirmasi backend workitem/approvalinbox/workflow dan tampilkan bukti keputusan tersimpan di database",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka layar keputusan UPL dari work item di dashboard-nya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:83-85; ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:59-70; ocmsadminui/src/utils/data/LinkData.tsx:396-398",
+      "fit": "Sebagian",
+      "detail": "Rute /upl/decision-request dan tombol Propose ada (App.tsx:83-85, RequestList.tsx:59-70), tetapi menu UPL di-comment (LinkData.tsx:396-398) sehingga hanya terjangkau lewat URL, dan layar dibuka dari daftar notice, bukan dari work item di dashboard (OCMS13.3). Tidak ada pembatasan role officer di UI (folder pages/NoticeUPL tidak memeriksa role); anotasi/mapping otorisasi server untuk endpoint UPL tidak ada (api-authorization.properties tidak punya mapping UPL)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menandai keputusan: tawarkan composition atau charge in court",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/RequestForm.tsx:49; ocmsadminui/src/pages/NoticeUPL/Form/RequestForm.tsx:62-75",
+      "fit": "Sebagian",
+      "detail": "Select 'Is Compoundable' Y/N mengatur processing stage tujuan: Y -> DN1 (composition), N -> CPC (court) (RequestForm.tsx:62-75; opsi stage CPC/DN1 di :49). Form ada, tetapi hasilnya tidak bisa disimpan (step 4), jadi Sebagian. Pilihan stage tujuan di-hardcode ke CPC/DN1; syarat 'charge in court' selain stage CPC tidak ada code lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi composition amount yang harus dibayar (dan rule code) bila composition ditawarkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Form/RequestForm.tsx:93-116",
+      "fit": "Sebagian",
+      "detail": "Bila stage DN1, form menampilkan lookup Computer Rule Code (resource offencerulecode, offence_type U, sesuai kategori kendaraan) dan CompositionAmountInput (RequestForm.tsx:93-116); lookup offencerulecodelist ada di backend. Nilai yang diisi hanya dikirim di body approvalinbox/workitem yang tidak punya backend (step 4), sehingga amount tidak diterapkan ke notice. Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Keputusan tersimpan pada notice (keputusan, officer, tanggal, remark)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-175; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:104-121; ocmsadminui/src/utils/config/env.ts:11; ocmsadminui/envConfig/.env.prod:2; ocmsadminui/src/utils/mapping/NoticeUPL.ts:129-168",
+      "fit": "Tidak ada code",
+      "detail": "Di UI, onRequestAPI mem-POST ke approvalinbox hanya bila isAPIFound (= STAGING atau LOCAL, env.ts:11; build prod memakai VITE_ENV=PRO, envConfig/.env.prod:2, dev/uat serupa), lalu selalu mem-POST workitem (useEndorsement.tsx:104-121). Di backend tidak ada endpoint/entity approvalinbox atau workitem, dan kolom decision, decision_date, decision_officer, decision_remark di entity OcmsValidOffenceNotice di-comment (OcmsValidOffenceNotice.java:165-175). Maka di build deployed keputusan tidak tersimpan dan UI menampilkan error. Tiket: OCMS-SR-2026-166, -189 (patch manual composition UPL, Closed), OCMS-SR-2026-193 (Ready to UAT: 'UPL processing logic has not been implemented in OCMS')."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Keputusan diteruskan ke 2OIC untuk endorsement",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/NoticeUPL.ts:172-196; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:119-121",
+      "fit": "Tidak ada code",
+      "detail": "Work item yang dibuat UI diberi allocated_to = user yang login (hard code, NoticeUPL.ts:194), bukan 2OIC; tidak ada konsep atau role '2OIC' di code ('2OIC' tidak muncul di keenam repo), tidak ada daftar penerima, dan tidak ada backend yang menerima work item (useEndorsement.tsx:119-121 mem-POST ke resource yang tidak ada). Halaman endorsement terpisah ada (OCMS13.5) tetapi tidak terhubung ke keputusan ini karena keputusan tidak tersimpan."
+    }
+  ]
+}

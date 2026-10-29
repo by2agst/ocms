@@ -1,0 +1,29 @@
+{
+  "story": "OCMS45.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/synctxndata/{CronSyncTxnData,AxsTransactionValidator}, crud/ocmsezdb/webtxndetail/EWebTxnDetailRepository, framework/schedulers/SyncInternetIntranetJobsScheduler, framework/workflows/adminfee/helpers/AdminFeeHelper, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper. ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentValidator}. ocmsadminui pages/Payment/PaymentCash.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no check of payment time against escalation time",
+  "note": "The story asks OCMS to compare the date/time paid with the processing date/time of the notice escalation (for example a $40 payment before escalation to $55) and then update the notice as paid without the officer reducing the amount manually. Status in the sheet: Fully paid. The code only stores payment_date_and_time and copies it to the Intranet (CronSyncTxnData.java:674); the paid decision purely compares the total paid with the current amount_payable (CronSyncTxnData.java:568-574). Because the jobs that raise amount_payable (RR3/DR3 stages through ToppanUploadHelper.java:2120-2123 and 1520; admin fee through AdminFeeHelper.java:262) have already raised amount_payable to $55 before the sync runs, a $40 payment becomes PS-PRA (partial), not PS-FP. The words escalat/escalation and any comparison of payment_date_and_time with a processing date were not found in the four backend repos or the staff UI (grep with synonyms processing date, last_processing_date, payment_date_and_time). Ticket OCMS-SR-2026-080 (Closed, Prod deployed): notice 694100370T escalated to $55, became PS-PRA, and MGG had to patch amount_payable back to $40 by hand; this is a CAS migration case but the end result is the same one the story wants to avoid. The Payment Gateway/AXS payload contents and the real server property values cannot be verified from the repo.",
+  "recommendation": "Do not claim as complete. Only storing the payment time and the payment sync exist; the payment-time vs escalation-time check and the paid decision are not built, and the outcome is still PS-PRA that needs a manual patch/reduction. Ask URA/the team to confirm the agreed rule.",
+  "steps": [
+    {
+      "step": "OCMS stores the date and time paid of each incoming payment transaction and brings it to the Intranet",
+      "detail": "CronSyncTxnData is called by the sync scheduler every 10 minutes (SyncInternetIntranetJobsScheduler.java:68, cron-schedules-prod.properties:305-306 enabled=true). The query picks eocms_web_txn_detail rows with is_sync 'N'/null and status 'S' (EWebTxnDetailRepository.java:20-21), then payment_date_and_time is copied to ocms_web_txn_detail (CronSyncTxnData.java:674). payment.sync.enabled=true in application-prod.properties:100. The payment time supplied by the Payment Gateway/AXS and the real server property values cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS compares the date and time paid with the processing date and time of the notice escalation",
+      "detail": "payment_date_and_time is only read to fill crs_date_of_suspension (CronSyncTxnData.java:583); no condition compares it with a processing/escalation date. The only comparison is total paid vs amount_payable (CronSyncTxnData.java:562-568). The jobs that raise amount_payable do not look at transactions not yet synced (ToppanUploadHelper.java:2120-2123 RR3/DR3 = composition + admin fee, written at 1514-1520 together with last_processing_date; AdminFeeHelper.java:262 composition + admin fee). Which exact job raises $40 to $55 in prod cannot be verified from the repo. A grep for escalat, processing date, last_processing_date, payment_date_and_time in ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi and ocmsadminui found no time comparison."
+    },
+    {
+      "step": "From that comparison OCMS decides whether to update the notice as paid (paid earlier than the escalation counts as paid)",
+      "detail": "The paid decision is purely amount-based: newAmountPaid vs the current amount_payable, comparison >= 0 means PS-FP, otherwise PS-PRA (CronSyncTxnData.java:562-574). The manual path in ocmsadminapi is the same: PaymentValidator.java:64-91 (over, exact, partial). There is no branch such as 'paid before escalation counts as fully paid'. Ticket OCMS-SR-2026-080 shows the amount_payable of notice 694100370T had to be patched to $40 by hand."
+    },
+    {
+      "step": "The notice is updated as paid (PS-FP) even though the amount paid (for example $40) is lower than the amount payable after escalation ($55)",
+      "detail": "For the story example ($40 paid, amount_payable already $55) comparison < 0, so the partial branch runs: PS-PRA through applyPSPaymentToVON with amount_paid=40 and amount_payable kept at 55, eservice message E12 (CronSyncTxnData.java:600-615; REASON_PRA = PARTIAL_AMOUNT 'PRA' in SystemConstant.java:33). The manual path also sets PS-PRA (PaymentUpdateServiceImpl.java:389-399). The result is not PS-FP; ticket OCMS-SR-2026-080 records that a PS-PRA notice cannot be reduced until amount_payable is patched."
+    },
+    {
+      "step": "The officer does not have to reduce the amount manually for the payment to be updated",
+      "detail": "There is no automatic correction of amount_payable for payments that arrived before the escalation: the sync uses the latest amount_payable directly (CronSyncTxnData.java:562-568) and a partial result is only flagged PS-PRA. The manual payment screen only shows the hint 'Amount entered is lesser than the Amount Payable.' (PaymentCash.tsx:250-259). Ticket OCMS-SR-2026-080 shows the correction is still done by a DB patch from MGG."
+    }
+  ]
+}

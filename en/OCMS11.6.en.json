@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: LtaBatchCode0Processor (ENA/RD1 routing after the LTA result), NotificationSmsEmailJob/Helper (eNotification, opt-out, patch to RD1), MhaNricDataHelper + MhaNricDownloadJob (owner address update from MHA), ToppanLettersGeneratorJob + OcmsValidOffenceNoticeRepository (RD1 notice selection). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code relevant to this story",
+  "note": "Status in stories.json: Demo paid (50% of 75%). 1-point story: before the 1st letter reminder (RD1) goes out, OCMS checks whether an electronic reminder was sent / the owner opted out / the NOPO was created in the backend, then updates the owner's particulars per Epic OCMS8. In code: ENA-or-RD1 routing after the LTA result (contact found -> ENA; none / opt-out / passport -> RD1), eNotification moving opted-out notices to RD1, owner address update via MHA for NRIC, and Toppan's RD1 notice selection. Missing: any frontend (EHT/OBU) vs backend NOPO distinction on the reminder path, and DataHive refresh for UEN/FIN in the prod properties (cron.enareminder.datahive, cron.mhadownload.datahive, cron.mhadownload.uenfin.enabled are all false); the DataHive step in ToppanLettersGeneratorJob is also commented out. The eNotification job is off (cron.notification.enabled=false) in dev/uat/prod. Per-environment property values in Azure: cannot verify from repo. DOS and Vault data sources: cannot verify from repo.",
+  "recommendation": "Partial claim: ENA/RD1 routing, opt-out and RD1 notice selection exist; particulars refresh through DataHive is off in the prod properties and there is no frontend/backend NOPO distinction",
+  "steps": [
+    {
+      "step": "Notices with electronic contact get an electronic reminder (ENA) first, the rest go straight to the 1st letter (RD1)",
+      "detail": "After the LTA result is processed, planStandardVehicle (LtaBatchCode0Processor.java:754-763) calls the DataHive lookup: mobile/email found -> planStageToENA (810-853, next stage ENA), none -> planStageToRD1 (860-900). The eNotification job (NotificationSmsEmailJob.java:161-162) then sends the electronic reminder for ENA notices. Partial because (1) there is no frontend (EHT/OBU) vs backend NOPO distinction on this path, and (2) cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236), so the job only runs through the manual trigger (CombinedSchedulerTriggerController.java:105-108). Ticket OCMS-DF-2026-160 (Pending Closure): 894 notices jumped to ENA/RD1 without vehicle ownership, so routing from the LTA result still has an open defect; OCMS-DF-2026-052 (Closed) fixed Diplomat notices wrongly landing on ENA."
+    },
+    {
+      "step": "An owner who opted out of electronic reminders is detected and moved to the 1st letter (RD1)",
+      "detail": "An owner in ocms_enotification_exclusion_list (opted out) is sent to RD1 when the LTA result is processed (LtaBatchCode0Processor.java:686-690); passport IDs also go to RD1 (695-698). If the notice is already at ENA, the eNotification job calls patchNextStageToRd1NextDay for excluded or passport IDs (NotificationSmsEmailJob.java:226-241), which sets next stage RD1 for the next day (NotificationSmsEmailHelper.java:1237-1271). The reminder query also drops IDs in the exclusion list (1131-1134). The contents of the exclusion list are DB data: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks that the NOPO was created in the backend / converted from unpaid parking charges and admin fee",
+      "detail": "No check of the NOPO origin was found. The LTA routing path (LtaBatchCode0Processor.java:666-684) and the RD1 notice selection query (OcmsValidOffenceNoticeRepository.java:608-612) do not read the notice subsystem / creation origin. Grepping EHT/OBU/backend/converted in ocmsadminprivateapi only hits notice creation (repccs/notice_creation) and the Advisory Notice path, not the reminder. Backend notices follow the same path (LTA result -> ENA/RD1) without an origin check."
+    },
+    {
+      "step": "OCMS updates the owner's particulars (address/contact) per Epic OCMS8 before the 1st letter",
+      "detail": "For NRIC owners (id_type N), notices at stages RD1-DR3 are sent to MHA through MhaNricUploadJob (MhaNricDataHelper.java:81, query OcmsValidOffenceNoticeRepository.java:556-570) and the result fills the mha_reg address; the MHA upload/download crons are enabled in prod (cron-schedules-prod.properties:106,120). For FIN/UEN the source is DataHive, but cron.mhadownload.datahive=false and cron.mhadownload.uenfin.enabled=false in prod (cron-schedules-prod.properties:50-52; MhaNricDownloadJob.java:706-722 skips the DataHive step), and the DataHive step in ToppanLettersGeneratorJob.java:126-148 is commented out. So non-NRIC owner particulars are not refreshed automatically before RD1 under the prod configuration. Ticket OCMS-DF-2026-130 (Closed, old MHA address not cleared) and OCMS-DF-2026-183 (Pending Closure, MHA cannot process several URA2NRO files) show the MHA path still has operational issues."
+    },
+    {
+      "step": "The notice is ready for the 1st letter reminder (next stage RD1, due, not suspended)",
+      "detail": "The findToppanNoticesForStage query picks notices with next_processing_stage = 'RD1', next_processing_date <= today, suspension_type IS NULL, offender_indicator 'Y' and not an Advisory Notice (OcmsValidOffenceNoticeRepository.java:608-612). It is called per stage by ToppanUploadJob (ToppanUploadJob.java:245-249) inside the loop over all stages (ToppanLettersGeneratorJob.java:151-166). Delivery of the file to the vendor is judged in OCMS11.7."
+    }
+  ]
+}

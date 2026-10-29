@@ -1,0 +1,29 @@
+{
+  "story": "OCMS2.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi cronservice: framework/schedulers/RepUploadJobsScheduler, framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob, framework/services/repccs/RepccsnopoarcServiceImpl, utilities/repccs/RepcssNopoarcDatFileGenerator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findRepccsNoticesForNopoarc, updateSentToRepDate), framework/services/comcrypt/helper/ComcryptCallbackHelper (encrypt + SFTP), src/main/resources cron-schedules-*.properties, sftp/sftp-common.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no archival-to-REPCCS code",
+  "note": "Sheet status 'No requirement ': the requirement is not given, so the steps are derived from the story text and 'Sesuai' means the code does what the story says. The code is complete in ocmsadminprivateapi: notice selection query (PS + archival reason + suspension age + REPCCS sub-system label), .DAT file generation, blob upload, COMCRYPT encryption, SFTP upload through the callback. Two notes: (1) in prod cron.repupload.enabled=false (cron-schedules-prod.properties:194), so per the repo the automatic job does not run in prod; (2) sent_to_rep_date is set before the file is delivered (RepccsnopoarcServiceImpl.java:101-107), so an encryption/SFTP failure means the notices are never re-sent. The ARCHIVAL parameter values (EPRARC, CRSARC, PERIOD) and standard code rows live in the DB: cannot verify from repo. The ocmsadminprivateapi/cronservice folder at the repo root is an old copy that is not part of the build (property sftp.folders.repccs.in does not exist); src/main/java is what is used. No relevant maintenance ticket.",
+  "recommendation": "Claim partially (about 80%): notice selection and file generation match the story. Before claiming in full: confirm cron.repupload.enabled in prod, and move the sent_to_rep_date update to after SFTP succeeds. The requirement is not given, so 'pre-defined conditions' is judged from the query.",
+  "steps": [
+    {
+      "step": "The REPCCS Generate File job runs automatically every day through the scheduler",
+      "detail": "@Scheduled reads cron.repupload.schedule (prod: 0 1 0 * * ? = 00:01 every day) with ShedLock (RepUploadJobsScheduler.java:38). However cron-schedules-prod.properties:194 sets cron.repupload.enabled=false, so RepUploadJobsScheduler.java:45-48 returns immediately in prod; only uat (cron-schedules-uat.properties:196) and dev are true. A manual trigger POST /crontest/repccs/execute-scheduled-job exists (RepccGenerateFilesController.java:33,53). Whether prod is overridden through an environment variable / App Setting: cannot verify from repo. NOPO archival is the 4th service in this job (RepccsGenerateFileJob.java:197)."
+    },
+    {
+      "step": "OCMS picks notices by suspension status: PS with an archival reason and not yet sent to REPCCS",
+      "detail": "findRepccsNoticesForNopoarc() only takes notices with sent_to_rep_date IS NULL, suspension_type='PS' (OcmsValidOffenceNoticeRepository.java:390-391), and epr_reason_of_suspension IN the EPRARC/ARCHIVAL parameter list or crs_reason_of_suspension IN the CRSARC/ARCHIVAL list (OcmsValidOffenceNoticeRepository.java:399-418), called from RepccsnopoarcServiceImpl.java:58. The reason list content lives in ocms_parameter (DB): cannot verify from repo."
+    },
+    {
+      "step": "Extra conditions: suspension is older than the archival period and the notice belongs to a REPCCS sub-system",
+      "detail": "LEFT(subsystem_label,3) must exist in ocms_standard_code (SUB_SYSTEM_LABEL, description MEV_Vehicle / REPCCS_ENC, status A) (OcmsValidOffenceNoticeRepository.java:392-398), and epr_date_of_suspension or crs_date_of_suspension < DATEADD(YEAR, PERIOD/ARCHIVAL, GETDATE()) (OcmsValidOffenceNoticeRepository.java:419-428). The PERIOD value and its sign (negative/positive) live in the DB: cannot verify from repo; if positive, the age condition is always met."
+    },
+    {
+      "step": "OCMS builds the archival list file (.DAT: header, one detail per notice, trailer)",
+      "detail": "The service turns each notice_no into NopoarcData (RepccsnopoarcServiceImpl.java:71-75), then generateNopoarcDatFileContent (RepcssNopoarcDatFileGenerator.java:65-79) writes header H+date+time, detail D+notice_no (10 chars)+status+filler, trailer T+record count; file name REPCCS-OCMS-IN-NOPOARCH-<timestamp> (RepcssNopoarcDatFileGenerator.java:185-190). The detail status is always 'S' (hardcoded, mapSettlementStatus is unused, RepcssNopoarcDatFileGenerator.java:120-121). If there are no notices no file is made and the job result is still SUCCESS with 0 records (RepccsnopoarcServiceImpl.java:60-65). Match with the REPCCS spec: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the file to REPCCS (blob, PGP encryption through COMCRYPT, SFTP upload)",
+      "detail": "Order in RepccsnopoarcServiceImpl: upload a copy to blob (:92) -> update sent_to_rep_date for all notices (:101-107, OcmsValidOffenceNoticeRepository.java:489-497) -> direct SFTP is skipped (:110) -> request a COMCRYPT token (:114). PGP encryption and the SFTP upload to /REP_IN only happen later in the callback (ComcryptCallbackHelper.java:255-258, ComcryptWorkflowConfigResolver.java:134, sftp-common.properties:32). Problem: sent_to_rep_date is set before the file is actually delivered. If requestToken fails (:121-123) or the callback/SFTP fails, the notices are already marked as sent and are not picked again by the query (OcmsValidOffenceNoticeRepository.java:390), so they never reach REPCCS without manual intervention. In prod sftp.enabled=true (application-prod.properties:82), so the allowedSources list does not block it (SftpUtil.java:121-124). Receipt at REPCCS and the SFTP account: cannot verify from repo."
+    }
+  ]
+}

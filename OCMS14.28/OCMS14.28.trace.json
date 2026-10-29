@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.28",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper (queryNoticesForRevival, processBatchRevivals, processClvPostRevival, processTsClvLooping)}, utilities/suspension_helpers/{TemporaryRevivalHelper,TemporarySuspensionHelper}, framework/schedulers/ToppanUploadJobsScheduler, resources/cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story status 'Requirement given - Gen flow'. Mekanisme inti ada dan aktif: auto-revival cron me-revive TS yang jatuh tempo (alasan SPO), lalu processClvPostRevival memasang TS-CLV baru dengan code yang sama (CLV) untuk notice yang CLV-nya baru di-revive, dan processTsClvLooping menjaring notice RR3/DR3 yang tidak punya CLV aktif. 'Periode yang sama' hanya benar kalau nilai no_of_days_for_revival di tabel ocms_suspension_reason tidak berubah: code memanggil processTS dengan days=null sehingga periode dibaca ulang dari tabel, bukan disalin dari TS lama (TemporarySuspensionHelper.java:228-243); nilai di DB cannot verify from repo. Revival dan re-apply sekarang di transaksi terpisah setelah perbaikan OCMS-DF-2026-032 (closed, prod deployed): kalau re-apply gagal, notice sudah ter-revive dan baru dicoba lagi di run berikutnya. OCMS-DF-2026-117: user mempertanyakan reapply TS-HST/TS-CLV saat TS lain masih aktif; closed sebagai investigation tanpa perubahan code. Job jalan di day-end scheduler 00:15, enabled=true di properties prod; nilai server asli cannot verify from repo.",
+  "recommendation": "Klaim sebagian besar. Re-apply CLV setelah revival ada dan aktif. Jangan klaim 'periode yang sama' (dibaca ulang dari tabel DB) dan jangan klaim tanpa celah (revival dan re-apply di transaksi terpisah; kegagalan hanya dicatat).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job auto-revival berjalan terjadwal setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sesuai",
+      "detail": "runJob(job2Name, autoRevivalService.executeJob()) ada di executeDayEndJobs (ToppanUploadJobsScheduler.java:119) dan tidak dikomentari, tidak seperti job letter di :118. Jadwal 0 15 0 * * ?, enabled=true di prod (cron-schedules-prod.properties:61-62). Nilai server asli cannot verify from repo. Job ini juga bisa dipicu manual lewat AutoRevivalController."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil temporary suspension yang sudah jatuh tempo",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:113-130; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:103",
+      "fit": "Sesuai",
+      "detail": "queryNoticesForRevival mengambil suspension TS dengan date_of_revival NULL dan due_date_of_revival sebelum awal besok (AutoRevivalHelper.java:117-125), satu record per notice (:127-130). Berlaku untuk semua code TS, termasuk CLV; job memanggilnya di AutoRevivalJob.java:103."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension yang berakhir di-revive dan dicatat sebelum penerapan ulang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:135-141; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:229",
+      "fit": "Sesuai",
+      "detail": "processBatchRevivals me-revive TS (alasan SPO) dan mengembalikan daftar record yang benar-benar sukses; langkah re-apply hanya jalan untuk daftar itu (AutoRevivalJob.java:135-141,153-160). OCMS-DF-2026-032 (closed, prod deployed): sebelum diperbaiki data revival TS-CLV/HST/PDP tertimpa saat re-apply sehingga TS lama tetap aktif; sekarang revival di-commit dulu di transaksi terpisah."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan lagi temporary suspension dengan suspension code yang sama (CLV)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:798-842; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1041-1131; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:153-160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:176-179",
+      "fit": "Sesuai",
+      "detail": "processClvPostRevival memfilter record yang di-revive dengan reason CLV (AutoRevivalHelper.java:823), melewati notice yang sudah paid (:828-831), lalu tsHelper.processTS(noticeNo, OCMS, \"CLV\", null, ...) (:834-837); satu kali per notice (:824). processTsClvLooping menjaring notice RR3/DR3 tipe V yang tidak punya CLV aktif (:1111-1136) sehingga CLV yang gagal diterapkan kemarin tetap dikejar. Jalur sama untuk notice yang juga punya TS code lain (lihat OCMS14.27)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Periode suspend baru sama dengan periode sebelumnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:834-837; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporarySuspensionHelper.java:222-248",
+      "fit": "Sebagian",
+      "detail": "Re-apply memanggil processTS dengan days=null (AutoRevivalHelper.java:834-837), sehingga periode dibaca ulang dari ocms_suspension_reason.no_of_days_for_revival, atau 30 hari bila kosong (TemporarySuspensionHelper.java:228-248). Tidak ada penyalinan durasi TS lama. Hasilnya sama selama nilai di tabel tidak diubah; nilai di DB cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice terus tidak escalate: tidak ada celah antara revival dan suspension baru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:135-160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:839-844; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1131-1136",
+      "fit": "Sebagian",
+      "detail": "Revival dan re-apply jalan berurutan dalam satu job tetapi di transaksi terpisah (OCMS-DF-2026-032). Kalau processTS gagal, kegagalan hanya di-log dan failureCount naik (AutoRevivalHelper.java:839-844), notice tetap ter-revive tanpa suspension sampai run berikutnya (processTsClvLooping :1131-1136). Antrean letter Toppan mengambil hanya suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), jadi notice yang sempat kosong bisa masuk letter. Tidak ada alert per notice."
+    }
+  ]
+}

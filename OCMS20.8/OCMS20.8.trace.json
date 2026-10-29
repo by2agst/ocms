@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi UnclaimedController/UnclaimedServiceImpl (antrean ocms_adhoc_nro_temp); ocmsadminprivateapi agencies/mha/upload (MhaNricUploadJob, MhaNricDataHelper), agencies/mha/download (MhaNricDownloadJob, MhaNricDownloadHelper), workflows/datahiveuenfin, workflows/unclaimedreport, schedulers, cron-schedules-prod.properties, crud/OcmsTempUncHstAddr. ocmseserviceapi, ocmseserviceui, thirdpartyapi, ocmsadminui: tidak ada code terkait",
+  "note": "Story minta OCMS mengirim NRIC/FIN/foreign passport ke ICA/DOS dan menerima alamat registered terbaru, pass type dan validity, supaya bisa dilihat apakah alamat tempat reminder dikirim sudah berubah. Yang ada: submit unclaimed memasukkan ID current offender ke ocms_adhoc_nro_temp; NRIC (id_type N) dikirim lewat file MHA, FIN/UEN (F/B) lewat job DataHive; hasil alamat disimpan ke ocms_temp_unc_hst_addr. ICA dan DOS cannot be confirmed from repo (jalur NRIC adalah MHA). Tidak ada penyimpanan pass type/validity untuk baris adhoc, tidak ada jalur untuk foreign passport (SystemConstant.IdType hanya N dan F), dan tidak ada pembanding alamat lama vs baru. Report 15 kolom berisi alamat hasil enquiry tidak punya pemanggil; report harian yang jalan hanya 11 kolom TS-UNC tanpa alamat. Entity OcmsTempUncHstAddr tidak punya kolom query_reason, sedangkan SQL report memfilter query_reason='UNC'; ada tidaknya kolom itu di DB cannot verify from repo. Maintenance ticket: OCMS-DF-2026-133 (PS tidak boleh masuk antrean MHA, Closed) dan OCMS-DF-2026-126 (FIN bertipe N ditolak MHA pada jalur HST, Closed); catatan DF-133 menyebut cron MHA belum dinyalakan di Production saat itu. Status story: Requirement given - Gen flow (demo_remark 'No vault').",
+  "recommendation": "Klaim parsial. Antrean enquiry dan penyimpanan alamat ada, tetapi pass type/validity, foreign passport, dan deteksi perubahan alamat belum ada",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memasukkan ID individu (NRIC/FIN) dari notice TS-UNC ke antrean enquiry",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:691; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:722-726; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:751; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:762; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:167; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:146-149",
+      "fit": "Sebagian",
+      "detail": "Setelah submit unclaimed, ID offender dimasukkan ke ocms_adhoc_nro_temp hanya jika masih current offender (offender_indicator=Y) dan notice bukan PS (UnclaimedServiceImpl.java:691, 722-726, 762; OCMS-DF-2026-133). id_type diambil dari RDP/DN, default N bila kosong (:751). Hanya N (NRIC) dan F/B (FIN/UEN) yang punya jalur enquiry (SystemConstant.java:146-149, MhaNricDataHelper.java:447, DataHiveUenFinService.java:325-328); foreign passport tidak punya tipe maupun jalur, jadi tidak pernah di-enquiry. Kegagalan antrean hanya di-log dan tidak membatalkan submit (UnclaimedController.java:166-171)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim NRIC ke ICA/DOS dan FIN ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:442-450; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:189-192; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:197-204; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106",
+      "fit": "Sebagian",
+      "detail": "NRIC dikirim dalam file MHA (MhaNricUploadJob.java:160, MhaNricDataHelper.java:442-450, filter id_type N); ICA cannot be confirmed from repo, jalurnya MHA. cron.mhaupload.enabled=true di cron-schedules-prod.properties:106, tetapi catatan OCMS-DF-2026-133 menyebut cron MHA belum dinyalakan di Production saat itu; status server asli cannot verify from repo. FIN lewat job DataHive: cron.mhadownload.uenfin.enabled=false di cron-schedules-prod.properties:52 (MhaDownloadJobsScheduler.java:103-107 melewati job ini); nilai server asli cannot verify from repo; job berhenti lebih awal bila query notice utama kosong (DataHiveUenFinJob.java:189-192). DOS = DataHive cannot be confirmed from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima alamat registered terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:686-693; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:3223; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:602-637; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:655-700; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:182-217; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsTempUncHstAddr/OcmsTempUncHstAddr.java:36-114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:295",
+      "fit": "Sebagian",
+      "detail": "Hasil MHA untuk ID adhoc disimpan oleh storeUncHstResults ke ocms_temp_unc_hst_addr dengan type_of_address mha_reg dan effective_date dari lastChangeAddressDate (MhaNricDownloadJob.java:686-693, MhaNricDownloadHelper.java:3135, 3223); hasil DataHive FIN/UEN lewat upsertToUncHstAddr (DataHiveUenFinService.java:602-637, 655-700). Satu baris per id_no, tidak mengubah alamat di ONOD. Jalur reguler juga meng-enquiry ulang notice TS-UNC pada stage RD1-DR3 (MhaNricDataHelper.java:182-217) dan memperbarui alamat ONOD. Kelemahan: entity OcmsTempUncHstAddr tidak punya kolom query_reason (OcmsTempUncHstAddr.java:36-114) sementara report memfilter query_reason='UNC' (UnclaimedReportHelper.java:295, 337); apakah DB punya kolom/default itu cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima pass type dan validity untuk orang asing",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:602-637; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1497",
+      "fit": "Tidak ada code",
+      "detail": "Untuk baris adhoc, hasil DataHive FIN hanya diambil alamatnya (work permit lalu pass), tanpa pass type maupun masa berlaku (DataHiveUenFinService.java:602-637). Penyimpanan data pass hanya ada di jalur notice biasa (storeFinDataResult, :1497), bukan untuk ID adhoc dari unclaimed. Tidak ada cek pass valid/invalid pada alur unclaimed."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi apakah alamat registered berubah dari alamat tempat reminder dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:317-340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/config/UnclaimedReportConfig.java:49-61",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pembanding alamat baru dengan alamat reminder. Report 15 kolom (UnclaimedReportHelper.java:317-340) hanya menampilkan alamat mentah dan checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110) tidak punya pemanggil di ocmsadminapi maupun ocmsadminprivateapi. Cron harian memanggil executeJob yang membuat report 11 kolom daftar TS-UNC tanpa alamat (DailyReportJobsScheduler.java:100, UnclaimedReportConfig.java:49-61). Officer tidak mendapat sinyal alamat berubah."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS12.36",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/helpers/FurnishApprovalHelper (6 validation check, addFurnishedOffender, changeProcessingStage), crud/beans/SystemConstant.FurnishStage, framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper (resolveStageContext, ocms_stage_map), models/ToppanStage}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController. ocmsadminapi workflows/furnish/{stafffurnish/services/StaffFurnishService, manualreview/services/ManualReviewService}, crud/ocmsizdb/OcmsChangeOfProcessing/{EligibilityService, ChangeOfProcessingController}. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code keputusan composition vs court",
+  "note": "Status di stories.json: Requirement given - Gen flow; demo_remark: 'Removed from demo list. Unable to verify.' Tidak ada flow deck, jadi Sesuai berarti code mengikuti teks story. Inti story, keputusan otomatis offer composition atau charge in court berdasarkan kondisi seperti count offence yang sama atas ID driver, tidak ada di code: tidak ada penghitungan riwayat offence per ID, tidak ada rule/flag keputusan, dan Appendix B Annex 1A tidak ada di repo (grep sinonim di enam repo kosong; satu-satunya hit adalah label UI 'Case Charge in Court' di ocmsadminui/src/components/datagrid/column/index.tsx:292). Yang ada hanya jalur tetap: furnish driver yang di-approve (otomatis lewat Furnish Processing atau manual lewat staff portal) selalu masuk DN1 dengan amount composition, lalu naik DN1 -> DN2 -> DR3 -> CPC lewat ocms_stage_map. Letter generation hanya jalan lewat trigger manual karena executeJob() di scheduler day-end dikomentari (ToppanUploadJobsScheduler.java:118). Tiket: OCMS-DF-2026-170 (Closed, Prod deployed) untuk reset admin fee dan amount_payable saat notice di-redirect ke DN1/RD1. Isi ocms_stage_map di DB dan isi Appendix B cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya prasyarat (furnish driver masuk DN1 dengan amount composition) dan tangga stage tetap yang ada; keputusan composition vs court berdasarkan history offence belum dibangun. Minta URA mengirim Appendix B Annex 1A dan konfirmasi apakah rule ini dibangun di repo lain atau perlu dikerjakan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars driver yang di-furnish owner/hirer diterima dan driver dicatat sebagai current offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:150-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:546-558; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:627-634; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-312",
+      "fit": "Sesuai",
+      "detail": "Job Furnish Processing jalan di scheduler syncinternetintranet tiap 10 menit (enabled=true, cron-schedules-prod.properties:305-312). Tiap submission lewat 6 validation check: PS aktif, HST, FIN/Passport, furnishable stage, existing hirer/driver, prior submission (FurnishApprovalHelper.java:150-176). Bila lolos, offender lama diubah ke N lalu driver baru dibuat dengan offender_indicator Y beserta ID, nama, tel no dan email dari form (FurnishApprovalHelper.java:546-558), dan alamat form disimpan sebagai furnished_mail dengan letter_address Y (FurnishApprovalHelper.java:627-634). Submission yang gagal check masuk manual review (TS-PDP). Ini prasyarat story, bukan keputusan composition/court yang diminta. Isi form dari eService cannot verify di langkah ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghitung riwayat offence yang sama di bawah ID driver (count of same offence history)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:150-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:426-440",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan. Grep dengan sinonim (repeat offender, offence history, same offence, previous/prior offence, offence count, COUNT per id_no) di enam repo tidak menemukan query atau logic yang menghitung notice atau offence lain atas ID driver. Satu-satunya hitungan di jalur ini adalah CHECK 6 yang menghitung submission furnish lain pada notice yang sama (FurnishApprovalHelper.java:426-440); itu riwayat furnish per notice, bukan riwayat offence per driver. Tiket maintenance tidak menyinggung fitur ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan hasilnya dengan kondisi pre-defined (Appendix B Annex 1A) untuk memutuskan composition atau court",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:237-244; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:319-336",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada rule table, properties, flag, atau class yang memuat kondisi pre-defined untuk memilih composition atau court. Satu-satunya 'kondisi' yang dekat adalah CHECK 4 furnishable stage, yang hanya mencocokkan pasangan last/next processing stage dengan daftar tetap (SystemConstant.java:237-244, FurnishApprovalHelper.java:319-336) untuk menentukan boleh tidaknya furnish, bukan memilih composition vs court. Appendix B Annex 1A tidak ada di repo, jadi kondisi aslinya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila keputusannya composition: notice driver masuk stage DN1 dengan amount composition",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:648-653; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:668-676; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:678-684; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:922-928; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:886-894",
+      "fit": "Sebagian",
+      "detail": "Setiap furnish driver yang di-approve selalu mengubah stage ke DN1 (last dan next = DN1), mengosongkan administration_fee dan mengembalikan amount_payable ke composition_amount (FurnishApprovalHelper.java:648-653, 668-676; OCMS-DF-2026-170, Closed, Prod deployed), lalu next_processing_date = max(notice date + 7 hari, besok) (FurnishApprovalHelper.java:678-684). Jalur staff portal sama: ocmsadminapi StaffFurnishService.java:922-928 dan ManualReviewService.java:886-894 juga menentukan DN1 untuk driver. Hasilnya cocok dengan cabang 'offer composition', tetapi dijalankan untuk semua driver tanpa keputusan berdasarkan kondisi. Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila kondisi charge in court terpenuhi: notice dibawa ke court stage",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1813-1821; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:22-24; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:49; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:47",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada jalur ke court yang dipilih oleh kondisi. Driver hanya sampai CPC lewat tangga tetap DN1 -> DN2 -> DR3 -> CPC: next stage dibaca dari ocms_stage_map dan bila kosong fallback ke CPC untuk RR3/DR3 (ToppanUploadHelper.java:1813-1821; ToppanStage.java:22-24), tiap langkah maju setelah letter stage itu diproses. Staff bisa memindah stage manual lewat Change Processing Stage (ocmsadminapi EligibilityService.java:49 memuat DRIVER_STAGES DN1, DN2, DR3, CPC; ChangeOfProcessingController.java:47), tetapi itu keputusan manusia. Jadi 'charge in court berdasarkan history' diganti tangga waktu. Isi ocms_stage_map di DB cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tindakan lanjutan berjalan otomatis sesuai automated processing workflow (Appendix B)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:151-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1813-1821; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40",
+      "fit": "Sebagian",
+      "detail": "Setelah masuk DN1, tindakan berikutnya mengikuti stage: Toppan Upload memproses DN1, DN2, DR3 berurutan (ToppanLettersGeneratorJob.java:151-176) dan stage maju lewat ocms_stage_map (ToppanUploadHelper.java:1813-1821). Tetapi di scheduler day-end pemanggilan toppanLettersGeneratorService.executeJob() dikomentari (ToppanUploadJobsScheduler.java:118), sehingga letter hanya jalan lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34-40). Urutan workflow Appendix B yang asli cannot verify from repo. Sebagian."
+    }
+  ]
+}

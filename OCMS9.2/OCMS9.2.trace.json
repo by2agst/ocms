@@ -1,0 +1,55 @@
+{
+  "story": "OCMS9.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob (doExecute), helpers/NotificationSmsEmailHelper (queryRecordsForReminder, loadAllExcludedIds, isExcludedWithPreloaded, patchNextStageToRd1NextDay)}, framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor.planStandardVehicle, LtaBusinessRulesChecker.isOffenderInExclusionList, LtaDownloadHelper}, crud/ocmsizdb/OcmsEnotificationExclusionList; properti cron-schedules-{dev,uat,prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat dalam pengecekan",
+  "note": "Pengecekan exclusion list ada di dua tempat dan keduanya membaca ocms_enotification_exclusion_list dengan cocokan id_no persis: (1) eNotification cron (NotificationSmsEmailJob) yang memuat seluruh list sekali lalu membuang ID yang cocok sebelum SMS batch disiapkan, dan (2) LTA download saat notice akan masuk ENA, sebelum lookup kontak. ID yang cocok dipindah ke RD1 (jalur surat) untuk ENA atau dilewati untuk reminder. Ada satu hal yang perlu diwaspadai: kalau pembacaan list gagal (error DB), loadAllExcludedIds mengembalikan set kosong dan LtaBusinessRulesChecker mengembalikan false, jadi proses lanjut seolah tidak ada yang di-exclude (fail-open) dan ID yang opt-out bisa menerima SMS. Di file properti repo, cron.notification.enabled=false di dev, uat, dan prod (OCMS-DF-2026-180 menyebut eNotification cron masih menunggu aktivasi), jadi jalur (1) hanya jalan bila nilai di environment berbeda: cannot verify from repo. Jalur LTA (2) aktif di prod. Catatan demo (test notice 441000910H di DEV) cannot verify from repo.",
+  "recommendation": "Klaim: pengecekan exclusion terbukti di code. Catat bahwa eNotification cron nonaktif di properti repo dan pembacaan list gagal ke mode fail-open",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem memuat daftar ID exclusion dari ocms_enotification_exclusion_list",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:193-195; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1214",
+      "fit": "Sebagian",
+      "detail": "doExecute memanggil loadAllExcludedIds sekali sebelum memproses (NotificationSmsEmailJob.java:193-195); isinya SELECT id_no FROM ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1207-1214). Bila query gagal, method mengembalikan set kosong (:1213-1214) sehingga proses lanjut tanpa exclusion (fail-open). Double check: loadAllExcludedIds() (NotificationSmsEmailHelper) menangkap exception dan mengembalikan set kosong, jadi kalau pembacaan tabel gagal job lanjut tanpa exclusion (fail-open); daftar ini juga baru dipakai setelah refreshContactInfo untuk semua record (NotificationSmsEmailJob.java:186-190)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID pihak offender dicocokkan dengan daftar exclusion",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:203-207; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1225-1227; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134",
+      "fit": "Sesuai",
+      "detail": "Untuk tiap record, idNo dibandingkan dengan set hasil preload lewat isExcludedWithPreloaded (NotificationSmsEmailJob.java:203-207,226; NotificationSmsEmailHelper.java:1225-1227), yaitu contains() string persis. Query reminder juga menyaring onod.id_no NOT IN (SELECT id_no FROM ocms_enotification_exclusion_list) langsung di SQL (NotificationSmsEmailHelper.java:1131-1134)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID ada di daftar: notifikasi elektronik tidak diproses; ENA dialihkan ke RD1 (surat), reminder dilewati",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1237-1263",
+      "fit": "Sesuai",
+      "detail": "Jika cocok, record dibuang dari eligibleRecords sehingga tidak masuk SMS batch maupun email (NotificationSmsEmailJob.java:226-232, continue). Untuk stage ENA, patchNextStageToRd1NextDay mengubah notice ke last=ROV, next=RD1, tanggal besok dan is_sync=N (NotificationSmsEmailHelper.java:1237-1263)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID tidak ada di daftar: proses lanjut ke cek passport, validasi kontak, dan pengiriman",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:234-247; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:252-285",
+      "fit": "Sesuai",
+      "detail": "Record yang lolos masuk eligibleRecords (NotificationSmsEmailJob.java:245-247), dicek passport (:234-243), divalidasi kontak, lalu masuk smsRecords untuk SMS batch (:252-285)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan yang sama dilakukan saat notice akan masuk ENA di LTA download, sebelum lookup kontak",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:685-691; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBusinessRulesChecker.java:194-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:255",
+      "fit": "Sesuai",
+      "detail": "planStandardVehicle memanggil isOffenderInExclusionList (LtaBatchCode0Processor.java:685-691); bila cocok notice langsung planStageToRD1 dan lookup kontak (:706) tidak dijalankan. Cek memakai set yang di-preload (LtaBusinessRulesChecker.java:194-208; preload dipanggil di LtaDownloadHelper.java:255), fallback ke count per ID. Bila error, method mengembalikan false (fail-open)."
+    }
+  ]
+}

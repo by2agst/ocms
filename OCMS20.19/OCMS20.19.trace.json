@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.19",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/HstManagementServiceImpl, workflows/notice_creation/core/helpers/TemporarySuspensionHelper, workflows/furnish/approval/FurnishApprovalServiceImpl; ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/schedulers/ToppanUploadJobsScheduler, framework/workflows/hstsuspension/services/{HstAutoSuspendServiceImpl,HstLoopingSuspendServiceImpl}, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, framework/workflows/autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper}, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "'Stop processing' di code = TS-HST (suspension_type 'TS', reason HST) di VON. Untuk notice yang sudah ada, TS-HST dipasang oleh Manual HST Suspension (sama dengan 20.18) dan notice TS tidak dipilih lagi oleh run reminder Toppan (suspension_type IS NULL). Untuk notice baru ada tiga jalur dan semuanya terbatas: job HST Auto Suspension dan HST Looping Suspension di day-end scheduler di-comment (ToppanUploadJobsScheduler.java:120-121); jalur eNotification memasang TS-HST setelah notifikasi sukses tetapi cron.notification.enabled=false di prod (cron-schedules-prod.properties:236); furnish approval hanya untuk notice yang di-furnish. Pembuatan notice sendiri tidak punya cek HST. Periode: due_date_of_revival diambil dari ocms_suspension_reason (nilai untuk HST tidak ada di repo, cannot verify from repo; default 30 hari bila baris tidak ada), lalu Auto Revival yang jalan harian memasang ulang TS-HST sehingga suspension berulang sampai officer melakukan revival manual. eNotification (SMS/email) TIDAK dihentikan TS-HST: query ENA sengaja memasukkan TS-HST (NotificationSmsEmailHelper.java:1033-1036); itu bukan reminder pos ke alamat terdaftar.",
+  "recommendation": "Klaim untuk notice yang sudah ada dapat didukung. Untuk notice baru dan 'periode tertentu', klaim sebagian saja: jalur otomatis notice baru off/di-comment, dan lamanya periode adalah data DB yang tidak terlihat dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Semua notice outstanding di bawah ID ditandai TS-HST",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:326-347; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:487-510; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:86-90; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:120-137",
+      "fit": "Sesuai",
+      "detail": "Sama dengan langkah 4 story 20.18: applyHstSuspension memanggil processTS untuk tiap notice offender (HstManagementServiceImpl.java:326-347, 487-510); processTS menulis suspension_type 'TS' dan reason HST ke VON, eVON, dan suspended_notice (TemporarySuspensionHelper.java:120-137), menolak notice yang sudah dibayar (86-90), dan notice dengan PS aktif dilewati (OCMS-DF-2026-094)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder ke alamat terdaftar tidak dikirim untuk notice yang ditahan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:565-578; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1034-1036",
+      "fit": "Sesuai",
+      "detail": "Query run Toppan findToppanNoticesForStage hanya memilih notice dengan von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611), sedangkan TS-HST mengisi 'TS', jadi reminder cetak tidak keluar. findNoticesForMhaNricUpload juga mengecualikan ID yang ada di ocms_hst (565-578). Catatan: eNotification (SMS/email) sengaja memasukkan TS-HST (NotificationSmsEmailHelper.java:1033-1036), dan letter generation itu sendiri hanya lewat trigger manual (lihat story 20.17); langkah ini menilai pengecualiannya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang baru diterbitkan di bawah ID yang sama juga ikut ditahan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:120-121; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:448-476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:921-935; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:948-990; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/approval/FurnishApprovalServiceImpl.java:169-191",
+      "fit": "Sebagian",
+      "detail": "Pembuatan notice tidak punya cek HST. Jalur yang ada: (1) HST Auto Suspension (HstAutoSuspendServiceImpl) dan HST Looping Suspension di-comment di ToppanUploadJobsScheduler.java:120-121 dan tidak punya pemanggil lain; (2) NotificationSmsEmailJob memasang TS-HST per notice setelah eNotification sukses (NotificationSmsEmailJob.java:448-476, NotificationSmsEmailHelper.java:921-990), tapi cron.notification.enabled=false di prod (cron-schedules-prod.properties:236; sms.enable=false, email.enableSmtp=false di application-prod.properties:80,87); (3) furnish approval memasang TS-HST bila ID hasil furnish ada di HST (FurnishApprovalServiceImpl.java:169-191), hanya untuk notice yang di-furnish. Nilai asli di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Penahanan berlaku untuk periode tertentu",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:182-207; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:735-790; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:147; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:53",
+      "fit": "Sebagian",
+      "detail": "Periode = due_date_of_revival dari ocms_suspension_reason.no_of_days_for_revival untuk TS-HST (TemporarySuspensionHelper.java:182-207; default 30 hari kalau baris tidak ada). Nilai untuk HST ada di database, cannot verify from repo. Setelah periode habis, Auto Revival (jalan harian di ToppanUploadJobsScheduler.java:119) memasang ulang TS-HST kecuali notice sudah dibayar (AutoRevivalHelper.java:735-790, AutoRevivalJob.java:147), jadi penahanan jalan terus sampai officer melakukan revival manual. Itu bukan periode tunggal seperti kata story; cara looping dipertanyakan di OCMS-DF-2026-117 (tidak ada perubahan code)."
+    }
+  ]
+}

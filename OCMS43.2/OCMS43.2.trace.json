@@ -1,0 +1,73 @@
+{
+  "story": "OCMS43.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi: workflows/urapg/{controller/UraPaymentCallbackRedirectController,service/EPaymentCallbackService,service/UraPaymentService}. thirdpartyapi: workflows/axsNopo/{AxsNopoController,service/AxsNopoServiceImpl}. ocmsadminprivateapi: workflows/synctxndata/{CronSyncTxnData,CronUraPgRetry}, utilities/suspension_helpers/PermanentSuspensionHelper, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceui: tidak dipakai.",
+  "note": "Status story: Demo paid (50% of 75%). Jalur eService: callback gateway diterima, diverifikasi ke CheckPaymentStatus, lalu transaksi dan eVON diperbarui. Jalur AXS: UpdatePONPayReq menyimpan transaksi dan memperbarui eVON. Keduanya kemudian ditarik ke intranet oleh CronSyncTxnData tiap 10 menit, yang menerapkan PS-FP atau PS-PRA dan mencatat suspended notice. Celah: (a) di sisi internet EPaymentCallbackService selalu menulis suspension_type=PS dan crs_reason=FP walau jumlah teralokasi kurang dari amount_payable (baris 478-480), yang baru dikoreksi saat cron intranet menerapkan PS-PRA; (b) AXS menyimpan payment_mode konstan 'AXS' (AxsNopoServiceImpl.java:1052), payment mode asli dari AXS divalidasi tapi tidak disimpan. Format payload gateway/AXS dan nilai respons PG asli: cannot verify from repo. Tiket terkait: OCMS-DF-2026-099 dan OCMS-DF-2026-168 (eVON tidak ikut berubah/tertimpa, Closed/Prod deployed), OCMS-SR-2026-159 (remarks dikosongkan untuk pembayaran gateway, Closed). AXS ke URA PG (CronUraPgRetry, tiket OCMS-DF-2026-035/047/147) adalah arah sebaliknya dan tidak dihitung.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian). Alur terima status bayar, simpan detail transaksi, dan tandai PS-FP/PS-PRA di intranet ada; payment mode asli AXS tidak tersimpan dan status FP di internet ditulis tanpa cek jumlah.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima callback status pembayaran dari Payment Gateway",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:73; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/controller/UraPaymentCallbackRedirectController.java:143",
+      "fit": "Sesuai",
+      "detail": "POST /v1/epayment/callback/success (dan /failure) menerima parameter URA PG lalu memanggil callbackService.processCallback (baris 143). Format parameter asli dan alamat callback di sisi gateway: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memastikan pembayaran benar-benar sukses (verifikasi ke gateway, cegah callback ganda)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:75-83; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:91-102; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:118-131",
+      "fit": "Sesuai",
+      "detail": "processCallback melewati callback yang sudah punya transaksi status S dengan payment_amount>0 (idempotent, baris 75-83), memanggil callUraCheckPaymentStatus (baris 91, retry sekali jika bukan PG200, baris 102), dan hanya menandai sukses bila response code dan payment status valid (baris 118-131); selain itu transaksi ditandai error. Isi respons PG asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan detail transaksi: jumlah dibayar, tanggal bayar, nomor receipt, channel, dan mode pembayaran (eService)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:294-296; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:346-351; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:386; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:261-269",
+      "fit": "Sesuai",
+      "detail": "updateTransactionAsSuccess mengisi status S, payment_date_and_time, payment_mode (dari CheckPaymentStatus, fallback gateway dari callback), dan payment_amount hasil alokasi berurutan per notice (baris 346-386). receipt_no (txnId), type_of_receipt, dan sender URA sudah diisi saat transaksi dibuat (UraPaymentService.java:261-269). Tiket OCMS-SR-2026-159 mengosongkan remarks untuk pembayaran gateway (Closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah sukses, notice di sisi internet ditandai permanently suspended dan sudah dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:478-488",
+      "fit": "Sebagian",
+      "detail": "updateOffenceNoticeAsFullyPaid menyetel amount_paid, suspension_type='PS', crs_reason_of_suspension='FP' dan crs_date_of_suspension untuk setiap notice (baris 478-481) tanpa syarat jumlah; payment_status='FP' dan payment_acceptance_allowed='N' hanya bila jumlah teralokasi >= amount_payable (baris 484-488). Jadi pembayaran kurang tetap tertulis PS-FP di eVON sampai cron intranet menerapkan PS-PRA dan sync berikutnya menimpa. Tiket OCMS-DF-2026-099 dan OCMS-DF-2026-168 (Closed) menyangkut penimpaan eVON oleh data intranet."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pembayaran dari channel AXS diterima (nomor receipt, jumlah, tanggal, mode) dan notice diperbarui",
+      "repo": "thirdpartyapi",
+      "code_ref": "thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:470-516; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:571-633; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:1040-1058; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/service/AxsNopoServiceImpl.java:1088-1100; thirdpartyapi/src/main/java/com/ocmsintranet/webhookservice/workflows/axsNopo/AxsNopoController.java:81",
+      "fit": "Sebagian",
+      "detail": "POST PONWS/v1/UpdatePONPayReq (processPaymentUpdate) menyimpan audit, menolak transactionID ganda, memvalidasi field dan total, lalu aturan bisnis (notice ada, belum FP/PRA, payment_acceptance_allowed != N kecuali ATOMS, PS non-payable ditolak; baris 470-516) dan menyimpan transaksi status S, is_sync=N (baris 1040-1058) serta menandai eVON PS/FP dengan jumlah per transaksi (baris 1088-1100, tanpa cek terhadap amount_payable). Receipt, jumlah, dan tanggal tersimpan, tetapi kolom payment_mode diisi konstanta AXS (baris 1052); paymentMode asli dari AXS divalidasi (baris 441-444) lalu tidak disimpan. Format payload AXS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menarik transaksi sukses dari internet ke intranet secara berkala",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:139-152; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:192; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsezdb/webtxndetail/EWebTxnDetailRepository.java:20; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306",
+      "fit": "Sesuai",
+      "detail": "CronSyncTxnData.syncTransactionData mengambil eocms_web_txn_detail dengan status 'S' dan is_sync 'N'/NULL (query EWebTxnDetailRepository.java:20, tanpa filter tanggal walau nama method 'Today'), menyalin ke ocms_web_txn_detail intranet (baris 192), lalu memproses tiap notice dengan transaksi terpisah (baris 215). Dijadwalkan tiap 10 menit, enabled=true di cron-schedules-prod.properties:305-306 (nilai server asli: cannot verify from repo). Notice yang gagal hanya dicatat di log dan dicoba lagi di run berikutnya (baris 240)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di OCMS ditandai permanently suspended (PS-FP, atau PS-PRA bila kurang) dan tercatat sebagai dibayar",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:575-589; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:601-615; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:619-629; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:290-298",
+      "fit": "Sesuai",
+      "detail": "Untuk setiap transaksi, amount_paid ditambah ke VON; jika total >= amount_payable diterapkan PS-FP lewat psHelper.applyPSPaymentToVON (baris 575-589), jika kurang PS-PRA (baris 601-615); VON dan eVON diperbarui oleh helper (payment_acceptance_allowed=N, pesan E2/E12, PermanentSuspensionHelper.java:290-298) dan satu baris ocms_suspended_notice (suspension_type PS, sr_no dari sequence) dibuat per transaksi (baris 619-629). Pembayaran lebih membuat refund notice, pembayaran pada notice yang sudah FP/PRA atau PS-APP dibuat refund, bukan diterapkan lagi (baris 420-447). Tiket OCMS-DF-2026-099 Closed."
+    }
+  ]
+}

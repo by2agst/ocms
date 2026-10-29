@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/list/FurnishSummaryList, pages/Notice/{mode/update/UpdateForm,form/Form,detail/{Preview,DecissionDetails},context/NoticeContext}, pages/Furnish/{form/DecisionForm,hooks/useFurnishAttachment}. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication, crud/ocmsizdb/OcmsFurnishApplicationDoc/OcmsFurnishApplicationDocController, api-authorization.properties. ocmsadminprivateapi: submission sync (FurnishSyncHelper). ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status in stories.json: Demo paid (50% of 75%); the requirement is given. Clicking from the furnished list opens the submission detail screen, which shows the furnished hirer/driver's particulars and the documentary proof with download of one file or all (zip). Gap: 'owner/hirer's particulars' is only the submitter data from the submission; the registered owner/hirer/driver data of the notice is hidden on this detail screen. The demo remark mentions the Internet-Intranet sync cron; the Furnish Processing job has enabled=true in cron-schedules-prod.properties:305-306, the real server value cannot be verified from the repo. The contents of the documentary proof blobs in Azure and user roles cannot be verified from the repo.",
+  "recommendation": "Claim: click-through, furnished particulars and documentary proof download are proven. The registered owner/hirer particulars of the notice are not shown on this screen; state it as a gap",
+  "steps": [
+    {
+      "step": "Officer meng-klik notice dan layar detail terbuka dengan data submission",
+      "detail": "The Notice No link opens #/notices/update/{noticeNo}/{txnNo} in a new tab (FurnishSummaryList.tsx:96-101; route App.tsx:152). UpdateForm loads NOTICE_VALID and FURNISH_APPLICATION by txnNo (UpdateForm.tsx:89-90) through POST furnishapplicationlist (NoticeContext.tsx:1170-1186). API access: furnishapplicationlist is in the OCMS_NOTICE_DETAIL and OCMS_OIC_FURNISH mappings (api-authorization.properties:37,81); per-user roles cannot be verified from the repo."
+    },
+    {
+      "step": "Layar detail menampilkan owner/hirer's particulars",
+      "detail": "The UPDATE-mode detail screen hides the whole 'Offence Info' group including the Owner/Hirer/Driver Details tab (Form.tsx:116 `!isUpdate`, :166-182) and Preview does not render NoticeDetails/OwnerDetails/HirerDetails/DriverDetails unless the mode is not UPDATE (Preview.tsx:57-88). Only data from the submission shows: Submitter's Particulars (name, ID, contact, email, Corppass staff name; DecissionDetails.tsx:175-203, DecisionForm.tsx:201-244). The registered owner/hirer/driver data of the notice (OwnerForm/HirerForm/DriverForm) only appears in EDIT mode, so the officer cannot compare on this screen."
+    },
+    {
+      "step": "Layar detail menampilkan hirer/driver's particulars yang di-furnish",
+      "detail": "The 'Furnished Hirer/Driver's Particulars' section shows name, ID and ID type, email, contact, address (postal, blk, street, floor/unit, building), relationship with owner, relationship description, rental period and the three questionnaire answers (DecissionDetails.tsx:206-285); the Update Decision form shows the same fields read-only (DecisionForm.tsx:255-360)."
+    },
+    {
+      "step": "Layar detail menampilkan daftar documentary proof yang disubmit",
+      "detail": "useFurnishAttachment calls POST furnishapplicationdoclist with the txnNo (useFurnishAttachment.ts:46-92; controller OcmsFurnishApplicationDocController.java:59-66) and DecissionDetails groups the files per docType in the 'Supporting Documents' section (DecissionDetails.tsx:289-299). The document rows come from the document sync of the Furnish Processing job; their content cannot be verified from the repo."
+    },
+    {
+      "step": "Officer dapat mengunduh documentary proof",
+      "detail": "Each file has a download/preview action that calls POST furnish-downloads with txnNo + fileName (useFurnishAttachment.ts:97-130); the 'Download All' button downloads all files and builds attachments.zip in the browser (DecissionDetails.tsx:37-52, 300-306). The backend validates an alphanumeric txnNo and a fileName without path traversal, then reads blob furnishapplication/{txnNo}/{fileName} from the ocms-inter container (OcmsFurnishApplicationDocController.java:85-130). furnish-downloads is only in the OCMS_OIC_FURNISH mapping (api-authorization.properties:83), not in OCMS_FURNISHED_LIST. The blob content in Azure cannot be verified from the repo."
+    }
+  ]
+}

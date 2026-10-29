@@ -1,0 +1,55 @@
+{
+  "story": "OCMS38.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeUPL/{List/RequestList,Hooks/useEndorsement}, utils/mapping/NoticeUPL.ts, utils/config/env.ts, pages/Furnish/{list/FurnishSummaryList,hooks/useFurnishAPI}, App.tsx, utils/data/LinkData.tsx; ocmsadminapi workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService}, crud/ocmsizdb/OcmsFurnishApplication; ocmsadminprivateapi workflows/datahiveuenfin/services/DataHiveUenFinService (placeholder). Resource approvalinbox, workitem dan command UPL_APPROVAL/CHANGE_STAGE tidak ada penerimanya di enam repo",
+  "note": "Status sheet: Built - Has gap. Story minta work item generik di dashboard, klik, keputusan, lalu notice lanjut. Dashboard dan routing work item tidak ada (Dashboard.tsx:26-29, LinkData.tsx:398). Keputusan nyata hanya ada di antrian Furnish (ManualReviewController approve/reject; approve memajukan stage, reject hanya status R). Jalur UPL Decision Request ada di UI tetapi menu-nya di-comment, pemanggilan approvalinbox hanya aktif di STAGING/LOCAL (env.ts:11), dan penerima backend tidak ditemukan; sibling OCMS13.4-13.7 membahas flow UPL yang sama. Furnish adalah mekanisme umum lain, jadi tiap langkah paling tinggi Sebagian. Tidak ada tiket maintenance relevan yang ditemukan (grep dashboard/work item/notification).",
+  "recommendation": "Klaim terbatas. Keputusan atas notice hanya terbukti di antrian Furnish; work item di dashboard dan routing ke officer belum ada, dan jalur UPL tidak terbukti jalan di environment URA. Selaraskan dengan hasil OCMS13.4-13.7.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item untuk decision-making di-route ke dashboard officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/NoticeUPL.ts:192-195",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada dashboard yang menampilkan work item (Dashboard.tsx:26-29 kosong) dan menu Work Items di-comment (LinkData.tsx:398). UI hanya mengirim POST /workitem dari form UPL Decision Request (useEndorsement.tsx:119-121) dengan allocated_to diisi user yang sedang login dan ditandai '//! Hard code' (NoticeUPL.ts:194), jadi bukan routing ke OIC lain. Penerima resource 'workitem' tidak ada di enam repo (grep workitem/work_item di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi: hanya placeholder DataHiveUenFinService.java:2920-2923). Bagian backend cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer klik work item untuk membuka dan melihat notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:59-68",
+      "fit": "Sebagian",
+      "detail": "Ada dua daftar yang bisa diklik: (1) UPL Decision Request, tombol 'Propose' membuka modal untuk notice UPL berstatus NPA dan decision belum Y (RequestList.tsx:36-40, :59-68; route App.tsx:84), tetapi menu UPL di-comment (LinkData.tsx:397) sehingga hanya bisa dibuka lewat URL langsung; (2) daftar Furnished Hirer/Driver, nomor notice membuka halaman notice di tab baru (FurnishSummaryList.tsx:97-101; route App.tsx:192-193). Keduanya bukan klik dari dashboard. Staff-side role gating tidak diperiksa (cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuat keputusan atas notice (decision)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:171",
+      "fit": "Sebagian",
+      "detail": "Dua jalur keputusan ada. Furnish: UI DecisionForm memanggil manual-review/approve-hirer, approve-driver, atau reject (useFurnishAPI.ts:105, :209-211) yang dilayani ManualReviewController.java:171, :214, :257. UPL: form Decision Request (RequestForm) menjalankan useEndorsement.onRequestAPI yang PATCH/POST 'approvalinbox' hanya jika isAPIFound (useEndorsement.tsx:104-116; isAPIFound = STAGING atau LOCAL, env.ts:11) lalu POST /workitem (:119-121); resource approvalinbox dan workitem tidak punya penerima di repo, jadi jalur UPL tidak terbukti jalan di DEV/UAT/PRO. Furnish adalah antrian terpisah (epic 41), bukan work item generik yang dimaksud story, maka Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Keputusan tersimpan (hasil, remark, officer, tanggal)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:363-365",
+      "fit": "Sebagian",
+      "detail": "Furnish: approve menyetel status A dan remarks lalu update ke furnish application (ManualReviewService.java:363-365), reject menyetel status R dan remarks OIC (ManualReviewService.java:466-470); identitas reviewer dan tanggal hanya terlihat di log/audit, penyimpanan field reviewer tidak diperiksa (cannot verify from repo). UPL: mapping MapPatchApprovalInbox mengisi decision, decision_officer, decision_date, remark_decison (NoticeUPL.ts:146-150) tetapi hanya dikirim bila isAPIFound (useEndorsement.tsx:104)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice melanjutkan proses sesuai keputusan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:378-379",
+      "fit": "Sebagian",
+      "detail": "Furnish approve: addFurnishedOffender lalu changeProcessingStage (ManualReviewService.java:375-379; detail stage di :880-919) sehingga notice maju ke stage berikutnya. Furnish reject: hanya status R (:466-470), tidak ada perubahan stage atau re-route, jadi notice tidak 'resume' secara aktif. UPL: perubahan stage dikerjakan UI di langkah endorsement lewat workflow CHANGE_STAGE (useEndorsement.tsx:188-227), bukan oleh keputusan officer; command workflow tersebut tidak ada di backend repo (grep CHANGE_STAGE/UPL_APPROVAL di ocmsadminapi dan ocmsadminprivateapi: 0 hasil)."
+    }
+  ]
+}

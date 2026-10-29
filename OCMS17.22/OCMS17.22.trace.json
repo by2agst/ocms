@@ -1,0 +1,55 @@
+{
+  "story": "OCMS17.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper}, ocmsadminui pages/TS/form/TSForm.tsx. ocmsadminprivateapi framework/workflows/agencies/{toppan/upload,lta/upload}, notification_sms_email, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository",
+  "note": "OCMS tidak punya satu 'penjaga escalation' terpusat. Efeknya datang dari VON.suspension_type yang diisi saat TS diterapkan, lalu tiap job membaca kolom itu sendiri. Pembuatan surat reminder Toppan hanya mengambil notice dengan suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:610), jadi notice TS tidak dapat surat reminder. Dua gap: (1) LTA upload (cron.ltaupload.enabled=true) masih memindahkan notice TS dari ROV ke RD1 (LtaUploadHelper.java:172-176), jadi stage tetap maju walau surat tidak keluar; (2) query SMS/email reminder mengecualikan notice TS kecuali TS-HST, dan di prod cron.notification.enabled=false, sms.enable=false, email.enableSmtp=false (nilai server asli cannot verify from repo). Pembuatan surat Toppan hanya jalan lewat trigger manual POST /toppan/generate-letters karena executeJob() di ToppanUploadJobsScheduler dikomentari (baris 118). Catatan demo 'PLUS Original - API tidak menarik data PLUS DB, koneksi DB terputus' adalah masalah lingkungan, cannot verify from repo.",
+  "recommendation": "Klaim sebagian: filter surat reminder berfungsi, tetapi stage tetap maju di LTA upload dan jalur SMS/email punya pengecualian TS-HST serta nonaktif di prod. Perlu keputusan apakah kenaikan stage ROV ke RD1 untuk notice TS dianggap 'escalate'.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff menerapkan TS dari OCMS dan notice ditandai suspended (suspension_type TS + due_date_of_revival)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSForm.tsx:107; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:213; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:231; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-348",
+      "fit": "Sesuai",
+      "detail": "TSForm.tsx:107 memanggil POST staff-apply-suspension (SuspensionProcessingController.java:213, processNoticeList baris 231). TemporarySuspensionHelper.java:124 memanggil updateVON yang mengisi suspension_type='TS' dan due_date_of_revival (SuspensionBaseHelper.java:340-348). Kolom inilah yang dibaca job lain untuk menahan escalation."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS menerapkan TS dan notice ditandai suspended dengan cara yang sama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1049; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) memakai processNoticeList (baris 546) yang berujung di tsHelper.processTS (baris 1049), jalur yang sama dengan staff (TemporarySuspensionHelper.java:124). Catatan demo menyebut API tidak menarik data PLUS DB setelah deployment 20 Sept; itu masalah lingkungan/koneksi, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pembuatan surat reminder (RD1 sampai DR3) tidak mengambil notice yang sedang suspended",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34",
+      "fit": "Sesuai",
+      "detail": "findToppanNoticesForStage memakai 'von.suspension_type IS NULL' (OcmsValidOffenceNoticeRepository.java:610), dipanggil dari getValidOffenceNoticesOptimized (ToppanUploadHelper.java:1887) oleh ToppanUploadJob (baris 248). Notice dengan TS tidak masuk daftar surat, jadi tidak ikut maju lewat Toppan. Catatan: executeJob() surat Toppan dikomentari di ToppanUploadJobsScheduler.java:118, jadi surat hanya dibuat lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34); filter suspension-nya benar, pemicu otomatisnya tidak ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice TS tidak naik stage selama masa suspension (job LTA upload ikut dicek)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:172-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:255",
+      "fit": "Sebagian",
+      "detail": "Query LTA upload hanya mengecualikan PS: 'suspension_type IS NULL OR != PS' (OcmsValidOffenceNoticeRepository.java:73). LtaUploadHelper.updateProcessingStage memisahkan notice TS lalu mengirimnya ke RD1 (LtaUploadHelper.java:172-176, 200; dipanggil LtaUploadJob.java:255), jadi next_processing_stage notice TS tetap maju dari ROV ke RD1 selama TS aktif. Surat reminder RD1 tidak keluar karena filter Toppan di langkah sebelumnya, tetapi stage-nya sudah berpindah. cron.ltaupload.enabled=true (cron-schedules-prod.properties:135)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder lewat SMS/email tidak dikirim untuk notice yang suspended",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1034-1035; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1120-1121; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/application-prod.properties:80",
+      "fit": "Sebagian",
+      "detail": "Query notifikasi hanya mengambil 'suspension_type IS NULL' atau TS-HST (NotificationSmsEmailHelper.java:1034-1035 untuk eNA, 1120-1121 untuk reminder RD1-DR3), jadi TS lain dikecualikan tetapi TS-HST tetap dikirim. Di prod cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87), email.enableSmtp=false (baris 80): jalur ini dimatikan oleh konfigurasi repo; nilai di server asli cannot verify from repo."
+    }
+  ]
+}

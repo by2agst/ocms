@@ -1,0 +1,82 @@
+{
+  "story": "OCMS6.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot.tsx, component/NoticeSearchUploadSlot.tsx, list/NoticeSearchAllList.tsx, list/NoticeSearchOutstandingList.tsx, form/NoticeSearchAllForm.tsx}, utils/data/SheetData.ts, utils/function/FuncSheet.ts, utils/mapping/NoticeSearch/NoticeSearch.ts, utils/constant.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController (validoffencenoticelist + $field), api-authorization.properties. ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi, ocmseserviceui: tidak relevan",
+  "note": "Status di sheet: Fully paid (3 poin). Fitur download ada dan berjalan: Notice Search (All dan Outstanding) punya Download All / Download Selected yang menjalankan ulang pencarian yang sama dan menulis file .xlsx di browser. Celahnya: (1) tidak ada print, hanya download; (2) download dibatasi 1000 notice; (3) lima kolom (Summons, NTAC, Court Date, Payment Date, Authorised By Officer) di-mapping ke UNKNOWN sehingga selalu '-'; (4) kolom Payment Status di file mencetak 'Fully Paid' untuk CRS reason apa pun, termasuk PP (Partially Paid), jadi laporan settled bisa salah. Tiket dipakai: OCMS-SR-2026-048 (definisi outstanding, Closed) dan OCMS-DF-2026-187 (sort Payment Status di bulk search, Pending UAT; tidak mengubah isi file). Cannot verify from repo: apakah ada permintaan cetak resmi di luar story.",
+  "recommendation": "Klaim sebagian: download Excel hasil pencarian outstanding/settled ada. Print belum ada, batas 1000, lima kolom kosong, dan Payment Status di file bisa salah untuk notice partially paid; perbaiki atau sepakati dengan URA bahwa download Excel cukup menggantikan print",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer sudah menjalankan pencarian notice (All / Outstanding) di Staff Portal dan mendapat daftar hasil",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:115; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:137; ocmsadminapi/src/main/resources/api-authorization.properties:21-22",
+      "fit": "Sesuai",
+      "detail": "Halaman Notice Search punya dua mode (ALL dan OUTSTANDING). Kedua list memanggil resource validoffencenoticelist lewat Datagrid (NoticeSearchAllList.tsx:115, NoticeSearchOutstandingList.tsx:137). Server-side, validoffencenoticelist diizinkan untuk function OCMS_NOTICE_SEARCH (api-authorization.properties:21-22). Ini precondition story dan memang ada. Bug sort Payment Status di bulk search (OCMS-DF-2026-187, Pending UAT) hanya soal sorting kolom, tidak mengubah isi hasil."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman hasil menyediakan tombol download untuk hasil pencarian (semua hasil atau baris terpilih)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:262-280; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:131; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:154",
+      "fit": "Sesuai",
+      "detail": "NoticeSearchSlot dipasang di slot kiri kedua list (AllList:131, OutstandingList:154) dan menampilkan tombol Download All (SL:262) dan Download Selected (SL:271, aktif hanya kalau ada baris tercentang). Halaman hasil upload-search punya tombol sama lewat NoticeSearchUploadSlot (NoticeSearchUploadSlot.tsx:112-132)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Download memakai kriteria pencarian yang sama sehingga isi file sama dengan hasil pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:91-104; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:204-207",
+      "fit": "Sesuai",
+      "detail": "Download All memanggil POST validoffencenoticelist dengan filter + advanceFilter milik grid dan $limit = total hasil (SL:94-103). Download Selected menambah noticeNo[$in] dari baris tercentang (SL:206). Field dibatasi lewat $field = FieldExcelValidOffenceNotice (SL:98) dan backend memfilter field itu (OcmsValidOffenceNoticeController.java:66-76). Jadi file mengikuti hasil pencarian, bukan data lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Seluruh hasil pencarian bisa di-download berapa pun jumlahnya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:179-197; ocmsadminui/src/utils/constant.ts:96; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:45-47",
+      "fit": "Sebagian",
+      "detail": "Ada batas keras NOTICE_SEARCH_LIMIT = 1000 (constant.ts:96). Kalau total hasil > 1000 untuk Download All, atau baris terpilih > 1000, download ditolak dengan pesan 'causing backend service overload' (SL:184-195). Officer harus mempersempit pencarian. Story tidak menyebut batas; hasil yang besar tidak bisa disimpan. Download dari upload-search tidak melewati batas ini (memakai allData di memori)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil disimpan sebagai file laporan (Excel) berisi kolom notice yang relevan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/SheetData.ts:560-602; ocmsadminui/src/utils/data/SheetData.ts:605-648; ocmsadminui/src/utils/function/FuncSheet.ts:93-159; ocmsadminui/src/utils/mapping/NoticeSearch/NoticeSearch.ts:24-71",
+      "fit": "Sebagian",
+      "detail": "SheetGenerate membuat file .xlsx lewat XLSX.writeFile (FuncSheet.ts:93-159) dengan header HeaderAllNoticeDownload (34 kolom) atau HeaderOutsandingNoticeDownload (SheetData.ts:560-648). Tetapi beberapa kolom di-mapping ke key UNKNOWN sehingga selalu berisi '-': Summons No., NTAC No., Court Date, Payment Date, Authorised By Officer (SheetData.ts:562-563, 580, 596, 598, 608, 617, 638, 640; NoticeSearch.ts:69). File tetap terbentuk, tapi lima kolom itu belum terisi data."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan untuk outstanding notices: pencarian Outstanding menyaring notice outstanding lalu di-download dengan header Outstanding",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:105-124; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:216-223; ocmsadminui/src/utils/data/SheetData.ts:605-648",
+      "fit": "Sesuai",
+      "detail": "Mode OUTSTANDING memakai defaultFilters: TS / tanpa suspension, PS hanya dengan EPR reason FOR/DIP/MID/RIP/RP2 tanpa CRS reason, atau CRS reason PP, dan offenderIndicator = Y (OutstandingList.tsx:105-124). Saat download, type OUTSTANDING memilih HeaderOutsandingNoticeDownload (SL:220-223). Ini cocok dengan permintaan PLUS-DF-2026-323 / OCMS-SR-2026-048 (Closed, Prod deployed); tiket menyebut juga PS-VIP sebagai hard-PS yang dikecualikan, daftar di code tidak memuat VIP (cannot verify dari repo apakah kode VIP dipakai)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan untuk settled (fully paid) notices: kolom Payment Status di file menunjukkan status bayar yang benar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/SheetData.ts:575-578; ocmsadminui/src/utils/data/SheetData.ts:634-637; ocmsadminui/src/components/datagrid/column/index.tsx:270-281; ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:304-310; ocmsadminui/src/utils/option.tsx:322-323; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:343-346",
+      "fit": "Sebagian",
+      "detail": "Di file, Payment Status = Boolean(crsReasonOfSuspension) ? 'Fully Paid' : 'Unpaid' (SheetData.ts:575-578, 634-637). Artinya CRS reason apa pun (termasuk PP = Partially Paid) tercetak 'Fully Paid', sedangkan grid memetakan FP/PRA = FP, PP = Partially Paid, lainnya '-' (column/index.tsx:270-281). Pencarian settled lewat filter Payment Status 'Fully Paid' di mode ALL (option.tsx:322-323, NoticeSearchAllForm.tsx:304-310): FP pada crsReasonOfSuspension dan EPR reason bukan PRA (useSearchParams.tsx:343-346), jadi daftar yang dicari benar. Hasil: notice partially paid bisa tampil 'Fully Paid' di laporan. Sort Payment Status di bulk search juga rusak (OCMS-DF-2026-187, Pending UAT)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pencarian juga bisa dicetak (print)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:262-280",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada fitur print. Di NoticeSearch hanya ada tombol Download All / Download Selected (SL:262-280); grep window.print, print, pdf di pages/NoticeSearch tidak menemukan apa pun. Opsi lama OUTSTANDING/PAID CSV di ApplyOperationAction.tsx:391-402 komentar-nya mati (CSVLink di-comment) dan tidak ada di BatchOperationOptions. Officer harus mencetak sendiri dari file Excel."
+    }
+  ]
+}

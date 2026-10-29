@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui utils/validation/error.ts, utils/validation/Payment/ValidPayment.ts, pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud ocmsezdb eocmsusermessage. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "The error message for a wrong format exists in the UI. For a notice that is not found, the backend returns message E8 (text read from the eocms_user_message table, its content cannot verify from repo). The backend does not distinguish the three conditions in the story: a settled notice (crs_reason FP), a notice not yet in the database (not in eocms_valid_offence_notice), and a notice that never existed, all fall into the same E8; there is no dedicated settled or pending-upload branch for the Notice Number search. When only some of the 5 numbers are found, the missing ones are silently dropped with no message. Database errors are also swallowed and show as E8. Tickets OCMS-SR-2026-001 (AXS showed payable notices as not found because the migrated message code was null, Closed, Prod deployed) and OCMS-DF-2026-017 were used as hints.",
+  "recommendation": "Claim the wrong-format message, the notice-not-found message (E8) and the ability to repeat the search. Do not claim dedicated settled and pending-upload messages; ask URA to confirm the E8 text in the eocms_user_message table and whether separate messages are still required.",
+  "steps": [
+    {
+      "step": "A number with a wrong format is rejected on the page with an error message before the search is sent",
+      "detail": "A failing Format('NOTICE') shows 'Please enter valid notice number.' (empty field: 'Please enter notice number.') under the field and the Search Fines button stays disabled. A valid format does not guarantee the notice exists in the database."
+    },
+    {
+      "step": "A notice that is not found shows an error message with the searched numbers",
+      "detail": "When the query returns no notice, handleNoticeNoSearch calls buildFormattedErrorResponse('E8') with placeholders $NOTICE_NUMBERS$ and $CURRENT_DATE$; the E8 text is read from eocms_user_message through getMessage (fallback DEFAULT_ERROR) and the UI shows it through apiMessage in NonPayment. The E8 text in the database cannot verify from repo. A catch: checkNoticesList catches every Exception and returns an empty list, so a database error also shows as an E8 'not found'."
+    },
+    {
+      "step": "A settled (paid) notice shows a message that states its status",
+      "detail": "findAllByNoticeNoIn only returns notices with crs_reason_of_suspension IS NULL (or an_flag Y), so a notice already FP is left out; if it is the only number, the result is the same as a non-existent number, that is E8. No branch sends an 'already paid' message. The E8 text in the database may cover both cases; cannot verify from repo. The ID search does separate a Paid tab, but that is not the Notice Number search."
+    },
+    {
+      "step": "A notice still pending upload to the database shows a message that states its status",
+      "detail": "A notice not yet uploaded to eocms_valid_offence_notice is absent from the query, so the result equals an unknown number: E8. No 'pending upload' flag or status is read in ocmseserviceapi. Ticket OCMS-SR-2026-001 shows that payable notices once appeared as 'not found' because the migrated message code was null (Closed, Prod deployed). The E8 text content cannot verify from repo."
+    },
+    {
+      "step": "When only some of the numbers entered have a problem, the problematic numbers still get a message",
+      "detail": "E8 is only sent when the whole result is empty (lines 247-251). If 2 of 5 numbers are found, the other 3 vanish from the result with no message at all; the response carries no list of numbers not found. The UI does not compare the input against the result either."
+    },
+    {
+      "step": "The offender can repeat the search from the error message page",
+      "detail": "NonPayment shows the message and a 'check or pay' link that calls resetNoticeInputs(), returns to the Notice Number tab and stepper step 1; the Back button also returns to the form. Fields are restored to 5 (ticket OCMS-DF-2026-017, Closed, Prod deployed)."
+    }
+  ]
+}

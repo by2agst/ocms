@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/{NoticeSearchAllList,NoticeSearchOutstandingList},component/{NoticeSearchSlot,NoticeSearchUploadSlot},hook/{ApplyOperationAction,useBatchOperation},page/upload/UploadResult}, pages/TS/page/TS, utils/constant (BATCH_OPERATION_FUNCTION_MAP); ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/SuspensionProcessingHelper} (POST /staff-check-suspension-eligibility), api-authorization.properties OCMS_APPLY_TS, config/WebConfig + auth/interceptor/OcmsAuthorizationInterceptor. The TS application itself (reason, days, remarks, confirm) belongs to OCMS17.6-17.13",
+  "note": "Status in stories.json: Fully paid, 3 points. The officer can tick notices (per row or select-all, max 1000) in the search list and in the upload result, choose the 'Apply Operation' TS and press Select, and the selected notices are carried to the TS page. Before that there is a server eligibility check that the story does not mention: if even one notice is not eligible, the whole selection is blocked with an error modal (no option to continue with the rest), and if the eligibility request fails the result is empty without a message and the officer lands on a TS page that shows nothing. Ticket OCMS-DF-2026-025 (Closed, Prod deployed) moved the PS check back to VON data; the code now reads VON. The Apply TS function is restricted in the UI (hasFunction) and on the server (mapping OCMS_APPLY_TS through the interceptor); per-user role values cannot be verified from repo.",
+  "recommendation": "Claimable for selecting notices and sending them to the TS page. Note two behaviour gaps: one ineligible notice blocks the whole selection, and a failed eligibility request is silent.",
+  "steps": [
+    {
+      "step": "Officer selects notices (per row or all) in the search result list",
+      "detail": "Both lists enable row checkboxes and select-all (NoticeSearchOutstandingList.tsx:145-152; NoticeSearchAllList.tsx:122-129). Select-all fetches the whole result through POST validoffencenoticelist and is refused with a modal when the total exceeds NOTICE_SEARCH_LIMIT = 1000 (NoticeSearchOutstandingList.tsx:35-82; constant.ts:96)."
+    },
+    {
+      "step": "Officer selects notices in the uploaded-list result",
+      "detail": "UploadResult.tsx:64-74 enables row checkboxes and select-all on NoticeValidList, with the same Apply Operation slot (NoticeSearchUploadSlot.tsx:126-145) and onSubmit passes the selected rows on (:82-88)."
+    },
+    {
+      "step": "Officer chooses the Temporary Suspension (TS) operation for the selected notices and presses Select",
+      "detail": "The 'Apply Operation' dropdown and the Select button (NoticeSearchSlot.tsx:281-302) only list operations whose function the user holds: TS maps to APPLY_TS (constant.ts:275-277, hasFunction filter at NoticeSearchSlot.tsx:285-288). On the server the function OCMS_APPLY_TS grants access to validoffencenoticelist, staff-apply-suspension and suspensionreasonlist (api-authorization.properties:58-59) and the authorization interceptor is registered (WebConfig.java:78-79). Note: staff-check-suspension-eligibility sits under the function OCMS_NOTICE_SEARCH (properties:21-24), not OCMS_APPLY_TS. Per-user roles cannot be verified from repo."
+    },
+    {
+      "step": "OCMS checks whether the selected notices may be temporarily suspended before the bulk TS continues",
+      "detail": "handleTS calls validation['TS'], which POSTs to /staff-check-suspension-eligibility (ApplyOperationAction.tsx:136; useBatchOperation.ts:136-139). The server rejects notices in a court stage, outside the stages NPA/ROV/ENA/RD1/RD2/RR3/DN1/DN2/DR3/CPC/CFC, already paid/PRA, or PS with a reason other than FOR/MID/DIP/RP2/RIP (SuspensionProcessingHelper.java:275-312; controller SuspensionProcessingController.java:277-310). This check is not in the story. Two things to watch: (1) if even one notice is not eligible, the whole selection is blocked with an error modal and there is no option to continue with the eligible ones (ApplyOperationAction.tsx:139-149); (2) if the request fails, the catch block empties success and failed (useBatchOperation.ts:160-163), handleTS still calls setBatch with empty notices and navigates to /notices/ts, which renders nothing (TS.tsx:108). Ticket OCMS-DF-2026-025 (Closed, Prod deployed): the PS check now reads VON (notice.getSuspensionType, helper :303-310). Sebagian."
+    },
+    {
+      "step": "The selected notices are carried to the TS page as the basis for the bulk temporary suspension",
+      "detail": "setBatch stores the notices that passed the eligibility check in the DataContext and then calls nav('/notices/ts') (useBatchOperation.ts:106-119; ApplyOperationAction.tsx:151-157). The route ts/* renders the TS page (App.tsx:162), which reloads the selected notices in groups of 30 through validoffencenoticelist (TS.tsx:30-65) and shows TSForm (TS.tsx:108-110). Filling in the reason, days and remarks and applying the TS are judged in OCMS17.6-17.13, not here."
+    }
+  ]
+}

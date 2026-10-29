@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (countOutstandingNoticesByIdNo, per ID) dan workflows/furnish/stafffurnish/StaffFurnishService; ocmsadminprivateapi toppan/upload/helpers/ToppanUploadHelper (MID/DIP di RR3/DR3 dilewati dan di-PS) dan schedulers/ToppanUploadJobsScheduler; ocmsadminui pages/Dashboard (kosong), utils/data/LinkData (WorkItem/Embassy di-comment). Tidak ada code untuk threshold X, hitung per entity, atau reminder letter DIP/MID di keenam repo.",
+  "note": "Story minta OCMS mengenali entity yang punya minimal X outstanding notice (X dari parameter) pada kondisi predefined, lalu memutuskan reminder letter ke dashboard OIC. Tidak ditemukan code untuk itu: tidak ada pembacaan parameter X, tidak ada hitung per entity di semua kendaraan, tidak ada keputusan letter berdasarkan jumlah, dan dashboard OIC kosong. Kata diplomat/embassy hanya muncul pada deteksi nomor kendaraan, menu Embassy yang di-comment (App.tsx:203-214, LinkData.tsx:404) dan pengecualian di Toppan. Premis story (notice sudah di-TS) juga berbeda: DIP/MID di code memakai PS-MID/PS-DIP, bukan TS. Pencarian memakai sinonim diplomat, embassy, DIP, MID, outstanding, threshold, minimum, quarterly di UI dan API. Status story: Requirement given - Gen flow. Tidak ada maintenance ticket yang relevan (tidak ada ticket untuk fitur ini).",
+  "recommendation": "Jangan klaim sebagai selesai. Fitur threshold X per entity dan reminder letter DIP/MID belum ada di code; premis TS juga belum sesuai (code memakai PS). Konfirmasi dengan URA apakah scope ini sudah dipindah atau belum dibangun.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice DIP/MID sudah di-temporary suspend otomatis dengan suspension code dan periode tertentu (hasil OCMS14.5)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-1993; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2014; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:749-777; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:111-113",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada temporary suspension untuk DIP/MID. Di Toppan stage RR3/DR3 kendaraan dengan vehicleRegistrationType I (Military) atau D (Diplomatic) dikeluarkan dari letter (ToppanUploadHelper.java:1979-1993), lalu applyPsSuspensionForMidDipVehicles memanggil psHelper.processPS (PermanentSuspensionHelper) dengan kode PS-MID atau PS-DIP (ToppanUploadHelper.java:749-777, dipanggil di :2014). Itu permanent suspension tanpa periode atau parameter durasi. Kode MID/DIP juga diperlakukan sebagai PS reason (SuspensionProcessingHelper.java:111-113). Fakta yang sama dengan OCMS14.5 (story saudara)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membaca nilai X (parameter yang bisa diubah) sebagai jumlah minimum outstanding notice per entity",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/resources/api-authorization.properties:166-167; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:747",
+      "fit": "Tidak ada code",
+      "detail": "Layar maintenance parameter yang generik ada (OCMS_SYSTEM_PARAMETER, api-authorization.properties:166-167), tetapi tidak ada code yang membaca satu parameter pun sebagai ambang jumlah outstanding notice per entity. Grep outstanding/threshold/minimum di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi hanya menemukan pencarian outstanding per ID untuk furnish (StaffFurnishService.java:747) yang tidak dibandingkan dengan X. Nilai parameter di database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghitung notice outstanding milik sebuah entity di semua kendaraannya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:220-229; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:742-760",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya hitungan outstanding adalah countOutstandingNoticesByIdNo: COUNT notice dengan id_no tertentu, offender_indicator = 'Y' dan suspension_type bukan PS (OcmsValidOffenceNoticeRepository.java:220-229). Query ini dijalankan per satu ID saat officer mencari di layar furnish (StaffFurnishService.java:742-760), bukan job batch yang menyisir semua entity dan semua kendaraannya, dan tidak membatasi ke notice DIP/MID."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dipilih berdasarkan kondisi predefined (suspension status, suspension code, suspension type)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:202; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:227",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya kondisi suspension pada query hitung outstanding adalah (v.suspension_type != 'PS' OR v.suspension_type IS NULL) (OcmsValidOffenceNoticeRepository.java:202 dan :227). Tidak ada filter suspension code (DIP/MID atau kode TS) dan tidak ada filter status suspension aktif, jadi bukan kumpulan kondisi predefined yang disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan apakah reminder letter dibuat, berdasarkan jumlah outstanding terhadap X",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1979-2014; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang membandingkan jumlah outstanding dengan X. Keputusan membuat letter di Toppan hanya berdasarkan stage notice (RD1...DR3); untuk kendaraan MID/DIP di RR3/DR3 letter malah dilewati dan diganti PS (ToppanUploadHelper.java:1979-2014). Pembuatan letter harian lewat day-end cron juga dimatikan di kode (ToppanUploadJobsScheduler.java:118, runJob job1 di-comment)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder letter diarahkan ke dashboard OIC untuk tindak lanjut",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-31; ocmsadminui/src/utils/data/LinkData.tsx:398; ocmsadminui/src/utils/data/LinkData.tsx:404",
+      "fit": "Tidak ada code",
+      "detail": "Halaman Dashboard staff portal kosong: hanya div row tanpa isi (Dashboard.tsx:21-31). Menu WorkItem dan Embassy di-comment (LinkData.tsx:398 dan :404). Tidak ada work item atau routing reminder letter ke OIC untuk kasus ini; pekerjaan work item yang ada di code (misalnya PS-RP2 di DataHiveUenFinService) tidak terkait."
+    }
+  ]
+}

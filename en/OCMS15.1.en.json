@@ -1,0 +1,25 @@
+{
+  "story": "OCMS15.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx (route cps/search), utils/data/LinkData.tsx, pages/CPS/page/CPSSearch.tsx (search form + Datagrid), utils/validation/CPS/ValidCPSSearch.ts; ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController.searchNotices, ChangeOfProcessingService.searchNotices/searchByIdNumber/searchByVonCriteria/applySearchFilters, dto/SearchChangeProcessingStageRequest}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "1-point story: the officer can search notices by standard parameters (notice number, current processing stage, date). The code has a Change Processing Stage page (Notices menu) with five parameters: Notice No, Vehicle No, ID No, Current Processing Stage, Date of Current Processing Stage, more than the examples in the story. The UI rejects incomplete combinations (stage alone needs another field, date needs a stage) while the API only requires at least one criterion. The ID No search only takes the current offender (offender_indicator = Y). Who holds the OCMS_CPS role (api-authorization.properties:69-70) cannot be verified from the repo, so 'Notice Processing Officer' cannot be confirmed from code. Maintenance tickets: none changes this search (grep for CPS / change processing stage only finds submit-side and report tickets).",
+  "recommendation": "Can be claimed: every step is Sesuai (Evidence 100%). The Notice Processing Officer role needs confirmation in the role data, it is not visible in the repo",
+  "steps": [
+    {
+      "step": "Staff opens the Change Processing Stage page from the Notices menu",
+      "detail": "The 'Change Processing Stage' menu entry points to /notices/cps/search (LinkData.tsx:53). App.tsx:168 maps that route to CPS.CPSSearch, which renders a Datagrid for the resource change-processing-stage/search (CPSSearch.tsx:333-345)."
+    },
+    {
+      "step": "The search form offers notice number, current processing stage and date (plus vehicle no and ID no)",
+      "detail": "The accordion 'Search Notice for Change Processing Stage' holds TextInput noticeNo (max 10), vehicleNo (max 14), idNo (max 20), DropdownInput currentProcessingStage (options from CPS_NEW_PROCESSING_STAGES) and DateInput dateOfCurrentProcessingStage (CPSSearch.tsx:160-225). All three parameters named in the story exist."
+    },
+    {
+      "step": "The UI checks input before searching: notice no/vehicle no format and criteria combination",
+      "detail": "formSearchToParams throws a message when only the stage is filled (lines 270-275), when a date is filled without a stage (278-283) or when no field is filled (286-290). ValidCPSSearch attaches the NoticeNo and VehicleNo format validation (ValidCPSSearch.ts:18-19). Passing params are sent with the date formatted as YYYY-MM-DD (293-303)."
+    },
+    {
+      "step": "The API searches notices by notice no, ID no, vehicle no, stage and stage date",
+      "detail": "POST /v1/change-processing-stage/search rejects a request without criteria (Controller:233-248) and then calls searchNotices. ID path: ONOD with offender_indicator='Y' then VON (Service:575-599). Other path: VON by noticeNo, then vehicleNo, then stage (+ date) (608-640). Remaining criteria apply as in-memory AND filters; the date is compared with lastProcessingDate, not the offence date (650-683). The endpoint is in the OCMS_CPS role mapping (api-authorization.properties:69-70); who holds the role cannot be verified from the repo."
+    }
+  ]
+}

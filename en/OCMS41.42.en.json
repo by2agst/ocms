@@ -1,0 +1,33 @@
+{
+  "story": "OCMS41.42",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/Valid.ts + Format/ValidNOPO.ts (format validation), components/datagrid/table/TableBody (empty text), pages/Notice/hook/useODH (check result alert); ocmsadminapi workflows/furnish/{stafffurnish/controllers/StaffFurnishController, helpers/FurnishabilityChecker} (furnish-redirect-check endpoint: not found, PS, Advisory Notice, stage), api-authorization.properties. No explicit paid/cancelled check",
+  "note": "UI-side format validation exists for the notice number (format + check digit) and the ID number (NRIC/FIN/UEN). Vehicle number validation does almost nothing unless a registration type is selected. The search does not filter for furnishable notices; with no result only the generic text 'No records to display' appears. The furnishable check happens only when the officer presses Furnish/Redirect (furnish-redirect-check endpoint), which rejects with a message for: notice not found, active PS, Advisory Notice (an_flag=Y), and a stage outside NPA-CPC. There is no explicit branch for paid or cancelled notices; whether paid/cancelled notices automatically carry an active PS cannot be proven from this repo. The furnish-redirect-check endpoint is only in the functionId mapping OCMS_OIC_FURNISH (api-authorization.properties:79), not in OCMS_NOTICE_SEARCH/EDIT; the mapping of the Notice Processing Officer role to functionId cannot be verified from the repo. The demo remark about the cron and Internet-Intranet sync concerns eService, not this Staff Portal check. There is also a GET /furnish/officer/manual/notice/{noticeNo}/furnishable endpoint in ManualFurnishController that no UI calls and that is not in the authorization mapping (the interceptor would answer 403).",
+  "recommendation": "Claim partially. Notice/ID format checks and rejection for PS, Advisory, stage or missing notice exist; an explicit paid/cancelled check and a 'no furnishable notice' message at search level do not.",
+  "steps": [
+    {
+      "step": "A notice number with a wrong format is rejected with an error message",
+      "detail": "The NoticeNo validator uses Format('NOTICE') -> ValidNotice: regex of 9 digits + 1 letter and a weighted check digit; failure shows 'Invalid notice no.' (translation.json:988-991). Checked on the UI side only."
+    },
+    {
+      "step": "An ID number with a wrong format is rejected with an error message",
+      "detail": "The IDNo validator accepts only a valid NRIC, FIN or UEN (except type Passport); failure shows 'Number does not match NRIC/FIN/UEN format'. OCMS-DF-2026-098 (Closed, Prod deployed) fixed M-prefix FINs ending in J."
+    },
+    {
+      "step": "An invalid vehicle number is rejected with an error message",
+      "detail": "The VehicleNo validator: the local format check always returns true (Valid.ts:40-46, Format('VEHICLE') is commented out); only the 'matches the selected registration type' check is active (Valid.ts:48 onwards) and it is skipped when no type is selected. So a nonsense vehicle number passes."
+    },
+    {
+      "step": "When no notice is found, the officer is told",
+      "detail": "The search does not filter for furnishable notices; with an empty result the grid only shows the generic text 'No records to display' (TableBody.tsx:19), not an error message saying no furnishable notice exists for the searched value."
+    },
+    {
+      "step": "A non-furnishable notice (PS, Advisory, wrong stage, missing) is rejected with a message",
+      "detail": "When the officer presses Furnish/Redirect, useODH calls POST staff-furnish/furnish-redirect-check (useODH.tsx:105-110). FurnishabilityChecker.checkFurnishability rejects: missing notice, active PS (suspensionType PS and dateOfRevival null), an_flag Y, and lastProcessingStage outside NPA..CPC (FurnishabilityChecker.java:91-130, 340-372). The message is shown in an error alert modal (useODH.tsx:121-130). The timing is on button press, not at search time. This endpoint is only in functionId OCMS_OIC_FURNISH (api-authorization.properties:79); the role mapping cannot be verified from the repo."
+    },
+    {
+      "step": "A paid or cancelled notice is rejected with a message",
+      "detail": "FurnishabilityChecker has no explicit branch for paid or cancelled status (only not found, PS, Advisory, stage). A paid/cancelled notice is rejected only if it already has an active PS or its stage is outside NPA..CPC; whether the payment/cancel process always sets a PS cannot be proven from this repo. The message shown is also the generic PS/stage one, not 'paid' or 'cancelled'."
+    }
+  ]
+}

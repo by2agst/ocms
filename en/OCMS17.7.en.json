@@ -1,0 +1,25 @@
+{
+  "story": "OCMS17.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/TSDetails.tsx, pages/Notice/form/NoticeOperationForm.tsx, pages/Notice/hook/useOperation.tsx, utils/{validation,mapping}/TS/TS.ts; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/TemporarySuspensionHelper}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status Fully paid, 3 points. Auto-populate is done purely in the UI: as soon as suspension_code_data changes, a useEffect fills day_no from noOfDaysForRevival. The field is still required, so a code without a day value forces the officer to type. The same behaviour is used on the single-notice path from the Notice page (prefix ts). The server does not push days back to the form; it only uses the number the UI sends, or looks it up from the reason table / defaults to 30 days when none is sent (TemporarySuspensionHelper.java:182-209). No maintenance ticket changes the verdict.",
+  "recommendation": "Can be claimed",
+  "steps": [
+    {
+      "step": "Officer picks a suspension code from the drop-down; the full code data (including days) is kept in the form",
+      "detail": "DropdownInput maps the selection to suspension_code (data.reasonOfSuspension) and to suspension_code_data (refKey ALL, the full reason row) (TSDetails.tsx:87-96)."
+    },
+    {
+      "step": "The number of days is filled in automatically from the selected code",
+      "detail": "A useEffect depending on suspension_code_data sets day_no = data.noOfDaysForRevival (?? '') via setForm (TSDetails.tsx:66-74). It runs every time the code changes."
+    },
+    {
+      "step": "The officer does not need to type the days; the prefilled value passes validation and is sent to the server",
+      "detail": "The auto-populated day_no satisfies the digit, >0, <=999 rules (TS.ts:36-50) so the form can be submitted right away; TSMapping puts it in as dueDateOfRevival (TS.ts:26) in the POST to staff-apply-suspension (TSForm.tsx:98-107). If a code has no day value the field stays empty and the required rule forces manual input (TS.ts:50)."
+    },
+    {
+      "step": "The same behaviour applies when TS is applied from a single-notice page",
+      "detail": "NoticeOperationForm renders TSDetails with prefix 'ts' for the TS operation (NoticeOperationForm.tsx:304-310); the same component reads/writes ts_suspension_code_data and ts_day_no (TSDetails.tsx:64-74); useOperation maps with prefix ts (useOperation.tsx:92-93)."
+    }
+  ]
+}

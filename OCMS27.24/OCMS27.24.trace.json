@@ -1,0 +1,46 @@
+{
+  "story": "OCMS27.24",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Tidak ada pengecekan 'settled X hari sebelum court mention date baru' dan tidak ada keputusan kirim SMS untuk warrant. Hanya maintenance parameter umum (tabel parameter + halaman System > Parameter) yang bisa menampung angka X; entry menu WARRANT_SETTLE_DATE ada di metadata UI tetapi tidak punya route dan tidak ada code yang membaca parameter itu.",
+  "note": "Status story kosong (requirement tidak diberikan / status blank); ditrace normal. Lanjutan OCMS27.23; court mention date baru tidak ada di code (lihat OCMS27.23 step 2), jadi pembanding tanggal tidak punya input. Tidak ada maintenance ticket relevan.",
+  "recommendation": "Klaim minimal (Sebagian untuk parameter umum). Pengecekan settled X hari dan keputusan SMS belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail warrant execution yang sudah diproses menghasilkan court mention date baru sebagai acuan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101",
+      "fit": "Tidak ada code",
+      "detail": "Court mention date baru tidak diterima maupun disimpan (lihat OCMS27.23 step 2: CasUpdateNoticeItem.java:25-73 tanpa field mention, OcmsCourtCase.java:27-31 hanya court_payment_due_date). Sinonim dicari: mention, next_mention, date_of_next_mention, court date di UI dan API."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai X (jumlah hari) dapat dikonfigurasi lewat parameter yang dikelola di OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:48; ocmsadminui/src/App.tsx:377-378",
+      "fit": "Sebagian",
+      "detail": "Maintenance parameter umum ada: halaman System > Parameter (App.tsx:377-378, ParameterList.tsx) dan API /v1/parameter, /v1/parameterlist, /v1/parameterpatch (ParameterController.java:48,81,98; otorisasi api-authorization.properties:166-167), jadi nilai X bisa disimpan sebagai baris parameter. Entry menu WARRANT_SETTLE_DATE hanya ada di metadata (ocmsadminui/src/utils/Meta/System.ts:22,56,163-166; ocmsadminui/src/utils/models/Fsystemadmin.d.ts:30) tanpa route atau halaman, dan tidak ada code yang membaca parameter warrant/settle. Isi tabel parameter di DB cannot be verified from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah warrant notice sudah settled X hari sebelum court mention date baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:336",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada perbandingan payment/settled date dengan mention date. Satu-satunya cek status bayar di jalur CAS hanya menolak notice yang sudah FULL_PAYMENT (CasIntegrationServiceImpl.java:336) tanpa tanggal. Perhitungan hari di NotificationSmsEmailHelper.java:1114-1118 memakai parameter ENOTEDAYS dari last_processing_date untuk stage reminder, bukan mention date. Dicari: settle, settled, paid before, mention di UI dan API."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan apakah SMS dikirim ke defendant berdasarkan hasil pengecekan itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1114",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada keputusan SMS berbasis warrant. NotificationSmsEmailJob memilih record hanya untuk last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) (NotificationSmsEmailHelper.java:1114); stage warrant tidak masuk. Di prod cron.notification.enabled=false (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236); nilai server asli cannot be verified from repo."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS45.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Payment/PaymentCash.tsx, App.tsx (route payment/cash). ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateController,PaymentUpdateServiceImpl,PaymentValidator}, resources/api-authorization.properties. ocmsadminprivateapi: not used on this path. ocmseserviceapi, ocmseserviceui, thirdpartyapi: none",
+  "note": "The story asks the officer, from the work item of a notice suspended for an amount mismatch, to update the notice as paid according to the amount paid and the receipt, without a manual reduction. Status in the sheet: Demo paid (50% of 75%). What exists is the Manual Payment screen (route payment/cash) that calls POST /v1/updatePayment: the officer types Notice No., Amount Paid, Date of Payment, Payment Mode, Remarks. There is no work item as entry point and no receipt input; an MPY receipt is generated automatically and the original gateway/AXS receipt is not linked. The outcome is decided by comparing the total paid with the current amount_payable: equal or more becomes PS-FP (more also creates an OVP refund), less becomes PS-PRA (PaymentValidator.java:64-91). So the $40 vs $55 case still ends as PS-PRA and the manual reduction is still needed (ticket OCMS-SR-2026-080). On the PS-FP path, epr_reason_of_suspension 'PAM' is not cleared and the TS-PAM suspended_notice row is not closed by this code (PaymentUpdateServiceImpl.java:373-381); the PS-PRA path overwrites epr with 'PRA' (389-399). Ticket OCMS-SR-2026-190 (Ready to PRD) adds a refund for manual payment over PS-APP; not proven live. Role authorization: mapping OCMS_PAYMENT_CASH in api-authorization.properties:111-112; who holds that role cannot be verified from the repo.",
+  "recommendation": "Claim partially. The manual payment screen and the notice update exist, but they are not linked to a work item, there is no receipt input, and an underpayment still ends as PS-PRA. Ask URA/the team whether the 50% demo covers this.",
+  "steps": [
+    {
+      "step": "The officer opens the notice suspended for an amount mismatch to follow it up (from the work item)",
+      "detail": "The officer can open the Manual Payment screen through route payment/cash (App.tsx:338-339), search by Notice No. (PaymentCash.tsx:169-175) and the form is only locked for PS-FP/PS-PRA or TS-PP (PaymentCash.tsx:236-243), so a TS-PAM notice can still be filled in. There is no entry point from a work item (the dashboard is empty, see OCMS45.2). The /v1/updatePayment endpoint is mapped to role OCMS_PAYMENT_CASH (api-authorization.properties:111-112); who holds the role cannot be verified from the repo."
+    },
+    {
+      "step": "The officer enters the amount paid and the receipt/payment details",
+      "detail": "The form has Amount Paid, Date of Payment, Payment Mode and Remarks (PaymentCash.tsx:316, 343-344, 351). There is no receipt field: the receipt number is generated automatically with the MPY prefix (PaymentUpdateServiceImpl.java:160, 218-219) and payment_date_and_time is taken from the typed date (PaymentUpdateServiceImpl.java:168). The original gateway/AXS receipt in web_txn_detail is not used or linked."
+    },
+    {
+      "step": "OCMS updates the notice as paid according to the amount paid",
+      "detail": "POST /v1/updatePayment (PaymentUpdateController.java:40) calls processPaymentUpdate: insert web_txn_detail, validate, then update VON/eVON (PaymentUpdateServiceImpl.java:85-124). Total paid >= amount_payable becomes PS-FP, overpayment also creates an OVP refund; underpayment becomes PS-PRA (PaymentValidator.java:64-91; PaymentUpdateServiceImpl.java:373-381, 389-399). So 'fully paid' is only reached when the amount >= the current amount_payable; an underpayment mismatch still ends as PS-PRA."
+    },
+    {
+      "step": "The officer does not have to reduce the amount manually for the payment to be updated",
+      "detail": "No automatic step adjusts amount_payable to the amount paid. The screen only gives the hint 'Amount entered is lesser than the Amount Payable.' (PaymentCash.tsx:250-259) and the service records PS-PRA (PaymentValidator.java:91-93; PaymentUpdateServiceImpl.java:389-399). Ticket OCMS-SR-2026-080: for 694100370T the officer could not reduce because the notice was already PS-PRA and MGG patched amount_payable to $40. Same fit as the last step of OCMS45.1."
+    },
+    {
+      "step": "After the update the notice ends as paid and the temporary mismatch suspension no longer holds the notice",
+      "detail": "The PS-FP path changes suspension_type to PS and crs_reason FP, payment_acceptance_allowed 'N' (PaymentUpdateServiceImpl.java:373-381) and adds a PS suspended_notice row (457-470). However epr_reason_of_suspension 'PAM' is not cleared and the TS-PAM suspended_notice row is not closed on this path; the PS-PRA path overwrites epr with 'PRA' (389-399). Whether another process closes the old TS-PAM (for example auto revival, AutoRevivalHelper.java:72) cannot be verified from the repo for this case."
+    }
+  ]
+}

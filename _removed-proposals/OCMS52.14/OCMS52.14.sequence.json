@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OCMS52.14 Final Reminder Admin Fee",
+    "locale": "en",
+    "output": "OCMS52.14.html",
+    "viewBox": [
+      1080,
+      620
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "officer",
+      "type": "external",
+      "label": "Officer",
+      "sublabel": "Notice Processing Officer"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Admin API",
+      "sublabel": "ocmsadminapi"
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "Cron API",
+      "sublabel": "ocmsadminprivateapi"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Intranet DB",
+      "sublabel": "VON, ocms_parameter"
+    },
+    {
+      "id": "toppan",
+      "type": "external",
+      "label": "Toppan SFTP",
+      "sublabel": "letter vendor"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 210,
+      "label": "Trigger"
+    },
+    {
+      "from": 212,
+      "to": 300,
+      "label": "Toppan stage update"
+    },
+    {
+      "from": 302,
+      "to": 420,
+      "label": "Furnish reset"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "officer",
+      "to": "cron",
+      "y": 165,
+      "label": "POST /toppan/generate-letters (manual)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m1",
+      "from": "cron",
+      "to": "officer",
+      "y": 195,
+      "label": "Day-end 00:15 never calls it (commented)",
+      "variant": "return"
+    },
+    {
+      "id": "m2",
+      "from": "cron",
+      "to": "db",
+      "y": 225,
+      "label": "Read ADM for RR3/DR3 only",
+      "variant": "dashed"
+    },
+    {
+      "id": "m3",
+      "from": "cron",
+      "to": "db",
+      "y": 255,
+      "label": "RR3/DR3: fee + composition; else fee 0",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "cron",
+      "to": "toppan",
+      "y": 285,
+      "label": "Upload blocked in prod, gate bypassed",
+      "variant": "dashed"
+    },
+    {
+      "id": "m5",
+      "from": "cron",
+      "to": "db",
+      "y": 315,
+      "label": "Furnish cron approve: fee 0, composition",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m6",
+      "from": "officer",
+      "to": "api",
+      "y": 345,
+      "label": "Staff furnish / redirect / manual review",
+      "variant": "default"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "db",
+      "y": 375,
+      "label": "fee = 0, amount via AmountPayable service",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "officer",
+      "y": 405,
+      "label": "Notice back at DN1 / RD1, fee cleared",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "cron",
+      "from": 160,
+      "to": 320,
+      "type": "backend"
+    },
+    {
+      "participant": "api",
+      "from": 340,
+      "to": 410,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 221,
+      "to": 260,
+      "type": "database"
+    },
+    {
+      "participant": "db",
+      "from": 311,
+      "to": 380,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Matches",
+      "items": [
+        "Fee from ADM + composition at RR3/DR3",
+        "Fee 0 at every other stage",
+        "Fee cleared on all 3 furnish paths"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap",
+      "items": [
+        "Day-end job never runs letters",
+        "Fee set without letter delivery",
+        "Missing ADM keeps old fee column"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "To verify",
+      "items": [
+        "ADM values in the real DB",
+        "Deployed version on servers",
+        "Earlier paid scope (DF-170)"
+      ]
+    }
+  ]
+}

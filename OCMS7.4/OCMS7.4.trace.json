@@ -1,0 +1,46 @@
+{
+  "story": "OCMS7.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload/helpers/LtaUploadHelper, download/helpers/{LtaBatchCode0Processor, LtaBatchTsRovProcessor}}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/autorevival/helpers/AutoRevivalHelper, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status di sheet: 'Fully paid'. Story menyebut DOS (Department of Statistics), sedangkan code dan OCMS-DF-2026-194 (merujuk OCMS 7 functional document) memakai LTA VRLS sebagai sumber data pemilik kendaraan. Apakah DOS sama dengan LTA tidak bisa dipastikan dari repo (cannot verify from repo); semua step ditulis berdasarkan perilaku code terhadap LTA VRLS. Particulars memang di-update ketika agency akhirnya mengembalikannya, tetapi revive TS-ROV tidak dipicu oleh ketersediaan data: ia dilakukan job Auto Revival berdasar tanggal jatuh tempo, lalu notice baru lolos pada siklus berikutnya. Tiket dipakai: OCMS-DF-2026-160, OCMS-SR-2026-182.",
+  "recommendation": "Klaim update particulars saat data tersedia. Revive 'saat data tersedia' dan kelanjutan proses dianggap sebagian (revive berbasis tanggal, OCMS-DF-2026-160, OCMS-SR-2026-182); konfirmasi ke URA apakah revive berbasis tanggal diterima.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sedang TS-ROV terus dikirim vehicle number-nya ke agency",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:277-287; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:175-179",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS7.3 langkah kirim ulang: TS-ROV mengisi next stage ROV (TSR:277-287) sehingga query upload memilihnya lagi (REPO:70-74), tetapi query tidak membaca due_date_of_revival dan upload memajukan stage lagi (UPHELP:175-179). Kadens tidak konsisten per OCMS-DF-2026-160 (Pending Closure, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat particulars akhirnya tersedia (error code 0), data pemilik dan alamat di-update",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:169-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:454-481; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:549-558",
+      "fit": "Sesuai",
+      "detail": "Di processBatchCode0, update owner_driver, alamat, dan detail (planNoticeWithOwnerData) dijalankan sebelum pengecekan suspension (C0:169-176), jadi notice yang masih TS-ROV tetap menerima data pemilik dan alamat (C0:454-481, 549-558)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension TS-ROV di-revive setelah particulars tersedia",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:673-683; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:394-399; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:76",
+      "fit": "Sebagian",
+      "detail": "Respons sukses tidak me-revive TS-ROV. planStandardVehicle justru berhenti (return false) kalau notice suspended dan bukan TS-HST (C0:673-683). Revival hanya lewat job Auto Revival yang berbasis tanggal: TS dengan due_date_of_revival <= hari ini (AREV:394-399), dijalankan harian di cron day-end 00:15 (CRON:61-62, 76). Jadi revive terjadi di tanggal jatuh tempo, bukan saat data tersedia; notice baru bisa diproses lagi setelah satu siklus kirim-terima berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice lanjut diproses di OCMS (stage maju ke ENA/RD1 dengan owner yang sudah ada)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:685-700; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:756-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:208-222",
+      "fit": "Sebagian",
+      "detail": "Setelah revive dan respons code 0 berikutnya, notice tidak lagi suspended sehingga lolos ke exclusion list, passport, dan DataHive contact lalu stage ke ENA atau RD1 (C0:685-700, 756-763). Alurnya ada, tetapi bergantung pada satu siklus tambahan dan stage juga sudah dimajukan saat upload (UPHELP:208-222). OCMS-SR-2026-182 (Pending UAT) mem-patch 1,367 notice yang stuck di ENA/RD1 tanpa offender details; OCMS-DF-2026-160 mencatat 894 notice keluar loop tanpa ownership."
+    }
+  ]
+}

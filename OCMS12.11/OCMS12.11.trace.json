@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/notification_sms_email (NotificationSmsEmailJob, NotificationSmsEmailHelper.queryRecordsForReminder), crud OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, workflows/agencies/mha/download/MhaNricDownloadJob (DataHive NRIC flag), workflows/agencies/toppan/upload (ToppanStage, ToppanUploadHelper, ToppanUploadJob, ToppanUploadHelper.resolveStageContext), cron-schedules-prod.properties, application-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story 1 point: sebelum surat ke-3 (RR3) ke pemilik individu, OCMS mengirim electronic reminder, mengecek opt-out, menjalankan pengecekan particulars ala OCMS8, lalu notice naik ke RR3. Code ada untuk tiap langkah di ocmsadminprivateapi, tetapi sebagian dimatikan lewat properties: cron.notification.enabled=false dan cron.mhadownload.datahive=false di prod, dan sftp.upload.disabledServers=toppan di semua environment (upload ke Toppan diblok; ticket OCMS-DF-2026-192 masih Ready to UAT). Pengecekan MHA NRIC (id_type N) aktif di prod. Status 'Demo paid' dari sheet bukan bukti; nilai property per environment: cannot verify dari repo selain file properties yang tertulis. Remark demo (Vault/ANS) tidak diverifikasi.",
+  "recommendation": "Klaim sebagian. Konfirmasi dengan URA kapan eNotification cron, DataHive NRIC enrichment, dan upload Toppan diaktifkan di prod; sampai itu langkah terkait tidak berjalan di prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim electronic reminder (SMS/email) ke pemilik individu setelah surat ke-2 (stage RD2)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1140; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:484; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:162",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder() memilih notice dengan last_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3') yang jatuh tempo dalam jendela ENOTEDAYS, offender_indicator='Y' dan tidak ada record SMS/email sebelumnya untuk stage yang sama; template SMS_RD2 dipilih untuk stage RD2 (resolveTemplateName), dipanggil dari NotificationSmsEmailJob. Tetapi cron.notification.enabled=false di cron-schedules-prod.properties:236 sehingga scheduler eNotification tidak jalan di prod, dan ticket OCMS-DF-2026-180 menunggu eNotification cron aktif. Pengiriman nyata (gateway SMS/email): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek apakah pemilik individu memilih opt out dari electronic reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1189-1192",
+      "fit": "Sebagian",
+      "detail": "Query reminder mengecualikan onod.id_no yang ada di ocms_enotification_exclusion_list (NOT IN, baris 1133), dan helper juga punya cek COUNT per id_no (baris 1191). Jadi opt-out dihormati: ID itu tidak dikirimi reminder dan notice tetap lanjut ke surat. Cara ID masuk ke daftar exclusion (pengisian opt-out) tidak dicari di story ini. Sama seperti langkah 1, cek ini hanya jalan bila eNotification cron aktif (cron.notification.enabled=false di prod, cron-schedules-prod.properties:236)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS melakukan pengecekan dan update particulars terbaru pemilik individu sesuai OCMS8 (MHA NRIC; DataHive NRIC)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:556-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/jobs/MhaNricDownloadJob.java:704-720; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106",
+      "fit": "Sebagian",
+      "detail": "findNoticesForMhaNricUpload memilih notice next_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3'), next_processing_date <= besok, suspension_type IS NULL, onod.id_type='N' (NRIC), offender_indicator='Y', belum di ocms_nro_temp dan bukan HST (VonRepository:556-581); cron.mhaupload.enabled=true di prod (PROD:106). Hasil MHA diproses MhaNricDownloadJob. Langkah DataHive NRIC enrichment di job yang sama hanya jalan bila cron.mhadownload.datahive=true (MhaNricDownloadJob:704-720), tapi di prod nilainya false (PROD:50, komentar: tunggu UAT URA). Isi file MHA dan DataHive: cannot verify from repo. OCMS8 sendiri dinilai di story epic itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice naik ke stage RR3 (surat ke-3) setelah surat ke-2 dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-21; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1810-1822",
+      "fit": "Sesuai",
+      "detail": "ToppanStage punya RD1->RD2->RR3->DN1 (baris 19-21). resolveStageContext() mengambil next_processing_stage dari ocms_stage_map, dan bila kosong jatuh ke enum (RD2 -> RR3) (TUH:1810-1822). Jadi setelah stage RD2 diproses, next_processing_stage notice menjadi RR3. Isi baris ocms_stage_map di DB: cannot verify from repo, tetapi fallback enum cukup membuktikan perilaku default."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS dapat mengirim surat reminder ke-3 (RR3) ke pemilik individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:583-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:424-430; ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:62",
+      "fit": "Sebagian",
+      "detail": "findToppanNoticesForStage('RR3') memilih notice dengan next_processing_stage='RR3', next_processing_date <= hari ini, suspension_type IS NULL dan offender_indicator='Y' (VonRepository:583-614); cron.toppanupload.enabled=true (PROD:62). Tetapi sftp.upload.disabledServers=toppan di application-prod.properties:86 (juga dev dan uat), sehingga file tidak diupload ke Toppan; confirmDeliveryAndAdvanceStage() mem-bypass delivery gate supaya stage tetap maju (TUJ:424-430) sehingga notice naik tanpa bukti surat terkirim. Ticket OCMS-DF-2026-192 (Ready to UAT, belum Closed) mencatat masalah ini. Pengiriman nyata ke Toppan: cannot verify from repo."
+    }
+  ]
+}

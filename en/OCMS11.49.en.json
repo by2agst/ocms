@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.49",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findToppanNoticesForStage), framework/workflows/agencies/mha/{upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, framework/workflows/datahiveuenfin/services/DataHiveUenFinService, notification_sms_email/{NotificationSmsEmailJob,NotificationSmsEmailHelper} (opt-out), agencies/toppan/upload/{ToppanLettersGeneratorJob,ToppanUploadHelper}, cron-schedules-prod.properties. Other repos: no code for these steps. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark about Vault and code split. The Epic 8 particulars check for drivers uses the same crons as for owners, and stages DN1/DN2 are already in the selection lists. The MHA check for NRIC drivers is active in prod and updates the mha_reg address, TS-NRO and PS. Three points lower the claim: (1) there is no chain: the e-reminder (off in prod) and the MHA/DataHive check are separate crons that do not wait for each other; (2) FIN drivers go through the DataHive UEN/FIN job which is off in prod (cron-schedules-prod.properties:52) and passport holders are not checked; (3) there is no maintenance ticket specific to this check. MHA/DataHive responses, Vault and server values: cannot verify from repo.",
+  "recommendation": "Claim partially. The MHA check for NRIC drivers and the hold on problem notices exist and are active, but the link to the e-reminder is not chained and FIN drivers are not checked in prod. Ask URA to confirm the PRD configuration before claiming in full.",
+  "steps": [
+    {
+      "step": "After the electronic reminder is sent, or the driver is recorded as opted out, OCMS moves on to the driver particulars check",
+      "detail": "A driver who opted out is indeed excluded from reminders (NotificationSmsEmailJob.java:226-232; the exclusion list is also in the query, NotificationSmsEmailHelper.java:1133). But no chain waits for the e-reminder or the opt-out before the check: eNotification (cron.notification.enabled=false in prod, cron-schedules-prod.properties:236) and the notice selection for MHA (cron.mhaupload.enabled=true, line 106) are two separate crons, and the MHA selection only looks at next_processing_stage and next_processing_date (OcmsValidOffenceNoticeRepository.java:563-581), not at the e-reminder status. Same fit as the equivalent step in OCMS11.16."
+    },
+    {
+      "step": "Notices whose NRIC driver is due the 2nd letter (DN2) are selected for the latest-data check with MHA",
+      "detail": "findNoticesForMhaNricUpload selects notices with next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), next_processing_date <= tomorrow, no suspension, id_type='N' (NRIC), offender_indicator='Y' (so the driver when the driver is the current offender), not HST and not yet in ocms_nro_temp (OcmsValidOffenceNoticeRepository.java:563-581). MhaNricUploadJob uses it through queryMhaNricData (MhaNricUploadJob.java:156) and the MHA upload cron is enabled in prod, Monday-Saturday 09:00/14:00/21:00 (cron-schedules-prod.properties:105-106). Same fit as the RR3 step in OCMS11.16."
+    },
+    {
+      "step": "The MHA result updates the driver's latest address; an invalid address or a deceased driver is marked with a suspension",
+      "detail": "MhaNricDownloadHelper.applyStatusUpdates fills the particulars in ocms_offence_notice_owner_driver and writes/overwrites the mha_reg address rows only on rows that are still the current offender and only for notices in the batch file (MhaNricDownloadHelper.java:725-790, 1345-1358; OCMS-DF-2026-134 and OCMS-SR-2026-177 are named in comments). An invalid address (Invalid Address Tag, street NA, postal 000000) triggers TS-NRO (lines 1182-1230), death triggers PS-RIP/PS-RP2. The MHA download cron is enabled in prod (cron-schedules-prod.properties:120). The content of the MHA response file: cannot verify from repo."
+    },
+    {
+      "step": "A driver with a FIN (non-NRIC) is checked through DataHive before the 2nd letter",
+      "detail": "The DataHive UEN/FIN query selects next_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) with id_type F or B and offender_indicator='Y' (DataHiveUenFinService.java:228-245), so a driver with a FIN is included. But this job is off in prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52, 'until DataHive view names are verified'), and the DataHive NRIC enrichment step at the start of Toppan is commented out (ToppanLettersGeneratorJob.java:126-148). Passport holders are not checked at all. Same fit as OCMS11.16. DataHive response: cannot verify from repo."
+    },
+    {
+      "step": "A notice put under suspension by the check is not processed for the 2nd letter",
+      "detail": "The Toppan letter selection per stage (findToppanNoticesForStage) requires von.suspension_type IS NULL, offender_indicator='Y' and next_processing_stage = stage (DN2) with a date <= today (OcmsValidOffenceNoticeRepository.java:583-612; ToppanUploadHelper.java:1887), so a TS-NRO or PS from the MHA check holds the notice back from the DN2 letter. The letter uses the address flagged letter_address='Y' (filterByLetterAddress, ToppanUploadHelper.java:2372)."
+    }
+  ]
+}

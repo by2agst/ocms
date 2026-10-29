@@ -1,0 +1,25 @@
+{
+  "story": "OCMS9.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/manual/ManualFurnishServiceImpl, workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus, crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver (offender_indicator); ocmsadminprivateapi framework/workflows/furnish_processing/helpers/FurnishApprovalHelper (switchOffenderIndicator), framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (queryRecordsForEna, queryRecordsForReminder), jobs/NotificationSmsEmailJob}. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not traced for this story",
+  "note": "The story asks OCMS to decide who the offence is currently against based on the latest update date (owner vs driver). The code does not compare dates: the current party is marked by the offender_indicator column on ocms_offence_notice_owner_driver. Every path that writes a new owner/driver (furnish approval cron, manual furnish, staff owner/driver patch) turns the old Y row to N and sets Y on the new row, so the winner is the last write that sets Y, not a comparison of update dates. The eNotification queries (ENA and reminder) only take offender_indicator = 'Y' and have no guard if two rows of one notice are Y (result: two records). Use for admin fees and court cases was not traced. Ticket OCMS-DF-2026-177 (Closed) shows the MHA result path once ignored the indicator; its fix is not verified in this story. Demo remark (Vault, App Service permission): cannot verify from repo.",
+  "recommendation": "Claim with a caveat: the 'latest party' result is reached through a flag set at write time, not by comparing update dates; follow-up outside eNotification was not traced",
+  "steps": [
+    {
+      "step": "When new owner/driver data arrives, the newest party becomes the current offender and the old row is demoted",
+      "detail": "Furnish approval calls switchOffenderIndicator and then sets Y on the new row (FurnishApprovalHelper.java:546,555,713-722). Manual furnish turns the old Y row to N and sets Y (ManualFurnishServiceImpl.java:99,137) and the staff owner/driver patch calls resetOtherOffendersToNonCurrent when Y is set (OwnerDriverServiceImplPlus.java:231,331-342). No code compares the update date of the owner with the driver: the winner is the last write that sets Y. The story example (owner 1 Jul, driver 5 Jul, so driver) only holds if the driver update goes through one of these paths. The primary key (notice_no, owner_driver_indicator) limits one row per role (OcmsOffenceNoticeOwnerDriver.java:16,28-33)."
+    },
+    {
+      "step": "eNotification follow-up (ENA and reminder) only takes the party that is the current offender",
+      "detail": "queryRecordsForEna and queryRecordsForReminder join ocms_offence_notice_owner_driver with offender_indicator = 'Y' (NotificationSmsEmailHelper.java:1027-1029 for ENA, :1110-1112 for RD1/RD2/RR3/DN1/DN2/DR3). A party with indicator N is not notified."
+    },
+    {
+      "step": "The ID of the current offender becomes the key for the next follow-up (exclusion check, contact lookup, recipient)",
+      "detail": "The query selects onod.id_no AS idNo and onod.id_type AS idType of the current offender (NotificationSmsEmailHelper.java:1018-1019). The job uses that idNo for the exclusion list check (NotificationSmsEmailJob.java:203-207,226) and the same record is used for the contact lookup and sending."
+    },
+    {
+      "step": "Other follow-ups (admin fee, court case, unclaimed, HST) also use the current offender",
+      "detail": "The offender_indicator = 'Y' flag is also used by Change of Processing (ChangeOfProcessingService.java:245,579), Unclaimed reminder (UnclaimedServiceImpl.java:307) and HST (HstManagementServiceImpl.java:204). Use for admin fees and court cases was not found/traced. OCMS-DF-2026-177 (Closed, Prod deployment) records that the MHA result path once updated records without checking the offender indicator; its fix is not verified here."
+    }
+  ]
+}

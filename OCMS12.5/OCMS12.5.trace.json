@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.5",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (combineNotices, refreshCompanyContactInfo, generateMessages, sendEmail, saveSendStatus), jobs/NotificationSmsEmailJob}, utilities/emailutility/EmailService.sendEmail, application-{dev,uat,prod}.properties (email.enableSmtp, email.smtp.allowedSources), cron-schedules-*.properties (cron.notification.enabled). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Requirement diberikan di story text (status_with_ura: Demo paid 50% of 75%). Untuk owner company (idType B, UEN) reminder RD1 digabung per UEN + stage + due date dan dikirim sebagai email lewat EmailService. Temuan: (1) di application-prod.properties email.enableSmtp=false dan source ENOTIFICATION tidak ada di email.smtp.allowedSources (baris 80-81), jadi EmailService.sendEmail menolak kirim di prod; di uat ENOTIFICATION di-allow dan di dev enableSmtp=true; (2) cron.notification.enabled=false di semua environment; (3) teks email (template RD1_EMAIL_COMPANY) ada di database ocms_template_store, bukan repo, jadi rujukan ke letter pertama tidak bisa dibuktikan; (4) email terbaru dari Corppass DataHive dimatikan flag yang sama dengan OCMS12.3. Izin email dan Vault: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Penggabungan per UEN dan pengiriman email ada di code, tetapi email diblokir di prod (enableSmtp=false, ENOTIFICATION tidak di allowlist), cron nonaktif, dan isi template tidak terlihat di repo. Minta bukti template RD1_EMAIL_COMPANY dan konfirmasi config prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat email company owner diperoleh dari DOS (DataHive Corppass)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2488; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496-2520; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "refreshCompanyContactInfo mengambil email UEN dari DataHive Corppass dan menyimpannya (updateOcmsCompanyContactInfo), tetapi refreshContactInfo kembali lebih awal selama cron.enareminder.datahive=false (dev, uat, prod, baris 48), jadi email lama di owner_driver yang dipakai. Fit sama dengan OCMS12.3 langkah 2 dan OCMS12.4 langkah 1 (fakta yang sama). Koneksi DataHive/Vault: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Company owner yang unik (per UEN) diidentifikasi dan notice outstanding-nya digabung dalam satu email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2222; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2241; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:174-180",
+      "fit": "Sesuai",
+      "detail": "getRecipientKey memberi key 'B_<UEN>' untuk idType B (NH:2235-2241); combineNotices menggabung per key + stage + paymentDueDate, menambah combinedNotices dan menjumlah amountPayable (NH:2178-2196). Hasilnya satu email per UEN per stage dan due date."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi email memuat notice outstanding dan merujuk ke letter reminder pertama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-340; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-438; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-476",
+      "fit": "Sebagian",
+      "detail": "Untuk idType B, deliveryChannel = EMAIL dan template bernama RD1_EMAIL_COMPANY[_COMBINED] (NH:443-476); subject dan body dipisah lewat templateService.splitEmailTemplate (NH:325). Data noticeCount, combinedNotices, amountPayable dan paymentDueDate disuplai (NH:424-430), tetapi teks template ada di ocms_template_store (database), bukan repo, jadi rujukan ke letter pertama tidak bisa dibuktikan. Template tidak ditemukan -> email dilewati (NJ:383-385)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim ke company owner dalam batch job dan hasilnya dicatat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:376-396; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-590; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-73; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/resources/application-uat.properties:78-79; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:42-60",
+      "fit": "Sebagian",
+      "detail": "Job memanggil sendEmail per record company (NJ:376-393) lewat EmailService dengan source ENOTIFICATION dan mencatat status (saveSendStatus, NJ:396). Namun EmailService.sendEmail menolak kirim bila email.enableSmtp=false dan source tidak di email.smtp.allowedSources (EmailService:65-73): prod enableSmtp=false dan ENOTIFICATION tidak ada di allowlist (application-prod.properties:80-81); uat meng-allow ENOTIFICATION (78-79), dev enableSmtp=true. Cron harian enabled=false (NS:42-60). Izin akses SMTP/email dari App Service: cannot verify from repo."
+    }
+  ]
+}

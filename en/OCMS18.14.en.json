@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-apply-suspension, plus-suspension-codes), helpers/{PermanentSuspensionHelper,SuspensionBaseHelper,SuspensionProcessingHelper}, config/WebConfig + auth/filter/JwtFilter; ocmsadminprivateapi framework/workflows/plus/notice_creation/core/SuspensionProcessingController (second copy of plus-apply-suspension). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Fully paid'. OCMS receives PLUS requests through POST /v1/plus-apply-suspension (code list via /v1/plus-suspension-codes), forces suspensionSource=PLUS, checks the code is allowed for PLUS in ocms_suspension_reason, then processes per notice (PS or TS). Note: the same endpoint exists in two tiers (ocmsadminapi and ocmsadminprivateapi); which tier PLUS calls via APIM cannot be verified from the repo. /v1/plus-* is skipped by JwtFilter (WebConfig.java:83, JwtFilter.java:179), so protection depends on APIM, which is not visible in the repo. daysToRevive is mandatory even for PS (400 when empty) although the Javadoc says optional for TS only. The dry-run mode (checking=true) does not match execution. Related tickets: OCMS-DF-2026-075 (Closed), OCMS-DF-2026-152 (Ready to DEV / In SIT).",
+  "recommendation": "Claim most of it: receiving PLUS requests and per-code routing exist. Note: daysToRevive is mandatory for PS and the dry-run does not match execution; auth depends on APIM (cannot verify).",
+  "steps": [
+    {
+      "step": "OCMS receives the PLUS request to permanently suspend notices through a PLUS-specific endpoint",
+      "detail": "POST /v1/plus-apply-suspension accepts a payload of noticeNo[], suspensionType, reasonOfSuspension, daysToRevive, officerAuthorisingSuspension (SuspensionProcessingController.java:485-500). The same endpoint also exists in ocmsadminprivateapi (PRIV :54-56). /v1/plus-* is excluded from JWT (WebConfig.java:83, JwtFilter.java:179); PLUS authentication depends on APIM, which is not visible in the repo, and which tier PLUS calls cannot be verified from the repo."
+    },
+    {
+      "step": "PLUS can fetch the list of suspension codes it may use",
+      "detail": "POST /v1/plus-suspension-codes returns codes from ocms_suspension_reason with suspension_source='PLUS' and status 'A', filterable by TS/PS (SuspensionProcessingController.java:133-135, 154-161). The table contents (which PS codes exist for PLUS) cannot be verified from the repo."
+    },
+    {
+      "step": "Mandatory fields of the PLUS request are validated",
+      "detail": "noticeNo, suspensionType, reasonOfSuspension, daysToRevive, officerAuthorisingSuspension are mandatory; when empty, HTTP 400 appCode OCMS-4000 is returned (SuspensionProcessingController.java:503-529; private copy PRIV :71-95). daysToRevive is also mandatory for PS (:519-523) although its own Javadoc says 'Optional, only for TS' (:479) and PS does not use a revival date (PermanentSuspensionHelper.java:379-383). A PS request without daysToRevive is rejected although it is valid business-wise."
+    },
+    {
+      "step": "The request source is forced to PLUS and any other source is rejected",
+      "detail": "suspensionSource is set to PLUS; if the payload carries a suspensionSource other than PLUS, 400 OCMS-4000 is returned with a 'Security Alert' log (SuspensionProcessingController.java:531-545)."
+    },
+    {
+      "step": "Each notice is processed on its own according to its type (PS/TS) within one batch request",
+      "detail": "processNoticeList loops per notice with srNo from SUSPENDED_NOTICE_SEQ (SuspensionProcessingController.java:995-1000) and processSingleNotice routes 'PS' to PermanentSuspensionHelper.processPS and 'TS' to TemporarySuspensionHelper (:1030-1058); an array of per-notice results is returned (:546-555)."
+    },
+    {
+      "step": "The requested suspension code is checked to see whether PLUS may use it",
+      "detail": "processPS calls checkSourcePermissionFromDb (PermanentSuspensionHelper.java:99-104), which queries ocms_suspension_reason with suspension_type, reason_of_suspension, suspension_source=PLUS, status 'A'; if no row exists it is rejected with 'Source not authorized to use this Suspension Code' (SuspensionBaseHelper.java:294-335). Table contents cannot be verified from the repo."
+    },
+    {
+      "step": "PLUS can validate eligibility without applying the suspension (checking=true mode)",
+      "detail": "?checking=true runs validateSuspension and returns {noticeNo, eligible, message} without writing data (SuspensionProcessingController.java:997-1008; SuspensionProcessingHelper.java:342-458). Dry-run checking=true uses different rules from execution: (a) a paid notice whose suspension_type is not PS is rejected with 'Unable to TS as one or more Notices has been paid.' regardless of the refund code (SuspensionProcessingHelper.java:425-429), whereas execution allows APP/CAN/CFA/VST and handles the OCMS-DF-2026-075 case (PermanentSuspensionHelper.java:82-95); (b) the stage is only checked against the common/ROV list (SuspensionProcessingHelper.java:508-535), without the per-code ANS/CAN/DIP/MID/RIP rules (SuspensionBaseHelper.java:236-255); (c) when the notice is already PS and the source is PLUS, the Rule 4 branch returns eligible before any stage check (SuspensionProcessingHelper.java:386-406), except the CFC/CPC rule (:578-583). So a dry-run can say 'eligible' and the execution then rejects, or the reverse."
+    }
+  ]
+}

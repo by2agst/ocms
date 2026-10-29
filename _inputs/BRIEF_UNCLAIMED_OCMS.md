@@ -1,0 +1,9 @@
+# OCMS overrides for BRIEF_UNCLAIMED.md (these win over the UPLS wording in it)
+- Project root /Users/mggmalang/gitlab/p2/allrepositories-ocms; archify dir docs/archify. All 735 existing stories are traced: docs/archify/OCMSx.y/OCMSx.y.trace.json, text in docs/archify/_inputs/stories.json (id, epic, points, status_with_ura, text). Billing columns are in user_stories.xlsx (Billing remarks, Story Point(s)); status "Paid" / "Demo paid" = already billed: a feature already inside such a story text is NOT a candidate. A story with status "User Story Removed" never gets re-claimed; code that resembles it is not_claimable ("leftover of removed story").
+- There is NO flow deck and no workbook of URA requests. Set ura_requested to "no (no flow deck exists in repo)" unless the maintenance tickets (docs/archify/_inputs/maintenance_tickets.csv) show URA asked for or reported on it; then "ticket: <number>".
+- Seeds: your seed file lists code that earlier tracing agents found with no story (field "story" = nearest story, "type" = their confidence). They are LEADS, not facts: re-verify each in code, drop dead/stub/diagnostic items, group seeds that are the same feature into one candidate.
+- Also use docs/archify/meta.json "orphans" and docs/archify/_inputs/orphans/*.json only to avoid rediscovering.
+- Stale root copy ocmsadminprivateapi/cronservice/ is not compiled: cite only src/main/java.
+- Feature switched off in prod properties (cron enabled=false, sms.enable=false, sftp disabledServers, etc.) => works "partly" or "no", say which property:line; real server values cannot be verified.
+- Endpoints that skip JwtFilter (plus-*, webhooks) are fine to list, but note the security exposure in risks.
+- Output file: docs/archify/_inputs/unclaimed/<CLUSTER>.json (create the folder if missing), exactly the JSON shape in BRIEF_UNCLAIMED.md. Write nothing else. Do not touch other docs/archify files, never run build.py/build_index.py.

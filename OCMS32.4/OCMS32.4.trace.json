@@ -1,0 +1,46 @@
+{
+  "story": "OCMS32.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (/plus-apply-suspension), workflows/payment_reduction/payment/PaymentUpdateServiceImpl (PS-APP); cas_integration/CasIntegrationController (plus-get-court-case-info, tidak dikreditkan). Tidak ada pengecekan OCMS ke PLUS dan tidak ada court report.",
+  "note": "Story minta OCMS mengecek kasus ke PLUS untuk appeal yang diterima dan keputusannya, lalu menandainya di report. Tidak ada pengecekan dari OCMS ke PLUS (tidak ada client/URL PLUS keluar di properties; integrasi PLUS selalu PLUS memanggil OCMS) dan tidak ada report court. Yang ada arah sebaliknya: PLUS mendorong hasil appeal ke OCMS sebagai suspension lewat POST /plus-apply-suspension, dan pembayaran setelah PS-APP ditangani di PaymentUpdateServiceImpl. Itu hanya membuat status appeal ada di data notice, bukan pengecekan untuk report. Tiket PLUS terkait (OCMS-SR-2026-146, OCMS-DF-2026-060/070/075) sudah Closed dan tidak mengubah verdict; mereka menunjukkan data APP lewat PLUS pernah bermasalah. Status story kosong, requirement tidak diberikan; dilacak biasa. Endpoint plus-get-court-case-info tidak dikreditkan (PLUS minta court payment due date, bukan appeal).",
+  "recommendation": "Klaim terbatas: hanya data appeal (APP) yang didorong PLUS ke OCMS. Pengecekan ke PLUS dan penandaan di report belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengkonfirmasi pembuatan report",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:61-76",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar/aksi konfirmasi pembuatan court report (Report/index.tsx:61-76 path \"\", ActionReport.tsx:33-62 resource di-comment). Lihat OCMS32.1 dan OCMS32.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek tiap kasus ke PLUS untuk appeal yang diterima",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:167-171",
+      "fit": "Beda dari flow",
+      "detail": "Arah integrasi terbalik: semua endpoint PLUS di ocmsadminapi (/plus-*) dipanggil PLUS ke OCMS; tidak ada client/URL PLUS keluar di application-*.properties (hanya ocms.plus.key.validation untuk validasi key masuk, application-dev.properties:53) dan tidak ada pengecekan per kasus dari OCMS. plus-get-court-case-info (CasIntegrationController.java:167-171) mengembalikan court_payment_due_date untuk PLUS, bukan appeal. Real PLUS server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Appeal dan keputusannya tersedia di data OCMS per notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-500",
+      "fit": "Sebagian",
+      "detail": "PLUS mendorong hasil appeal ke OCMS sebagai suspension lewat POST /plus-apply-suspension (SuspensionProcessingController.java:485-500, payload suspensionType/reasonOfSuspension/suspensionRemarks); pembayaran setelah PS-APP (appeal accepted) diproses di PaymentUpdateServiceImpl.java:98-103. Jadi status APP ada di notice, tetapi tidak ada daftar 'appeal diterima + keputusan' per kasus pada tanggal mention. Tiket OCMS-SR-2026-146, OCMS-DF-2026-060, -070, -075 (semua Closed/Prod) menyentuh logika TS-APP/PS-APP lewat PLUS; tidak mengubah verdict."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Appeal dan keputusan ditampilkan di report",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:61-76",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada court report, jadi tidak ada kolom/penanda appeal. Tidak ada code yang membuat court report dari tanggal mention. Report/index.tsx:61-76 hanya mendeklarasikan 4 judul (Court Application Vault, Court Application Submit, Court Summon, Court Rejected) dengan path \"\"; resource-nya di-comment (ActionReport.tsx:33-62); tidak di-render di ReportList.tsx:11-32; tidak ada controller report court di ocmsadminapi/workflows/reports (hanya daily, agency mha/ps/toppan, system rip/notification/noticecreated/plusnotification/hst)."
+    }
+  ]
+}

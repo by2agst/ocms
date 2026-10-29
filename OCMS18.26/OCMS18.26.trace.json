@@ -1,0 +1,73 @@
+{
+  "story": "OCMS18.26",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/PermanentSuspensionHelper,helpers/SuspensionBaseHelper}, crud/ocmsizdb/suspendednotice/{SuspendedNotice,SuspendedNoticeRepository,SuspendedNoticeController}. ocmsadminprivateapi utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}, workflows/plus/notice_creation/core/SuspensionProcessingController. ocmsadminui pages/PS/form/PSForm.tsx, pages/Notice/detail/Overview.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story minta OCMS mengizinkan PS ganda pada satu notice (dari OCMS atau PLUS) tanpa menghapus catatan PS sebelumnya. Kode melakukannya: PS lama di-revive (diberi date_of_revival) lalu PS baru di-INSERT sebagai row baru dengan sr_no baru, VON/eVON diperbarui ke kode terbaru, dan tidak ada jalur delete di aplikasi. Hal yang perlu diwaspadai: (1) exception saat revive ditelan (PermanentSuspensionHelper.java:301-304), jadi bisa muncul dua PS aktif tanpa error; (2) Overview.tsx:57-59 memakai SUSPENDED_NOTICE[0] dan urutannya tidak dijamin; (3) kode PS yang sama tidak membuat row baru kecuali notice paid dengan kode refund. Tiket: OCMS-DF-2026-027 (sr_no ganda di batch, Closed/Prod deployed, tidak mengubah verdict) dan OCMS-DF-2026-075 (re-apply PS pada notice paid, Closed/Prod deployed). Perlindungan endpoint plus-* lewat APIM, trigger/purge di database, dan nilai di server asli: cannot verify from repo.",
+  "recommendation": "Dapat diklaim. Seluruh langkah punya code yang sesuai teks story; catat tiga hal yang perlu diwaspadai di note (revive gagal ditelan, urutan SUSPENDED_NOTICE[0], PS kode sama idempotent)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice yang sudah PS lalu menerapkan PS baru dari Staff Portal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:114-128; ocmsadminui/src/pages/PS/form/PSForm.tsx:149",
+      "fit": "Sesuai",
+      "detail": "PSForm mendeteksi notice yang sudah PS dan belum dibayar (anyPSNotices, PSForm.tsx:114), memanggil staff-revive-suspension dulu (:128), lalu staff-apply-suspension untuk PS baru (:149). UI tidak memanggil endpoint delete apa pun. Notice paid (FP/PRA) hanya boleh dapat PS baru APP/CFA/VST (:102-110), aturan itu milik story lain. Otorisasi role staff tidak dicek di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim PS baru untuk notice yang sudah PS lewat plus-apply-suspension",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1054; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:206",
+      "fit": "Sesuai",
+      "detail": "plusApplySuspension (SuspensionProcessingController.java:485) memaksa suspensionSource=PLUS lalu processNoticeList memanggil psHelper.processPS (:1054), helper yang sama dengan jalur staff. Tier intranet punya endpoint PLUS sendiri yang juga memanggil processPS (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:54, :206). Konfirmasi overwrite ke PLUS adalah OCMS18.17/18.20, bukan story ini. JwtFilter melewati endpoint plus-*, perlindungannya bergantung APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS tidak menolak PS dengan kode berbeda pada notice yang sudah PS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:194-228",
+      "fit": "Sesuai",
+      "detail": "Kode PS yang sama dianggap idempotent dan tidak menambah row (PermanentSuspensionHelper.java:89-92), kecuali notice paid dengan kode refund yang diproses ulang (:87-95, perbaikan OCMS-DF-2026-075). Kode berbeda lanjut ke validateOverlap yang hanya menolak jika PS lama FP/PRA dan kode baru bukan APP/CAN/CFA/VST (:212-218); selain itu lolos (:227). Jadi PS ganda dengan type berbeda diizinkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PS lama yang masih aktif di-revive, bukan dihapus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:245-299; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:172-176; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:486-505",
+      "fit": "Sesuai",
+      "detail": "reviveOldPS mengisi date_of_revival, revival_reason (PSR atau CSR), officer_authorising_revival dan revival_remarks pada row PS aktif (PermanentSuspensionHelper.java:277-292) lalu saveAll (:295); tidak ada perintah delete. Tier intranet punya salinan logika yang sama (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:172-176, :486-505). Ada edge case: exception di reviveOldPS ditelan dan hanya di-log (:301-304), jadi bila revive gagal PS baru tetap masuk dan row lama tetap aktif (dua PS aktif); tidak ada data yang hilang."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PS baru disimpan sebagai row baru di ocms_suspended_notice dengan sr_no baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-466; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:474-489; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1071-1072; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNotice.java:38; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNotice.java:62-75; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:553-579",
+      "fit": "Sesuai",
+      "detail": "updateDatabase memanggil insertSuspendedNotice yang melakukan INSERT row baru (SuspensionBaseHelper.java:443-466, :474-489). sr_no diambil dari SUSPENDED_NOTICE_SEQ untuk setiap notice di dalam loop (SuspensionProcessingController.java:997, :1071-1072); bug sr_no ganda di batch (OCMS-DF-2026-027, Closed/Prod deployed) sudah tidak tampak di kode ini. Primary key komposit notice_no + date_of_suspension + sr_no (SuspendedNotice.java:38, :62-75) sehingga row lama tidak tertimpa. Tier intranet sama (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:553-579)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tidak ada code yang menghapus riwayat PS sebelumnya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeRepository.java:93-101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeController.java:34; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeController.java:55; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeController.java:69",
+      "fit": "Sesuai",
+      "detail": "Satu-satunya perintah delete ke ocms_suspended_notice adalah deleteAllByNoticeNoNative (SuspendedNoticeRepository.java:100-101, komentar menyebut test cleanup); grep di ocmsadminapi dan ocmsadminprivateapi tidak menemukan pemanggil di luar definisinya. SuspendedNoticeController tidak extend BaseController dan tidak punya @DeleteMapping, hanya suspendednoticelist (:55) dan suspendednoticeexists (:69). Trigger, job purge atau archive di sisi database: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice membawa tipe dan kode PS terbaru yang benar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:345-348; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:399-401",
+      "fit": "Sesuai",
+      "detail": "Setiap PS baru menimpa suspension_type, epr_reason_of_suspension dan epr_date_of_suspension di VON (SuspensionBaseHelper.java:345-348) dan eVON (:399-401) dengan kode terbaru, sementara riwayat lengkap tetap di ocms_suspended_notice. Hal yang perlu diwaspadai: Overview.tsx:57-59 (ocmsadminui) mengambil SUSPENDED_NOTICE[0] untuk memutuskan APP itu TS atau PS, padahal sekarang bisa ada banyak row; urutan hasil suspendednoticelist tidak ditentukan di kode, perlu diverifikasi."
+    }
+  ]
+}

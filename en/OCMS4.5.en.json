@@ -1,0 +1,25 @@
+{
+  "story": "OCMS4.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/reports/system/noticecreated/{NoticeCreatedReportController,NoticeCreatedReportServiceImpl} (on-demand export for labels PLUS 005 and OCMS 004), workflows/enforcement (CES/REPCCS report), resources/api-authorization.properties. ocmsadminui pages/Report/lists/{ReportList.tsx,ReportListNoticeCRE.tsx}. ocmsadminprivateapi: no notice-created report job. No OIC dashboard for this report",
+  "note": "The status in the sheet is blank. The story asks for a daily summary report created automatically and routed to the OIC's dashboard. The code only offers an on-demand report in the staff portal Report menu: it has a summary and a list of notices (PLUS and OCMS sources only) and can be downloaded, but there is no daily job and no OIC dashboard. CES/REPCCS notices are in another report and EEPS notices are in no report. Tickets: OCMS-DF-2026-005 (Closed, CES totals mismatch, fixed) and OCMS-DF-2026-149 (Closed, Excel moved to the backend); neither changes the verdict.",
+  "recommendation": "Claim only the on-demand report download. Do not claim automatic daily generation and routing to the OIC dashboard; confirm with URA whether manual download from the Report menu is acceptable instead.",
+  "steps": [
+    {
+      "step": "OCMS generates a daily summary report of the notices created, automatically every day",
+      "detail": "No scheduled job creates this report. The workflow list in ocmsadminprivateapi (daily_reports only has AnsLetterReconciliation, ClassifiedVehicleReport and RipHirerDriverReport; paymentReport, notificationreport, jobreport etc.) has nothing that writes a list of created notices, and grep for NoticeCreated / 'Notice Created' in ocmsadminprivateapi is empty. The only producer is the manual request POST /v1/reports/notice-created/export (NoticeCreatedReportController.java:20,31-32) behind the staff Export button. The one-day window is only the screen's default filter: creDate from 1 day ago until now (ReportListNoticeCRE.tsx:45); the backend accepts any range and falls back to 1 Jan 2000 until today when empty (NoticeCreatedReportServiceImpl.java:252-266). Ticket OCMS-DF-2026-149 (Closed) moved the Excel generation from the browser to the backend, still on demand."
+    },
+    {
+      "step": "The report contains a summary and the list of details of notices created from the backend systems",
+      "detail": "The report content exists: a Summary sheet (generation date/time, data range, total records) and one sheet per offence type O/E/U/A/T with notice, vehicle, place, composition, coupon and parking columns (NoticeCreatedReportServiceImpl.java:42, 111-148). But this report only covers labels PLUS (005) and OCMS (004) (:68, :74). CES and REPCCS notices are in a separate 'Notices Created by Enforcement Systems' report (EnforcementController.java:24,36; EnforcementServiceImpl.java:61-64), and notices from EEPS (003) are in no report. Ticket OCMS-DF-2026-005 (Closed): the CES report Summary total did not match the Success sheet; fixed, so it does not lower the fit. A single combined report as in the story does not exist."
+    },
+    {
+      "step": "The report is routed to the OIC's dashboard",
+      "detail": "There is no OIC dashboard or report routing/push mechanism. The only dashboard in the code is the Furnish Officer Dashboard (FurnishDashboardController, for furnish applications), unrelated to created notices. The notice-created report only appears as the 'NOTICE-CRE' tab in the staff portal Report menu (ReportList.tsx:66-71), which staff must open and export themselves."
+    },
+    {
+      "step": "The OIC can download the report to see the details",
+      "detail": "The Export button on the NOTICE-CRE tab calls POST reports/notice-created/export?source=PLUS|OCMS and saves the result as ReportNoticePLUS.xlsx or ReportNoticeOCMS.xlsx (ReportListNoticeCRE.tsx:54-80; NoticeCreatedReportController.java:31-52). Access is controlled by function OCMS_REPORT_NOTICE_CRE (api-authorization.properties:126-127); which role holds that function (the OIC or not) is in the role DB, cannot verify from repo."
+    }
+  ]
+}

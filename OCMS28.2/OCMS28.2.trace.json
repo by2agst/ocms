@@ -1,0 +1,46 @@
+{
+  "story": "OCMS28.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl (antrean ocms_adhoc_nro_temp). ocmsadminprivateapi framework/schedulers/MhaDownloadJobsScheduler, workflows/datahiveuenfin/services/DataHiveUenFinService (UEN adhoc), workflows/unclaimedreport/helpers/UnclaimedReportHelper, cron-schedules-prod.properties. Tidak ada integrasi DOS dan tidak ada perbandingan alamat otomatis.",
+  "note": "Story minta OCMS mengirim UEN ke DOS, menerima registered address terbaru, lalu mengidentifikasi apakah alamat berubah dari alamat tempat surat dikirim. DOS tidak diimplementasikan sebagai integrasi di backend; DOS = DataHive/LTA cannot be confirmed from the repo. Yang ada: job DataHive UEN/FIN membaca ocms_adhoc_nro_temp dengan id_type F/B (DataHiveUenFinService.java:324-328), memanggil DataHive untuk data perusahaan, dan menyimpan alamat ke ocms_temp_unc_hst_addr tanpa notice (DataHiveUenFinService.java:1056, 565-595). Job ini dimatikan di prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52), dilewati di MhaDownloadJobsScheduler.java:103-106; nilai server asli cannot verify from repo. UAT bernilai true (cron-schedules-uat.properties:52). Alamat hanya ditampilkan pada Unclaimed report untuk dibaca staff (UnclaimedReportHelper.java:336-339); tidak ada kode yang membandingkan alamat baru dengan alamat lama. Status story kosong; dianalisis normal.",
+  "recommendation": "Jangan klaim sebagai selesai. Pengambilan alamat UEN lewat DataHive ada tetapi mati di prod (config) dan tidak ada perbandingan alamat. DOS perlu dikonfirmasi URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali record yang dikembalikan adalah milik perusahaan (UEN)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:753-762",
+      "fit": "Sebagian",
+      "detail": "Antrean ocms_adhoc_nro_temp menyimpan id_no dan id_type dari data reminder/DN (UnclaimedServiceImpl.java:222-223, 753-762); job DataHive hanya mengambil id_type F dan B (DataHiveUenFinService.java:324-328), jadi UEN (B) dikenali. Tetapi ini dari reminder letter, bukan dari court summons."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107",
+      "fit": "Sebagian",
+      "detail": "Job DH UEN and FIN memanggil DataHive untuk UEN (DataHiveUenFinService.java:1040-1056). DOS tidak ada di code; DOS = DataHive cannot be confirmed from the repo. Job dilewati bila cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-106), dan di prod nilainya false (cron-schedules-prod.properties:52); nilai server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima registered address terbaru perusahaan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:565-595",
+      "fit": "Sebagian",
+      "detail": "Untuk record adhoc, storeAdhocUenAddressToUncHstAddr membaca companyInfo (block, level, unit, street, building, postal code) dan menyimpannya ke ocms_temp_unc_hst_addr (DataHiveUenFinService.java:565-595). Alamat disimpan di tabel sementara, tidak mengubah alamat notice. Berlaku hanya bila job menyala (mati di prod, cron-schedules-prod.properties:52)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi apakah registered address berubah dari alamat tempat surat dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:336-339",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada perbandingan alamat. Hasil hanya ditampilkan di Unclaimed Batch Data Report (UnclaimedReportHelper.java:336-339, kolom Last Change Date di baris 420) agar staff membacanya sendiri. Dicari: compare, differ, changed, same pada DataHiveUenFinService dan UnclaimedReportHelper; tidak ada logika yang membandingkan alamat baru dengan alamat di ONOD_addr."
+    }
+  ]
+}

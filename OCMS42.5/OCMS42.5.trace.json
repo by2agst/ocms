@@ -1,0 +1,64 @@
+{
+  "story": "OCMS42.5",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: sisi staff/cron/agency, tidak dipakai langkah story ini (hanya cron sync Intranet ke eVON yang memberi data, tidak ditelusuri)",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: 'Internet PII encryption - cannot fetch offender particulars'. Kolom notice number, tanggal/jam offence, car park dan amount payable ada, dan filter furnishable ditegakkan di backend. Offence committed dan due date tidak ada: tidak ada kolom, field DTO yang tidak diisi, dan field UI yang tidak pernah terisi. Langkah pengambilan data dari PII DB adalah Sebagian karena remark demo menyebut gagal dan kegagalan ditelan jadi daftar kosong; key PII per environment cannot verify from repo. OCMS-DF-2026-067/077 (Closed, Prod deployed) menyangkut eVON belum ter-sync.",
+  "recommendation": "Klaim sebagian saja. Offence committed dan due date belum ada, dan pengambilan data PII di environment demo dilaporkan gagal. Konfirmasi ulang di environment dengan key PII yang benar.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengambil notice milik ID yang login dari PII DB dan eVON",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:84-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:50-59; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverServiceImpl.java:121-128; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:119-121; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:105-118; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:72-75",
+      "fit": "Sebagian",
+      "detail": "Offender record dibaca dengan DecryptByKey(id_no) (EocmsOffenceNoticeOwnerDriverRepository.java:50-59) setelah symmetric key dibuka di service (EocmsOffenceNoticeOwnerDriverServiceImpl.java:121-128); notice outstanding lalu diambil dari eVON (FurnishApplicationListServiceImpl.java:84-85, 119-121; EocmsValidOffenceNoticeRepository.java:105-118). Kode ada, tetapi demo_remark story menyebut 'Internet PII encryption - cannot fetch offender particulars', artinya langkah ini gagal di environment demo. Kegagalan ditelan menjadi hasil kosong (FurnishApplicationListServiceImpl.java:72-75), sehingga UI hanya menampilkan 'No furnishable notice(s) found'. Ketersediaan key/certificate PII per environment cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan notice number, tanggal dan jam offence, serta car park",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:6; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:8-12; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:14-21; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:53-58; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:138-142",
+      "fit": "Sesuai",
+      "detail": "FurnishColumns memuat 'Notice Number', 'Offence Date & Time' dan 'Place of Offence' = pp_code - pp_name (Column.ts:6, 8-12, 14-21, 53-58), diisi dari eVON (noticeNo, noticeDateAndTime, ppCode, ppName; FurnishApplicationListServiceImpl.java:138-142). Tabel dikelompokkan per Vehicle Number dan diurutkan tanggal terbaru (Column.ts:99-108)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan offence committed",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:53-58; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/dto/FurnishApplicationResponseDTO.java:17-33; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:136-144; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNotice.java:81; ocmseserviceui/src/pages/Furnish/API.ts:94-111",
+      "fit": "Tidak ada code",
+      "detail": "FurnishColumns tidak punya kolom offence (Column.ts:53-58). FurnishApplicationResponseDTO tidak punya field offence (DTO:17-33) dan service tidak mengisinya (FurnishApplicationListServiceImpl.java:136-144), walaupun entity eVON punya computerRuleCode (EocmsValidOffenceNotice.java:81). UI membaca computerRuleCode/computerRuleCodeDescription (API.ts:94-111) tetapi nilainya tidak pernah datang dari backend. Dicari dengan computerRule, offence, rule_code, 'Offence Description' di UI Furnish dan workflows/furnish."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan amount payable",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:28-35; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:53-58; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:143",
+      "fit": "Sesuai",
+      "detail": "Kolom 'Amount Payable' (Column.ts:28-35, masuk FurnishColumns di baris 53-58) diisi dari eVON amountPayable (FurnishApplicationListServiceImpl.java:143) dan diformat dalam dolar; nilai kosong atau 0 tampil '-' (Column.ts:32)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan due date",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:53-58; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/dto/FurnishApplicationResponseDTO.java:17-33; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:136-144; ocmseserviceui/src/pages/Furnish/API.ts:55; ocmseserviceui/src/pages/Furnish/API.ts:103",
+      "fit": "Tidak ada code",
+      "detail": "FurnishColumns tidak punya kolom due date (Column.ts:53-58). DTO tidak punya field due date (FurnishApplicationResponseDTO.java:17-33) dan service tidak mengisinya (FurnishApplicationListServiceImpl.java:136-144). UI mendeklarasikan paymentDueDate dan memetakannya ke payment_due_date (API.ts:55, 103) tetapi backend tidak pernah mengirim nilainya dan tidak ada kolom yang menampilkannya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya notice furnishable yang outstanding yang ditampilkan di tabel",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:92-112; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:128-150; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:123-128; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:186-216; ocmseserviceui/src/pages/Furnish/NoticesTable/FurnishableNotices.ts:83-118",
+      "fit": "Sesuai",
+      "detail": "Tabel hanya berisi notice berstatus 'Eligible' (FurnishApplicationListController.java:123-128). Eligible berarti: user bukan driver (FurnishApplicationListServiceImpl.java:97, 146-147), notice tidak punya pengajuan Pending (104-112), tidak dibayar/suspended/PS tertentu/UPL, dan stage ROV/ENA/RD1/RD2 (FurnishValidationServiceImpl.java:186-216), serta boleh dibayar (FurnishApplicationListServiceImpl.java:128-131). Layar menampilkan jumlah 'N furnishable notice(s) found' (FurnishableNotices.ts:83-118)."
+    }
+  ]
+}

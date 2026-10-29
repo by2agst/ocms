@@ -1,0 +1,73 @@
+{
+  "story": "OCMS50.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult,PaymentProcess}.ts dan Table/{TablePayment,Column}.ts (pilih fines, total di browser). ocmseserviceapi workflows/spcp/controller/SpcpController, workflows/parkingfines/ParkingFinesController.handleIdNoSearchFromJwt, workflows/urapg/service/UraPaymentService.generateTransaction (total dihitung ulang dari DB). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait total pembayaran",
+  "note": "Status sheet 'Built - Has gap', demo_remark: Internet PII encryption, offender particulars tidak bisa diambil (masalah environment, bukan bukti code). Total dihitung di browser: TablePayment.getTotal menjumlahkan amount_payable dari baris yang dicentang, lalu ditampilkan di baris 'Total Amount Payable' (desktop) dan footer card (mobile), dan di-update tiap kali centang berubah, termasuk lintas halaman paginasi (server-side paging untuk user Singpass). Gap: angka yang dilihat offender tidak pernah dibandingkan dengan angka yang dikirim ke gateway; UraPaymentService.generateTransaction menghitung ulang total dari amount_payable di DB (double) tanpa menerima total dari UI. Select-all hanya untuk halaman yang sedang tampil. Handshake Singpass/Corppass dan jumlah yang benar-benar ditagih gateway: cannot verify from repo. Tiket maintenance tidak ada yang langsung mengubah penghitungan total ini.",
+  "recommendation": "Bisa diklaim untuk perhitungan dan tampilan total di UI. Langkah penghitungan ulang di server hanya Sebagian karena tidak ada pencocokan dengan total yang dilihat offender",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender login lewat Singpass (individual) atau Corppass (business) dan session membawa NRIC/entity",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:172; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:199",
+      "fit": "Sesuai",
+      "detail": "Setelah respons auth SPCP diterima, entityId diambil hanya untuk CorpPass (baris 172) lalu createSession(sessionId, nric, entityId) menyimpan identitas di PII DB (baris 199) dan JWT diterbitkan. Mode bypass (spcp.bypass.enabled=true) hanya ada di application-dev.properties:46. Handshake Singpass/Corppass sendiri: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar fines outstanding milik user yang login ditampilkan dan bisa dipilih untuk dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-312; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:463-466; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1028-1042",
+      "fit": "Sesuai",
+      "detail": "handleIdNoSearchFromJwt memvalidasi JWT, membaca NRIC/entityId dari session (baris 309-310) lalu memuat notice milik user dengan filter outstanding. UI memanggil APIPostSearchFinesSPCP dengan filter 'outstanding' (PaymentSearch.ts:463-466) dan merender tabel pilihan lewat InitPaymentSPCPUnpaid (PaymentSearchResult.ts:1028-1042)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencentang fines yang mau dibayar; hanya fines yang boleh dibayar yang punya checkbox",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:193; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:198-208; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:226-229; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-243",
+      "fit": "Sesuai",
+      "detail": "table.checkbox = true (baris 193). onShowCheckbox memberi checkbox hanya bila isSelect = 'Y' dan bukan transaksi yang sedang diproses (baris 243). mergeSelections (198-208) menggabungkan pilihan halaman ini dengan pilihan halaman lain sehingga pilihan lintas halaman tetap terhitung. Select-all hanya untuk halaman yang tampil (onSelectAll memanggil mergeSelections yang sama, baris 230-232)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Total amount payable dihitung dari fines yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:52-60; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:207",
+      "fit": "Sesuai",
+      "detail": "getTotal mengambil notice.amount_payable dari tiap baris terpilih, membuang nilai kosong/0, menjumlahkan dengan lodash sum lalu memformat '$' (baris 52-60). mergeSelections mengisi table.total dari seluruh pilihan lintas halaman (PaymentSearchResult.ts:207). Penjumlahan memakai angka JavaScript di browser, bukan dari server."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Total amount payable ditampilkan dan ikut berubah saat pilihan berubah",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:62-92; ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:96-107; ocmseserviceui/src/pages/Payment/Table/Column.ts:109-121",
+      "fit": "Sesuai",
+      "detail": "RowTotalAmount menampilkan label 'Total Amount Payable' dan angkanya sebagai baris di akhir tabel (baris 62-92); untuk layar mobile ada footer card dengan label sama (baris 96-107). Karena label dibaca dari table.total yang diisi ulang di setiap onSelect, angka berubah saat centang berubah. Kolom Amount menampilkan '-' untuk baris yang tidak bisa dibayar (Column.ts:119) sehingga tidak ada kesan ikut terhitung."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Total yang sama ditampilkan lagi di ringkasan transaksi sebelum bayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentProcess.ts:111-123",
+      "fit": "Sesuai",
+      "detail": "SelectedNoticesTable di halaman proses pembayaran memakai tabel yang sama, mengisi table.total = table.getTotal(data) dari formData.selected (baris 123) di bawah header 'Transaction Summary'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah yang benar-benar ditagih dihitung server dan sama dengan total yang dilihat offender",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:155; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:190-198; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:213",
+      "fit": "Sebagian",
+      "detail": "generateTransaction menerima daftar notice dan metode bayar, bukan total. Server mengambil notice dari DB (filter crs_reason_of_suspension IS NULL, baris 155), menjumlahkan amount_payable dengan double (baris 190-198) dan mengirim amountPayable ke gateway (baris 213). Tidak ada pembandingan dengan total yang dilihat offender, dan di method ini tidak ada pengecekan payment_acceptance_allowed. Bila amount_payable berubah di antara layar dan klik bayar, angka yang ditagih bisa beda dari yang ditampilkan. Jumlah yang diterima gateway: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS50.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess,API}.ts; ocmseserviceapi workflows/urapg/{controller/UraPaymentController,service/UraPaymentService}, crud/ocmsezdb/eocmswebtxndetail. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this step",
+  "note": "The redirect flow exists and runs through the URA Payment Gateway (PG): the portal creates a transaction, asks the PG for a payment URL, then the offender's browser is POSTed to that URL. The card/bank page itself belongs to the PG/bank, so card-detail entry cannot be proven from the repo (cannot verify from repo). Gaps: a failure to save the transaction rows is only logged (UraPaymentService.java:286-288) and the URL is still returned; the UI does not check responseCode, so when paymentUrl is empty the Pay Now button silently does nothing (PaymentProcess.ts:79). Tickets used: OCMS-SR-2026-159 (remarks set to null for gateway payments, already in code) and OCMS-SR-2026-158 (Transaction Reference Number hidden on the Payment Summary). Story status 'Demo paid (50% of 75%)'; the requirement itself comes from the story text.",
+  "recommendation": "Claim the portal steps (choose mode, create transaction, get URL, redirect). The card/bank input page is handled by the PG/bank outside the repo; ask for demo or PG log evidence for that part",
+  "steps": [
+    {
+      "step": "Offender picks eNETS or Visa/Mastercard on the payment page and presses Proceed to Payment",
+      "detail": "Three mode radios exist: eNETS, VISA/Mastercard (MASTER_VISA) and PayNow (PaymentSearchResult.ts:614-640). The Proceed to Payment button is enabled when a mode and a notice are selected, then calls APIPostGenerateTransaction (lines 733-752). API.ts:173-177 maps ENETS to JX, MASTER_VISA to ENETC, PAYNOW to PYNOW."
+    },
+    {
+      "step": "System creates the transaction: unique transaction number, notice check, initial records saved",
+      "detail": "Transaction ID is built from sequence seq_ocms_txn_ref_number plus a checksum (UraPaymentService.java:62-75; a UUID is used if the sequence fails, lines 76-80). Notices are checked with filter crs_reason_of_suspension IS NULL (line 155) and any unknown notice rejects the whole request (202-206). eocms_web_txn_detail rows are saved with status I (271, 284), remarks null per OCMS-SR-2026-159 (276-278). Gap: if saving fails, the exception is only logged (286-288) and the payment URL is still returned (290), so payment can proceed without a record and the callback later fails with 'Transaction not found' (EPaymentCallbackService.java:298-299)."
+    },
+    {
+      "step": "System asks the URA Payment Gateway for the bank payment page address",
+      "detail": "The transaction is POSTed to ura.payment.gateway.store.url (application-prod.properties:27) with the APIM header (UraPaymentService.java:216-229). When responseCode is PG200 and a paymentUrl exists, ?tid=<txnId> is appended (242-246). The PG response content and the bank page it leads to: cannot verify from repo. The real server property value also cannot be verified from the repo."
+    },
+    {
+      "step": "Payment Summary page shows, then Pay Now sends the offender's browser to the bank website",
+      "detail": "After the transaction is created the UI stores paymentUrl and opens step 3 (PaymentSearchResult.ts:761-780). The summary shows 'Payment by <mode>' (PaymentProcess.ts:97-108); the Transaction Reference Number is intentionally hidden at this step (OCMS-SR-2026-158). Pay Now builds a hidden POST form to paymentUrl and calls submit() (PaymentProcess.ts:86-91), so the browser moves to the PG/bank page. Edge case: the UI does not check responseCode; when paymentUrl is empty the button returns without any message (line 79). Card-detail entry on the bank website: cannot verify from repo."
+    }
+  ]
+}

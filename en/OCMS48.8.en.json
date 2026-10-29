@@ -1,0 +1,25 @@
+{
+  "story": "OCMS48.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "No work item or supervisor dashboard exists for court notices. ocmsadminui only has a Work Items menu containing HST (utils/data/LinkData.tsx) and the per-notice UPL Decision Request/Endorsement flow (pages/NoticeUPL; useEndorsement.tsx) which calls the workitem/workflow resources that have no controller in ocmsadminapi. Work item creation in ocmsadminprivateapi (DataHiveUenFinService) is a PLACEHOLDER. The CAS/PLUS APIs (ocmsadminapi workflows/cas_integration) apply values with no endorsement.",
+  "note": "Story is Removed (status_with_ura). No code creates a work item for a court notice bulk decision. Grep for supervisor in ocmsadminapi, ocmsadminprivateapi and ocmsadminui returns 0 hits, so there is no supervisor dashboard concept. The Work Items menu in the staff portal only contains HST (LinkData.tsx:170-180). The closest flow is the UPL Decision Request/Endorsement (routes /upl/decision-request and /upl/endorsement, App.tsx:84-85): the UI calls POST workitem, workflow (UPL_APPROVAL, CHANGE_STAGE) and approvalinbox (useEndorsement.tsx:52-56, 121, 157, 216), but ticket OCMS-SR-2026-155 states that no backend controller implements /v1/workflow, and grep for approvalinbox/workitem/UPL_APPROVAL in ocmsadminapi and ocmsadminprivateapi finds no controller. Work item creation in the DataHive cron (createWorkItemForPRSC etc.) is a PLACEHOLDER that only logs (DataHiveUenFinService.java:2920-2922). Meanwhile /casUpdateCourtNotices and /plus-payment-activation apply the flag and amount directly with no endorsement gate. The verdict stays Removed; not claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "OCMS creates a work item for endorsement after the decision is applied",
+      "detail": "No work item is created for a court notice bulk decision. Work item creation in the DataHive cron is a PLACEHOLDER that only logs 'feature not ready' (DataHiveUenFinService.java:2920-2922). The UPL UI calls POST workitem (useEndorsement.tsx:119-121), but there is no workitem controller in ocmsadminapi or ocmsadminprivateapi (grep workitem, ApprovalInbox, ocms_work_item), and it is for UPL notices, not court notices."
+    },
+    {
+      "step": "The work item is routed to the officer's supervisor dashboard",
+      "detail": "There is no supervisor dashboard or routing to a supervisor. Grep for supervisor in ocmsadminapi, ocmsadminprivateapi, ocmsadminui: 0 hits. The Work Items menu only contains HST (LinkData.tsx:170-180); there is no work item list per supervisor."
+    },
+    {
+      "step": "Supervisor can endorse the decision made on the notices",
+      "detail": "An endorse screen exists but for UPL notices, one notice per action: route /upl/endorsement (App.tsx:85), list filtered on offenceNoticeType U and lastProcessingStage NPA (EndorseList.tsx:55-68), submit via POST workflow UPL_APPROVAL (useEndorsement.tsx:157). It is not for court notices and not bulk. The /v1/workflow backend does not exist (ticket OCMS-SR-2026-155: 'no backend controller implements this'; grep in ocmsadminapi finds nothing), so persisting the endorsement is not proven by the repo. No supervisor role check (grep supervisor: 0 hits). Partial only because a UI endorse pattern exists, similar but not the feature the story names."
+    },
+    {
+      "step": "The decision only takes effect after the supervisor endorses it",
+      "detail": "The code works the other way: /casUpdateCourtNotices and /plus-payment-activation write amount_payable and payment_acceptance_allowed straight to VON/eVON with no pending-endorsement state (CasIntegrationController.java:101, 220; CasIntegrationServiceImpl.java:801). There is no endorsement gate on the court notice path. The cutoff cron also changes the flag directly (PaymentAcceptanceCutoffServiceImpl.java:77-83, scheduler commented out at ToppanUploadJobsScheduler.java:123)."
+    }
+  ]
+}

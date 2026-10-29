@@ -1,0 +1,73 @@
+{
+  "story": "OCMS17.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController, helpers/TemporarySuspensionHelper, helpers/SuspensionBaseHelper, helpers/SuspensionProcessingHelper}, crud/ocmsizdb/SuspendedNotice/SuspendedNoticeId, ocmsadminui pages/TS/form/TSForm.tsx. ocmsadminprivateapi utilities/suspension_helpers/{TemporaryRevivalHelper,RevivalBaseHelper}, framework/schedulers/ToppanUploadJobsScheduler",
+  "note": "Code mengizinkan beberapa TS pada satu notice, dari staff portal maupun PLUS. processTS tidak menolak notice yang sudah TS; satu-satunya overlap check hanya melihat PS (TemporarySuspensionHelper.java:158-179). Tiap TS disimpan sebagai baris ocms_suspended_notice sendiri dengan sr_no unik (primary key notice_no + date_of_suspension + sr_no), dan auto revival hanya me-revive TS yang sudah jatuh tempo lalu menjaga sisanya. Tiket OCMS-DF-2026-027 (sr_no duplikat di batch) Closed/Prod deployed; code sekarang memanggil sequence per notice (SuspensionProcessingController.java:997). Aturan jenis TS mana yang boleh dari source mana datang dari tabel ocms_suspension_reason, isi tabel cannot verify from repo.",
+  "recommendation": "Bisa diklaim penuh untuk kemampuan menerapkan beberapa TS dan menyimpannya terpisah.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff bisa menerapkan TS dari OCMS ke notice yang sudah punya TS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/TS/form/TSForm.tsx:107; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:213; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:231",
+      "fit": "Sesuai",
+      "detail": "TSForm.tsx:107 mengirim POST staff-apply-suspension; staffApplySuspension (SuspensionProcessingController.java:213) memproses tiap notice lewat processNoticeList (baris 231) tanpa cek 'sudah TS'. Mode checking (SuspensionProcessingHelper.java:366-369) malah menjawab 'sukses' untuk TS di atas TS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS bisa menerapkan TS ke notice yang sudah punya TS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1049",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension (SuspensionProcessingController.java:485) lewat processNoticeList (baris 546) ke tsHelper.processTS (baris 1049), jalur yang sama dengan staff."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Aturan kelayakan tidak menolak TS baru di atas TS yang ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:93; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:158-179",
+      "fit": "Sesuai",
+      "detail": "processTS hanya memanggil validateOverlap (TemporarySuspensionHelper.java:93), dan validateOverlap hanya menolak bila VON berstatus PS yang tidak mengizinkan TS (baris 158-179). Notice berstatus TS lolos. Pengecekan stage dan notice sudah dibayar (baris 80-90) berlaku sama untuk TS pertama maupun berikutnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jenis TS yang berbeda (alasan berbeda) bisa diterapkan dengan masa revival masing-masing",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:73; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:323-335; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:182-214",
+      "fit": "Sesuai",
+      "detail": "Tiap request membawa reasonOfSuspension sendiri; kode TS dicek terhadap source lewat checkSourcePermissionFromDb (SuspensionBaseHelper.java:323-335, dipanggil TemporarySuspensionHelper.java:73). calculateRevivalDate memakai daysToRevive atau no_of_days_for_revival per alasan dari ocms_suspension_reason, default 30 hari (TemporarySuspensionHelper.java:182-214). Tidak ada aturan yang melarang dua alasan berbeda pada satu notice. Isi ocms_suspension_reason cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap TS disimpan sebagai catatan suspension sendiri dengan sr_no unik",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:997; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-466; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/SuspendedNotice/SuspendedNoticeId.java:16-18",
+      "fit": "Sesuai",
+      "detail": "srNo diambil dari sequence SUSPENDED_NOTICE_SEQ untuk setiap notice (SuspensionProcessingController.java:997). insertSuspendedNotice menyimpan satu baris per TS (SuspensionBaseHelper.java:443-466) dan key-nya noticeNo + dateOfSuspension + srNo (SuspendedNoticeId.java:16-18), jadi baris TS lama tidak tertimpa. Bug sr_no duplikat di batch (OCMS-DF-2026-027) sudah ditutup; seed sequence di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "VON dan eVON mencerminkan TS terbaru yang diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:127; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-346",
+      "fit": "Sesuai",
+      "detail": "updateVON dan updateEVON menimpa suspension_type dan epr_reason_of_suspension dengan alasan TS yang baru (TemporarySuspensionHelper.java:124, 127; SuspensionBaseHelper.java:340-346), sementara baris lama tetap ada di ocms_suspended_notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Auto revival hanya me-revive TS yang jatuh tempo dan menjaga TS lain tetap aktif",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporaryRevivalHelper.java:215-221; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporaryRevivalHelper.java:250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/RevivalBaseHelper.java:462; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119",
+      "fit": "Sesuai",
+      "detail": "TemporaryRevivalHelper memilih TS aktif dengan due_date_of_revival sebelum besok (TemporaryRevivalHelper.java:215-221), me-revive hanya itu lewat updateDatabaseAfterRevivalAll (baris 250), lalu VON diisi ulang dari TS yang tersisa (RevivalBaseHelper.java:462). Auto Revival adalah job aktif di executeDayEndJobs (ToppanUploadJobsScheduler.java:119); cron.toppanupload.enabled=true di prod."
+    }
+  ]
+}

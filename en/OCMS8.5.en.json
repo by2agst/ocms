@@ -1,0 +1,33 @@
+{
+  "story": "OCMS8.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: datahiveuenfin/services/DataHiveUenFinService (processPRSCGrantFlow, applyTSOLD, saveGrantDataToPass, createWorkItemForPRSC), services/datahive/.../DataHiveFINBatchService (PRGRANT/SCGRANT views), utilities/suspension_helpers/{TemporarySuspensionHelper,SuspensionBaseHelper}, framework/workflows/autorevival/helpers/AutoRevivalHelper, notification_sms_email/helpers/NotificationSmsEmailHelper. ocmsadminapi, ocmsadminui: no dedicated trigger",
+  "note": "The sheet status is 'Requirement given - Gen flow' and the demo_remark is 'Really no Vault or unsure about handling?', so the requirement is not given in detail; the steps come from the story text. The only suspension trigger for a status change is a FIN found in the PRGRANT/SCGRANT views (became PR or citizen): the grant data is saved and the notice gets TS-OLD (DataHiveUenFinService.java:3241-3262). An address change alone does not suspend the notice, and a status change of an NRIC holder is not captured (the MHA file has no citizenship field). Three things to watch. First, the comment at line 2819 says TS-OLD has no auto-revival, but a null daysToRevive makes TemporarySuspensionHelper take the days from ocms_suspension_reason or default to 30 days (TemporarySuspensionHelper.java:222-247) and AutoRevival revives due TS (AutoRevivalHelper.java:394-398), so the notice can move on again without an OIC decision; the OLD row in ocms_suspension_reason: cannot verify from repo. Second, the work item for the OIC is a placeholder that only logs (lines 2920-2925), so the OIC is not told (that is the scope of OCMS8.6). Third, applyTSOLD only logs an error when processTS fails (lines 2824-2828) and the flow still counts as finished. This whole path sits in the DataHive job that is off in PROD (cron-schedules-prod.properties:52). No maintenance ticket names TS-OLD or PR/SC.",
+  "recommendation": "Claim partially. TS-OLD for a FIN that became PR/citizen exists, but there is no trigger for other changes, the suspension has an automatic revival date, the OIC is not notified, and the job is off in PROD. The requirement is not given in detail; ask URA to confirm the suspension code and the intended duration.",
+  "steps": [
+    {
+      "step": "OCMS receives a status change from ICA/DOS (for example FIN becoming PR/citizen)",
+      "detail": "The views V_DH_MHA_PRGRANT and V_DH_MHA_SCGRANT are searched by PREVIOUS_FIN and the result is flagged isConverted with conversionType PR or SC (DataHiveFINBatchService.java:46-48, 321-334, 370-375); storeFinDataResult reads it as prScConverted (DataHiveUenFinService.java:1504). Only a FIN-to-PR/SC conversion is caught; a status change of an NRIC holder is not, and DataHive is only asked for notices due at a reminder stage. The job is off in PROD (cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "A received change in residential status (address) also triggers suspension",
+      "detail": "A new address from DataHive (DataHiveUenFinService.java:1560) or MHA (MhaNricDownloadHelper.java:784) only overwrites the mha_reg record; the old address is not compared and no suspension is applied because of an address change. Suspensions on both paths only happen for an invalid address (TS-NRO), not found, or deceased. Choosing between two different addresses is the scope of OCMS8.7/8.8."
+    },
+    {
+      "step": "OCMS saves the status change data (PR/SC grant date) before suspending",
+      "detail": "Step 1 of processPRSCGrantFlow calls saveGrantDataToPass, which writes the grant date, previous FIN and reference period to ocms_dh_mha_pass (DataHiveUenFinService.java:3241-3252, 2843). The story gives no rule on this, but it is the data the OIC would look at."
+    },
+    {
+      "step": "OCMS temporarily suspends the notice under a specific suspension code (TS-OLD)",
+      "detail": "applyTSOLD calls tsHelper.processTS with reason OLD and remarks 'ID found in Granted PR/SC' (DataHiveUenFinService.java:3255-3256, 2808-2828); the result is VON suspension_type TS + eVON + suspended_notice (TemporarySuspensionHelper.java:153). Partial because: daysToRevive is null so the revival date comes from ocms_suspension_reason or defaults to 30 days (TemporarySuspensionHelper.java:222-247), not 'until the OIC decides'; processTS can be rejected (source permission, stage, notice already paid) and failure is only logged (lines 2824-2828), so a notice may stay unsuspended; the OLD row in ocms_suspension_reason: cannot verify from repo. The comment at line 2819 ('no auto-revival') does not match the code behaviour."
+    },
+    {
+      "step": "The notice does not escalate while waiting for the OIC decision",
+      "detail": "The DataHive/MHA follow-up selection requires suspension_type NULL (DataHiveUenFinService.java:238; MhaNricDataHelper.java:198-205) and so does the ENA eNotification selection (NotificationSmsEmailHelper.java:1034), so a TS-OLD notice is not processed again on those paths. But AutoRevivalHelper revives a TS whose due date has passed (lines 394-398) and the TS-OLD due date comes from the table or defaults to 30 days (TemporarySuspensionHelper.java:245-248), so the notice can escalate without an OIC decision. The reminder letter print selection (Toppan) was not found filtering on suspension in the toppan/upload folder: cannot verify from repo."
+    },
+    {
+      "step": "The OIC is notified so a decision can be made on the suspended notice",
+      "detail": "createWorkItemForPRSC is a placeholder: it only logs '[PLACEHOLDER] Work item creation skipped ... feature not ready' (DataHiveUenFinService.java:2920-2925) and is called from processPRSCGrantFlow (lines 3259-3260). There is no other notification or work item for the OIC on TS-OLD. Work item creation is the scope of OCMS8.6. Whether the OIC watches the suspension list in the staff portal: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "story": "OCMS41.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Form/*, Confirmation, API}; ocmseserviceapi workflows/furnish/{FurnishSubmissionController, FurnishSubmissionServiceImpl, FurnishRequestValidator, FurnishValidationServiceImpl}, workflows/uploadfile/FileUploadController; ocmsadminprivateapi framework/{schedulers/SyncInternetIntranetJobsScheduler, workflows/furnish_processing/*}; ocmsadminapi workflows/furnish/manualreview/{controllers,services}, crud/ocmsizdb/OcmsFurnishApplication, api-authorization.properties; ocmsadminui pages/Furnish/{list/FurnishSummaryList, hooks/useFurnishAPI}. thirdpartyapi: not involved",
+  "note": "Status Demo paid (50% of 75%). The code proves the whole story flow: form and document upload in the portal, validation and save in the eService API (status P, is_sync N), the Internet-to-Intranet cron (every 10 minutes in prod) pulls submissions and documents, six auto-approval checks decide automatic approval or status P for manual review, then the officer approves/rejects in the staff portal. Note: there is no separate 'work item' entity; the officer dashboard is the Furnished Hirer/Driver list filtered on status P, plus a daily email to officers (cron Furnish Daily Officer Notification; OCMS-DF-2026-004: the email template was once missing in PRD, Closed). If the auto-approval run throws an exception, the submission stays P without a reason and is not re-evaluated because the Internet is_sync is already 'Y' (from reading the code). Tickets used: OCMS-DF-2026-073 (stage pair ROV/ROV wrongly treated as not furnishable, Closed, Prod deployed), OCMS-DF-2026-110, -143, -175 (generic submit error; Closed, cause not written in the CSV, -175 closed without a code change), OCMS-DF-2026-004. Singpass/Corppass, document blob storage and server property values: cannot verify from repo.",
+  "recommendation": "Claim. Every story step is proven in code. Note that the 'dashboard' is a status P list (not a separate work item) and that a failure midway through auto-approval leaves the submission P without a reason",
+  "steps": [
+    {
+      "step": "The owner fills in hirer/driver particulars for selected notices in the Online Customer Portal",
+      "detail": "The furnish-particulars route (route.ts:38-40) loads the hirer/driver form (HDParticulars.ts:43). On confirmation, APIPostFurnish is called (Confirmation.ts:138; API.ts:640) and sends one request for all selected notices. The backend fills the owner identity from the session, not from the FE (FurnishSubmissionController.java:79-84)."
+    },
+    {
+      "step": "The owner uploads supporting documents and the system validates the mandatory documents",
+      "detail": "The UI uploads each file through APIUploadDoc (Documents.ts:269-271) to POST /v1/upload/temp (FileUploadController.java:18,35). On submit, validateMandatoryDocuments requires documents for FIN or Passport ID types (Driving Licence + Employment Pass/Passport, and Rental Agreement when the vehicle is leased; FurnishRequestValidator.java:317-327), at most 10 documents (:374) and 20MB in total (:387). Azure blob storage: cannot verify from repo."
+    },
+    {
+      "step": "The portal validates the submission (fields, self-furnish, Q&A, eligibility of each notice, rental period)",
+      "detail": "FurnishSubmissionController.submitFurnishApplication runs validateAll (:99), validateSelfFurnish (:108), validateQAResponses (:123), validateAllNoticesForSubmission which rejects the whole batch if one notice is not eligible (:138) and validateRentalPeriod against the offence date (:172). The generic submit-error tickets OCMS-DF-2026-110/-143/-175 are all Closed; the cause is not written in the CSV (-175 closed without a code change)."
+    },
+    {
+      "step": "The particulars and documents are saved as a Pending application and the owner receives a transaction number",
+      "detail": "submitFurnishApplication moves the documents to the permanent furnish folder (FurnishSubmissionServiceImpl.java:68), saves EocmsFurnishApplication with status 'P' and is_sync 'N' (:121,210-211) plus the document records (:127), generates a txnNo per notice, then sends one acknowledgement email (FurnishSubmissionController.java:190)."
+    },
+    {
+      "step": "OCMS pulls the particulars and documents from the Internet DB into the Intranet DB periodically",
+      "detail": "SyncInternetIntranetJobsScheduler runs Furnish Processing (SyncInternetIntranetJobsScheduler.java:67) every 10 minutes in prod, enabled=true (cron-schedules-prod.properties:305-306). executeBatchSync reads eocms_furnish_application with is_sync='N' (FurnishProcessingService.java:85), upserts into Intranet (:94; FurnishSyncHelper.java:38), copies the document records (:103; FurnishSyncHelper.java:89) and then marks is_sync='Y' on Internet (:104; FurnishSyncHelper.java:148). The property value on the real server: cannot verify from repo."
+    },
+    {
+      "step": "A submission that passes the auto-approval matrix is approved automatically",
+      "detail": "Each newly synced submission is scored with runValidationChecks (FurnishProcessingService.java:165; FurnishApprovalHelper.java:183-218; detailed in OCMS41.5). When it passes, executeApproval (:445-463) adds the hirer/driver as the new offender (:546), moves the stage to RD1 (hirer) or DN1 (driver) (:649-652), syncs eVON (:703) and sets status 'A' with remarks 'Auto Approved by SYSTEM'; status A is written back to Internet (FurnishProcessingService.java:213-216). OCMS-DF-2026-073: the stage pair ROV/ROV was wrongly treated as not furnishable and went to manual; it is now in the pair list (SystemConstant.java:239 in ocmsadminprivateapi, ticket Closed, Prod deployed)."
+    },
+    {
+      "step": "A submission that fails a check is routed to the officer dashboard for manual approval/rejection",
+      "detail": "When a check fails, executeManualReview (FurnishApprovalHelper.java:505-531) tries to apply TS-PDP (:754-763; only a warning if it fails), sets status 'P' and reasonForReview, and the status is saved per reason group (FurnishProcessingService.java:172-175,189-199). The officer dashboard is the /furnished-list page (App.tsx:192-193) which calls furnishapplicationlist with a default filter of status P (FurnishSummaryList.tsx:60,72); there is no separate work item entity. There is also a daily email to officers through the Furnish Daily Officer Notification cron (cron-schedules-prod.properties:255-256,267; OCMS-DF-2026-004, the email template was once missing in PRD, Closed)."
+    },
+    {
+      "step": "The officer approves or rejects the submission from the dashboard",
+      "detail": "The staff UI calls manual-review/approve-hirer, approve-driver or reject (useFurnishAPI.ts:105,210-211). approveSubmission sets status to 'A' (ManualReviewService.java:363), adds the offender (:376) and changes the stage (:379); rejectSubmission sets status to 'R' (:453,466). Endpoint access is mapped to the OCMS_OIC_FURNISH group in api-authorization.properties:76-83; the server-side role annotation was not checked in this story (cannot verify from repo)."
+    }
+  ]
+}

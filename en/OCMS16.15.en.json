@@ -1,0 +1,21 @@
+{
+  "story": "OCMS16.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl (ReductionResult.Success), ReductionController.mapResultToResponse + determineHttpStatus}; dto/ReductionResult. Other repos: no code",
+  "note": "The success message is sent as HTTP 200 with the text 'Reduction Success' in the response of the same request; there is no separate callback or push to PLUS. The Success result is built after applyReduction finishes and commits (separate persistence bean, @Transactional commits when the method exits). Gap: the same message is also sent when no reduction happened, i.e. a notice already on TS-RED (ALREADY_REDUCED), so the PLUS user may think the new amount is in force (ReductionServiceImpl.java:176-183). How PLUS shows the message cannot be verified from the repo. No maintenance ticket touches the success message.",
+  "recommendation": "Claim most of it. The success message exists and is sent after commit; discount the false-success case on an already-TS-RED notice.",
+  "steps": [
+    {
+      "step": "After the reduction is saved successfully, OCMS builds a success result",
+      "detail": "ReductionResult.Success is built after persistenceService.applyReduction(context) returns without an exception (ReductionServiceImpl.java:113,120-124); persistence is another bean with @Transactional, so the commit has happened when the method returns (ReductionPersistenceService.java:56)."
+    },
+    {
+      "step": "OCMS sends the success message to PLUS ('Reduction Success', HTTP 200) in the response of the same request",
+      "detail": "mapResultToResponse turns Success into CrudResponse.success('Reduction Success') and determineHttpStatus gives 200 (ReductionController.java:120-122,165-166), returned at ReductionController.java:59-68. Receipt and display in PLUS cannot be verified from the repo."
+    },
+    {
+      "step": "The success message is only sent when a reduction actually happened",
+      "detail": "For a TS-RED notice (ALREADY_REDUCED) the service returns Success 'Reduction already applied - request processed successfully (idempotent)' without changing data (ReductionServiceImpl.java:176-183); the controller still sends 'Reduction Success' 200. Same fact as OCMS16.12 and OCMS16.14."
+    }
+  ]
+}

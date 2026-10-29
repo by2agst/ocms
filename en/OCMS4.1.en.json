@@ -1,0 +1,41 @@
+{
+  "story": "OCMS4.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/plus-create-notice), CreateNoticeServiceImpl.processPlusCreateNotice/createNotice/processSingleNotice}, helpers/{NoticeValidationHelper, AdvisoryNoticeHelper, NoticeProcessingHelper, SpecialVehUtils, NoticeNumberHelper, NoticeRecordHelper, CreateNoticeHelper}, auth/filter/JwtFilter, config/WebConfig. ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no PLUS create-notice path (privateapi plus/notice_creation is for suspension only)",
+  "note": "Status in the sheet is 'Fully paid'. The code supports almost the whole story: PLUS calls /v1/plus-create-notice, OCMS validates mandatory fields, looks up the offence rule, checks offence history (DBB) and advisory notice eligibility (AN), then creates VON/OND and eVON/eOND synchronously. Gaps: the stored offence type (O/E/U/A/T) comes from PLUS and is not matched against the rule table; an exception in the DBB check is swallowed and treated as not duplicate; gateway/APIM protection for plus-* paths: cannot verify from repo (JwtFilter skips this path). Maintenance tickets: none changes the verdict (OCMS-DF-2026-097 is about CPS overwriting the AN payment flag, outside this path).",
+  "recommendation": "Claimable for the receive, validation, DBB, AN and record creation path. Tell URA that the offence type is stored as PLUS sends it, and ask for confirmation that APIM protection for /v1/plus-* is configured at the gateway.",
+  "steps": [
+    {
+      "step": "PLUS sends parking offence details to OCMS in real time",
+      "detail": "POST /v1/plus-create-notice (CreateNoticeController.java:40-44) accepts one object or an array, fills creDate when empty (CreateNoticeServiceImpl.java:408-424), rejects batches above MAX_BATCH_SIZE=200 (:44, :441-449) and processes synchronously: records are created within the same request and the result is returned in the response. The subsystem label is forced to the PLUS code (005) and any other label is rejected (:451-475). plus-* paths are deliberately skipped by JwtFilter (JwtFilter.java:179) and the authorization interceptor (WebConfig.java:83); there is no subscription key check on this path, so APIM/gateway protection: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the mandatory fields sent by PLUS",
+      "detail": "validateMandatoryFieldsForBatch requires compositionAmount, computerRuleCode, creDate, creUserId, noticeDateAndTime, offenceNoticeType, ppCode, ppName and vehicleCategory (NoticeValidationHelper.java:113-157); PLUS only (label 005) also requires vehicleNo and vehicleRegistrationType (:162-171). noticeNo is optional for labels 003-010, 020-021, 023 and 030-999 because OCMS generates the number (:84-103). Failed notices go to the failed list, the rest are still processed (CreateNoticeServiceImpl.java:499-531)."
+    },
+    {
+      "step": "OCMS checks the offence rule of the received offence",
+      "detail": "getOffenseTypeFromRuleCode looks up computerRuleCode in the offence rule table and returns the offence type (O/E/U), stored in singleDtoMap as 'offenseType' (CreateNoticeServiceImpl.java:967-971; NoticeValidationHelper.java:315-346). The result is the gate for the DBB and AN checks. An unknown rule code throws RuntimeException so the notice fails and goes to the error collector (:347-349; CreateNoticeServiceImpl.java:972-980)."
+    },
+    {
+      "step": "OCMS checks the offence history (same offence already exists) before creating the notice",
+      "detail": "Before INSERT, checkDuplicateOffenseDetailsPreCreation searches for other notices with the same vehicleNo + computerRuleCode + ppCode and offence time (type O: date only; type E: date + hour + minute; others exact) and only counts it as a duplicate when the old notice is active, PS-FOR, PS-ANS (type O only), PS-FP/PRA or TS (NoticeValidationHelper.java:462-520). On a duplicate the notice is created with PS-DBB; if the query fails 3 times it is created with TS-OLD (NoticeProcessingHelper.java:69-122; CreateNoticeServiceImpl.java:1119-1124). An existing noticeNo is rejected right away as a duplicate (:958-965). One thing to watch out for: an unexpected exception in this method is swallowed and treated as not duplicate (NoticeValidationHelper.java:535-537)."
+    },
+    {
+      "step": "OCMS checks advisory notice eligibility",
+      "detail": "AN is only checked when the offence type is O and the vehicle type is S/D/V/I (CreateNoticeServiceImpl.java:1175; AdvisoryNoticeHelper.java:99-107), then through exemption rules (ocmsAnExemptionRulesService, AdvisoryNoticeHelper.java:147-166) and past offences in the last 24 months: it qualifies when there is no past offence, or every past offence is already PS with an ANS reason (AdvisoryNoticeHelper.java:216-289). When qualified: an_flag=Y, payment_acceptance_allowed=N, eservice code ANS (NoticeProcessingHelper.java:124-142) and a PS-ANS record is created too. A vehicle already AN in the same batch is skipped (CreateNoticeServiceImpl.java:1168-1172). Notices from EHT/CES labels 030-999 use the sender's an_flag (:1052-1109)."
+    },
+    {
+      "step": "OCMS prepares the notice by vehicle type (stage, payment flag, suspension)",
+      "detail": "OCMS decides the vehicle registration type: X for empty/N.A plates, I for MID/MINDEF, otherwise D/V/S/F through SpecialVehUtils.checkVehregistration (CreateNoticeServiceImpl.java:1007-1039; SpecialVehUtils.java:43-80). Processing stage and payment flag are then set per type: X -> payment N, composition 0, eservice E4 (NoticeProcessingHelper.java:390-411); S/V/D -> NPA then ROV, payment Y, E1 (:422-445); F -> stage NPA/ROV and PS-FOR; I -> military (CreateNoticeServiceImpl.java:1128-1151). Tickets OCMS-SR-2026-101 and OCMS-DF-2026-102 (wrong UPL defaults) are Closed/Prod deployed and the code now sets N/0/E4 for type X."
+    },
+    {
+      "step": "OCMS automatically creates the correct type of parking offence notice",
+      "detail": "The automatic notice variations exist: PS-ANS, PS-DBB/TS-OLD, PS-FOR, UPL and military (see the steps above). But the stored offenceNoticeType (O/E/U/A/T) comes from the sender's payload and is only checked to be present (NoticeValidationHelper.java:140-143; NoticeRecordHelper.java:737). The offence type from the rule table (CreateNoticeServiceImpl.java:967-971) is only used as the DBB/AN gate and is never compared with the payload value, so a sender who fills in the wrong type is still accepted and stored as sent. So 'OCMS decides the correct type' holds for suspension/stage variations, not for the offence type."
+    },
+    {
+      "step": "The created notice is saved and the result is returned to PLUS",
+      "detail": "The VON + OND records are saved in the intranet database (NoticeRecordHelper.java:156, batch saveAllNoRetry :380) and eVON/eOND in the internet database (NoticeRecordHelper.java:222). If the batch save fails every notice in the batch is marked failed (CreateNoticeServiceImpl.java:811-830) and the response lists success/failed/duplicate (CreateNoticeServiceImpl.java:844-851); a consolidated error email is sent when there are errors (:848)."
+    }
+  ]
+}

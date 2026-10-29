@@ -1,0 +1,46 @@
+{
+ "story": "OCMS46.7",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "Tidak ada trigger email dari refund advice ke Cumulus. Code terdekat: PaymentExceptionReportJob + PaymentExceptionReportHelper (ocmsadminprivateapi) yang mengirim laporan harian berisi record REFUND ke daftar penerima di application-prod.properties.",
+ "note": "Status Removed. Tidak diklaim. Tidak ada interface Cumulus, jadi tidak ada email yang dipicu oleh refund advice ke Cumulus. Yang mirip: Payment Exception Report harian (cron.dailyreport jam 08:00) mengirim email ke daftar penerima URA dengan record REFUND. Apakah penerima itu officer Finance tidak bisa diverifikasi dari repo. Di prod email.enableSmtp=false tetapi sumber PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources, jadi pengiriman tetap berjalan; nilai di server asli tidak bisa diverifikasi dari repo. Tiket: OCMS-SR-2026-112 (Closed, kolom Refund ID dan flag refund di Exception report), OCMS-SR-2026-157 (Closed, digabung ke tiket lain).",
+ "recommendation": "Tidak diklaim (Removed)",
+ "steps": [
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Refund advice di-interface ke Cumulus",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsRefundNotices/OcmsRefundNotices.java:58",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada code refund advice yang di-interface ke Cumulus (grep cumulus nol hasil di semua repo, sama dengan OCMS46.6 langkah 1). Event pemicu yang disebut story tidak ada."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Email harian terkirim, bukan per refund advice",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:216",
+   "fit": "Sebagian",
+   "detail": "Email dikirim oleh job harian (EmailService.sendEmail di baris 216; cron.dailyreport.schedule=0 0 8 * * ? dan enabled=true di cron-schedules-prod.properties:255-256), bukan dipicu per refund advice. Payment Exception Report adalah job pertama di cron.dailyreport (baris 262). Email berisi record refund hari itu, bukan notifikasi atas refund advice ke Cumulus."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Email memuat detail refund",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:529",
+   "fit": "Sebagian",
+   "detail": "Lampiran Excel punya kolom Refund Date/Time, Refund ID, Refund Reason (header baris 527-529), plus Receipt No, Notice No, Amount Paid; record REFUND diambil dari ocms_refund_notice (baris 123-141, ditandai exception_type REFUND di baris 167). Kolom refund_amount tidak ada di header, dan tidak ada detail refund advice dari Cumulus (status/bank)."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Email dikirim ke officer URA Finance",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:78",
+   "fit": "Sebagian",
+   "detail": "Penerima = email.report.paymentreport.exception.recipients (application-prod.properties:78, dibaca di PaymentExceptionReportJob.java:55-56), 9 alamat ura.gov.sg tanpa label role. Apakah ini officer URA Finance tidak bisa diverifikasi dari repo. email.enableSmtp=false (baris 80) tetapi PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources (baris 81) dan job men-set source itu (PaymentExceptionReportJob.java:204), jadi pengiriman berjalan; nilai di server asli tidak bisa diverifikasi dari repo."
+  }
+ ]
+}

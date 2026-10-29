@@ -1,0 +1,46 @@
+{
+  "story": "OCMS15.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingController.plusChangeProcessingStage (POST /v1/plus-change-processing-stage), dto/PlusChangeStageRequest, ChangeOfProcessingService.processPlusChangeStage, crud/exception/GlobalExceptionHandler, auth/filter/JwtFilter. thirdpartyapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui: tidak ada code untuk request stage change dari PLUS",
+  "note": "Status story: Requirement given - Gen flow (tidak ada flow deck OCMS). Demo remark: 'Check if PLUS Original can submit stage change request'. Endpoint menerima batch notice dari PLUS dan memvalidasi field wajib, tetapi tidak ada yang membedakan 'PLUS Original' dari pemanggil lain: field source hanya tidak boleh kosong, nilainya tidak dicek, dan JwtFilter melewati semua path plus-*, jadi proteksi bergantung pada APIM yang tidak terlihat di repo. Bagian 'cek apakah notice applicable' sengaja dibuat Sebagian karena aturannya tipis (lihat OCMS15.13). Tidak ada tiket maintenance yang langsung mengenai endpoint ini.",
+  "recommendation": "Klaim bagian penerimaan request dan validasi field. Jangan klaim pembeda 'PLUS Original' dan pengecekan applicable penuh; konfirmasi ke tim bagaimana APIM membatasi pemanggil dan apakah source=005 wajib",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request ubah stage (daftar notice, last stage, next stage, offence type, source) ke OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:496-505; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:21-58",
+      "fit": "Sesuai",
+      "detail": "POST /v1/plus-change-processing-stage menerima PlusChangeStageRequest dengan noticeNo (list batch), lastStageName, nextStageName, offenceType, source dan meneruskannya ke processPlusChangeStage (ChangeOfProcessingController.java:496-505; PlusChangeStageRequest.java:21-58). Tidak ada client PLUS di repo; sisi PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi format request dan field wajib; request tidak lengkap ditolak",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:25-27; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:32-34; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:39-41; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:47-49; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:55-57; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:498; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/exception/GlobalExceptionHandler.java:36-41",
+      "fit": "Sesuai",
+      "detail": "@Valid pada body dan @NotNull/@NotEmpty pada kelima field (PlusChangeStageRequest.java:25-57; ChangeOfProcessingController.java:498). Pelanggaran jadi HTTP 400 'Invalid request parameters' lewat GlobalExceptionHandler.handleValidationException (GlobalExceptionHandler.java:36-41). Hanya cek ada/tidak kosong, tanpa cek isi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya PLUS (PLUS Original) yang bisa mengirim request ini",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:269; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/PlusChangeStageRequest.java:51-57",
+      "fit": "Sebagian",
+      "detail": "JwtFilter melewati semua path berawalan plus- tanpa JWT (JwtFilter.java:179; SystemConstant.java:269 PLUS_PREFIX), jadi endpoint ini tidak punya autentikasi di level aplikasi; proteksi bergantung pada APIM yang cannot verify from repo. Field source tidak dicek terhadap nilai PLUS: contoh Javadoc menulis \"004\" (kode OCMS), padahal PLUS_CODE = \"005\" (SystemConstant.java:22), dan nilai apa pun diterima. Tidak ada pembeda 'PLUS Original' di code."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek tiap notice yang diminta apakah applicable untuk perubahan stage",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1302-1317; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1319-1321; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1357-1387",
+      "fit": "Sebagian",
+      "detail": "Loop memproses tiap notice (ChangeOfProcessingService.java:1357-1387), tetapi pengecekannya hanya: tolak CFC bila source = 005 (:1302-1306), lewati bila offenceType U ke DN1/DN2/DR3/CPC (:1312-1317), notice harus ada dan tidak duplikat di request (:1360-1366, :1470-1476). Validasi stage map sengaja dihapus (:1319-1321) dan EligibilityService tidak dipanggil dari jalur PLUS. Rinciannya dinilai di OCMS15.13 (2 dari 5 langkah Sesuai)."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-apply-suspension, addAppCodeToResults), helpers/{PermanentSuspensionHelper,SuspensionBaseHelper,SuspensionProcessingHelper}; ocmsadminprivateapi framework/workflows/plus/notice_creation/core/SuspensionProcessingController + utilities/suspension_helpers (second copy). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop.' That remark is about DB connection/deployment and cannot be verified from the repo. On execution, PS validation from PLUS exists and yields a per-notice error: notice not found, code not allowed for PLUS, stage not eligible (including Court and per-code rules), paid notice with a non-refund code. PLUS receives a results array with success=false + message + appCode OCMS-4000 (HTTP 200). Every business failure gets appCode OCMS-4000 because createErrorResponse in the helper ignores the appCode parameter (SuspensionBaseHelper.java:528-535) and the controller overwrites it with OCMS-4000 (SuspensionProcessingController.java:1186-1199); the OCMS-4001/4002/4003/4007 codes written by the helper never reach PLUS. The dry-run mode (checking=true) uses different rules from execution. Related tickets: OCMS-DF-2026-075 (Closed), OCMS-DF-2026-114 (Closed, PS-CAN/PS-ANS via PLUS).",
+  "recommendation": "Claim most of it: validation at execution and the error message to PLUS exist. Note: the dry-run is not in line with execution and the specific error codes do not reach PLUS; the DB/deployment condition at the demo cannot be verified.",
+  "steps": [
+    {
+      "step": "OCMS checks that the requested notice exists",
+      "detail": "processPS looks the notice up in VON; if missing it answers success=false 'Invalid Notice Number' (PermanentSuspensionHelper.java:71-76). Dry-run mode does the same (SuspensionProcessingHelper.java:358-363)."
+    },
+    {
+      "step": "OCMS checks the requested suspension code may be used by PLUS",
+      "detail": "Queries ocms_suspension_reason (type PS, reason, source PLUS, status A); no row -> 'Source not authorized to use this Suspension Code' (SuspensionBaseHelper.java:294-335, called from PermanentSuspensionHelper.java:99-104). Table contents cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS checks that the notice's last processing stage fits the PS code (Court is rejected)",
+      "detail": "checkStageAllowed rejects a null stage, CRT/CRC ('Notice is under Court processing') and stages outside the per-code list: ANS ENA/RD1, CAN NPA/ROV/ENA/RD1, DIP/MID without RR3/DR3/CPC/CFC, RIP/RP2/SCT/SLC without CFC, other codes all common stages (SuspensionBaseHelper.java:189-279). The error message is sent to PLUS in message."
+    },
+    {
+      "step": "OCMS rejects PS on a paid notice unless it is a refund code",
+      "detail": "validatePaidNotice rejects codes outside PS_REFUND_CODES on a notice with crs_reason_of_suspension set: 'Paid/partially paid notices only allow APP, CAN, CFA, or VST' (PermanentSuspensionHelper.java:180-192). The PS_REFUND_CODES contents cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS checks the PS already on the notice (same code, FP/PRA, or replaced)",
+      "detail": "Same PS code -> idempotent 'Success Notice already PS' (except the refund re-apply for a paid notice, OCMS-DF-2026-075) (PermanentSuspensionHelper.java:78-97). When the old PS is FP/PRA the new code must be a refund code, otherwise it is rejected (:211-220); otherwise the old PS is revived and replaced (:125-130). reviveOldPS swallows exceptions so the new PS is still applied even if the revival fails (:301-304)."
+    },
+    {
+      "step": "When the PS is not allowed, OCMS sends an error message to PLUS",
+      "detail": "Each failure becomes {noticeNo, srNo:null, success:false, message} (SuspensionBaseHelper.java:528-535); the controller adds appCode OCMS-2000/OCMS-4000 and returns the array with HTTP 200 (SuspensionProcessingController.java:546-555, 1186-1199). Empty mandatory fields get HTTP 400 OCMS-4000 (:503-529). The message text reaches PLUS; the specific error codes (4001/4002/4003/4007) do not, all become OCMS-4000. How PLUS displays it cannot be verified from the repo; the demo_remark about the DB connection cannot be verified."
+    },
+    {
+      "step": "The check-only mode (checking=true) uses the same validation as execution",
+      "detail": "Dry-run checking=true uses different rules from execution: (a) a paid notice whose suspension_type is not PS is rejected with 'Unable to TS as one or more Notices has been paid.' regardless of the refund code (SuspensionProcessingHelper.java:425-429), whereas execution allows APP/CAN/CFA/VST and handles the OCMS-DF-2026-075 case (PermanentSuspensionHelper.java:82-95); (b) the stage is only checked against the common/ROV list (SuspensionProcessingHelper.java:508-535), without the per-code ANS/CAN/DIP/MID/RIP rules (SuspensionBaseHelper.java:236-255); (c) when the notice is already PS and the source is PLUS, the Rule 4 branch returns eligible before any stage check (SuspensionProcessingHelper.java:386-406), except the CFC/CPC rule (:578-583). So a dry-run can say 'eligible' and the execution then rejects, or the reverse."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS19.24",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Revival/form/RevivalForm.tsx, pages/Notice/hook/useOperation.tsx. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-revive-suspension, plus-revive-suspension),helpers/{RevivalBaseHelper,TemporaryRevivalHelper,PermanentRevivalHelper}}. ocmsadminprivateapi downstream cron: agencies/mha/upload/helpers/MhaNricDataHelper, notification_sms_email/helpers/NotificationSmsEmailHelper, cron-schedules-prod.properties",
+  "note": "Sheet status: No requirement (requirement not given). The 'revive' part is strong: the staff portal and PLUS both call revival helpers that record the revival, clear VON/eVON and, for TS-RED, restore the amount payable (with a gap when the reduction record is missing). The 'resume processing' part is only indirect: revival triggers nothing, and the notice is processed again by later crons because suspension_type is null and the NPD is past; some jobs were verified, and Appendix B of Annex 1A is not in the repo. Tickets used: OCMS-DF-2026-023, OCMS-DF-2026-028, OCMS-DF-2026-029, OCMS-DF-2026-072, OCMS-DF-2026-078 (all closed). The demo remark about the PLUS API-DB connection, APIM, and server property values: cannot verify from repo.",
+  "recommendation": "Claim the revive from the staff portal and PLUS; the 'resume processing' part is partial because it only happens through later crons and Appendix B is not in the repo. Fix the handling of a missing reduction record",
+  "steps": [
+    {
+      "step": "The officer revives a suspension or reduction (TS/PS) from the OCMS staff portal",
+      "detail": "The Revival page and the Notice actions call POST staff-revive-suspension (RevivalForm.tsx:121-124, useOperation.tsx:125). On the server SuspensionProcessingController.java:622 calls processRevivalList (line 658), which routes to TemporaryRevivalHelper.reviveTS or PermanentRevivalHelper.revivePS by suspensionType (lines 847-853). Per-role authorization was not traced for this story."
+    },
+    {
+      "step": "The officer revives a suspension or reduction (TS/PS) via PLUS",
+      "detail": "POST /plus-revive-suspension (SuspensionProcessingController.java:690) supports TS and PS, checking=true for a dry-run (lines 769-780), PLUS revival codes limited to CSR or OTH (RevivalBaseHelper.java:168-172), and an optional srNo to revive one specific suspension. Access through APIM: cannot verify from repo. This story demo remark (PLUS API not pulling data, suspected dropped DB connection) is an environment issue, cannot verify from repo."
+    },
+    {
+      "step": "The revival is recorded on the suspension record",
+      "detail": "updateSuspendedNoticeRevival writes date_of_revival, revival_reason, revival_remarks and officer_authorising_revival with a native update (RevivalBaseHelper.java:278-297), called for every active suspended_notice row (updateDatabaseAfterRevivalAll, TemporaryRevivalHelper.java:180-183). Staff and PLUS share the same helper, processIndicator = Manual for both."
+    },
+    {
+      "step": "The notice is released from the suspended state on VON and eVON",
+      "detail": "When no active suspension remains, clearVONSuspension and clearEVONSuspension null suspension_type, epr_reason, dates and due_date_of_revival (RevivalBaseHelper.java:742-752, 320-345); when another TS/PS remains, VON/eVON are filled from the remaining suspension (lines 742-747). eservice_message_code is derived from last_processing_stage (lines 838-845). The fixes from tickets OCMS-DF-2026-029 (closed) and OCMS-DF-2026-023 (closed, revival cron ignoring an active PS) are visible in this code."
+    },
+    {
+      "step": "For a reduction (TS-RED), the amount payable goes back to the pre-reduction value",
+      "detail": "revertCompositionAmountIfReduced restores amount_payable from ocms_reduced_offence_amount and syncs eVON (RevivalBaseHelper.java:896-899), called in TS revival (TemporaryRevivalHelper.java:170-177). But two conditions let the revival succeed without a revert: the notice is already FP (lines 868-870) and no reduction record is found (lines 880-884, only a warn log). A migrated notice without a reduction record therefore continues processing at the reduced amount. Tickets OCMS-DF-2026-028, OCMS-DF-2026-072 (closed, fixed the data source) and OCMS-DF-2026-078 (data patch for 4 revived TS-RED notices with a wrong amount) show this area has had problems."
+    },
+    {
+      "step": "OCMS resumes processing the notice according to the automated workflows (Appendix B of Annex 1A)",
+      "detail": "Revival triggers nothing and does not change the Next Processing Date; a code comment says the cron picks up notices with a past NPD (RevivalBaseHelper.java:312-315). Proven: the MHA upload cron query selects notices with suspensionType null and nextProcessingDate <= the cutoff (MhaNricDataHelper.java:181-201) and the ENA notification query filters suspension_type IS NULL (NotificationSmsEmailHelper.java:1030-1035). But only some jobs were traced. cron.notification.enabled=false in cron-schedules-prod.properties:236 (real server value cannot be verified from the repo), so notification processing does not run from this repo. Appendix B of Annex 1A is not in the repo, so conformance of each stage cannot be proven. The automatic revival cron (Auto Revival) sits in the combined cron.toppanupload job (line 76) and is outside this story."
+    }
+  ]
+}

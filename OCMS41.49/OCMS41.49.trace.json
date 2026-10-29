@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.49",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{hook/{useSearchParams,useBatchOperation,ApplyOperationAction}, component/{NoticeSearchSlot,FailedNoticesList}, list/NoticeSearchAllList}, pages/BatchFurnish/{page,form,list}; ocmsadminapi workflows/furnish/{stafffurnish/StaffFurnishController (furnish-redirect-check), helpers/FurnishabilityChecker}. Repo lain: tidak ada code.",
+  "note": "Status Demo paid (50% of 75%). Kondisi furnishable dihitung di server (PS aktif, an_flag=Y, stage NPA..CPC) dan dipanggil dari UI, tetapi UI sengaja tidak menyaring: useBatchOperation.ts:313-317 mengisi success = semua notice (filter dikomentari), sehingga daftar 'terpilih' tetap memuat notice yang tidak furnishable. Server menolak notice itu lagi saat submit. Tiket: OCMS-DF-2026-187 (Pending UAT, sort kolom Payment Status di hasil pencarian) tidak mengubah verdict; code kolom saat ini memakai source crsReasonOfSuspension (components/datagrid/column/index.tsx:272), apakah sudah benar cannot verify from repo.",
+  "recommendation": "Klaim sebagian: kondisi furnishable dan alasan penolakan terbukti; daftar yang tampil belum disaring hanya notice furnishable.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mencari notice dengan parameter standar (nomor kendaraan, nomor ID) dan hasil tampil dengan checkbox",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:325; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:530; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:113-127",
+      "fit": "Sesuai",
+      "detail": "Form pencarian mengirim vehicleNo (useSearchParams.tsx:325) dan idNo (:530) ke validoffencenoticelist; hasil tampil di Datagrid dengan checkbox select all/row (NoticeSearchAllList.tsx:113-127). Pencarian itu sendiri adalah bahan OCMS41.41; di sini dinilai hasil yang bisa dipilih. Tiket OCMS-DF-2026-187 (Pending UAT) soal sort kolom Payment Status tidak mengubah verdict. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan kondisi furnishable yang sudah ditentukan terhadap notice yang dipilih",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:284-302; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:233-234; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:285-309; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:55-143; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:51-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:140-206; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:340-371",
+      "fit": "Sesuai",
+      "detail": "Officer memilih Apply Operation > Batch Furnish (opsi hanya muncul bila user punya function OCMS_BATCH_FURNISH, NoticeSearchSlot.tsx:284-288). UI memanggil staff-furnish/furnish-redirect-check dengan daftar notice (useBatchOperation.ts:285-309). FurnishabilityChecker.checkFurnishabilityBatch menolak notice yang (1) punya PS aktif tanpa date of revival (FurnishabilityChecker.java:340-352), (2) an_flag = Y (advisory notice) (:363-371), (3) last processing stage di luar NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC (:51-61, 176-185). Daftar kondisi 'pre-defined' dari spesifikasi tidak ada di repo, jadi kecocokannya cannot verify from repo. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Layar menampilkan daftar notice yang furnishable",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:313-317; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:322-332; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:233-266; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:328-343; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:147",
+      "fit": "Sebagian",
+      "detail": "Hasil pengecekan tidak dipakai untuk menyaring: baris filter dikomentari dan `result.success = data` (useBatchOperation.ts:313-317), jadi notice yang tidak furnishable tetap ada di daftar 'Selected Notices' dan sekaligus di daftar 'Notices not furnishable' (BatchFurnishForm.tsx:328-343). Akibatnya cabang 'semua gagal' tidak pernah jalan (ApplyOperationAction.tsx:237-248) dan teks 'Continue with N notice(s)' menghitung semua notice (:250-256). Operasi lain (TS/PS/Revival) memang menyaring (useBatchOperation.ts:147). Jika call check melempar error, success dan failed dikosongkan dan officer tetap dibawa ke form tanpa notice (:332). Server menolak notice non-furnishable per notice saat submit (StaffFurnishService.java:181-184), jadi tidak ada penulisan salah. Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tidak furnishable ditampilkan dengan alasan per notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:334-343; ocmsadminui/src/pages/NoticeSearch/component/FailedNoticesList.tsx:80; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:72-78; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:120-125",
+      "fit": "Sesuai",
+      "detail": "Setiap notice yang gagal dicek masuk daftar `failed` dengan pesan dari server (useBatchOperation.ts:322-326) dan tampil di FailedNoticesList dengan kolom message (FailedNoticesList.tsx:80). Pesan server: 'Notice cannot be furnished/redirected - Notice is permanently suspended.', 'Notice is an Advisory Notice and is not eligible for furnish/redirect.', 'Last Processing Stage is not eligible (current: ...)' (FurnishabilityChecker.java:72-78, 120-125). Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar menampilkan informasi kunci notice agar officer bisa memilih yang berlaku",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/list/BatchFurnishList.tsx:93-139; ocmsadminui/src/pages/BatchFurnish/list/BatchFurnishList.tsx:49-59",
+      "fit": "Sesuai",
+      "detail": "BatchFurnishList menampilkan notice no, tipe, tanggal, tempat offence, rule code, vehicle no, stage dan tanggal proses, next stage, suspension type/reason, payment status, amount payable (BatchFurnishList.tsx:93-132) dan tombol Delete per baris untuk membuang notice yang tidak diinginkan (:49-59, 134-139). Sesuai."
+    }
+  ]
+}

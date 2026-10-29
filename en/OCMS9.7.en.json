@@ -1,0 +1,29 @@
+{
+  "story": "OCMS9.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper (queryRecordsForEna, queryRecordsForReminder, combineNotices, getRecipientKey, determineTemplateName, saveSendStatus)}, cron-schedules-prod.properties. Other repos: no code",
+  "note": "Status in stories.json is 'Demo paid (50% of 75%)'. The code groups notices per UEN in combineNotices: group key = B_<UEN> + nextProcessingStage + paymentDueDate, notice numbers are joined with '.', amounts are summed, and a *_COMBINED template is used. There are three gaps: (1) the group key includes stage and due date, so one UEN with different due dates or ENA vs RD1 still receives more than one email on the same day; (2) the retry job resends per notification record row (one per ref_no), so a failed combined email can be resent as many times as there are notices; (3) the eNotification cron is disabled in every environment (cron.notification.enabled=false), so automatic sending does not run yet. The content of the *_COMBINED templates lives in the database (ocms_template_store) and cannot be verified from the repo. Ticket OCMS-DF-2026-180 (ENA due date) touches the same query and is still waiting for the cron to be activated.",
+  "recommendation": "Claim partially. Grouping per UEN is proven in code; not yet proven: one email per company per day regardless of due date/stage, a retry that can resend the combined email repeatedly, and the cron is still off.",
+  "steps": [
+    {
+      "step": "OCMS collects the outstanding notices to be sent in the day's batch job (ENA and reminder)",
+      "detail": "The job calls queryRecordsForEna() and queryRecordsForReminder() (J:161-162). The ENA query selects notices with last_processing_stage = 'ENA', last_processing_date <= now, offender_indicator = 'Y', with no existing notification record inside the ENOTEDAYS parameter window (H:994-997, H:1045-1073), and returns onod.id_no / id_type / email_addr."
+    },
+    {
+      "step": "OCMS identifies the same company UEN among the notices in one batch",
+      "detail": "combineNotices(records) (J:191) groups through getRecipientKey: for idType B the key is 'B_' + UEN (H:2230-2245), so notices with the same UEN fall into the same group."
+    },
+    {
+      "step": "All notices of one UEN are merged into one group per company, without being split",
+      "detail": "compositeKey = recipientKey + '_' + stage + '_' + dueDate (H:2178). So the same UEN with a different paymentDueDate, or one notice at stage ENA and one at RD1, becomes separate groups and still gets more than one email on the same day. The story asks for 1 email per unique company."
+    },
+    {
+      "step": "The combined email contains the details of all offences of that company",
+      "detail": "Notice numbers are joined into combinedNotices with '.', and amountPayable is summed (H:2182-2196). generateMessages sets isCombined when combinedNotices contains '.' and then picks template <STAGE>_EMAIL_COMPANY_COMBINED (H:298-301, H:467-473). The template content is in table ocms_template_store and cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS sends only 1 email notification to each unique company",
+      "detail": "In the main flow, one combined record produces one sendEmail call (J:388) and the status is saved per notice (H:614). But the retry job iterates per notification record (RJ:1133-1168), not per company, so a failed combined email can be resent as many times as there are notices. The main cron is also cron.notification.enabled=false (prod:236). The 1-email-per-company result only holds on the success path with the same due date and stage."
+    }
+  ]
+}

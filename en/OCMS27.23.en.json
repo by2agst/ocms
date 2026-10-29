@@ -1,0 +1,25 @@
+{
+  "story": "OCMS27.23",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "Only the CAS inbound endpoint POST /v1/casUpdateCourtNotices can receive processing stage/suspension updates for court notices and write them to intranet VON and internet eVON. The payload carries no warrant execution data or court mention date, and there is no warrant-executed status. Credit is Sebagian only for receiving and updating the stage.",
+  "note": "Status blank (requirement not given / status blank); traced normally. The CAS endpoint is credited only for receiving details and updating the processing stage because the lastProcessingStage/nextProcessingStage fields are in the payload; that CAS sends warrant execution data through this endpoint cannot be verified from the repo. No relevant maintenance ticket (OCMS-DEV-2026-129 only appears in a code comment about batch performance, not in maintenance_tickets.csv).",
+  "recommendation": "Limited claim (Sebagian): receiving court stage updates from CAS. The new court mention date and warrant-executed status do not exist.",
+  "steps": [
+    {
+      "step": "OCMS receives warrant execution details in a batch from the external party (court/CAS)",
+      "detail": "POST /v1/casUpdateCourtNotices (CasIntegrationController.java:101) accepts a batch of at most 500 notices (:125), with a concurrency throttle (:109). The CasUpdateNoticeItem payload (dto/CasUpdateNoticeItem.java:25-73) holds only noticeNo, suspensionType, processing stage/date, atomsFlag, amountPayable, paymentAcceptanceAllowed, EPR suspension; there is no warrant or execution field. Sebagian because this is a generic inbound channel for court notices; that CAS sends warrant execution through it cannot be verified from the repo. Access protection (APIM) is not visible in the repo."
+    },
+    {
+      "step": "OCMS receives and stores the new court mention date",
+      "detail": "There is no mention date field in the payload (CasUpdateNoticeItem.java:25-73), in the UPDATE columns (CasIntegrationServiceImpl.java:96-117), or in the court case entity (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:27-31 holds only court_payment_due_date and reason). mention_date exists only in UI types (ocmsadminui/src/utils/models/Icourtcase.d.ts:25, Iwarrantofarrest.d.ts:9) without a backend. DB columns outside the entity cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS processes the details and updates the processing stage of the notice",
+      "detail": "updateCourtNotices (CasIntegrationServiceImpl.java:246) fetches intranet VON and internet eVON in parallel (:291-299), rejects a missing or already Paid notice (:336), validates the date format yyyyMMddHHmmssSSS (:595-601), then a multi-row UPDATE sets last/prev/next_processing_stage and their dates (INTRANET_SET_CLAUSE :103-117; eVON :144-153, :384-393). The stage update mechanism works, but there is no warrant-specific rule (e.g. warrant stages CWM/CTW/COW/CWW/CWT, SystemConstant.java:94-97, are not checked), hence Sebagian. What CAS sends cannot be verified from the repo."
+    },
+    {
+      "step": "The officer can know that the warrant of arrest has been executed",
+      "detail": "There is no warrant-executed status or field in the backend. The UI calls the warrantofarrest endpoint (ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:68-78) and the type has outcome_of_warrant (ocmsadminui/src/utils/models/Iwarrantofarrest.d.ts:7), but /v1/warrantofarrest is only listed in ocmsadminapi/src/main/resources/api-authorization.properties:23 with no controller/entity in ocmsadminapi or ocmsadminprivateapi; cannot verify from repo whether another backend exists. A stage update from CAS is not given the meaning 'warrant executed' anywhere in code."
+    }
+  ]
+}

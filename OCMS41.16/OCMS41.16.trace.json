@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ReplyEmail,form/ReplySMS,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI}, pages/Notice/{form/Form,hook/useNoticeSubmit}, utils/mapping/Furnish/FurnishMap. ocmsadminapi crud/ocmsizdb/OcmsTemplateStore (templatestorelist, templatestore/render), workflows/furnish/manualreview/{controllers/ManualReviewController,services/ManualReviewService} (send-email, send-sms), workflows/furnish/helpers/FurnishNotificationService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai untuk balasan officer",
+  "note": "Status di stories.json: Demo paid (50% of 75%); requirement tidak diberikan terpisah, langkah diambil dari teks story. Alur compose di Staff Portal lengkap: centang Send Email/SMS membuka tab Reply, officer memilih mode dan penerima, memilih template FURNISH_*, hasil render muncul di field subject/body yang tetap bisa diedit, lalu entri masuk compose list. Dua celah: (1) isi template adalah row DB (ocms_template_store) yang tidak di-seed di repo, jadi keberadaannya di PRD cannot verify from repo; (2) field Email CC dikirim UI tetapi dibuang backend. Pengiriman nyata lewat SMTP dan APIM SMS tidak bisa dibuktikan dari repo. Demo remark (Enable cron, Internet-Intranet sync) tidak menjadi langkah karena tidak ada di teks story; efeknya (notice muncul di eService) dibahas di OCMS41.20.",
+  "recommendation": "Klaim untuk alur pilih template dan edit free-text. Perbaiki atau catat gap Email CC yang dibuang, dan siapkan bukti row template FURNISH_* di database PRD (screenshot atau DB script) karena repo tidak membuktikannya",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mencentang Send Email/SMS pada keputusan furnish sehingga tab Reply terbuka",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:472-479; ocmsadminui/src/pages/Notice/form/Form.tsx:88-90; ocmsadminui/src/pages/Notice/form/Form.tsx:240-246",
+      "fit": "Sesuai",
+      "detail": "Checkbox Send Email/SMS (source sendEmailSms) muncul di panel OIC Review selama status furnish belum Approved/Rejected (DecisionForm.tsx:435, 472-479). Form.tsx:88-90 menghitung showReplyTab dari sendEmailSms === \"true\", dan Form.tsx:240-246 menampilkan tab Reply (ReplyComposeForm) hanya di mode UPDATE. Path API yang dipakai tab ini (/v1/manual-review, /v1/templatestorelist, /v1/templatestore/render) terdaftar untuk fungsi OCMS_OIC_FURNISH (api-authorization.properties:76-85); pemeriksaan role di sisi server tidak dibaca. Tab yang sama juga terbuka untuk keputusan Reject, bukan hanya Approve."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih mode (Email atau SMS) dan penerima (Owner/Hirer/Driver) untuk notifikasi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/ReplyComposeForm.tsx:93-110; ocmsadminui/src/pages/Furnish/components/ComposeEditor.tsx:211-266; ocmsadminui/src/pages/Furnish/form/ReplyEmail.tsx:45-49; ocmsadminui/src/pages/Furnish/form/ReplySMS.tsx:38-42",
+      "fit": "Sesuai",
+      "detail": "Dropdown Message Mode (Email/SMS) ada di ReplyComposeForm.tsx:93-110 dan langsung mengisi emailTo atau mobileCode/mobileNo dari data furnished (baris 102-103). Dropdown Recipients (Owner/Hirer/Driver) di ComposeEditor.tsx:211-266 mengisi alamat dari owner (O) atau dari hirer/driver yang di-furnish (D/H) hanya bila role yang dipilih sama dengan ownerDriverIndicator submission; bila beda kolom dikosongkan agar diketik manual (baris 231-243). Penerima Owner ikut tersedia, melebihi isi story yang menyebut furnished hirer/driver."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengisi template standar sesuai pilihan officer (keputusan, penerima, mode)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:31-64; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:78-117; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:119-174; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreServiceImpl.java:62-114; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:176-190",
+      "fit": "Sesuai",
+      "detail": "Dropdown Template memuat daftar lewat POST templatestorelist (templateName regex FURNISH_, SelectTemplate.tsx:78-100), lalu difilter menurut decision status, mode, dan penerima (ALLOWED_TEMPLATES, baris 31-64 dan 110-117; contoh Approve: FURNISH_SMS_OWNER/DRIVER/HIRER dan FURNISH_EMAIL_APPROVAL/DRIVER/HIRER). Saat template dipilih, UI memanggil POST templatestore/render (baris 119-174); backend membaca template, VON, ONOD, dan furnish application lalu mengganti placeholder (OcmsTemplateStoreServiceImpl.java:62-114), dan UI mengganti {{driverName}}, {{hirerName}}, {{ownerName}}, {{officerName}} (baris 146-151). Isi template adalah row DB ocms_template_store yang tidak di-seed di repo, jadi keberadaan row FURNISH_* di PRD cannot verify from repo. Riwayat: OCMS-DF-2026-136 (Closed, Prod deployed) dropdown Reply kosong karena map ALLOWED_TEMPLATES belum lengkap, kini map memuat entri Approve dan Reject; OCMS-DF-2026-004 (Closed) menunjukkan row template lain (FURNISH_EMAIL_OFFICER_DAILY) pernah tidak ter-load di PRD."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi template yang terisi bisa diubah officer di field free-text",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/components/ComposeEditor.tsx:306-316; ocmsadminui/src/pages/Furnish/components/ComposeEditor.tsx:319-351; ocmsadminui/src/pages/Furnish/components/ComposeEditor.tsx:357-363; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:153-157; ocmsadminui/src/pages/Furnish/components/SelectTemplate.tsx:182-198",
+      "fit": "Sesuai",
+      "detail": "Hasil render ditulis ke form.subject dan form.message (SelectTemplate.tsx:153-157), lalu tetap editable: Subject TextInput (ComposeEditor.tsx:306-316), body email EditorInput rich-text dengan maxLength 4000 (baris 319-351), dan SMS TextAreaInput (baris 357-363). Read-only hanya bila prop disabled diisi (default false, SelectTemplate.tsx:67). Ada efek samping: mengganti decision status, penerima, atau approve-as mereset template dan isi pesan (SelectTemplate.tsx:182-198), jadi edit officer hilang bila pilihan diubah. Backend memakai teks request apa adanya tanpa render ulang (ManualReviewController.java:368-376)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dan/atau SMS dengan isi yang sudah disesuaikan dikirim ke hirer/driver yang di-furnish",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Furnish/form/ReplyComposeForm.tsx:57-90; ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:118-200; ocmsadminui/src/utils/mapping/Furnish/FurnishMap.ts:42-66; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:300-301; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:401-402; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:50-98; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishNotificationService.java:166-222; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:688-695; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:215-216; ocmsadminapi/src/main/resources/application.properties:133; ocmsadminapi/src/main/resources/application-prod.properties:36",
+      "fit": "Sebagian",
+      "detail": "Entri compose ditambahkan ke compose_list (ReplyComposeForm.tsx:57-90). Saat Submit, tiap entri dikirim sendiri: SMS dibatch ke POST manual-review/send-sms, email satu per satu ke send-email (useFurnishAPI.ts:148-192). Backend langsung mengirim lewat EmailService atau smsUtil.sendBatchSmsSimple dan mencatat ke tabel notifikasi dengan service_type FURNISH, status S atau E (FurnishNotificationService.java:50-98, 166-222). Gap 1: UI mengirim emailCC (FurnishMap.ts:59) tetapi DTO EmailRequest tidak punya field CC (ManualReviewController.java:688-695), jadi CC diam-diam hilang. Gap 2: bila checkbox dicentang tetapi tidak ada entri di compose_list, tidak ada pesan terkirim dan tidak ada peringatan (useNoticeSubmit.tsx:215-216). Pengiriman nyata lewat SMTP dan APIM SMS cannot verify from repo; flag email.enableSmtp=true (application.properties:133) dan sms.enable=true (application-prod.properties:36), nilai server sebenarnya tidak bisa diverifikasi dari repo."
+    }
+  ]
+}

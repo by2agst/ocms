@@ -1,0 +1,82 @@
+{
+  "story": "OCMS41.51",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/hook/{ApplyOperationAction,useBatchOperation}, pages/BatchFurnish/{page,form}, utils/validation/BatchFurnish, utils/mapping/Furnish/FurnishMap. ocmsadminapi workflows/furnish/stafffurnish/{controllers/StaffFurnishController,services/StaffFurnishService}, workflows/furnish/helpers/FurnishabilityChecker. ocmsadminprivateapi ToppanUploadJobsScheduler (hanya sebagai konteks follow-up). ocmseserviceui, ocmseserviceapi, thirdpartyapi: tidak ada code",
+  "note": "Status di sheet: Demo paid (50% of 75%). Appendix B of Annex 1A tidak ada di repo, jadi kecocokan dengan workflow otomatis di sana tidak bisa dibuktikan. Semua jalur ada di Staff Portal (ocmsadminui) dan ocmsadminapi; tidak ada code di ocmseserviceui/ocmseserviceapi/thirdpartyapi untuk story ini. Dua celah: (1) pre-check furnishable di UI tidak benar-benar menyaring notice (useBatchOperation.ts:317), (2) pesan sukses tidak menyebut tindak lanjut OCMS. Tiket pemeliharaan yang dibaca: OCMS-DF-2026-024, OCMS-DF-2026-093, OCMS-DF-2026-170 (ketiganya Closed/Prod deployed, dan perbaikannya terlihat di code).",
+  "recommendation": "Bisa diklaim untuk alur bulk update (pilih notice, role, field, konfirmasi, hasil per notice). Catat dua gap: pre-check furnishable di UI tidak menyaring notice (notice yang gagal baru ditolak server saat submit), dan tindak lanjut otomatis sesuai Appendix B tidak bisa dibuktikan dari repo (surat Toppan hanya lewat trigger manual).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notices yang berlaku dari hasil Notice Search lalu memilih operasi Batch Furnish",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:130; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:233-265; ocmsadminui/src/pages/BatchFurnish/page/BatchFurnish.tsx:30-65; ocmsadminui/src/App.tsx:188",
+      "fit": "Sesuai",
+      "detail": "Aksi BATCH_FURNISH di Notice Search memanggil handleBatchFurnish (ApplyOperationAction.tsx:130, 233-265). Notice terpilih disimpan ke batch state lalu route /notices/batch-furnish dibuka (App.tsx:188). Halaman memuat ulang data notice lewat validoffencenoticelist per 30 notice (BatchFurnish.tsx:30-65)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memisahkan notices yang tidak applicable (tidak furnishable) sebelum update",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:285-317; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:303; ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:233-265; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:108; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:181-183",
+      "fit": "Sebagian",
+      "detail": "validateBatchFurnish memanggil staff-furnish/furnish-redirect-check dan mengumpulkan notice yang tidak furnishable ke daftar failed (useBatchOperation.ts:303, StaffFurnishController.java:108). Tetapi baris result[\"success\"] = data (useBatchOperation.ts:317; versi yang memfilter di baris 313-315 dikomentari) membuat SEMUA notice tetap lolos ke form. Akibatnya cabang 'semua gagal' (ApplyOperationAction.tsx:237-248) tidak pernah jalan, dan pesan warning 'Continue with N notice(s)?' (254-255) menghitung seluruh notice terpilih, bukan yang furnishable. Notice yang tidak furnishable baru ditolak server saat submit (StaffFurnishService.java:181-183) dan muncul sebagai failed di hasil."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih offender type (owner / hirer / driver) untuk bulk update",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:76-101; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:49-60; ocmsadminui/src/utils/validation/BatchFurnish/ValidBatchFurnishForm.ts:19-22; ocmsadminui/src/context/OptionsContext.tsx:450-452; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:925-931",
+      "fit": "Sesuai",
+      "detail": "Form punya dropdown 'Offender Role' yang wajib diisi (BatchFurnishDetails.tsx:76-101; validasi ValidBatchFurnishForm.ts:19-22). Opsinya diambil dari standard code OFFENDER_INDICATOR (OptionsContext.tsx:450-452), jadi isi daftar owner/hirer/driver ada di DB dan cannot verify from repo. Backend memetakan O/H ke stage RD1 dan D ke DN1 (StaffFurnishService.java:925-931)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan field yang relevan untuk input offender (nama, ID, kontak, alamat surat)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:104-192; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:66-71; ocmsadminui/src/utils/validation/BatchFurnish/ValidBatchFurnishForm.ts:24-79; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishDetails.tsx:194-202",
+      "fit": "Sesuai",
+      "detail": "BatchFurnishDetails menampilkan nama (maks 66 karakter), ID type + ID number, mobile (kode + nomor), email, dan alamat surat (BatchFurnishDetails.tsx:104-192) dengan tombol Clear Form (194-202). Pilihan ID type menyembunyikan UEN bila role Driver (66-71). Validasi: role, nama, ID type, ID number, dan street name wajib (ValidBatchFurnishForm.ts:19-35, 76-79)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meminta konfirmasi officer sebelum update diproses",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:70-97; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:216-260",
+      "fit": "Sesuai",
+      "detail": "Tombol 'Proceed to Furnish' menjalankan validasi form dulu (gagal: alert 'Failed to furnish the notice(s). Please check your form.', BatchFurnishForm.tsx:72-85), lalu membuka modal 'Batch Furnish Confirmation': 'All existing {role} details will be overwritten. Do you want to proceed to furnish {role} for N notice(s)?' (88-96). N = jumlah notice di form (termasuk yang nanti ditolak, lihat langkah 2)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan particulars yang sama ke semua notice terpilih lewat batch API",
+      "repo": "ocmsadminui; ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:107-120; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:221-270; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:465-489; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:631-660; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:175-262",
+      "fit": "Sesuai",
+      "detail": "UI memetakan form (FurnishMap.ts:95-117) dan POST staff-furnish/batch-furnish (BatchFurnishForm.tsx:116-120). Server memvalidasi role, nama, ID, street (StaffFurnishController.java:465-489) lalu batchFurnish melakukan loop staffFurnish per notice (StaffFurnishService.java:631-660). Per notice: cek furnishable (181-183), offender lama jadi non-current (201), alamat lama dihapus (206; perbaikan OCMS-DF-2026-024), offender baru disimpan sebagai current (231), alamat furnished_mail dibuat (236), stage dan amount di-update (240-262), administration fee di-nol-kan (251; OCMS-DF-2026-170), TS-HST dihidupkan kembali bila offender baru bukan HST (277-283; OCMS-DF-2026-093). Edge case: staffFurnish menangkap semua Exception dan return failure (299), sedangkan @Transactional di batchFurnish (630) memanggil staffFurnish lewat self-invocation; apakah penulisan setengah jalan untuk satu notice di-rollback perlu diverifikasi dengan test."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan prompt bahwa update berhasil (jumlah notice) atau gagal per notice",
+      "repo": "ocmsadminui; ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:175-213; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:113-132; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:262-263; ocmsadminui/src/pages/BatchFurnish/form/BatchFurnishForm.tsx:229-234",
+      "fit": "Sesuai",
+      "detail": "Setelah API selesai, UI menampilkan 'Batch Furnish Applied Successfully to N Notices.' bila tidak ada yang gagal (BatchFurnishForm.tsx:192-195), atau '{x} out of {y} Notices Failed to be Furnished...' bila ada yang gagal (185-191). Server membalas HTTP 207 untuk hasil sebagian (StaffFurnishController.java:262-263) dan UI tetap membaca data.results per notice (BatchFurnishForm.tsx:113-132). Menutup alert sukses membuka halaman /notices/batch-furnish/view (229-234)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menindaklanjuti offender sesuai workflow otomatis Appendix B of Annex 1A",
+      "repo": "ocmsadminapi; ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:144-156; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:240-262; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:925-931; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40",
+      "fit": "Sebagian",
+      "detail": "Setelah furnish, notice dipindah ke stage RD1 (owner/hirer) atau DN1 (driver) dengan next processing date = max(notice date + 7 hari, besok 00:00) dan amount payable dihitung ulang (StaffFurnishService.java:144-156, 240-262, 925-931), lalu disinkronkan ke internet DB (262). Appendix B tidak ada di repo, jadi kecocokan dengan workflow di sana cannot verify from repo. Surat tahap berikutnya lewat Toppan: pemanggilan toppanLettersGeneratorService.executeJob() di jadwal day-end dikomentari (ToppanUploadJobsScheduler.java:118) dan hanya jalan lewat POST /generate-letters manual (ToppanUnifiedController.java:34-40). Pesan sukses di UI tidak menyebut tindak lanjut ini."
+    }
+  ]
+}

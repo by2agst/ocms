@@ -1,0 +1,33 @@
+{
+  "story": "OCMS17.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (POST /plus-apply-suspension), helpers/{TemporarySuspensionHelper,SuspensionProcessingHelper,SuspensionBaseHelper}, crud/beans/SystemConstant. Mirror in ocmsadminprivateapi framework/workflows/plus/notice_creation/core. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant (PLUS calls the API, not a UI).",
+  "note": "The story asks OCMS to validate whether a TS from PLUS may be applied. POST /plus-apply-suspension exists and validates per notice: mandatory fields, whether the suspension code is allowed for PLUS (ocms_suspension_reason table), last processing stage, whether the notice is paid, and any existing PS. The same rules run for execution and for the dry-run (checking=true). Two caveats: (1) in the dry-run a notice that is already TS is answered eligible before the source/stage/paid checks (SuspensionProcessingHelper.java:366-370), so the dry-run can be looser than execution; (2) daysToRevive is only checked for null, a value of 0 or below is silently replaced by the table/30-day default. The same endpoint exists in ocmsadminapi and ocmsadminprivateapi with similar logic; which route PLUS uses (via APIM) cannot verify from repo. The contents of the ocms_suspension_reason table (which codes are allowed for PLUS) cannot verify from repo. Ticket OCMS-DF-2026-025 (Closed, Prod deployed) changed the TS-RED stage rule for PLUS up to COS; the code follows it.",
+  "recommendation": "Claim as done for the core validation. State the two caveats: the dry-run can be looser (TS-on-TS shortcut) and the value of daysToRevive is not validated.",
+  "steps": [
+    {
+      "step": "PLUS sends the TS request (notice list, suspension code, number of days, officer) and OCMS checks the mandatory fields and the PLUS source",
+      "detail": "POST /plus-apply-suspension (query checking=true for the dry-run). noticeNo, suspensionType, reasonOfSuspension, daysToRevive and officerAuthorisingSuspension are mandatory; if missing the answer is HTTP 400 OCMS-4000. suspensionSource is forced to PLUS and any other value is rejected (SuspensionProcessingController.java:534-538). Mirror in ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:54). daysToRevive is only checked for null; 0 or a negative value is not rejected and falls back to a default (TemporarySuspensionHelper.java:188-208). Which route PLUS calls cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks that the suspension code may be used by PLUS",
+      "detail": "checkSourcePermissionFromDb looks for an ocms_suspension_reason row with suspensionType, reasonOfSuspension, suspensionSource=PLUS and status A. No row or a failed query gives false, so the request is rejected with 'Source not authorized to use this Suspension Code'. The dry-run has its own version (SuspensionProcessingHelper.java:491-503). The table contents (which codes are active for PLUS) cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks that the notice last processing stage is one that allows TS",
+      "detail": "Common stages allowed: NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC (SuspensionBaseHelper.java:65-67). ROV only at stage ROV, CLV only RR3/DR3, NRO not at RR3/DR3 (SuspensionBaseHelper.java:217-236). A null stage or a stage outside the list is rejected (OCMS-4002 + message). PLUS TS-RED is allowed up to COS per OCMS-DF-2026-025 (Closed, Prod deployed; SuspensionBaseHelper.java:197-206, SuspensionProcessingHelper.java:515-524). The dry-run and execution reject court stages through different checks (SuspensionProcessingHelper.java:526 vs SuspensionBaseHelper.java:209-212), but both end in a rejection."
+    },
+    {
+      "step": "OCMS checks whether the notice has been paid",
+      "detail": "Execution rejects when crs_reason_of_suspension is filled (TemporarySuspensionHelper.java:87-90); the dry-run also rejects EPR = PRA (partial payment, SuspensionProcessingHelper.java:427). Message: 'Unable to TS as one or more Notices has been paid.' In execution a PRA notice is still rejected because PRA is not in the list of PS reasons that allow TS on top (TemporarySuspensionHelper.java:170)."
+    },
+    {
+      "step": "OCMS checks for an existing PS on the notice",
+      "detail": "A notice that is under PS is rejected for TS with 'Unable to TS as Notice has been permanently suspended', unless the PS reason is FOR, MID, DIP, RP2 or RIP, or the TS code is PAM (TemporarySuspensionHelper.java:163-171). The check uses the VON columns (suspension_type and epr_reason), in line with OCMS-DF-2026-025 which moved the check back to VON."
+    },
+    {
+      "step": "Each notice in the batch is judged separately and the dry-run mode (checking=true) gives the same validation result as execution",
+      "detail": "processNoticeList processes each notice separately (SuspensionProcessingController.java:995-1010); checking=true calls validateSuspension without writing to the DB. But the result is not identical to execution: (1) a notice that is already TS + a TS request is answered eligible=true straight away (SuspensionProcessingHelper.java:366-370) before the source, stage and paid checks, whereas execution still runs all of them (TemporarySuspensionHelper.java:73-90); (2) the dry-run has an 'Overlapping suspension detected' check on the suspended_notice table (SuspensionProcessingHelper.java:595-617) that the TS execution path does not have. So the dry-run can say eligible while execution rejects, or the other way round. Whether PLUS uses the dry-run before applying cannot verify from repo."
+    }
+  ]
+}

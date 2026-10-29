@@ -1,0 +1,82 @@
+{
+  "story": "OCMS4.2",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/create-notice, /repccsWebhook-create-notice), CreateNoticeServiceImpl.createNotice/processSingleNotice}, helpers/{NoticeValidationHelper, NoticeProcessingHelper, ValidationServices}, auth/interceptor/OcmsAuthorizationInterceptor, resources/api-authorization.properties. ocmsadminprivateapi workflows/repccs/notice_creation (webhook /repccsWebhook). ocmsadminui utils/constant.ts (SOURCE_MAP). Tidak ada kode TDS, Tailgating, EPS atau pend-EEPS di enam repo",
+  "note": "Status di sheet 'Demo paid (50% of 75%)'. Pipeline pembuatan notice (validasi, offence rule, DBB, vehicle type, simpan) bekerja sama seperti OCMS4.1, tapi story ini bicara tentang operator TDS dan EPS dan tentang opsi pend untuk keputusan EEPS. Tidak ada kode yang menyebut TDS/Tailgating/EPS; kode subsystem hanya 003=EEPS dan 002=REPCCS di UI, jadi jalur masuk operator TDS/EPS tidak bisa dibuktikan dari repo (kemungkinan lewat REPCCS atau create-notice, cannot verify from repo). Opsi 'pend untuk keputusan EEPS' tidak ada: notice langsung dibuat. Offence type E diambil dari pengirim. /v1/create-notice tidak terdaftar di api-authorization.properties.",
+  "recommendation": "Klaim terbatas pada pipeline pembuatan notice. Jangan klaim penerimaan khusus TDS/EPS maupun opsi pend EEPS; minta URA menunjukkan kanal mana yang dipakai TDS/EPS (REPCCS atau create-notice) dan bagaimana EEPS dipanggil.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima detail payment evasion offence dari operator TDS dan EPS secara real-time",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:28-32; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:46-48; ocmsadminui/src/utils/constant.ts:98-104; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/RepccsCreateNoticeController.java:39-39; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:99-112; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/interceptor/OcmsAuthorizationInterceptor.java:66-68; ocmsadminapi/src/main/resources/api-authorization.properties:28-31",
+      "fit": "Sebagian",
+      "detail": "Tidak ada nama, route, flag atau konfigurasi TDS/Tailgating/EPS di enam repo (grep TDS, tailgat, EPS, EEPS hanya mengenai label UI dan komentar). Yang ada hanya pintu masuk generik: POST /v1/create-notice (CreateNoticeController.java:28-32) yang memproses sinkron, dan webhook REPCCS POST /ocms/v1/repccsWebhook di ocmsadminprivateapi dengan APIM key (RepccsCreateNoticeController.java:39; CreateNoticeServiceImpl.java:110). Kode subsystem hanya dipetakan di UI: 003=EEPS, 002=REPCCS (constant.ts:98-104); TDS dan EPS tidak punya kode. Apakah operator TDS/EPS masuk lewat REPCCS atau create-notice cannot verify from repo (isi standard code SUB_SYSTEM_LABEL ada di DB). Ada satu hal yang perlu diperhatikan: /v1/create-notice tidak ada di satu pun function di api-authorization.properties (hanya /v1/staff-create-notice di :28-31) dan interceptor mencocokkan path dengan startsWith atas path function milik user (OcmsAuthorizationInterceptor.java:66-68), jadi pemanggil ber-JWT tidak akan lolos kecuali functionId-nya memetakan path itu; cara operator diautentikasi cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kelengkapan field wajib dari offence yang diterima",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:52-57; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:84-103; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:113-157; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:162-171; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:499-531",
+      "fit": "Sesuai",
+      "detail": "validateMandatoryFieldsForBatch mewajibkan compositionAmount, computerRuleCode, creDate, creUserId, noticeDateAndTime, offenceNoticeType, ppCode, ppName dan vehicleCategory (NoticeValidationHelper.java:113-157); khusus PLUS (label 005) juga vehicleNo dan vehicleRegistrationType (:162-171). noticeNo tidak wajib untuk label 003-010, 020-021, 023 dan 030-999 karena OCMS yang membuat nomornya (:84-103). Notice yang gagal dipisah ke daftar failed, sisanya tetap diproses (CreateNoticeServiceImpl.java:499-531)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa offence rule sebagai bagian dari kriteria pre-defined",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:967-980; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:315-350",
+      "fit": "Sesuai",
+      "detail": "getOffenseTypeFromRuleCode mencari computerRuleCode di tabel offence rule dan mengembalikan offence type (O/E/U) yang disimpan di singleDtoMap sebagai 'offenseType' (CreateNoticeServiceImpl.java:967-971; NoticeValidationHelper.java:315-346). Hasilnya dipakai sebagai gate pengecekan DBB dan AN. Rule code yang tidak ditemukan melempar RuntimeException sehingga notice gagal dan masuk error collector (:347-349; CreateNoticeServiceImpl.java:972-980)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa offence history payment evasion (type E) terhadap notice yang sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:462-475; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:503-506; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:69-122; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1175-1178",
+      "fit": "Sesuai",
+      "detail": "Pengecekan duplikat memperlakukan type E (payment evasion) berbeda dari type O: tanggal + jam + menit harus sama, sedangkan type O hanya tanggal (NoticeValidationHelper.java:462-475), dan PS-ANS dihitung duplikat hanya untuk type O (:503-506). Hasilnya PS-DBB atau TS-OLD (NoticeProcessingHelper.java:69-122). Pengecekan AN hanya jalan untuk offence type O (CreateNoticeServiceImpl.java:1175-1178) sehingga notice type E tidak pernah menjadi advisory notice. Detail alur DBB sama dengan OCMS4.1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyiapkan notice sesuai vehicle type (stage, payment flag, suspension)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1007-1039; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1128-1151; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SpecialVehUtils.java:43-80; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:390-411; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:422-445",
+      "fit": "Sesuai",
+      "detail": "OCMS menentukan vehicle registration type: X untuk plat kosong/N.A, I untuk MID/MINDEF, selain itu D/V/S/F lewat SpecialVehUtils.checkVehregistration (CreateNoticeServiceImpl.java:1007-1039; SpecialVehUtils.java:43-80). Setelah itu processing stage dan payment flag di-set per type: X -> payment N, composition 0, eservice E4 (NoticeProcessingHelper.java:390-411); S/V/D -> NPA lalu ROV, payment Y, E1 (:422-445); F -> stage NPA/ROV dan PS-FOR; I -> military (CreateNoticeServiceImpl.java:1128-1151). Tiket OCMS-SR-2026-101 dan OCMS-DF-2026-102 (default UPL salah) berstatus Closed/Prod deployed dan kode sekarang sudah men-set N/0/E4 untuk type X."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis membuat tipe parking offence notice yang benar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:140-143; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:737; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ValidationServices.java:165-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/ValidationServices.java:215-218; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:967-971",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS4.1 langkah offence type: offenceNoticeType E diambil dari payload dan hanya dicek wajib ada (NoticeValidationHelper.java:140-143; NoticeRecordHelper.java:737), tidak dibandingkan dengan offence type dari rule table (CreateNoticeServiceImpl.java:967-971). Hanya jalur webhook REPCCS yang menurunkan offenceNoticeType dari rule table (ValidationServices.java:165-188; ocmsadminprivateapi .../repccs/notice_creation/core/helpers/ValidationServices.java:215-218). Tidak ada kode yang menandai sebuah notice sebagai 'payment evasion dari TDS/EPS'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Atau notice di-pend untuk menunggu keputusan dari EEPS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/dto/OffenceNoticeDto.java:49-52; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-172; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:84-103",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada status, field atau antrian 'pending EEPS': setiap notice yang lolos validasi langsung di-INSERT ke VON (CreateNoticeServiceImpl.java:1195). Kolom decision/decisionDate/decisionOfficer di OffenceNoticeDto (OffenceNoticeDto.java:49-52) tidak dipakai dan field di entity VON di-comment (OcmsValidOffenceNotice.java:165-172). Tidak ada panggilan keluar ke EEPS di enam repo. Label EEPS (003) malah dibebaskan dari kewajiban noticeNo dan nomornya dibuat OCMS sendiri (NoticeValidationHelper.java:84-103), yaitu dibuat langsung."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang dibuat disimpan dan hasilnya dikembalikan ke pengirim",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:811-830; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:844-851; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:156; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:222; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:380",
+      "fit": "Sesuai",
+      "detail": "Record VON + OND di database intranet disimpan (NoticeRecordHelper.java:156, batch saveAllNoRetry :380) dan eVON/eOND di database internet (NoticeRecordHelper.java:222). Bila batch save gagal semua notice di batch ditandai failed (CreateNoticeServiceImpl.java:811-830) dan response memuat daftar success/failed/duplicate (CreateNoticeServiceImpl.java:844-851); email error konsolidasi dikirim bila ada error (:848)."
+    }
+  ]
+}

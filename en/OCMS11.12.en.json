@@ -1,0 +1,37 @@
+{
+  "story": "OCMS11.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob,jobs/ToppanUploadJob,helpers/ToppanUploadHelper,models/ToppanStage} (stage RD2, Toppan file, stage update), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (selection query), services/agencyFileExchange/AgencyFileExchangeServiceImpl (fixed-width file format), comcryptSftpBlob/helper/ComcryptUploadProcessor + utilities/sftpComponent/SftpUtil (SFTP delivery, blocked by config), schedulers/ToppanUploadJobsScheduler, application-{dev,uat,prod}.properties and cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no relevant code for this story",
+  "note": "Status in stories.json: Demo paid (50% of 75%), 3 points. The Toppan Upload cron at 00:15 (enabled in prod) processes all stages in order, including RD2: it selects notices with next stage RD2, fills letter_address='Y', builds a fixed-width data file (header + 719-character details; NRIC blanked) named URA-DPT-RD2-D1-<timestamp>, puts it in Azure Blob and requests COMCRYPT encryption to deliver it to the Toppan SFTP. The core of the story (the file reaching the vendor) is blocked by config: sftp.upload.disabledServers=toppan in dev, uat and prod (application-prod.properties:86). While the block is active, the delivery gate is bypassed and the notice stage still advances to RR3 even though the file was not delivered (ToppanUploadJob.java:424-446), so a notice status can say the 2nd letter was sent when it was not; OCMS-DF-2026-192 (Ready to UAT, not in prod) covers this. Only the data-file format exists for RD2; a PDF is only generated for the Advisory Notice (ANL). The demo remark mentions SFTP and code split; the SFTP connection permission for the api server, the Toppan service, COMCRYPT and the printed letter content: cannot verify from repo. Per-environment property values in Azure: cannot verify from repo.",
+  "recommendation": "Partial claim: RD2 file creation and stage update exist, SFTP delivery to the vendor is blocked by config and the stage still advances while the block is active",
+  "steps": [
+    {
+      "step": "A daily job builds and sends the 2nd letter reminder file (stage RD2) to the vendor",
+      "detail": "The Toppan Upload cron runs at 00:15 and is enabled in prod (cron-schedules-prod.properties:61-62; TSCH :62). ToppanLettersGeneratorJob takes all ToppanStage enum values and processes them in order (ToppanLettersGeneratorJob.java:151-154); RD2 = Reminder 2 with next stage RR3 (ToppanStage.java:19-20). Delivery to the vendor is assessed in step 6. Double check: the 00:15 schedule (process_dayend_jobs) exists and is enabled, but the call to toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs (line 119) is commented out, so letter generation only runs through the manual trigger POST /toppan/generate-letters. Rated Partial."
+    },
+    {
+      "step": "OCMS selects the notices entitled to the 2nd letter reminder",
+      "detail": "findToppanNoticesForStage('RD2') picks notices with next_processing_stage = 'RD2', next_processing_date <= today, suspension_type IS NULL, offender_indicator 'Y' and not an Advisory Notice (OcmsValidOffenceNoticeRepository.java:596-614); called from ToppanUploadHelper.java:1887 through ToppanUploadJob.java:248. Foreign vehicles (vehicle_registration_type F) without PS-FOR are excluded and given PS-FOR in the same helper (ToppanUploadHelper.java:1935-1965)."
+    },
+    {
+      "step": "The letter address is taken from the latest owner particulars (letter_address) and notices without an address are skipped",
+      "detail": "Notices are enriched with addresses by priority (Step 3c, ToppanUploadHelper.java:2020-2024), notices without a deliverable address are dropped (Step 4 F-17, :2026-2050), then only those with letter_address = 'Y' continue (filterByLetterAddress, :2372-2410; called at ToppanUploadJob.java:266). The particulars themselves come from the MHA/LTA update (see OCMS11.11)."
+    },
+    {
+      "step": "OCMS builds a data file (PDF/data format) with the letter details for the vendor to print",
+      "detail": "File name URA-DPT-RD2-D1-<timestamp> (ToppanUploadJob.java:279-282); the content is built by createToppanRequestFileContent: header 'H' + date/time, fixed-width 'D' detail of 719 characters holding letter date, notice no, name, address, vehicle no, place and rule infringed, etc., sorted by postal code, NRIC deliberately blank (AgencyFileExchangeServiceImpl.java:564-603, 648-700). The layout is the same for all stages and has no '2nd reminder' text, so the printed wording is decided by the vendor from the stage code: cannot verify from repo. For RD2 only a data file is produced; a PDF is only generated for ANL (ToppanUploadJob.java:323-340), which fits the 'PDF/data file' option in the story."
+    },
+    {
+      "step": "The file is stored in Azure Blob and encrypted through COMCRYPT for delivery to the vendor",
+      "detail": "The original file is uploaded to Azure Blob (uploadToBlob, ToppanUploadJob.java:314-318), then comcryptTokenHelper.requestToken requests encryption (:349-356); the COMCRYPT callback puts the encrypted file on the SFTP. The COMCRYPT service and its encrypted output: cannot verify from repo."
+    },
+    {
+      "step": "The file is sent to the vendor (Toppan) through SFTP",
+      "detail": "The delivery code exists (COMCRYPT callback to SFTP), but sftp.upload.disabledServers=toppan in prod, uat and dev (application-prod.properties:86; application-uat.properties:77; application-dev.properties:77). SftpUtil.isServerUploadDisabled (SftpUtil.java:111-113) makes ComcryptUploadProcessor throw SftpDisabledException and keep the operation record (ComcryptUploadProcessor.java:206-209), so the RD2 file does not reach Toppan while this property exists. The properties comment refers to OCMS-DF-2026-170 (Closed). Whether the block is lifted in Azure prod: cannot verify from repo. SFTP connection permission for the api server (demo remark): cannot verify from repo."
+    },
+    {
+      "step": "After delivery, the notice moves to the next stage (RR3) and is recorded as having been sent the 2nd letter",
+      "detail": "After delivery is confirmed, updateProcessingStage sets last stage RD2, next stage RR3 + duration in days, amount_payable, and admin fee 0 at non-RR3/DR3 stages (ToppanUploadHelper.java:1367-1411; fix for OCMS-DF-2026-170), and records ocms_request_driver_particulars tracking for RD1/RD2/RR3 (:889-891). Partial because the delivery gate is bypassed while SFTP is blocked (ToppanUploadJob.java:424-446): the stage still advances to RR3 and the notice counts as sent the 2nd letter although the file was not delivered, so a notice can lose its 2nd letter with no resend. OCMS-DF-2026-192 (Ready to UAT) still covers this behaviour."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS8.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: schedulers/MhaDownloadJobsScheduler, datahiveuenfin/{jobs/DataHiveUenFinJob,helpers/DataHiveUenFinHelper,services/DataHiveUenFinService}, services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, agencies/mha/upload/helpers/MhaNricDataHelper (reset letter address), cron-schedules-{prod,uat}.properties. Staff UI dan repo lain: tidak ada trigger terpisah",
+  "note": "Status 'Fully paid'. 'DOS' di story dibaca sebagai sumber data pemerintah yang diakses lewat DataHive: UEN dikirim ke view ACRA (V_DH_ACRA_FIRMINFO_R untuk registered dan _D untuk deregistered), hasilnya entity name masuk ke ocms_..._company_detail dan owner_driver.name, alamat masuk sebagai record mha_reg. Dua hal yang beda dari teks story: UEN hanya dikirim untuk notice company yang jatuh tempo di stage reminder (bukan semua company tiap hari), dan jadwalnya Senin-Sabtu 3x sehari tanpa hari libur umum. Yang paling penting: di cron-schedules-prod.properties:52 flag cron.mhadownload.uenfin.enabled=false, jadi job ini tidak jalan di PROD pada commit ini (UAT true). Hal yang tidak diminta story tetapi ada: notice company yang tidak ditemukan, deregistered, atau alamatnya kosong otomatis di-TS-ACR (dicatat di orphans). Tidak ada tiket pemeliharaan yang menyebut job ini (OCMS-DF-2026-137 hanya soal validasi format UEN, Closed). Nama view DataHive di PROD: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Logic menerima dan menyimpan entity name serta alamat dari DataHive/ACRA sudah lengkap, tetapi job dimatikan di PROD dan hanya memproses notice yang jatuh tempo. Minta URA konfirmasi apakah 'daily untuk semua company' dimaksudkan, dan kapan flag PROD dinyalakan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice company (ID type B / UEN) yang perlu di-follow-up",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:265-271; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:325-327",
+      "fit": "Sebagian",
+      "detail": "Query memilih id_type B (dan F), offender Y, stage RD1/RD2/RR3/DN1/DN2/DR3, next_processing_date <= hari ini, suspension_type NULL, belum di ocms_nro_temp dan bukan HST (DataHiveUenFinService.java:221-246). Record adhoc UNC/HST bertipe B juga ikut dari ocms_adhoc_nro_temp (baris 325-327). Jadi UEN hanya dikirim untuk notice company yang jatuh tempo di stage reminder, bukan semua company setiap hari seperti teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Proses berjalan setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:55-71; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-107; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:52",
+      "fit": "Sebagian",
+      "detail": "Scheduler cron.mhadownload.schedule = '0 30 11,16,23 ? * MON-SAT' (cron-schedules-prod.properties:119-120), libur umum dilewati (MhaDownloadJobsScheduler.java:67-69). Job 'DH UEN and FIN' dijalankan setelah job MHA hanya bila uenFinEnabled (baris 101-107). Di PROD cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52), UAT true (cron-schedules-uat.properties:52). Jadi di PROD tidak jalan sama sekali, dan Minggu serta libur umum memang tidak jalan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN ke DOS (DataHive/ACRA)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1031; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:48-49; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:392-410; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:251",
+      "fit": "Sebagian",
+      "detail": "batchProcessUenRecords memanggil batchRetrieveUENData (DataHiveUenFinService.java:1031). UEN dikirim sebagai query IN (batch 1000) ke view V_DH_ACRA_FIRMINFO_R dan V_DH_ACRA_FIRMINFO_D (DataHiveUENBatchService.java:48-49, 392-410). Sebagian karena: nama view DataHive di PROD belum diverifikasi menurut komentar cron-schedules-prod.properties:51 dan koneksi DataHive tidak bisa dibuktikan dari repo (cannot verify from repo). Catatan: daftar UEN disusun dengan string concatenation (baris 393-395), bukan parameter."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima entity name dan alamat terbaru dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1014-1044; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:397-402; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1366-1370",
+      "fit": "Sesuai",
+      "detail": "Hasil view dibaca ke CompanyInfo: ENTITY_NAME, ENTITY_TYPE, status, tanggal registrasi/deregistrasi, dan ADDRESS_ONE_* (block, level, unit, street, building, postal) (DataHiveUENBatchService.java:397-402). Registered/deregistered dibedakan lewat kolom SOURCE R/D dan dicatat di uenStatusMap (DataHiveUenFinService.java:1040-1044). Bila company tidak ditemukan, store dihentikan dan TS-ACR diterapkan (baris 1366-1370)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update entity name company di record notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1380; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1600-1631; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1410; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1798-1812; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1422-1425",
+      "fit": "Sesuai",
+      "detail": "updateCompanyDetails membuat atau mem-patch baris company_detail per (uen, noticeNo) dengan entityName, status, tipe, tanggal (DataHiveUenFinService.java:1380, 1600-1631). updateCompanyName mem-patch owner_driver.name untuk noticeNo + idNo + offenderIndicator Y (baris 1410, 1798-1812). Dieksekusi sebelum cek nama kosong (baris 1422-1425), jadi nama yang ada tetap tersimpan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update alamat company di record notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1383; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1633-1710; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723-1790",
+      "fit": "Sesuai",
+      "detail": "updateCompanyAddress membaca block, level, unit, street, building, postal dari DataHive lalu updateCompanyAddressWithNullSupport membuat (INSERT) atau meng-UPDATE record owner_driver_addr bertipe mha_reg untuk notice dan owner/driver indicator tersebut, termasuk menimpa dengan NULL bila DataHive kosong, dan menandai letter_address Y bila belum ada (DataHiveUenFinService.java:1633-1710, 1723-1790). Alamat kosong/street/block kosong ditandai TS-ACR (baris 1386-1397). Letter address lama di-reset sebelum proses (DataHiveUenFinJob.java:219)."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "story": "OCMS43.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: repccs/notice_creation/core/helpers/NoticeProcessingHelper (payment flag + eService message code per notice type), utilities/suspension_helpers/{RevivalBaseHelper,PermanentRevivalHelper}, crud/beans/SystemConstant, workflows/syncintranetinternet/SyncIntranetInternetService (push VON to eVON), workflows/adminfee/helpers/AdminFeeHelper, workflows/paymentcutoff/*, schedulers/ToppanUploadJobsScheduler. ocmseserviceapi: workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}. thirdpartyapi: workflows/axsNopo/service/AxsNopoServiceImpl (PONDetailsReq). ocmseserviceui: pages/Payment/{API,PaymentSearchResult}.ts. ocmsadminapi, ocmsadminui: not used for this story.",
+  "note": "Story status: Fully paid (status_with_ura); the requirement is only given in the story text, there is no flow deck. The code has a working payable/not-payable matrix: payment_acceptance_allowed and eservice_message_code are set per notice type, pushed to eVON by the SyncIntranetInternet cron, then eService and AXS validate (FP/PRA, AN, PS-ANS, court stage, payment in progress) before showing a notice. What does not match 'real-time' and 'pre-defined matrix': the intranet-to-internet push is a batch every 10 minutes (cron.syncintranetinternet.schedule=0 */10 * * * ?, cron-schedules-prod.properties:291), the matrix is spread over several helpers with no single table/config (the eService court-stage list at ParkingFinesServiceImplement.java:33 differs from SystemConstant.java:103), the Payment Acceptance Cutoff job for court notices is commented out in the scheduler (ToppanUploadJobsScheduler.java:123) and its UPDATE does not set is_sync='N', and AXS has its own filter that differs from eService (AxsNopoServiceImpl.java:125-129 hides every notice that has a crs_reason_of_suspension). Related tickets used as hints: OCMS-DF-2026-007 (E1 vs E2 on vehicle search), OCMS-DF-2026-010 (flag N overridden by a web txn record), OCMS-DF-2026-029 (flag and message on revival), OCMS-DF-2026-099 and OCMS-DF-2026-168 (eVON overwritten/not updated after payment); all Closed/Prod deployed, so they do not lower the verdict. Singpass for the ID search, the payment gateway, and the real server property values: cannot verify from repo.",
+  "recommendation": "Claim partially (see the Sebagian steps). The core payable/not-payable validation in eService, AXS and the UI exists; do not claim 'real-time' (10-minute batch), a single pre-defined matrix, or an automatic court cutoff.",
+  "steps": [
+    {
+      "step": "OCMS decides payable/not payable by notice type when the notice is created (X-type: not payable, V/S/D: payable, foreign: payable with message E6)",
+      "detail": "setProcessingStagesForX sets payment_acceptance_allowed=N and eservice_message_code=E4 (BLOCK_PAYMENT); setProcessingStagesForVSD sets Y and E1; setForeignVehicleSettings sets Y, PS-FOR, and E6. The message-code constants are at SystemConstant.java:193-200. This is the 'notice type' rule in the story. The staff create-notice path in ocmsadminapi (NoticeRecordHelper) was not traced separately."
+    },
+    {
+      "step": "OCMS decides payable/not payable by processing stage (stage validation rules, including a payment cutoff for court notices)",
+      "detail": "Stage rules exist, but only on revival: ESERVICE_ALLOWED_PAYMENT_STAGES and ESERVICE_E1_MESSAGE_STAGES (SystemConstant.java:109-118) are used by RevivalBaseHelper and PermanentRevivalHelper (OCMS-DF-2026-029). The court payment cutoff (payment_acceptance_allowed=N for notices whose court_payment_due_date has passed) does not run automatically: the call paymentAcceptanceCutoffService.executeJob() in ToppanUploadJobsScheduler.java:123 is commented out, it can only be triggered by manual POST /payment-acceptance-cutoff/execute, and the UPDATE in PaymentAcceptanceCutoffServiceImpl.java:79 only changes VON without setting is_sync='N', so the change does not automatically reach eVON. The eService court-stage list (ParkingFinesServiceImplement.java:33) differs from SystemConstant.java:103. There is no single matrix."
+    },
+    {
+      "step": "OCMS sends outstanding notices from the intranet to the payment channels (internet) in real time",
+      "detail": "SyncIntranetInternetService.syncIntranetToInternet loads VON rows with is_sync='N' (line 130) and MERGEs them into eocms_valid_offence_notice, including payment_acceptance_allowed, eservice_message_code, last/next_processing_stage, amount_payable (lines 295-309). This is a batch, not real-time: cron.syncintranetinternet.schedule=0 */10 * * * ? with enabled=true in cron-schedules-prod.properties:291-292 and payment.sync.enabled=true in application-prod.properties:100 (real server value: cannot verify from repo). One run is capped at MAX_RECORDS_PER_RUN=20000. A change that does not set is_sync='N' is not picked up (see the cutoff step). Tickets OCMS-DF-2026-168 (eVON overwritten by stale intranet data) and OCMS-DF-2026-099 (eVON not changed to PS-FP) are Closed/Prod deployed."
+    },
+    {
+      "step": "A raised admin fee also shows as the amount payable in the payment channels",
+      "detail": "AdminFeeHelper.batchUpdateAdminFee computes amount_payable = composition_amount + admin fee and sets is_sync='N' (lines 262-263), then syncAmountPayableToEvon (line 288) writes amount_payable straight to eVON without waiting for the 10-minute cron. The job is called from ToppanUploadJobsScheduler.java:122 (day-end 00:15). Only foreign-vehicle notices (vehicle_registration_type='F', line 166). A failure of the direct push is non-fatal and falls back to the sync cron."
+    },
+    {
+      "step": "The offender can search notices (notice number, vehicle number, or ID) in eService",
+      "detail": "POST v1/parkingfines picks the path from the payload: searchType=id (needs a JWT, handleIdNoSearchFromJwt), noticeNo (checkNoticesList), or vehicleNo (findParkingFinesByVehicleNo). Data is read from eVON/eocms_valid_offence_notice. Singpass login for the ID search: cannot verify from repo."
+    },
+    {
+      "step": "eService validates each notice (FP/PRA, AN/PS-ANS, court stage, payment flag, payment in progress) and decides payable or not",
+      "detail": "ID search: AN flag=Y or PS-ANS gives N with message E5, FP/PRA gives N with no message (lines 211-225). applyTransactionAndConditionLogicBatch (lines 269-315) blocks when a transaction exists within 300 seconds (E10, line 34), then uses the VON eservice_message_code. applyVehicleNoConditionLogic (374) gives E2/N for court stages on vehicle search; applyCpcConditionLogic (406) gives E4/N when the stage is court and the flag is N. Tickets OCMS-DF-2026-007 and OCMS-DF-2026-010 are Closed/Prod deployed."
+    },
+    {
+      "step": "The AXS channel also receives notices with the same payable/not-payable flag",
+      "detail": "PONDetailsReq (AxsNopoController) returns notices with a paymentAllowedFlag taken from payment_acceptance_allowed (line 754). But the filter is rewritten and differs from eService: isPaid at lines 125-129 hides every notice whose crs_reason_of_suspension is not null (including TS), PS only passes for epr_reason RIP/MID/RP2/DIP/FOR (lines 38, 148-155), and non-payable notices are still sent with flag N (comment at lines 135-136). The eService messages (E1-E12) are not sent to AXS. The same rules are written twice in two places, with no shared matrix."
+    },
+    {
+      "step": "The offender gets the right instruction: payable notices can be selected, not-payable ones only show a message",
+      "detail": "mapToMatrix sets isSelect='Y' only when paymentAcceptanceAllowed==='Y' and puts eserviceMessage/errorMessage in the message column (API.ts:49-53); a row can only be selected when isSelect==='Y' and not yet initiated (PaymentSearchResult.ts:243). The E1-E12 message texts come from the server user-message table (the table content: cannot verify from repo)."
+    }
+  ]
+}

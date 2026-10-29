@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.4",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (combineNotices, generateMessages, prepareTemplateData, sendBatchSms, saveSendStatus), jobs/NotificationSmsEmailJob}, utilities/smsutility/SmsUtil.sendBatchSms, application-{dev,uat,prod}.properties (sms.enable, sms.allowedSources), cron-schedules-*.properties (cron.notification.enabled). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Requirement diberikan di story text (status_with_ura: Demo paid 50% of 75%). Untuk owner individu (idType bukan B) reminder RD1 digabung per owner + stage + due date lalu dikirim sebagai batch SMS lewat Postman2 (SmsUtil). Temuan: (1) di application-prod.properties sms.enable=false dan tidak ada sms.allowedSources, jadi SmsUtil.sendBatchSms menolak kirim di prod; di uat dan dev sumber ENOTIFICATION di-allow; (2) cron.notification.enabled=false di semua environment; (3) teks SMS (template RD1_SMS_INDIVIDUAL) disimpan di tabel ocms_template_store di database, tidak ada di repo, jadi apakah teksnya menyebut letter pertama tidak bisa dibuktikan; (4) nomor mobile terbaru dari DataHive dimatikan flag (lihat OCMS12.3). Izin Postman2/SMS dan Vault: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Penggabungan notice per owner dan pengiriman batch SMS ada di code, tetapi SMS dimatikan di prod (sms.enable=false), cron nonaktif, dan isi template tidak terlihat di repo. Minta bukti template RD1_SMS_INDIVIDUAL dan konfirmasi config prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile pemilik individu diperoleh dari DOS (DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2488; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2722; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "refreshIndividualContactInfo mengambil kontak Singpass dari DataHive, tetapi refreshContactInfo kembali lebih awal selama cron.enareminder.datahive=false (nilai di dev, uat, prod, baris 48), sehingga yang dipakai nomor lama di owner_driver. Fit sama dengan OCMS12.3 langkah 2 dan OCMS12.5 langkah 1 (fakta yang sama). Koneksi DataHive/Vault: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilik individu yang unik diidentifikasi dan notice outstanding-nya digabung dalam satu reminder",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2222; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:174-180",
+      "fit": "Sesuai",
+      "detail": "Record reminder diberi nextProcessingStage = last stage (NJ:174-180), lalu combineNotices mengelompokkan dengan key 'I_<idNo>' + stage + paymentDueDate (NH:2178), menambah combinedNotices dan menjumlah amountPayable (NH:2185-2196). Hasilnya satu SMS per owner individu per stage dan due date. Pengecualian ENA individu (tidak digabung, NH:2171) tidak berlaku untuk RD1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi SMS memuat notice outstanding dan merujuk ke letter reminder pertama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:274-307; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-438; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-476",
+      "fit": "Sebagian",
+      "detail": "Template dipilih dengan nama <stage>_SMS_INDIVIDUAL[_COMBINED] (RD1_SMS_INDIVIDUAL, NH:459-476) dan diisi data noticeCount, combinedNotices, amountPayable, paymentDueDate (NH:424-430). Teks template ada di ocms_template_store (database), tidak ada di repo, jadi apakah SMS menyebut letter reminder pertama tidak bisa dibuktikan. Bila template tidak ditemukan, SMS dilewati (NH:1564-1567)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "SMS dikirim dalam satu batch job dan hasilnya dicatat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527-1612; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:396-410; ocmsadminprivateapi/src/main/resources/application-prod.properties:87; ocmsadminprivateapi/src/main/resources/application-uat.properties:80-82; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:42-60; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:601-640",
+      "fit": "Sebagian",
+      "detail": "sendBatchSms memecah ke batch maks 1000 dan memanggil SmsUtil.sendBatchSmsSimple dengan source ENOTIFICATION; saveSendStatus mencatat ke ocms_sms_notification_records (NH:601-640). Tetapi SmsUtil.sendBatchSms memblokir kirim bila sms.enable=false dan source tidak di sms.allowedSources (SmsUtil:396-410): prod sms.enable=false tanpa allowedSources (application-prod.properties:87) sehingga status 'disabled'; uat/dev meng-allow ENOTIFICATION. Cron harian juga enabled=false (NS:42-60). Izin akses Postman2 dari App Service: cannot verify from repo."
+    }
+  ]
+}

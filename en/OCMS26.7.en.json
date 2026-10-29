@@ -1,0 +1,33 @@
+{
+  "story": "OCMS26.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem}, workflows/notice_creation/core/helpers/SuspensionBaseHelper (court-stage guard for TS, not a matrix), crud/ocmsizdb/OcmsCourtCase; ocmsadminui utils/models/Icourtoutcomeapproval.d.ts. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court suspension matrix",
+  "note": "Requirement status is not given in stories.json (blank); the story is traced normally. The story asks OCMS to check a court settlement record, a warrant of commitment record and an instalment plan record against a matrix and then apply the right permanent suspension (PS) type/code. The code has neither the matrix nor those records. OCMS only writes the suspension_type and epr_reason_of_suspension that CAS sends through casUpdateCourtNotices (CasIntegrationServiceImpl.java:103-117, 430-459): the PS type decision is on the sender side, OCMS does not derive it. There is no settlement, warrant of commitment or instalment entity (ocms_court_case only has notice_no, court_payment_due_date, reason). What the suspension helper has is a court-stage guard for TS ('Notice is under Court processing', SuspensionBaseHelper.java:201-210); that is another rule and is not credited. Tickets OCMS-SR-2026-164 and OCMS-SR-2026-179 hint that the court sync from CAS to OCMS is not complete (hints, not proof). CAS contract and APIM protection: cannot verify from repo.",
+  "recommendation": "Do not claim as complete. Only writing the suspension_type that CAS sends exists. Ask URA/the team where the court PS matrix is built (OCMS or CAS), or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives a case adjudication update for a court fine paid to State Courts",
+      "detail": "There is no adjudication-update receiver. The REST casUpdateCourtNotices (CasIntegrationController.java:101-102) only accepts a per-notice stage/suspension push from CAS, with no court-fine, State Courts payment or outcome field (CasUpdateNoticeItem.java:26-74); not credited. Synonyms tried across the six repos (UI and API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Zero hits in the backend; only TypeScript types in the UI."
+    },
+    {
+      "step": "OCMS checks the court settlement record",
+      "detail": "There is no court settlement record. ocms_court_case only has notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31); court_settlement_amount is only a TypeScript type in the UI (Icourtoutcomeapproval.d.ts:1-42) with no backend. No code reads a settlement when choosing a suspension."
+    },
+    {
+      "step": "OCMS checks the warrant of commitment record",
+      "detail": "There is no warrant of commitment record in the backend. warrant_commitment_no (Icourtoutcomeapproval.d.ts:1-42) and woc_number (Icourtmention.d.ts:1-33) are only TypeScript types in the UI; ocmsadminapi has no entity or controller for either (only the paths /v1/warrantofarrest and /v1/courtmention in api-authorization.properties:23, without a controller)."
+    },
+    {
+      "step": "OCMS checks the instalment plan record",
+      "detail": "There is no instalment plan record in the backend (see OCMS26.9). The UI only has the menu label 'Court Installment Plans' (Meta/System.ts:159-162, Fsystemadmin.d.ts:29) with no page. court_payment_due_date in ocms_court_case is used by the Payment Acceptance Cutoff cron to close payment (PaymentAcceptanceCutoffServiceImpl.java:52-79); that is not an instalment plan and is not credited."
+    },
+    {
+      "step": "OCMS matches those conditions against a pre-defined matrix",
+      "detail": "There is no matrix or rule table that maps settlement/WOC/instalment to a PS type. suspension_type on VON is only copied from the CAS payload (CasIntegrationServiceImpl.java:430-459). SuspensionBaseHelper.java:201-210 only rejects TS on notices at a court stage; that is a stage guard, not a PS matrix. Grep: matrix, settlement, commitment, instalment, court suspension across the six repos."
+    },
+    {
+      "step": "The correct permanent suspension type/code is applied to the court fine notice",
+      "detail": "casUpdateCourtNotices writes suspension_type and epr_reason_of_suspension from the CAS payload to VON and eVON (CasIntegrationServiceImpl.java:103-117, 430-459; a null field keeps the old value, a Provided flag allows clearing). So a PS type can be set through the court path, but OCMS does not validate it against a matrix; a FULL_PAYMENT notice is rejected (CasIntegrationServiceImpl.java:336-343). Ticket OCMS-SR-2026-164: 36 WWP notices in CAS were not set in OCMS and were patched by hand. CAS contract: cannot verify from repo."
+    }
+  ]
+}

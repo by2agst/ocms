@@ -1,0 +1,25 @@
+{
+  "story": "OCMS9.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob (doExecute), helpers/NotificationSmsEmailHelper (combineNotices, getRecipientKey, prepareTemplateData, determineTemplateName, saveSendStatus, sendBatchSms)}. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "combineNotices merges notices by the key id_no + stage + payment due date, so for reminder stages (RD1, RD2, RR3, DN1, DN2, DR3) an individual receives one SMS listing all notice numbers. For stage ENA, individuals (id_type not B) are deliberately excluded from merging: each notice gets its own SMS (NotificationSmsEmailHelper.java:2166-2174; job comments :249,:279). This is the opposite of the story, even though ENA is the stage the demo remark highlights (Vault when the notice enters ENA). The 'ENA not combined' decision looks deliberate (UPDATED comment in the code); no requirement source appears in the maintenance tickets that were grepped, and nothing in this story states it. One more thing to watch: the key includes stage and due date, so an individual with an RD1 and an RD2 notice on the same day, or with different due dates, still receives more than one SMS. The eNotification cron is disabled in the repo properties (see OCMS9.4).",
+  "recommendation": "Claim partially: merging only works for reminder stages with the same due date; individual ENA is deliberately not merged, which contradicts the story",
+  "steps": [
+    {
+      "step": "OCMS groups that day's batch records by the same NRIC/FIN",
+      "detail": "After ENA and reminder records are merged (NotificationSmsEmailJob.java:191), combineNotices groups them by the key recipientKey (I_<id_no> for individuals, B_<UEN> for companies) + nextProcessingStage + paymentDueDate (NotificationSmsEmailHelper.java:2151-2160,2178,2230-2252). The same NRIC with a different stage or due date is not grouped, so one ID can still get more than one SMS."
+    },
+    {
+      "step": "An individual with several notices at stage ENA receives only 1 SMS",
+      "detail": "For stage ENA and id_type not B, combineNotices uses the unique key recipientKey + '_ENA_' + noticeNo so each notice becomes its own record (NotificationSmsEmailHelper.java:2166-2174). The job states 'each notice gets its own SMS (no deduplication by phone)' (NotificationSmsEmailJob.java:249,279-284). So an individual with three ENA notices receives three SMS, which contradicts the story."
+    },
+    {
+      "step": "For reminder stages, notices with the same NRIC are merged into one record with all notice numbers and the total amount",
+      "detail": "When the key matches, the notice number is appended to combinedNotices with a dot separator and amountPayable is summed (NotificationSmsEmailHelper.java:2180-2200). prepareTemplateData fills noticeCount and combinedNotices (:425-430) and determineTemplateName appends the _COMBINED suffix (:459-473) so the SMS carries the details of all notices."
+    },
+    {
+      "step": "OCMS sends 1 SMS per merged record and logs the status for each notice in it",
+      "detail": "sendBatchSms builds one batch entry per record, so a merged record becomes one SMS (NotificationSmsEmailHelper.java:1527-1580; NotificationSmsEmailJob.java:279-284). saveSendStatus splits combinedNotices and saves the SMS status for each notice (NotificationSmsEmailHelper.java:601-620). This applies to records that are actually merged (reminders); the real result in an environment: cannot verify from repo."
+    }
+  ]
+}

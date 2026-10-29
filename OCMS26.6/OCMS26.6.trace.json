@@ -1,0 +1,64 @@
+{
+  "story": "OCMS26.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem} (satu-satunya pintu masuk update court dari CAS), crud/ocmsizdb/OcmsCourtCase (3 kolom), api-authorization.properties; ocmsadminui utils/models/{Icourtmention,Icourtoutcomeapproval}.d.ts, NoticeSearch/hook/useSearch.ts, Notice/form/History.tsx. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code adjudication",
+  "note": "Requirement status tidak diberikan di stories.json (blank); story ditrace normal. Story minta OCMS menerima adjudication update kasus guilty plea lalu mengisi notice dengan processing stage, mention outcome, default sentence, court fine, dan instalment plan agar bisa dilihat staff. Code tidak punya fitur ini. Satu-satunya yang menyentuh court adalah REST casUpdateCourtNotices: CAS mengirim push per notice yang menimpa suspension_type, last/prev/next processing stage, amount_payable, payment_acceptance_allowed, epr_reason_of_suspension dan atoms_flag di VON/eVON (CasIntegrationServiceImpl.java:103-117). Tidak ada kolom atau field untuk plea, mention outcome, default sentence, court fine atau instalment; entity ocms_court_case hanya punya notice_no, court_payment_due_date, reason. Di UI hanya ada type TypeScript Icourtmention/Icourtoutcomeapproval dan grid History yang tab-nya di-comment; resource courtmention dipanggil UI tetapi tidak ada controller/entity-nya di ocmsadminapi. Hanya langkah 'update processing stage' yang benar-benar dilakukan code (Sebagian, karena isinya apa adanya dari CAS tanpa kaitan ke adjudication). Tiket pemeliharaan relevan: OCMS-SR-2026-164 (36 notice WWP tertutup di CAS tapi masih outstanding di OCMS, di-patch manual) dan OCMS-SR-2026-179 (stage NRO/CSD/CSR dari CAS tidak membuat payment_acceptance_allowed terisi, status On Hold) menjadi petunjuk bahwa sinkron court dari CAS ke OCMS belum penuh; ini petunjuk, bukan bukti. Perilaku endpoint di APIM/prod: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya update processing stage lewat casUpdateCourtNotices yang bisa disebut sebagai fondasi parsial. Minta URA/tim konfirmasi di repo mana penerimaan adjudication State Courts dan penyimpanan mention outcome/default sentence/court fine/instalment dibangun, atau tandai sebagai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima case adjudication update untuk kasus yang terdakwanya guilty plea",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:26-74",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penerima adjudication update dari State Courts. Pintu masuk terdekat adalah REST casUpdateCourtNotices (CasIntegrationController.java:101-102) yang menerima push per notice dari CAS dengan field noticeNo, suspensionType, stage, tanggal, amountPayable, paymentAcceptanceAllowed, eprReason, atomsFlag (CasUpdateNoticeItem.java:26-74); tidak ada field plea/guilty, outcome atau sentence, jadi tidak dikreditkan. Sinonim yang dicoba di enam repo (UI dan API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Di backend nol hasil; hanya type TypeScript di UI. Sumber data adjudication (State Courts/CAS) dan APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Processing stage notice di-update sesuai hasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:103-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:430-459",
+      "fit": "Sebagian",
+      "detail": "casUpdateCourtNotices menimpa last/prev/next_processing_stage dan tanggalnya di VON dan eVON memakai nilai kiriman CAS, dengan fallback ke nilai lama jika field null (CasIntegrationServiceImpl.java:103-117, 430-459). Jadi stage memang bisa berubah lewat jalur court, tetapi OCMS tidak menurunkan stage dari adjudication/plea, hanya menyalin kiriman CAS; notice yang sudah FULL_PAYMENT ditolak 'Notice already Paid' (CasIntegrationServiceImpl.java:336-343). Tiket OCMS-SR-2026-179 (open, On Hold): stage NRO/CSD/CSR dari CAS belum memicu payment_acceptance_allowed. Endpoint dilewatkan JwtFilter (plus-*/webhook) dan proteksi bergantung APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mention outcome dicatat di notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Icourtmention.d.ts:1-33; ocmsadminapi/src/main/resources/api-authorization.properties:23",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penyimpanan mention outcome di backend. Icourtmention.d.ts:1-33 (mention_outcome, off_def_sen_dur, woc_number) hanya TypeScript type di UI; UI memanggil resource courtmention (useSearch.ts:99-111) dan api-authorization.properties:23 hanya mendaftarkan path /v1/courtmention untuk role, tetapi ocmsadminapi tidak punya controller, entity atau repository courtmention (crud/ocmsizdb hanya OcmsCourtCase). Panggilan itu tidak punya tujuan di backend; perilaku routing di APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Default sentence dan court fine yang dijatuhkan dicatat",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31; ocmsadminui/src/utils/models/Icourtoutcomeapproval.d.ts:1-42",
+      "fit": "Tidak ada code",
+      "detail": "Entity ocms_court_case hanya punya notice_no, court_payment_due_date dan reason (OcmsCourtCase.java:24-31); tidak ada kolom default sentence atau jumlah court fine. default_sentence/court_settlement_amount hanya ada sebagai TypeScript type di UI (Icourtoutcomeapproval.d.ts:1-42) tanpa backend. amount_payable di VON bisa ditimpa CAS (CasIntegrationServiceImpl.java:103-117) tetapi itu jumlah payable, bukan court fine hasil adjudication yang dicatat; tidak dikreditkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail instalment plan (jika ada) dicatat",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada entity, tabel, repository atau controller instalment plan di ocmsadminapi maupun ocmsadminprivateapi. Satu-satunya data court per notice adalah court_payment_due_date dan reason (OcmsCourtCase.java:24-31). Di UI hanya ada label menu 'Court Installment Plans' di Meta/System.ts:159-162 dan i18n 'court_fine_installment' tanpa halaman list/form (pages/System/list hanya 5 halaman lain). Sinonim yang dicoba di enam repo (UI dan API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Di backend nol hasil; hanya type TypeScript di UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Court Processing Officer bisa melihat detail ini di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/History.tsx:71-100; ocmsadminui/src/pages/Notice/form/History.tsx:170-172",
+      "fit": "Tidak ada code",
+      "detail": "Grid 'Court Application History' (Court Outcome, Status) ada di History.tsx:71-100 tetapi tab-nya di-comment (History.tsx:170-172), dan data courtmention tidak punya backend, jadi tidak ada layar yang menampilkan mention outcome, sentence, fine atau instalment. Pencarian Notice Search by court mention date (useSearchParams.tsx:234-241) memanggil resource courtmention yang tidak punya controller."
+    }
+  ]
+}

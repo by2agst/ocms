@@ -1,0 +1,25 @@
+{
+  "story": "OCMS18.17",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension, helpers/SuspensionProcessingHelper.validateSuspension (Rule 4, PS over PS from PLUS), helpers/PermanentSuspensionHelper.processPS/validateOverlap, SuspensionBaseHelper. A copy exists in ocmsadminprivateapi framework/workflows/plus and utilities/suspension_helpers.",
+  "note": "The 'existing PS' check exists (suspension_type = PS in valid_offence_notice). What does not match the story: after that check OCMS does not send a message about the existing PS. Checking mode replies eligible:true 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205) and execute mode revives the old PS and applies the new one straight away (PermanentSuspensionHelper.java:125-130) without waiting for PLUS. The only 'already PS' message is for exactly the same PS code ('Success Notice already PS', PermanentSuspensionHelper.java:91). A code comment (PermanentSuspensionHelper.java:253) mentions test plan OCMS 18.17/18/20, but a comment is not evidence. Maintenance ticket OCMS-DF-2026-075 (closed, prod deployed) added a paid-notice exception to the same PS check (PermanentSuspensionHelper.java:82-95). PLUS behaviour and which copy is called: cannot verify from repo.",
+  "recommendation": "Claim only partially: the existing PS check exists, the existing-PS message to PLUS does not. Add a dedicated reply (old PS code, date) when checking finds a different PS, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives the permanent suspension request from PLUS for one or more notices",
+      "detail": "POST /plus-apply-suspension accepts noticeNo (list), suspensionType, reasonOfSuspension, officerAuthorisingSuspension, forces suspensionSource = PLUS (SuspensionProcessingController.java:530-543) and processes each notice (SuspensionProcessingController.java:546-550). Auth/APIM in front of the PLUS endpoint: cannot verify from repo."
+    },
+    {
+      "step": "OCMS validates that the permanent suspension request can be allowed",
+      "detail": "Same as OCMS18.16 step 1: execute checks the code per source, stage and paid status (PermanentSuspensionHelper.java:100-117). In checking mode for a notice that already has a PS, validatePSRequestForPlusValidation (SuspensionProcessingHelper.java:560-586) checks code, paid and CFC/CPC but not stage/court. When the old PS is FP/PRA, the new PS may only be APP/CAN/CFA/VST (PermanentSuspensionHelper.java:212-218, lists come from standard codes CRS_PS_CODES and PS_REFUND_CODES: cannot verify values from repo)."
+    },
+    {
+      "step": "OCMS checks whether a permanent suspension is already applied to the notice",
+      "detail": "The check is done on the VON: suspensionType == PERMANENT (PermanentSuspensionHelper.java:79, 127, 198; SuspensionProcessingHelper.java:387-388) and the old code is read from eprReasonOfSuspension (PermanentSuspensionHelper.java:80, 203). It is used in both modes (checking and execute). The same PS code is recognised and treated as done (PermanentSuspensionHelper.java:81-92). The check uses the VON columns, not the active rows in ocms_suspended_notice."
+    },
+    {
+      "step": "OCMS sends a message to PLUS informing that a permanent suspension already exists",
+      "detail": "For an old PS with a different code, checking replies eligible:true 'Validation passed - eligible for suspension' (SuspensionProcessingHelper.java:405, 1198-1205) without mentioning the old PS, and execute immediately revives the old PS and applies the new one (PermanentSuspensionHelper.java:125-130). The 'already PS' message exists only for exactly the same PS code, and even then as a success status 'Success Notice already PS' (PermanentSuspensionHelper.java:91). So PLUS is not told about the old PS in the case the story describes. The ocmsadminprivateapi copy is the same (ocmsadminprivateapi SuspensionProcessingHelper.java:119-134; ocmsadminprivateapi PermanentSuspensionHelper.java:123-125, 172-176)."
+    }
+  ]
+}

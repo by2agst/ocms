@@ -1,0 +1,46 @@
+{
+  "story": "OCMS24.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi sftp-prod.properties (daftar server tanpa State Courts); ocmsadminapi crud/ocmsizdb/OcmsCourtCase (3 kolom), workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}, auth/filter/JwtFilter; ocmsadminui NoticeSearch/hook/useSearch.ts, Notice/form/History.tsx, utils/models/{Icourtcase,Icsdbatch}.d.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code court application",
+  "note": "Story minta OCMS menerima return file hasil court application dari State Courts (satu batch atau sub-batch) lalu meng-update batch notice. Code tidak punya fitur ini: tidak ada SFTP server State Courts (sftp-prod.properties:57-107 hanya ces, mha, toppan, icms, repccs, lta, cftvhub), tidak ada cron atau parser return file, dan entity ocms_court_case hanya punya notice_no, court_payment_due_date, reason tanpa batch number. Yang ada hanya REST casUpdateCourtNotices yang menerima push per notice dari CAS (bukan file, bukan batch) dan type TypeScript Icsdbatch/Icourtcase di UI tanpa backend. Tiket OCMS-SR-2026-164 (36 notice sudah ditutup di CAS sebagai WWP tetapi masih outstanding di OCMS, di-patch manual) memberi petunjuk bahwa hasil court tidak otomatis masuk ke OCMS; ini petunjuk, bukan bukti. Status 'Fully paid' di sheet tidak didukung code. Permission SFTP ke api App Service server dan isi kontrak State Courts: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Minta URA/tim konfirmasi di repo mana penerimaan return file State Courts dibangun, atau tandai sebagai gap. Hanya REST casUpdateCourtNotices (push per notice dari CAS) yang bisa disebut sebagai fondasi terkait.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima return file hasil court application dari State Courts (lewat SFTP)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/sftp/sftp-prod.properties:57-107",
+      "fit": "Tidak ada code",
+      "detail": "Daftar SFTP server prod hanya ces, mha, toppan, icms, repccs, lta, cftvhub (sftp-prod.properties:57-107); tidak ada server State Courts, tidak ada cron/parser return file court di enam repo (grep state court, statecourt, judiciary, chargesheet, csd_batch: nol hasil di src ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi). Demo remark menyebut permission SFTP ke api App Service server: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima return file sebagai satu batch penuh atau sub-batch milik batch yang sama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31; ocmsadminui/src/utils/models/Icsdbatch.d.ts:1-11",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada konsep batch court application di backend: entity ocms_court_case hanya punya notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31); csd_batch_no/batch_no hanya muncul sebagai TypeScript type di UI (Icsdbatch.d.ts:1-11) tanpa tabel, repository, atau controller. Logika gabung sub-batch tidak ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memproses file untuk meng-update batch notice sesuai hasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:96-119",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pemroses file. Jalur terdekat adalah REST casUpdateCourtNotices: pihak luar (CAS) mengirim JSON per notice (maks 500) dan OCMS menimpa kolom stage, suspension, amount_payable di VON/eVON (CasIntegrationServiceImpl.java:96-119). Itu push per notice, bukan return file, dan tidak membawa batch number atau hasil approved/rejected. Endpoint ini dilewatkan JwtFilter (JwtFilter.java:183), proteksi mengandalkan APIM: cannot verify from repo. Dianggap jalur lain, bukan pemenuhan langkah ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status notice dalam batch terupdate dan batch ditandai sudah diproses",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/History.tsx:71-100; ocmsadminui/src/pages/Notice/form/History.tsx:170-172",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kolom/tabel status batch di backend (lihat langkah 2). Di UI, grid Court Application History (batch_status, Outcome Date) ada di History.tsx:71-100 tetapi tab-nya di-comment (History.tsx:170-172) dan resource courtcase tidak punya controller di ocmsadminapi."
+    }
+  ]
+}

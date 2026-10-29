@@ -1,0 +1,73 @@
+{
+  "story": "OCMS41.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishApprovalHelper, helpers/FurnishSyncHelper}, crud/ocmsizdb/OcmsFurnishApplication, crud/ocmspiiezdb/EocmsFurnishApplication, framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl, application-prod.properties. ocmsadminapi crud/ocmsizdb/{OcmsFurnishApplication,OcmsFurnishApplicationDoc}/*Controller, api-authorization.properties. ocmsadminui pages/Furnish/list/FurnishSummaryList, utils/data/LinkData, utils/Meta/WorkItem, App.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Status 'Requirement given - Gen flow'. Code membuktikan: submission yang gagal salah satu pengecekan auto-approval ditandai status P dengan reason_for_review di Intranet dan Internet, data hirer/driver dan dokumen bukti disalin ke Intranet, dan record itu muncul di layar staff Furnished Hirer/Driver (default filter status P). Yang tidak sama dengan kata-kata story: tidak ada objek 'work item' (menu Work Item dikomentari di LinkData.tsx:398 dan tidak ada route), yang ada hanya baris furnish application berstatus P plus TS-PDP pada notice (kegagalan TS-PDP hanya di-log); dan tidak ada penugasan ke officer tertentu, semua user dengan akses menu melihat daftar yang sama. Job email harian ke officer berisi daftar pending ada, tetapi email.enableSmtp=false di application-prod.properties:80 (nilai server nyata cannot verify from repo). Tiket dipakai: OCMS-DF-2026-073 (submission salah masuk manual approval karena pasangan stage ROV/ROV belum furnishable, sudah diperbaiki di kode), OCMS-DF-2026-004 (template email officer harian belum ada di PRD, Closed).",
+  "recommendation": "Klaim sebagian: routing ke manual review dan data lengkap ada; objek 'work item' dan penugasan per officer tidak ada (yang ada daftar bersama berstatus P). Minta URA konfirmasi apakah daftar Furnished Hirer/Driver dianggap sebagai work item dashboard",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission yang gagal salah satu pengecekan auto-approval dikenali sebagai tidak bisa di-approve otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:158-177; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:183-225; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:237-244",
+      "fit": "Sesuai",
+      "detail": "processSingleSubmission memanggil runValidationChecks; kalau ada pengecekan yang gagal hasilnya pending dengan reason (FurnishProcessingService.java:164-176) dan executeManualReview dipanggil. 6 pengecekan di FurnishApprovalHelper.java:199-220 (PS aktif, HST ID, FIN/Passport, stage tidak furnishable, offender existing, prior submission). OCMS-DF-2026-073: pasangan stage ROV|ROV dulu salah masuk manual, kini ada di SystemConstant.java:239. Edge: record yang exception (FurnishProcessingService.java:143-147) tidak diberi reason dan tidak diproses ulang otomatis, tetapi tetap berstatus P dari sync."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Submission ditandai Pending (status P) dengan alasan review di Intranet DB",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:189-198; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl.java:78-91; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:528-531",
+      "fit": "Sesuai",
+      "detail": "batchUpdateStatusPending mengelompokkan per reason lalu UPDATE ocms_furnish_application SET status='P', reason_for_review=:reason, remarks=:reason (FurnishProcessingService.java:189-198; OcmsFurnishApplicationServiceImpl.java:78-91). Gagal SQL hanya di-log (FurnishProcessingService.java:202-204)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Pending dan alasannya juga ditulis ke Internet DB",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:218-228; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl.java:158-171",
+      "fit": "Sesuai",
+      "detail": "batchSyncStatusToInternet memanggil eFurnishService.batchUpdateStatus(txnNos, 'P', reason, ocmsiz_app_conn) per kelompok reason (FurnishProcessingService.java:218-228), meng-UPDATE eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:158-171)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars hirer/driver yang difurnish tersedia untuk staff di Intranet DB",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:38-86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:179-246",
+      "fit": "Sesuai",
+      "detail": "Sebelum pengecekan, batchSyncApplications menyalin nama, ID, alamat, kontak, role, relationship, jawaban questionnaire, periode sewa, data owner dan CorpPass staff dari eocms_furnish_application ke ocms_furnish_application (FurnishSyncHelper.java:179-246), dibaca layar staff lewat endpoint furnishapplicationlist (OcmsFurnishApplicationController.java:52-72)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dokumen bukti yang diunggah ikut tersedia untuk staff",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:89-145; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:251-281; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplicationDoc/OcmsFurnishApplicationDocController.java:59; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplicationDoc/OcmsFurnishApplicationDocController.java:85; ocmsadminui/src/pages/Furnish/hooks/useFurnishAttachment.ts:55; ocmsadminui/src/pages/Furnish/hooks/useFurnishAttachment.ts:107",
+      "fit": "Sesuai",
+      "detail": "batchSyncDocuments menyalin metadata dokumen (nama file tanpa path blob, mime, size, doc_type) ke ocms_furnish_application_doc (FurnishSyncHelper.java:89-145, 251-281). Layar staff mengambil daftar lewat furnishapplicationdoclist dan mengunduh lewat furnish-downloads dari Azure Blob (OcmsFurnishApplicationDocController.java:59, 85; useFurnishAttachment.ts:55, 107). Isi file di blob storage cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item yang berisi notice dan particulars yang difurnish",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:398; ocmsadminui/src/utils/Meta/WorkItem.ts:1-10; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:515-521; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:754-786",
+      "fit": "Sebagian",
+      "detail": "Tidak ada entity atau tabel 'work item'. Menu Work Item dikomentari (LinkData.tsx:398) dan utils/Meta/WorkItem.ts hanya berisi path, tanpa route di App.tsx. Padanannya adalah baris ocms_furnish_application berstatus P. Pada notice juga dipasang TS-PDP (FurnishApprovalHelper.java:515-521, 754-786), tetapi kalau ditolak hanya di-log dan status tetap P (baris 517-521)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item diarahkan ke dashboard officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:59-62; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:71-79; ocmsadminui/src/utils/data/LinkData.tsx:318-327; ocmsadminui/src/utils/data/LinkData.tsx:386; ocmsadminui/src/App.tsx:192-194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl.java:146-157; ocmsadminprivateapi/src/main/resources/application-prod.properties:80",
+      "fit": "Sebagian",
+      "detail": "Layar 'Furnished Hirer/Driver' (route /furnished-list, menu LinkFurnish) memuat furnishapplicationlist dengan filter default status P (FurnishSummaryList.tsx:59-62, 71-79; LinkData.tsx:318-327, 386; App.tsx:192-194). Itu daftar bersama; tidak ada kolom atau logika penugasan ke officer tertentu. Job email harian ke officer berisi daftar status P ada (FurnishNotificationServiceImpl.java:146-157), tetapi email.enableSmtp=false di application-prod.properties:80; nilai server nyata cannot verify from repo. OCMS-DF-2026-004 (template email officer harian belum ada di PRD) Closed."
+    }
+  ]
+}

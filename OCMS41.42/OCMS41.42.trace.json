@@ -1,0 +1,64 @@
+{
+  "story": "OCMS41.42",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/Valid.ts + Format/ValidNOPO.ts (validasi format), components/datagrid/table/TableBody (empty text), pages/Notice/hook/useODH (alert hasil cek); ocmsadminapi workflows/furnish/{stafffurnish/controllers/StaffFurnishController, helpers/FurnishabilityChecker} (endpoint furnish-redirect-check: not found, PS, Advisory Notice, stage), api-authorization.properties. Tidak ada cek paid/cancelled eksplisit",
+  "note": "Validasi format di sisi UI ada untuk notice number (format + check digit) dan ID number (NRIC/FIN/UEN). Validasi vehicle number hampir tidak melakukan apa-apa kecuali tipe registrasi dipilih. Pencarian tidak memfilter notice yang furnishable; kalau tidak ada hasil, yang muncul hanya teks generik 'No records to display'. Pengecekan furnishable baru terjadi saat officer menekan Furnish/Redirect (endpoint furnish-redirect-check), menolak dengan pesan untuk: notice tidak ditemukan, PS aktif, Advisory Notice (an_flag=Y), dan stage di luar NPA-CPC. Tidak ada cabang eksplisit untuk notice paid atau cancelled; apakah notice paid/cancelled otomatis punya PS aktif tidak bisa dibuktikan dari repo ini. Endpoint furnish-redirect-check hanya ada di mapping functionId OCMS_OIC_FURNISH (api-authorization.properties:79), tidak di OCMS_NOTICE_SEARCH/EDIT; role Notice Processing Officer ke functionId cannot verify from repo. Demo remark tentang cron dan sync Internet-Intranet berkaitan dengan eService, bukan cek di Staff Portal ini. Ada juga endpoint GET /furnish/officer/manual/notice/{noticeNo}/furnishable di ManualFurnishController yang tidak dipanggil UI dan tidak ada di mapping otorisasi (akan ditolak 403 oleh interceptor).",
+  "recommendation": "Klaim sebagian. Format notice/ID dan penolakan karena PS, Advisory, stage, atau notice tidak ada sudah ada; cek paid/cancelled eksplisit dan pesan 'tidak ada notice furnishable' di level pencarian belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice number yang formatnya salah ditolak dengan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:18-32; ocmsadminui/src/utils/validation/Format/ValidNOPO.ts:12-37; ocmsadminui/src/i18n/en/translation.json:988-991",
+      "fit": "Sesuai",
+      "detail": "Validator NoticeNo memakai Format('NOTICE') -> ValidNotice: regex 9 digit + 1 huruf dan check digit berbobot; gagal menampilkan 'Invalid notice no.' (translation.json:988-991). Hanya dicek di sisi UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID number yang formatnya salah ditolak dengan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:106-129",
+      "fit": "Sesuai",
+      "detail": "Validator IDNo menerima hanya NRIC, FIN, atau UEN yang valid (kecuali tipe Passport); gagal menampilkan 'Number does not match NRIC/FIN/UEN format'. OCMS-DF-2026-098 (Closed, Prod deployed) memperbaiki FIN berawalan M berakhiran J."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Vehicle number yang tidak valid ditolak dengan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:34-47",
+      "fit": "Sebagian",
+      "detail": "Validator VehicleNo: cek format lokal selalu return true (Valid.ts:40-46, Format('VEHICLE') di-comment); hanya cek 'sesuai tipe registrasi terpilih' yang aktif (Valid.ts:48 dst) dan itu dilewati kalau tipe tidak dipilih. Jadi vehicle number asal-asalan lolos."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika tidak ada notice ditemukan, officer diberi tahu",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/table/TableBody.tsx:19",
+      "fit": "Sebagian",
+      "detail": "Pencarian tidak memfilter notice furnishable; jika hasil kosong, grid hanya menampilkan teks generik 'No records to display' (TableBody.tsx:19), bukan pesan error bahwa tidak ada notice furnishable untuk nilai yang dicari."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tidak furnishable (PS, Advisory, di luar stage, tidak ada) ditolak dengan pesan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:91-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:340-352; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:363-372; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:55-103; ocmsadminui/src/pages/Notice/hook/useODH.tsx:105-130; ocmsadminapi/src/main/resources/api-authorization.properties:79",
+      "fit": "Sesuai",
+      "detail": "Saat officer menekan Furnish/Redirect, useODH memanggil POST staff-furnish/furnish-redirect-check (useODH.tsx:105-110). FurnishabilityChecker.checkFurnishability menolak: notice tidak ada, PS aktif (suspensionType PS dan dateOfRevival null), an_flag Y, dan lastProcessingStage di luar NPA..CPC (FurnishabilityChecker.java:91-130, 340-372). Pesan tampil di modal alert error (useODH.tsx:121-130). Waktunya saat tombol ditekan, bukan saat pencarian. Endpoint ini hanya ada di functionId OCMS_OIC_FURNISH (api-authorization.properties:79); mapping role cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah paid atau cancelled ditolak dengan pesan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:91-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishabilityChecker.java:340-352",
+      "fit": "Sebagian",
+      "detail": "Tidak ada cabang eksplisit untuk status paid atau cancelled di FurnishabilityChecker (hanya not found, PS, Advisory, stage). Notice paid/cancelled hanya tertolak kalau sudah punya PS aktif atau stage-nya di luar NPA..CPC; apakah proses pembayaran/cancel selalu memasang PS tidak bisa dibuktikan dari repo ini. Pesan yang muncul pun generik PS/stage, bukan 'paid' atau 'cancelled'."
+    }
+  ]
+}

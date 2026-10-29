@@ -1,0 +1,37 @@
+{
+  "story": "OCMS19.16",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-revive-suspension, mode checking=true, validateSingleRevival) and helpers/RevivalBaseHelper (PLUS_ALLOWED_REVIVAL_CODES). Auth: auth/filter/JwtFilter, application-prod.properties. Other repos: no code specific to this story (PLUS is an external system, not in the repos).",
+  "note": "Story status is 'No requirement' (requirement not given); traced normally from the story text. OCMS receives the PLUS revival request at POST /plus-revive-suspension; with query param checking=true the endpoint only validates (dry-run) and changes no data. Validation present: mandatory fields, revival code limited to CSR/OTH, notice exists, suspension type matches the VON, and only 1 PS notice per request. Gaps: (1) the dry-run (validateSingleRevival) is thinner than execute mode: it does not check the revival code against ocms_suspension_reason and does not check that the srNo is active, so the dry-run can say 'eligible' while execute rejects. (2) The suspension type check uses VON.suspension_type (a single value), not the active rows in ocms_suspended_notice. (3) The TS-HST block exists only in staff-revive-eligibility (SuspensionProcessingController.java:377-382) and is not used on the PLUS path. (4) The CSR/OTH list comes from a comment 'OCMS 19 specification'; that spec is not given. Endpoint protection: JwtFilter skips plus-* and ocms.plus.key.validation.enabled=false (this value is not used by ocmsadminapi code); protection through APIM is not visible in the repo, cannot verify from repo. The demo remark (PLUS API-DB connection dropping) cannot verify from repo. No maintenance ticket changes this PLUS validation.",
+  "recommendation": "Can be claimed for the core validation (mandatory fields, CSR/OTH codes, notice exists, 1 PS per request). Record the dry-run vs execute gap and the TS-HST block that is missing on the PLUS path; confirm with URA the TS-HST rule for PLUS and the APIM protection.",
+  "steps": [
+    {
+      "step": "PLUS sends a revival request (checking mode) to OCMS",
+      "detail": "Endpoint POST /plus-revive-suspension accepts noticeNo[], caseNo, suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival, optional srNo, and query param checking (default false). JwtFilter skips all plus-* (auth/filter/JwtFilter.java:179) and ocms.plus.key.validation.enabled=false (application-prod.properties:61) is not used by code; APIM protection cannot verify from repo."
+    },
+    {
+      "step": "OCMS validates the mandatory request fields",
+      "detail": "noticeNo, caseNo, revivalReason, revivalRemarks and officerAuthorisingRevival are mandatory; if empty the response is HTTP 400 OCMS-4000. Remarks max 200 characters (:737-742). suspensionType is not checked as mandatory (null triggers a generic error in validation, :944)."
+    },
+    {
+      "step": "OCMS validates the revival reason allowed for PLUS",
+      "detail": "For source PLUS only codes CSR and OTH pass (RevivalBaseHelper.java:77-80); other codes are rejected with 'not allowed for PLUS. Allowed: CSR, OTH'. The list comes from an OCMS 19 spec comment that is not given."
+    },
+    {
+      "step": "OCMS validates that the requested notice exists",
+      "detail": "Notices are batch-loaded through findByNoticeNoIn then checked per notice; not found -> eligible=false 'Invalid Notice Number'."
+    },
+    {
+      "step": "OCMS validates that the notice is currently suspended (TS/PS)",
+      "detail": "The check uses VON.suspension_type, which holds a single value, not the active rows in ocms_suspended_notice; a notice with both TS and PS active can be refused for the type not shown on the VON. The TS-HST block exists only in staff-revive-eligibility (:377-382) and does not apply to PLUS."
+    },
+    {
+      "step": "OCMS allows only 1 PS notice per request",
+      "detail": "If suspensionType=PS and noticeNo count > 1 the response is HTTP 400 OCMS-4000 'You can only revive one Notice with PS at a time.' (same rule as staff-revive-eligibility :402-410)."
+    },
+    {
+      "step": "Checking mode only validates and changes no data",
+      "detail": "checking=true calls validateRevivalList (no DB write) and the result is returned at :782. But the dry-run skips checks that execute performs: revival code against ocms_suspension_reason (RevivalBaseHelper.java:175-183) and active srNo (TemporaryRevivalHelper.java:145-147), so 'eligible' does not mean execute will succeed."
+    }
+  ]
+}

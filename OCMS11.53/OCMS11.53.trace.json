@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.53",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi: crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findNoticesForDataHiveEnrichment), framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper, framework/workflows/datahiveuenfin, framework/schedulers/MhaDownloadJobsScheduler, notification_sms_email/jobs/NotificationSmsEmailJob, cron-schedules-prod.properties. Repo lain tidak dipakai",
+  "note": "Status di stories.json: Demo paid (50% of 75%), 1 point. Demo remark: Vault code split, koneksi Vault diberikan ke api App Service. Pengecekan dan update data driver sebelum 3rd letter (DR3) berjalan lewat cron MHA/DataHive yang sama dengan owner (OCMS11.16), bukan dipicu oleh hasil e-reminder: pemilihan hanya berdasar next_processing_stage dan tanggal. NRIC lewat MHA aktif di prod; FIN dan UEN lewat DataHive mati di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52), jadi driver perusahaan atau berID asing tidak ikut dicek. Update hanya mengenai offender saat ini (OCMS-DF-2026-177 sudah di-fix). Epic OCMS8 tidak diberikan terpisah; langkah ditulis dari teks story. Tiket dipakai: OCMS-DF-2026-177, OCMS-DF-2026-130, OCMS-DF-2026-176 (terbuka, Ready to UAT). Isi file MHA/DataHive, Vault dan jadwal antar cron di server: cannot verify from repo. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian: pengecekan NRIC lewat MHA dan update data driver ada dan aktif, tetapi FIN/UEN lewat DataHive mati di prod dan tidak ada gerbang yang menunggu hasil e-reminder. Minta URA konfirmasi konfigurasi prod",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah e-reminder dikirim atau driver ternyata opt-out, notice lanjut ke pengecekan data terbaru sebelum 3rd letter (DR3)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:565-570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:225-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1337",
+      "fit": "Sebagian",
+      "detail": "Pemilihan notice untuk pengecekan data (MHA enquiry) tidak bergantung pada hasil e-reminder: findNoticesForMhaNricUpload memilih next_processing_stage IN (RD1..DR3) dengan next_processing_date <= besok, suspension_type NULL dan offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:565-570), murni berdasar tanggal. Driver opt-out hanya dilewati di job eNotification tanpa mengubah stage (NotificationSmsEmailJob.java:225-232), jadi urutan 'e-reminder atau opt-out dulu, baru cek' berlaku lewat jadwal, bukan lewat gerbang di kode. Job eNotification sendiri mati di prod (cron-schedules-prod.properties:236), tetapi pengecekan data jalan tanpanya. Urutan jam antar cron di server: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver ber-NRIC dikirim ke MHA untuk cek data terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:557-581; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sesuai",
+      "detail": "findNoticesForMhaNricUpload memilih notice stage RD1/RD2/RR3/DN1/DN2/DR3 dengan onod.id_type = 'N' (NRIC), offender_indicator = 'Y' (driver bila sudah furnish), belum ada di ocms_nro_temp dan bukan HST (OcmsValidOffenceNoticeRepository.java:557-581). Cron MHA upload dan download aktif di prod (cron.mhaupload.enabled=true, cron-schedules-prod.properties:105-106; cron.mhadownload.enabled=true, :119-120). Sama dengan OCMS11.16 langkah 3. Isi file MHA dan respons: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Driver berID asing (FIN) atau perusahaan (UEN) dicek lewat DataHive",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:528-554; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:126-148",
+      "fit": "Sebagian",
+      "detail": "findNoticesForDataHiveEnrichment memilih notice stage RD1..DR3 dengan id_type IN ('F','B') dan offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:528-554) dan DataHiveUenFinService memilih stage yang sama (:221-248). Tetapi job kedua 'DH UEN and FIN' dilewati bila cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107) dan nilainya false di cron-schedules-prod.properties:52 (true di UAT). Langkah DataHive di ToppanLettersGeneratorJob juga sudah dikomentari. Hasil DataHive: cannot verify from repo. Fit disamakan dengan OCMS11.16 langkah 4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pengecekan memperbarui data driver (alamat surat) dan hanya offender saat ini yang diubah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:828-840; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1337; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1347; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1356; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1408-1417",
+      "fit": "Sesuai",
+      "detail": "MhaNricDownloadHelper memperbarui baris owner_driver yang masih offender_indicator = CURRENT (bulkUpdateOnod, :828-840 dan :1337), lalu menyimpan alamat baru sebagai baris mha_reg: insert baris baru (:1347) atau bulk UPDATE baris yang ada (:1356). Hasil exception MHA hanya men-TS-NRO notice yang ID-nya masih offender saat ini (:1408-1417), sehingga update tidak mengenai owner lama setelah furnish ke driver. Dua defect terkait sudah di-fix di main: OCMS-DF-2026-177 (hasil MHA tanpa cek offender indicator, Closed) dan OCMS-DF-2026-130 (alamat mha_reg lama tidak dikosongkan, Closed, Prod deployed). OCMS-DF-2026-176 (timestamp owner_driver tidak ter-update saat MHA, Ready to UAT) masih terbuka. Isi respons MHA: cannot verify from repo."
+    }
+  ]
+}

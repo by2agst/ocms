@@ -1,0 +1,73 @@
+{
+  "story": "OCMS44.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/schedulers/MonthlyReportJobsScheduler, framework/workflows/paymentReport/{jobs/MonthlyPaidReportJob,helpers/MonthlyPaidReportHelper,services/MonthlyPaidReportServiceImpl}, utilities/emailutility/EmailService, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi PaymentUpdateServiceImpl (sender OCMS untuk pembayaran staff). ocmsadminui pages/Cron/list/CronList.tsx (pemicu manual), pages/Payment/PaymentCash.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code laporan ini",
+  "note": "Status Replacement Story (poin kosong). Laporan bulanan yang diminta sebagian besar sudah ada sebagai Monthly Paid Report (cron tanggal 1 pukul 08:30, Excel dikirim lewat email), tetapi isinya semua channel (eService, AXS, Offline, JTC, Refund), bukan khusus non e-payment, dan sheet Offline tidak memuat tanggal/jam serta tempat offence. Penerima adalah 21 alamat individu @ura.gov.sg, bukan URA Finance yang bisa dipastikan. Work item untuk designated OIC dan layar browse berdasarkan date range tidak ada. Weekly tidak ada (hanya daily dan monthly). Konfigurasi prod: email.enableSmtp=false tetapi MONTHLY_PAID_REPORT di allowlist; nilai server asli cannot verify from repo. Tiket yang dipakai: OCMS-SR-2026-016, OCMS-SR-2026-088, OCMS-SR-2026-148, OCMS-SR-2026-153 (semua Closed). Evidence 50.0%.",
+  "recommendation": "Klaim sebagian: laporan bulanan + email sudah ada. Konfirmasi ke URA apakah Monthly Paid Report (semua channel) menggantikan laporan non e-payment, siapa penerima URA Finance, serta tandai gap pada work item OIC dan layar browse date range",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat laporan koleksi secara otomatis per periode (weekly/monthly)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:75; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/MonthlyPaidReportServiceImpl.java:42",
+      "fit": "Sesuai",
+      "detail": "Prod: cron.monthlyreport.schedule=0 30 8 1 * ? dan enabled=true (cron-schedules-prod.properties:275-276); scheduler memanggil monthlyPaidReportService.executeJob() (MonthlyReportJobsScheduler.java:75) dengan periode bulan sebelumnya (MonthlyPaidReportServiceImpl.java:42). Tidak ada jadwal weekly; yang ada daily (cron.dailyreport, 08:00) dan monthly, jadi periode monthly memenuhi 'weekly/monthly'. Nilai server asli: cannot verify from repo. Sama dengan step bulanan di OCMS43.5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan hanya berisi koleksi non e-payment (selain eService/AXS)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:91-93; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:182-202",
+      "fit": "Sebagian",
+      "detail": "Query mengambil semua notice crs_reason_of_suspension IN ('PRA','FP') pada bulan itu (baris 91-93), lalu memisahkan per channel lewat kolom sender: URA = eService, AXS, OCMS = Offline (baris 187-191, pembayaran staff memakai sender OCMS: PaymentUpdateServiceImpl.java:174), dan PP code yang tidak ada di daftar car park REPCCS = JTC Collections (baris 202). Jadi non e-payment ada sebagai sheet Offline dan JTC, tetapi laporan yang dikirim satu workbook berisi semua channel plus Refund; tidak ada laporan khusus non e-payment. Sheet Offline hanya terisi bila PP code ada di daftar REPCCS dan sender memuat OCMS; sender kosong/lain masuk uncategorized dan tidak dihitung. Tiket OCMS-SR-2026-088 (Closed): car park URA yang closed sempat salah masuk JTC."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan memuat notice number, tanggal/jam dan tempat offence, amount paid, tanggal bayar, dan receipt number",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:594-605; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:697-711; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:63; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:72",
+      "fit": "Sebagian",
+      "detail": "Sheet Offline (baris 594-605) memuat Date/Time of Payment, Creation Date, Notice No., Receipt No., Payment Mode, Amount Paid, Amount payable, PP code dan kolom suspension/ATOMS; tidak ada tanggal/jam offence dan tidak ada tempat offence. SQL memang mengambil notice_date_and_time dan pp_name sebagai offence_location (baris 63, 72) tetapi sheet Offline tidak menulisnya. Sheet JTC (baris 697-711) memuat Notice Date And Time dan PP Code (bukan nama tempat). Terkait OCMS-SR-2026-153 (Closed): kolom ATOMS Flag dan Offence Notice Type ditambahkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file Excel laporan dan melampirkannya di email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/MonthlyPaidReportHelper.java:262-279; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:152; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:227",
+      "fit": "Sesuai",
+      "detail": "generateExcelReport membuat workbook dengan sheet Summary, eService, Offline, AXS, JTC Collections, Refund (MonthlyPaidReportHelper.java:262-279); job melampirkan file OCMS_Monthly_Paid_Report_yyyyMM.xlsx pada EmailRequest dengan source MONTHLY_PAID_REPORT lalu memanggil emailService.sendEmail (MonthlyPaidReportJob.java:215, 227). Prod email.enableSmtp=false (application-prod.properties:80) tetapi MONTHLY_PAID_REPORT ada di email.smtp.allowedSources (baris 81) dan EmailService meloloskan source itu (EmailService.java:65-67), jadi pengiriman tidak dimatikan. Jika bulan tanpa data, email 'no data' tetap dikirim (MonthlyPaidReportJob.java:146). Konfigurasi SMTP asli di server: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email otomatis dikirim ke URA Finance",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:51-52; ocmsadminprivateapi/src/main/resources/application-prod.properties:75",
+      "fit": "Sebagian",
+      "detail": "Penerima diambil dari email.report.paymentreport.monthly.recipients (MonthlyPaidReportJob.java:51-52); di prod berisi 21 alamat individu @ura.gov.sg (application-prod.properties:75), bukan grup atau alamat yang bisa dipastikan sebagai URA Finance. Tiket OCMS-SR-2026-016 dan OCMS-SR-2026-148 (Closed) menunjukkan daftar ditambah untuk officer rekonsiliasi JTC/CAS. Siapa yang berada di Finance: cannot verify from repo. Pengiriman manual juga bisa lewat tombol Cron 'Monthly Paid Notices Report Email' (CronList.tsx:54)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item untuk memberi tahu designated OIC bahwa laporan sudah dibuat dan dikirim ke URA FIN",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/MonthlyPaidReportJob.java:105-250",
+      "fit": "Tidak ada code",
+      "detail": "Setelah laporan dikirim, MonthlyPaidReportJob hanya mencatat metadata job (status COMPLETED, penerima) dan tidak membuat record work item (MonthlyPaidReportJob.java:105-250). Grep work item/workitem/ocms_work/workorder di keenam repo: backend tidak punya entity atau service work item; di ocmsadminui hanya ada Meta/link 'Work Items' dan nama resource workitem di Fapi.d.ts, tanpa halaman atau pemanggilan dari report. Email 'no data' dan failure memang dikirim ke daftar penerima yang sama, tetapi itu email, bukan work item."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff dapat browse semua record koleksi non e-payment dalam rentang tanggal pilihan user",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:216; ocmsadminui/src/pages/Cron/list/CronList.tsx:53-54",
+      "fit": "Tidak ada code",
+      "detail": "Staff portal punya halaman Payment Cash (form input satu notice, PaymentCash.tsx) dan halaman Report (daftar report seperti HST, TS, LTA, MHA) tanpa report pembayaran offline/non e-payment; menu Cron hanya memicu pengiriman email report (CronList.tsx:53-54). Tidak ditemukan halaman daftar dengan filter date range untuk pembayaran offline. API CRUD generik webtxndetaillist memang ada, tetapi hanya dipakai PaymentCash untuk lookup satu notice. Layar DOS Reports di ReportListDOS.tsx tidak berhubungan: DOS = DataHive/LTA cannot be confirmed from the repo."
+    }
+  ]
+}

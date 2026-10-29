@@ -1,0 +1,25 @@
+{
+  "story": "OCMS17.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{SuspensionProcessingHelper (validateSuspension, checkOverlappingSuspensionForValidation),TemporarySuspensionHelper.processTS}, workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto} (POST /plus-suspended-notice); ocmsadminprivateapi framework/workflows/plus/notice_management/retrieval/getnotice (POST /plus-offence-notice) and plus/notice_creation/core/helpers/SuspensionProcessingHelper. Other repos not relevant.",
+  "note": "The story asks OCMS to check for an existing TS and then message PLUS. The code detects an existing TS (VON suspension_type = TS, or a suspended_notice row with a future due date) but does not use it to inform PLUS: for the main case (notice already TS + TS request) the dry-run answers eligible=true with the generic 'Validation passed - eligible for suspension', and execution simply stacks the new TS (comment in TemporarySuspensionHelper.java:68-70). The only related message is 'Overlapping suspension detected' (eligible=false) for another combination. PLUS can pull the suspension list itself via /plus-suspended-notice and /plus-offence-notice; whether PLUS uses them before applying cannot verify from repo. The multi-TS design (latest reason, furthest due date) is consistent with this; ticket OCMS-DF-2026-184 (Pending UAT) concerns the separate TS-UNC path, not the PLUS path.",
+  "recommendation": "Do not claim in full. A safe claim: OCMS knows about the old TS and PLUS can pull the TS data. An OCMS 'TS already exists' message to PLUS in the apply flow does not exist; ask URA to confirm whether PLUS does its own check via /plus-suspended-notice.",
+  "steps": [
+    {
+      "step": "OCMS checks whether the notice already has an active TS",
+      "detail": "The dry-run (checking=true) checks VON.suspensionType = TS (SuspensionProcessingHelper.java:367-368) and suspended_notice rows with a future due_date_of_revival (SuspensionProcessingHelper.java:603-610). The execution path TemporarySuspensionHelper.processTS does not check at all; its comment (TemporarySuspensionHelper.java:68-70) says to continue and apply the new TS. So the check only exists in the dry-run, and its result is not used to inform PLUS. Mirror in ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/helpers/SuspensionProcessingHelper.java:102, :170)."
+    },
+    {
+      "step": "A notice that passes validation and has no old TS goes on to TS application",
+      "detail": "With no old TS and all checks passed, the dry-run answers eligible=true 'Validation passed - eligible for suspension' (SystemConstant.java:287), and execution calculates the due date and writes VON/suspended_notice. Same fact as the first step of OCMS17.20."
+    },
+    {
+      "step": "If an old TS exists, OCMS sends PLUS a message that the notice already has a TS",
+      "detail": "Main case (VON already TS + TS request): the dry-run answers eligible=true with the generic message, with no sign that a TS exists (SuspensionProcessingHelper.java:366-370); execution applies the new TS straight away and answers 'TS Success' (TemporarySuspensionHelper.java:140). The only overlap message is 'Overlapping suspension detected' (SuspensionProcessingHelper.java:610), eligible=false, only for a notice whose VON is not TS but whose suspended_notice still has a future due date, and that is an error, not a notice that can be confirmed. So the code behaviour is the opposite of the story in the main case. Synonym greps found nothing else: existing TS, already TS, existingSuspension, OCMS-4006."
+    },
+    {
+      "step": "PLUS can see the suspensions already on the notice through OCMS read endpoints",
+      "detail": "POST /plus-suspended-notice returns suspended_notice rows (filters noticeNo, suspensionType, dateOfRevival[$null], etc.). POST /plus-offence-notice (ocmsadminprivateapi) returns suspensionType, eprReasonOfSuspension, dueDateOfRevival and, with suspendedIndicator=Y, the suspended list. The data exists, but this is a pull by PLUS, not an OCMS message inside the TS validation flow as in the story. Whether PLUS calls it before applying cannot verify from repo."
+    }
+  ]
+}

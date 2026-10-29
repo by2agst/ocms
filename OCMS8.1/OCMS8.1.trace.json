@@ -1,0 +1,55 @@
+{
+  "story": "OCMS8.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: lta/download/helpers/{LtaIdTypeUtil,LtaDatabaseOperations} (mapping ID type), agencies/mha/upload/{MhaNricDataHelper,MhaNricUploadJob} (jalur NRIC -> MHA), datahiveuenfin/{DataHiveUenFinService,DataHiveUenFinJob} + schedulers/MhaDownloadJobsScheduler (jalur FIN/UEN -> DataHive), agencies/mha/download/helpers/MhaNricDownloadHelper (life status NRIC), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada routing ID type untuk follow-up reminder",
+  "note": "Status di sheet 'Fully paid'. Tidak ada flow deck dan Appendix B Annex 1A tidak ada di repo, jadi 'Sesuai' berarti code mengikuti teks story. ID type disimpan per owner/driver record (N = NRIC, F = FIN, P = passport, B = company/UEN) dan dipakai untuk memilih jalur follow-up: N ke MHA (file NRO enquiry, aktif di PROD), F dan B ke DataHive (job 'DH UEN and FIN', cron.mhadownload.uenfin.enabled=false di cron-schedules-prod.properties:52 sehingga tidak jalan di PROD pada commit ini). Passport (P) tidak punya jalur lookup sama sekali. Life status 'D' dari MHA (NRIC) dan FINDEATH (FIN) memicu PS-RIP/PS-RP2. Ada satu hal yang perlu diperhatikan: ID type LTA yang kosong atau tidak dikenal otomatis dianggap NRIC (LtaIdTypeUtil.java:44,56), jadi data aneh akan masuk jalur MHA. Tiket pemeliharaan: OCMS-DF-2026-183 (Pending Closure) melaporkan hasil MHA di PROD tidak ter-update ke DB; OCMS-DF-2026-125/126/133/177 (Closed) memperbaiki filter siapa yang masuk file MHA dan pengecekan offender. Appendix B tidak bisa dicocokkan: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Mapping ID type dan routing NRIC ke MHA ada dan aktif. Jalur FIN/UEN ke DataHive sudah dibangun tetapi dimatikan di PROD. Passport belum punya jalur follow-up. Minta URA konfirmasi isi Appendix B dan status aktivasi DataHive di PROD.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan dan menyimpan ID type offender: company, NRIC lokal, FIN, foreign passport",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:14-17; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaIdTypeUtil.java:42-58; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDatabaseOperations.java:140-143",
+      "fit": "Sesuai",
+      "detail": "Saat data LTA masuk, ownerIdType dipetakan lewat mapLtaOwnerIdTypeToOcms ke empat nilai: N (NRIC), F (FIN), P (passport), B (company/UEN, kode Corppass 4-9, A-C) lalu ditulis ke kolom idType owner/driver (LtaDatabaseOperations.java:140-143). Tidak ada override berdasarkan pola nomor ID. Ada satu hal yang perlu diperhatikan: nilai kosong atau tidak dikenal default ke N (LtaIdTypeUtil.java:44,56). Jalur pembuatan lain (furnish, staff) menulis idType sendiri dan tidak diperiksa di step ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemegang NRIC lokal (ID type N) diarahkan ke follow-up MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:198; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "Notice di stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:198) difilter ke owner/driver dengan offenderIndicator Y dan idType N (baris 345-346), lalu masuk file NRO enquiry MHA. Job upload aktif di PROD: cron.mhaupload.enabled=true, jadwal 09:00/14:00/21:00 Senin-Sabtu (cron-schedules-prod.properties:105-106). Tiket OCMS-DF-2026-125, -126, -133 (Closed) memperbaiki siapa yang boleh masuk file (TS-HST, FIN bertipe N, PS)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "FIN dan company/UEN (ID type F dan B) diarahkan ke follow-up DataHive",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:185; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Query GET_NOTICES_FOR_DATAHIVE_SQL memilih id_type IN ('F','B'), offender Y, stage reminder, suspension_type NULL, bukan HST (DataHiveUenFinService.java:221-246) dan dipanggil job di DataHiveUenFinJob.java:185. Tetapi MhaDownloadJobsScheduler hanya menjalankan job ini bila cron.mhadownload.uenfin.enabled=true (baris 103-107), dan di cron-schedules-prod.properties:52 nilainya false (komentar: menunggu nama view DataHive diverifikasi). UAT true. Jadi routing ada di code namun tidak berjalan di PROD pada commit ini. Konektivitas DataHive: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemegang foreign passport (ID type P) diarahkan ke follow-up ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:237; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:306",
+      "fit": "Tidak ada code",
+      "detail": "Hanya ada dua query pemilihan: idType N untuk MHA (MhaNricDataHelper.java:346) dan idType F/B untuk DataHive (DataHiveUenFinService.java:239). Tidak ada query, job, atau view untuk idType P. Satu-satunya logic khusus P: eNotification dilewati (NotificationSmsEmailJob.java:237) dan furnish auto-approval ditahan sebagai pending (FurnishApprovalHelper.java:306). Apakah passport ditangani manual: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Special ID type berdasarkan life status dari ICA/DOS (meninggal) memicu tindakan yang sesuai",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:874; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:889-890; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1020-1021; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1083-1084; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3285; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3313; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3317",
+      "fit": "Sebagian",
+      "detail": "NRIC: bila lifeStatus 'D' dan date of death ada (MhaNricDownloadHelper.java:874), DoD setelah hari ini memberi TS-NRO (baris 889-890), selain itu per notice dipilih PS-RIP bila DoD >= tanggal offence (baris 1020-1021) atau PS-RP2 bila sebelumnya (baris 1083-1084). FIN: processDeathStatusFlow dari view FINDEATH melakukan PS-RIP/PS-RP2 yang sama (DataHiveUenFinService.java:3285, 3313, 3317). Sebagian karena: jalur FIN ikut job DataHive yang off di PROD; OCMS-DF-2026-183 (Pending Closure) melaporkan hasil MHA di PROD tidak tertulis ke tabel (ONOD, VON, suspended_notice); OCMS-DF-2026-177 (Closed) menambah cek offender. Isi Appendix B yang dirujuk story: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS5.6",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/{form/NoticeBasicForm,hook/useNoticeSubmit}.tsx, utils/mapping/Notice/Notice.ts. ocmsadminapi workflows/notice_creation/core/{CreateNoticeController,CreateNoticeServiceImpl}, core/helpers/{NoticeNumberHelper,NoticeValidationHelper,NoticeRecordHelper,SpecialVehUtils}, utilities/SubsystemLabelUtils, crud/ocmsizdb/sequence/SequenceRepository. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: bukan jalur staff create notice (CES/REPCCS/PLUS memakai jalur lain)",
+  "note": "Status di stories.json: 'Fully paid'; requirement jelas di story text. Nomor notice dan tipe diperiksa pada jalur staff-create-notice. Nomor notice dibuat benar (sequence per owner OCMS, format 1+3+5+check digit) dan kode 004 mengidentifikasi sumber OCMS. Gap: tipe notice tidak ditentukan otomatis (dropdown hanya menawarkan O, server memakai nilai kiriman UI), dan kode sumber 004 berasal dari UI, tidak dipaksa server, serta dipakai juga oleh bulk upload. Kriteria pre-defined resmi dan spesifikasi format nomor URA tidak ada di repo. Keberadaan sequence seq_notice_no_ocms dan standard code 004 di database: cannot verify from repo. Tiket: OCMS-SR-2026-101 dan OCMS-DF-2026-102 (UPL, Closed, mengubah default tipe X, sudah ada di code), OCMS-DF-2026-100 dan OCMS-DEV-2026-057 hanya perubahan perf/hardening sequence dan tidak mengubah verdict.",
+  "recommendation": "Klaim sebagian. Nomor unik dan format sudah ada. Minta konfirmasi URA soal pemilihan tipe otomatis dan kriteria pre-defined, atau tandai sebagai gap; pertimbangkan membuat server menetapkan subsystemLabel 004 untuk endpoint staff.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi form Create Notice di staff portal lalu submit; OCMS memvalidasi mandatory field",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:37; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:49-51; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:34-38; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:140-142",
+      "fit": "Sesuai",
+      "detail": "Setelah officer submit form Create Notice, UI memanggil POST staff-create-notice (useNoticeSubmit.tsx:37,49-51) yang masuk ke CreateNoticeController.handleStaffNotice (:34-38) lalu processStaffCreateNotice -> processNoticeWithDtoMapping. validateMandatoryFieldsForBatch menolak notice yang tidak punya field wajib (contoh offenceNoticeType, NoticeValidationHelper.java:140-142). Ini langkah pemicu yang sesuai story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menentukan tipe parking offence notice (O/E/U) secara otomatis dari kriteria pre-defined",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/NoticeBasicForm.tsx:118; ocmsadminui/src/utils/mapping/Notice/Notice.ts:265; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:967-972; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:737",
+      "fit": "Beda dari flow",
+      "detail": "Tipe notice tidak ditentukan otomatis. Dropdown di NoticeBasicForm.tsx:118 hanya menampilkan opsi O (OFFENCE_TYPE.filter value === 'O'), UI mengirim apa adanya sebagai offenceNoticeType (Notice.ts:265), dan server menyimpannya tanpa mengubah (NoticeRecordHelper.java:737). Server memang mencari offense type dari offence_rule_code (CreateNoticeServiceImpl.java:967-972), tetapi hasilnya hanya dipakai untuk cek AN (:1175), bukan untuk memilih tipe notice. Form E dan U ada di UI tetapi tidak bisa dipilih dari dropdown. Kriteria pre-defined untuk memilih tipe tidak ditemukan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kriteria pre-defined (jenis kendaraan, duplikat) agar notice dibuat dengan treatment yang benar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1011-1033; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1143-1151; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SpecialVehUtils.java:43-92",
+      "fit": "Sebagian",
+      "detail": "Server memang menjalankan kriteria otomatis saat create: plat kosong/N.A menjadi tipe kendaraan X (UPL) (CreateNoticeServiceImpl.java:1015-1018), selain itu SpecialVehUtils.checkVehregistration menentukan D/I/V/S/F (SpecialVehUtils.java:43-92), lalu processing stage diset per tipe (CreateNoticeServiceImpl.java:1143-1151), plus cek duplikat dan PS-DBB. Namun story tidak merinci kriteria dan menyebut 'correct type of notice', sehingga kecocokan dengan kriteria URA tidak bisa dibuktikan dari repo. Tiket OCMS-SR-2026-101 dan OCMS-DF-2026-102 (UPL Notice Creation, Closed) membetulkan default payment flag dan composition amount untuk tipe X, jadi perilaku ini pernah salah dan baru diperbaiki; list kriteria resmi: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat nomor notice yang unik untuk notice manual",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeNumberHelper.java:32-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeNumberHelper.java:99-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/sequence/SequenceRepository.java:65-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1192-1195",
+      "fit": "Sesuai",
+      "detail": "Kalau noticeNo kosong, NoticeNumberHelper.processNoticeNumber membuat nomor baru (NoticeNumberHelper.java:32-61). Bagian urutan diambil dari DB sequence per owner: sequenceService.getNextNoticeNumber (:99) -> SELECT NEXT VALUE FOR ocmsizmgr.seq_notice_no_<owner> (SequenceRepository.java:65-68), diformat 5 digit (:102). Nomor dibuat sebelum INSERT (CreateNoticeServiceImpl.java:1192-1195), dan duplikat noticeNo ditolak (checkDuplicateNoticeNumber, :925). Keunikan bergantung pada sequence di database; keberadaan sequence seq_notice_no_ocms di environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor notice mengikuti format pre-defined (tahun + subsystem + urutan + check digit)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeNumberHelper.java:49-61; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeNumberHelper.java:129-143",
+      "fit": "Sesuai",
+      "detail": "Format nomor dibangun di NoticeNumberHelper.java:49-61: 1 digit akhir tahun + 3 digit subsystem + 5 digit urutan + 1 karakter check digit (total 10). Check digit dihitung Modulo 11 dengan weight {1,2,3,4,5,10,9,8,7} dan mapping huruf (:129-143). Formatnya konsisten dengan contoh di komentar (600400015H), tetapi spesifikasi format resmi dari URA tidak ada di repo, jadi kesesuaian dengan spesifikasi itu: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor notice menunjukkan sumber dan bahwa notice dibuat manual di OCMS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/Notice/Notice.ts:289; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:181-183; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:755; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/SubsystemLabelUtils.java:38-71",
+      "fit": "Sebagian",
+      "detail": "UI selalu mengirim subsystemLabel '004' (Notice.ts:289) sehingga nomor memuat kode 004 dan kolom subsystem_label terisi (NoticeRecordHelper.java:755); 004 dipetakan ke owner OCMS lewat standard code SUB_SYSTEM_LABEL (SubsystemLabelUtils.java:38-71). Kekurangannya: label ditentukan client, bukan server. processStaffCreateNotice (CreateNoticeServiceImpl.java:181-183) tidak memeriksa bahwa label harus 004, sehingga request yang mengirim label lain tetap diproses selama label ada di standard code. Kode 004 juga dipakai upload XLSX, jadi tidak memisahkan 'manual satu-satu' dari 'bulk upload'. Isi standard code 004=OCMS ada di database: cannot verify from repo."
+    }
+  ]
+}

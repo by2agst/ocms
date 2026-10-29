@@ -1,0 +1,25 @@
+{
+  "story": "OCMS16.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl, helpers/ReductionPersistenceService.applyReduction (updateIntranetValidOffenceNotice, insertSuspendedNotice, insertReducedOffenceAmount, updateInternetValidOffenceNotice)}; crud/ocmsizdb/OcmsReduction/OcmsReducedOffenceAmount; crud/config/MultiDataSourceConfig. Other repos: no code that applies a PLUS reduction",
+  "note": "Applying the reduction exists: after validation passes, ocms_valid_offence_notice.amount_payable is set to the new amount from PLUS (composition_amount is not changed), with side effects outside the story text: the notice is put on TS-RED (due_date_of_revival = furthest of the existing date and the expiry), one ocms_suspended_notice row and one ocms_reduced_offence_amount row are written (storing the pre-reduction amount since OCMS-DF-2026-072, closed, Prod deployed; migration of old rows relates to OCMS-DF-2026-028, closed). The eocms_valid_offence_notice copy in the Internet DB gets only 4 fields updated and is silently skipped when the row is missing; Intranet and Internet are two datasources and @Transactional uses only the Intranet transaction manager, so cross-DB atomicity cannot be verified from the repo. A second request on a notice that is already TS-RED is answered as success without applying the new amount (see OCMS16.12). Another risk: reason_of_reduction in the entity is only 3 characters (OcmsReducedOffenceAmount.java:52) while the request does not limit the length; a longer reason likely fails in the DB and is answered 'Reduction fail' (the real column length cannot be verified from the repo). The TS-RED revival that restores the amount lives in the cron tier and is not part of this story.",
+  "recommendation": "Claim most of it. The Intranet amount_payable reduction exists and is transactional; discount the Internet copy (silently skipped, cross-DB) and the already-TS-RED case.",
+  "steps": [
+    {
+      "step": "The reduction only runs after all validations say the amount can be allowed",
+      "detail": "Status ELIGIBLE lets processing continue (ReductionServiceImpl.java:196-199), then the amount and date checks pass (ReductionServiceImpl.java:80-96), and only then is the entity loaded and persistenceService.applyReduction called (ReductionServiceImpl.java:98-113)."
+    },
+    {
+      "step": "The notice's amount payable in OCMS is changed to the new reduced amount",
+      "detail": "updateIntranetValidOffenceNotice sets amount_payable to the request amountPayable, applies TS-RED, then saves (ReductionPersistenceService.java:94-112). The ocms_reduced_offence_amount history row keeps the pre-reduction amount (:151-173, OCMS-DF-2026-072). Everything runs in one @Transactional(rollbackFor = Exception.class) on the Intranet datasource (:56-82); a failure means rollback and an error to PLUS. composition_amount is not changed."
+    },
+    {
+      "step": "The new amount also appears on the online side (Internet DB) so payment uses the reduced value",
+      "detail": "updateInternetValidOffenceNotice copies 4 fields into eocms_valid_offence_notice (ReductionPersistenceService.java:193-211); when the row is missing it only logs a warning and the transaction continues (ReductionPersistenceService.java:214-218). Intranet and Internet are separate datasources and transaction managers (MultiDataSourceConfig.java:126-128,175-178) while @Transactional uses the primary Intranet manager, so if the Intranet commit fails after the Internet save, the Internet change may be left behind; cannot verify from repo. The story does not mention the Internet side; included because 'notices in OCMS' covers the payment portal."
+    },
+    {
+      "step": "A second reduction request on an already-reduced notice is applied according to the requested amount",
+      "detail": "A notice with TS + RED is answered ALREADY_REDUCED and treated as idempotent success without changing amount_payable (OcmsValidOffenceNoticeRepository.java:51-52; ReductionServiceImpl.java:176-183). Same fact as the last validation step in OCMS16.12 and the success message in OCMS16.15. The court variant (/v1/plus-apply-reduction-court) does not use idempotency (ReductionServiceImpl.java:246)."
+    }
+  ]
+}

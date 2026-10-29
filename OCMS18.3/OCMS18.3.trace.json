@@ -1,0 +1,55 @@
+{
+  "story": "OCMS18.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/{Valid,ValidNoticeSearchAll,ValidNoticeSearchUpload}, pages/NoticeSearch/{form/NoticeSearchForm,context/NoticeSearchUploadContext,page/upload/UploadErrorList,hook/useSearchParams,hook/ApplyOperationAction,hook/useBatchOperation}, components/datagrid/table/TableBody.tsx, pages/PS/{list/PSList,form/PSForm}. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-check-suspension-eligibility),helpers/{SuspensionProcessingHelper,PermanentSuspensionHelper}}, crud/beans/SystemConstant",
+  "note": "Status 'Fully paid'. Validasi format notice number dan error baris upload ada. Pesan 'tidak ada notice' hanya berupa teks grid kosong 'No records to display' pada pencarian; pada upload ada kotak 'Record Not Found' per baris. Perbedaan terbesar: story minta error jika notice sudah permanently suspended, tetapi code sengaja tidak menolaknya. Notice yang sudah PS tetap muncul, disorot kuning di halaman PS (PSList.tsx:66-90), lalu PS lama di-revive dan PS baru diterapkan (PSForm.tsx:116-138; PermanentSuspensionHelper.java:121-130); kode PS yang sama dijawab sukses 'Success Notice already PS' (PermanentSuspensionHelper.java:78-92). Hanya notice paid (FP/PRA) yang ditolak (PSForm.tsx:103-110). Eligibility check backend untuk PS hanya mengecek processing stage (SuspensionProcessingHelper.java:283-295) dan satu notice gagal membatalkan seluruh pilihan (ApplyOperationAction.tsx:160-173). Tiket maintenance yang menyentuh jalur ini: OCMS-DF-2026-114 (PS-CAN pada AN notice), OCMS-DF-2026-116 (link notice setelah gagal TS membuka halaman kosong; analog untuk PS tidak diperiksa).",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian/Beda dari flow)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice number dengan format tidak valid ditolak di form pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:18-31; ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:64-78; ocmsadminui/src/i18n/en/translation.json:988-991",
+      "fit": "Sesuai",
+      "detail": "Validator NoticeNo menjalankan Format('NOTICE', val) dan mengembalikan pesan 'Invalid notice no.' (Valid.ts:18-31; translation.json:988-991) untuk field notice_no (ValidNoticeSearchAll.ts:25; NoticeSearchAllForm.tsx:64-78). onApply menampilkan error di modal dan tidak mengirim query (NoticeSearchForm.tsx:52-70). Form kosong ditolak dengan 'Please enter at least 1 field to complete search.' (useSearchParams.tsx:100)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai tidak valid pada baris file upload ditandai error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:87-101; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchUpload.ts:8-14; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadErrorList.tsx:47-53",
+      "fit": "Sesuai",
+      "detail": "Tiap baris divalidasi yup (noticeNo, summon_no, idNo) dan pesan error disimpan ke baris (NoticeSearchUploadContext.tsx:87-101; ValidNoticeSearchUpload.ts:8-14). Baris gagal tidak dikirim ke backend dan tampil di kotak merah 'Record Not Found (n)' dengan kolom Error dan tombol Download Record (UploadErrorList.tsx:47-53). Validasi vehicleNo di-comment (ValidNoticeSearchUpload.ts:15)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan pesan jika tidak ada notice yang berlaku",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/table/TableBody.tsx:19; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:132-136; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadErrorList.tsx:47-53",
+      "fit": "Sebagian",
+      "detail": "Upload: baris yang tidak menemukan notice diberi error 'Record is not found' (NoticeSearchUploadContext.tsx:134-135) dan tampil di kotak 'Record Not Found' (UploadErrorList.tsx:47-53). Pencarian: hasil kosong hanya menampilkan teks default grid 'No records to display' (TableBody.tsx:19), bukan prompt error dan tidak menyebut bahwa tidak ada notice yang bisa di-PS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah permanently suspended menghasilkan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/list/PSList.tsx:66-90; ocmsadminui/src/pages/PS/form/PSForm.tsx:101-138; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-92; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:121-130",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada penolakan untuk notice yang sudah PS. Eligibility check PS tidak melihat suspensionType (SuspensionProcessingHelper.java:283-295). Di halaman PS, notice PS hanya disorot kuning dengan info 'existing Permanent Suspension (PS)' (PSList.tsx:66-90). PSForm.onAPI memanggil staff-revive-suspension untuk PS yang ada lalu menerapkan PS baru (PSForm.tsx:116-138); backend me-revive PS lama sebelum PS baru (PermanentSuspensionHelper.java:121-130) dan kode PS yang sama dijawab sukses 'Success Notice already PS' (:78-92). Satu-satunya error terkait PS adalah notice paid (FP/PRA) yang diberi kode selain APP/CAN/CFA/VST: 'Not allowed to apply new PS code to paid Notice(s).' (PSForm.tsx:103-110). Keputusan menimpa PS tampaknya disengaja (komentar test plan OCMS 18.17-18.22 di PermanentSuspensionHelper.java:253-255), tetapi tidak sesuai teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang tidak berlaku untuk PS (stage tidak eligible) ditolak dengan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:160-182; ocmsadminui/src/pages/NoticeSearch/hook/useBatchOperation.ts:171-220; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:275-295; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:295",
+      "fit": "Sebagian",
+      "detail": "validatePS memanggil POST staff-check-suspension-eligibility; backend hanya mengecek lastProcessingStage harus salah satu NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC dan selain itu menjawab 'Unable to PS the following Notice(s) at this Last Processing Stage.' (SuspensionProcessingHelper.java:103-106,283-295; SystemConstant.java:295). UI menampilkan pesan unik di modal tanpa menyebut notice number mana yang gagal, dan kalau ada satu saja yang gagal seluruh pilihan dibatalkan (ApplyOperationAction.tsx:160-173); jika panggilan error, catch mengosongkan success dan failed sehingga hasilnya diam (useBatchOperation.ts:211-214)."
+    }
+  ]
+}

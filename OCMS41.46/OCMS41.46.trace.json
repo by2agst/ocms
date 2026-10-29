@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.46",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/{form/{Owner,Hirer,Driver}Form.tsx, hook/useODH.tsx}; ocmsadminapi workflows/furnish/stafffurnish/{StaffFurnishController, StaffFurnishService} (staff-furnish/batch-furnish dipakai UI untuk satu notice) dan CRUD patch offencenoticeownerdriverpatch/offencenoticeaddresspatch (jalur Edit). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini.",
+  "note": "Status Demo paid (50% of 75%). UI satu-notice memakai staff-furnish/batch-furnish dengan satu notice (useODH.tsx:290-300), bukan /furnish/officer/manual/single walau komentar ManualFurnishController menyebut OCMS41.46-48; controller itu tidak dipanggil UI dan tidak ada di api-authorization.properties (dicatat sebagai orphan). Tiket dipakai: OCMS-DF-2026-024 (Closed, Prod deployed, alamat lama dihapus saat furnish menimpa offender) dan OCMS-DF-2026-170 (Closed, admin fee di-nol-kan saat furnish). Function mana yang dipegang OIC (staff-furnish/batch-furnish hanya dipetakan ke OCMS_BATCH_FURNISH) cannot verify from repo.",
+  "recommendation": "Klaim sebagian: Furnish, Edit, alamat, dan pesan hasil terbukti. Edit hanya untuk current offender, particulars non-current hanya bisa ditimpa (Furnish) atau di-redirect.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka form Owner/Hirer/Driver pada notice; field untuk diisi (ID type/no, nama, telepon, email, alamat) tersedia dan data yang sudah ada terisi",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:74-79; ocmsadminui/src/pages/Notice/form/HirerForm.tsx:294; ocmsadminui/src/pages/Notice/form/HirerForm.tsx:511-512",
+      "fit": "Sesuai",
+      "detail": "OwnerForm, HirerForm dan DriverForm memakai useODH. Data OWNER/HIRER/DRIVER dari NoticeContext menjadi `existing` (useODH.tsx:74-79) dan mengisi form (mis. hirer_name, HirerForm.tsx:294). Field read-only (readonly={!edit}) sampai officer menekan Furnish/Edit (HirerForm.tsx:511-512). Prompt particulars existing sendiri adalah bahan story OCMS41.45; di sini hanya dinilai bahwa field input tersedia. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer merekam particulars baru (Furnish): offender disimpan dan menjadi current offender",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:101-130; ocmsadminui/src/pages/Notice/hook/useODH.tsx:290-300; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:221-240; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:465-489; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:174-232; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:630-658; ocmsadminapi/src/main/resources/api-authorization.properties:72-73",
+      "fit": "Sesuai",
+      "detail": "Tombol Furnish menjalankan furnish-redirect-check (useODH.tsx:101-130), lalu setelah ValidODH (:165-167) dan konfirmasi, POST staff-furnish/batch-furnish dengan satu notice (:290-300). Server mewajibkan name, idType, idNo, street name (StaffFurnishController.java:465-489); batchFurnish memanggil staffFurnish per notice (StaffFurnishService.java:656). staffFurnish menandai offender lama indicator N (:201), menyimpan record ONOD baru dengan offender_indicator Y (:213-231) dan sync ke PII (:232). Catatan: staff-furnish/batch-furnish hanya dipetakan ke function OCMS_BATCH_FURNISH (api-authorization.properties:72-73), tidak ke OCMS_OIC_FURNISH; function yang dipegang OIC cannot verify from repo. Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat mailing yang diisi disimpan sebagai alamat surat; alamat lama untuk peran itu tidak ikut terbawa",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:203-211; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:234-236; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:945-1008; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:485-487",
+      "fit": "Sesuai",
+      "detail": "Saat furnish, alamat lama untuk notice+peran dihapus (deleteAllByNoticeNoAndOwnerDriverIndicator, StaffFurnishService.java:206-207) supaya offender baru tidak mewarisi mha_reg/lta_reg/lta_mail/furnished_mail (OCMS-DF-2026-024, Closed, Prod deployed). Lalu furnished_mail dibuat/ditimpa dengan letter_address=Y dan flag letter address lain direset (createOrUpdateFurnishedMailAddress, :945-1008). Postal code dan block/house no opsional, street name wajib (StaffFurnishController.java:485-487). Sesuai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer meng-update particulars yang sudah ada (Edit)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:88-99; ocmsadminui/src/pages/Notice/hook/useODH.tsx:349-376; ocmsadminui/src/pages/Notice/hook/useODH.tsx:485-492; ocmsadminui/src/pages/Notice/hook/useODH.tsx:443-449",
+      "fit": "Sebagian",
+      "detail": "Tombol Edit hanya muncul bila particulars ada dan record itu current offender (offenderIndicator Y) (useODH.tsx:485-492); particulars non-current tidak bisa di-edit, hanya Furnish (menimpa) atau Redirect. Pengecekan hanya PS lokal dari suspensionType (:88-99), tanpa cek stage furnishable. Submit memanggil PATCH offencenoticeownerdriverpatch (key notice_no, indicator) lalu offencenoticeaddresspatch atau POST offencenoticeaddress untuk furnished_mail (:353-376). Dua call terpisah dari UI, bukan satu transaksi: bila call kedua gagal, data ODH sudah berubah dan UI menampilkan 'API Error' (:443-449). Tidak ada perubahan stage pada Edit. Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengonfirmasi perekaman/update ke officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:274-283; ocmsadminui/src/pages/Notice/hook/useODH.tsx:430-449",
+      "fit": "Sesuai",
+      "detail": "Setelah semua API sukses, alert '<Owner/Hirer/Driver> detail has been successfully furnished/updated.' tampil (useODH.tsx:430-442) dan halaman di-reload agar data terbaru terlihat (onAlrOk, :274-283). Bila ada error, alert error 'API Error: ...' tampil (:443-449). Fit sama dengan OCMS41.48 langkah 1. Sesuai."
+    }
+  ]
+}

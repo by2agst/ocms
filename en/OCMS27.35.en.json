@@ -1,0 +1,29 @@
+{
+  "story": "OCMS27.35",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui src/utils/models/Iwarrantofarrest.d.ts (type declaration only), pages/NoticeSearch/hook/{useSearch.ts,useSearchParams.tsx} (search by warrant_no), pages/NoticeSearch/form/NoticeSearchAllForm.tsx; ocmsadminapi api-authorization.properties (path list only). No entity/controller/service/cron for warrant of arrest in any of the six repos.",
+  "note": "Story status is blank in the data (no URA status); traced normally. Only the step of searching notices by ID has code, and that is a generic search without an outstanding-warrant restriction. Multi-select of notices, a bulk remark form, a bulk endpoint and occurrence storage do not exist. The bulk features in the portal (Batch Update Mailing Address, Batch Furnish) are not occurrences. There is no entity, repository, controller, service, cron or SFTP/API client for Warrant of Arrest in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi or ocmseserviceapi (case-insensitive grep: warrant, woa, state court, send_to_sc, roms_error, warrantofarrest, woc_number; synonyms court mention/trial/outcome also checked). The only traces are the TypeScript type Iwarrantofarrest in ocmsadminui and a GET call to endpoint 'warrantofarrest' used to search notices; the path /v1/warrantofarrest is in the authorization list but no controller or entity serves it. The CAS inbound endpoints in CasIntegrationController (casGetPaymentStatus, casUpdateCourtNotices, plus-get-court-case-info, plus-payment-activation) are not credited: they are calls from CAS/PLUS to OCMS about court notices, not warrant updates to/from State Courts.",
+  "recommendation": "Do not claim as done. Only Notice Search by ID can be reused; bulk occurrence/remark does not exist.",
+  "steps": [
+    {
+      "step": "Officer searches for the notices under one ID",
+      "detail": "Staff Notice Search has an ID filter: id_no is sent as param idNo (useSearchParams.tsx:530), the id_no field is in the form (NoticeSearchAllForm.tsx:51-56), and the backend has an idNo column in OcmsOffenceNoticeOwnerDriver.java:58-59 via offencenoticeownerdriverlist (useSearch.ts:39-52). It is a generic notice search; there is no 'outstanding warrant' filter (warrant search is only by warrant_no, useSearch.ts:68-78, whose backend endpoint does not exist). So ID search works, restriction to outstanding warrants does not."
+    },
+    {
+      "step": "Results show notices with outstanding warrants for selection",
+      "detail": "The result list does not filter/mark outstanding warrants: the 'warrantofarrest' lookup (useSearch.ts:68-78) calls an endpoint with no controller/entity in ocmsadminapi, so warrant status is unavailable. Multi-notice selection (checkbox) only exists on the NoticeSearch upload page UploadResult.tsx:66, not for ID search."
+    },
+    {
+      "step": "Officer enters one occurrence/remark for all selected notices",
+      "detail": "The occurrence form (field offence_remark, lines 287-293) is for a single notice only; other fields have empty source (lines 270-280). The NoticeOccurences tab is commented out in Form.tsx:218-226 and only used in VIEW mode in GroupPreview.tsx:131, the resource 'offencenoticeoccurrences' has no entity in ocmsadminapi, and offence_remark does not exist in ocmsadminapi Java (grep 0 hits). There is no bulk form."
+    },
+    {
+      "step": "OCMS applies the remark to all selected notices in one go",
+      "detail": "The only bulk features in the staff portal are Batch Update Mailing Address (BatchUpdateODH.ts:1-5) and Batch Furnish (NoticeOperation.ts:11,20); there is no bulk occurrence/remark. There is no bulk occurrence endpoint in ocmsadminapi (grep occurrence, remark, bulk: no handler)."
+    },
+    {
+      "step": "The occurrence/remark is saved for every selected notice",
+      "detail": "There is no occurrence storage: no offencenoticeoccurrences entity and no authorization mapping for that resource in api-authorization.properties; offence_remark does not exist in ocmsadminapi Java."
+    }
+  ]
+}

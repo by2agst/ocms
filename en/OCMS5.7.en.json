@@ -1,0 +1,29 @@
+{
+  "story": "OCMS5.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/reports/system/noticecreated/{NoticeCreatedReportController,NoticeCreatedReportServiceImpl}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findEnforcementReport), api-authorization.properties. ocmsadminui pages/Report/{index.tsx,lists/ReportListNoticeCRE.tsx}, pages/Dashboard/Dashboard.tsx, utils/mapping/Notice/Notice.ts. ocmsadminprivateapi: cron daily_reports has no manual-notice report. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not related",
+  "note": "Status in stories.json: 'Fully paid'; the requirement is clear in the story text. A 'Notices Created in Backend' report (source OCMS = code 004) exists as xlsx with a Summary sheet and one sheet per offence type, but it is generated only when a user presses Export with a chosen date range. There is no daily cron/scheduler and no delivery to a dashboard (the staff portal Dashboard page is empty; the report sits in the Report menu, a pull model). The report also lists all notices labelled 004, including bulk uploads. OIC role and group OCMS_REPORT_NOTICE_CRE in the database: cannot verify from repo. Tickets: OCMS-DF-2026-149 (Closed, Excel moved to backend, used as context); OCMS-DF-2026-194 (Open) concerns the LTA VRLS report and does not change the verdict; OCMS-DF-2026-005 concerns the CES report (enforcement-report), not this report.",
+  "recommendation": "Claim only a small part. An on-demand report for manual notices exists and can be downloaded. The automatic daily run and routing to the OIC dashboard do not exist; do not claim them as done unless URA confirms the Report menu is accepted as a substitute.",
+  "steps": [
+    {
+      "step": "Manually created notices can be recognised by their source to be included in the report",
+      "detail": "The report identifies manual notices through subsystem_label: source OCMS maps to code 004 (NoticeCreatedReportServiceImpl.java:67-68) and the findEnforcementReport query filters the first 3 characters of subsystem_label (OcmsValidOffenceNoticeRepository.java:109-112). Code 004 is filled by the UI on create (Notice.ts:289). Same as OCMS5.6 source-of-notice step: the label is decided by the client, and 004 is also used by the bulk upload, so the report lists all notices labelled 004, not only those created one by one."
+    },
+    {
+      "step": "OCMS produces a summary report listing the manually created notices",
+      "detail": "The 'Notices Created in Backend' report (source OCMS) does exist: generateNoticeCreatedExcel fetches the notices and their details (NoticeCreatedReportServiceImpl.java:66-90) and buildWorkbook creates a Summary sheet (title, generation date, date range, total records) and one sheet per offence type (:113-136). The content matches the story (list of notices + summary), but it is produced on user request for a chosen date range, not as an automatic daily report. Ticket OCMS-DF-2026-149 (Closed) moved this Excel generation from the browser to the backend; ticket OCMS-DF-2026-194 (Open) records follow-up feedback on DF-149 that is not finished, its content is about another report (LTA VRLS) and does not change the verdict."
+    },
+    {
+      "step": "The report is produced automatically every day (daily)",
+      "detail": "There is no scheduler or cron for this report. The report is generated only when a user presses Export in the staff portal: POST reports/notice-created/export (NoticeCreatedReportController.java:31-36) is called from ReportListNoticeCRE.tsx:67-70, with a default creDate filter of PAST(1) to NOW (:44-49). The cron folder daily_reports in ocmsadminprivateapi holds only AnsLetterReconciliation, ClassifiedVehicleReport and RipHirerDriverReport; none produces a manual-notice report. Searches in ocmsadminapi, ocmsadminprivateapi and ocmsadminui with several keywords (notice created, creation report, daily, dashboard) found no daily job."
+    },
+    {
+      "step": "The report is routed to the OIC dashboard",
+      "detail": "There is no delivery of the report to a dashboard. The Dashboard page in the staff portal is empty (Dashboard.tsx:21-32 holds only Meta and an empty row div). The only report is the 'Notices Created in Backend' menu on the Report page (Report/index.tsx:17-20), which the user must open and export (pull), not something pushed to the OIC. This differs from the flow the story asks for."
+    },
+    {
+      "step": "The OIC can download the report to see the notice details",
+      "detail": "The user opens Report > Notices Created in Backend, picks source OCMS and a date range, then Export: the UI calls reports/notice-created/export with responseType BLOB (ReportListNoticeCRE.tsx:67-70) and saves ReportNoticeOCMS.xlsx (:75-76). The controller returns an xlsx with a Content-Disposition attachment header (NoticeCreatedReportController.java:39-48). Access is through group OCMS_REPORT_NOTICE_CRE (api-authorization.properties:127); whether the OIC role is assigned to that group is database content: cannot verify from repo."
+    }
+  ]
+}

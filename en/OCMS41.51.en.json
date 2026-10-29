@@ -1,0 +1,41 @@
+{
+  "story": "OCMS41.51",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/hook/{ApplyOperationAction,useBatchOperation}, pages/BatchFurnish/{page,form}, utils/validation/BatchFurnish, utils/mapping/Furnish/FurnishMap. ocmsadminapi workflows/furnish/stafffurnish/{controllers/StaffFurnishController,services/StaffFurnishService}, workflows/furnish/helpers/FurnishabilityChecker. ocmsadminprivateapi ToppanUploadJobsScheduler (follow-up context only). ocmseserviceui, ocmseserviceapi, thirdpartyapi: no code",
+  "note": "Status in the sheet: Demo paid (50% of 75%). Appendix B of Annex 1A is not in the repo, so the match with the automated workflows there cannot be proven. All paths are in the Staff Portal (ocmsadminui) and ocmsadminapi; there is no code in ocmseserviceui/ocmseserviceapi/thirdpartyapi for this story. Two gaps: (1) the furnishable pre-check in the UI does not actually filter notices (useBatchOperation.ts:317), (2) the success message does not mention OCMS follow-up. Maintenance tickets read: OCMS-DF-2026-024, OCMS-DF-2026-093, OCMS-DF-2026-170 (all Closed/Prod deployed, and their fixes are visible in the code).",
+  "recommendation": "Claimable for the bulk update flow (select notices, role, fields, confirmation, per-notice result). Note two gaps: the furnishable pre-check in the UI does not filter notices (failed notices are only rejected by the server on submit), and the automated follow-up per Appendix B cannot be proven from the repo (Toppan letters only run through the manual trigger).",
+  "steps": [
+    {
+      "step": "Officer selects the applicable notices from Notice Search and chooses the Batch Furnish operation",
+      "detail": "The BATCH_FURNISH action in Notice Search calls handleBatchFurnish (ApplyOperationAction.tsx:130, 233-265). The selected notices are stored in batch state and the route /notices/batch-furnish opens (App.tsx:188). The page reloads the notice data through validoffencenoticelist in groups of 30 notices (BatchFurnish.tsx:30-65)."
+    },
+    {
+      "step": "OCMS separates notices that are not applicable (not furnishable) before the update",
+      "detail": "validateBatchFurnish calls staff-furnish/furnish-redirect-check and collects the notices that are not furnishable into a failed list (useBatchOperation.ts:303, StaffFurnishController.java:108). But the line result[\"success\"] = data (useBatchOperation.ts:317; the filtering version on lines 313-315 is commented out) lets ALL notices through to the form. As a result the 'all failed' branch (ApplyOperationAction.tsx:237-248) never runs, and the warning 'Continue with N notice(s)?' (254-255) counts all selected notices, not the furnishable ones. Non-furnishable notices are only rejected by the server on submit (StaffFurnishService.java:181-183) and show up as failed in the result."
+    },
+    {
+      "step": "Officer selects the offender type (owner / hirer / driver) for the bulk update",
+      "detail": "The form has a required 'Offender Role' dropdown (BatchFurnishDetails.tsx:76-101; validation ValidBatchFurnishForm.ts:19-22). Its options come from the standard code OFFENDER_INDICATOR (OptionsContext.tsx:450-452), so the owner/hirer/driver list content sits in the DB and cannot be verified from the repo. The backend maps O/H to stage RD1 and D to DN1 (StaffFurnishService.java:925-931)."
+    },
+    {
+      "step": "OCMS shows the fields relevant to the offender input (name, ID, contact, mailing address)",
+      "detail": "BatchFurnishDetails shows name (max 66 characters), ID type + ID number, mobile (code + number), email, and mailing address (BatchFurnishDetails.tsx:104-192) with a Clear Form button (194-202). The ID type choices hide UEN when the role is Driver (66-71). Validation: role, name, ID type, ID number, and street name are required (ValidBatchFurnishForm.ts:19-35, 76-79)."
+    },
+    {
+      "step": "OCMS asks the officer to confirm before the update is processed",
+      "detail": "The 'Proceed to Furnish' button validates the form first (on failure: alert 'Failed to furnish the notice(s). Please check your form.', BatchFurnishForm.tsx:72-85), then opens the modal 'Batch Furnish Confirmation': 'All existing {role} details will be overwritten. Do you want to proceed to furnish {role} for N notice(s)?' (88-96). N is the number of notices in the form (including ones that will later be rejected, see step 2)."
+    },
+    {
+      "step": "OCMS applies the same particulars to all selected notices through the batch API",
+      "detail": "The UI maps the form (FurnishMap.ts:95-117) and POSTs staff-furnish/batch-furnish (BatchFurnishForm.tsx:116-120). The server validates role, name, ID, street (StaffFurnishController.java:465-489) and batchFurnish then loops staffFurnish per notice (StaffFurnishService.java:631-660). Per notice: furnishable check (181-183), old offender becomes non-current (201), old addresses deleted (206; OCMS-DF-2026-024 fix), new offender saved as current (231), furnished_mail address created (236), stage and amount updated (240-262), administration fee zeroed (251; OCMS-DF-2026-170), TS-HST revived when the new offender is not HST (277-283; OCMS-DF-2026-093). Edge case: staffFurnish catches every Exception and returns failure (299), while @Transactional on batchFurnish (630) calls staffFurnish through self-invocation; whether a half-finished write for one notice is rolled back needs to be verified with a test."
+    },
+    {
+      "step": "OCMS shows a prompt that the update succeeded (number of notices) or failed per notice",
+      "detail": "When the API finishes, the UI shows 'Batch Furnish Applied Successfully to N Notices.' if none failed (BatchFurnishForm.tsx:192-195), or '{x} out of {y} Notices Failed to be Furnished...' if some failed (185-191). The server replies HTTP 207 for partial results (StaffFurnishController.java:262-263) and the UI still reads data.results per notice (BatchFurnishForm.tsx:113-132). Closing the success alert opens /notices/batch-furnish/view (229-234)."
+    },
+    {
+      "step": "OCMS follows up with the offender according to the automated workflows in Appendix B of Annex 1A",
+      "detail": "After furnishing, the notice moves to stage RD1 (owner/hirer) or DN1 (driver) with next processing date = max(notice date + 7 days, tomorrow 00:00) and the amount payable is recalculated (StaffFurnishService.java:144-156, 240-262, 925-931), then synced to the internet DB (262). Appendix B is not in the repo, so the match with the workflows there cannot be verified from the repo. The next-stage letters go through Toppan: the call toppanLettersGeneratorService.executeJob() in the day-end schedule is commented out (ToppanUploadJobsScheduler.java:118) and only runs through the manual POST /generate-letters (ToppanUnifiedController.java:34-40). The success message in the UI does not mention this follow-up."
+    }
+  ]
+}

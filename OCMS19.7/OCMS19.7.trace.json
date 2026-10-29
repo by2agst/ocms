@@ -1,0 +1,46 @@
+{
+  "story": "OCMS19.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Revival/form/{RevivalDetails,RevivalForm}, pages/Revival/page/Revival, utils/validation/Revival/Revival.ts, utils/mapping/Revival/Revival.ts, context/OptionsContext.tsx (REVIVAL_REASON). ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-revive-suspension), helpers/RevivalBaseHelper}. Repo lain: tidak relevan",
+  "note": "Status di sheet: Demo paid (50% of 75%), 1 point; tidak ada flow deck. Form Revival Details punya dropdown Revival Reason (wajib) dan textarea Remark (opsional, maks 200 karakter), nilainya ikut dikirim ke API saat revive. Daftar reason diambil dari tabel ocms_suspension_reason (type RV, source OCMS, status aktif); isi tabel itu adalah data DB dan tidak ada seed SQL di repo, jadi kode reason apa saja yang tersedia cannot verify from repo. Komentar di TemporaryRevivalHelper.java:114 menyebut batas 50 karakter, tetapi code (UI dan server) membatasi 200; code yang dipakai. Tidak ada tiket maintenance yang mengubah langkah-langkah ini.",
+  "recommendation": "Layak diklaim penuh berdasarkan code. Isi daftar reason revival di DB perlu dikonfirmasi saat UAT (tidak terlihat dari repo).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Form Revival Details menyediakan dropdown alasan revival (Revival Reason)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalDetails.tsx:33-47; ocmsadminui/src/pages/Revival/form/RevivalDetails.tsx:64-80; ocmsadminui/src/context/OptionsContext.tsx:277-302; ocmsadminui/src/context/OptionsContext.tsx:316-319; ocmsadminui/src/utils/constant.ts:3",
+      "fit": "Sesuai",
+      "detail": "Saat form dibuka, setOptions memuat REVIVAL_REASON dengan suspensionSource = 'OCMS' dan status aktif (RevivalDetails.tsx:39-47; constant.ts:3). CB_REVIVAL_REASON memanggil POST suspensionreasonlist dengan suspensionType = 'RV' (OptionsContext.tsx:280-291,316-319), lalu dropdown menampilkan kode + deskripsi (OptionsContext.tsx:294-299; RevivalDetails.tsx:64-80). Isi tabel ocms_suspension_reason adalah data DB, tidak ada seed SQL di repo: kode reason yang tersedia cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alasan revival wajib diisi sebelum revival bisa dilanjutkan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Revival/Revival.ts:17-33; ocmsadminui/src/pages/Revival/page/Revival.tsx:128-129; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:69-84; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:86-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:114-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:159-183",
+      "fit": "Sesuai",
+      "detail": "Validasi yup mewajibkan field 'reason' (Revival.ts:18,25-27; dipasang di Revival.tsx:128-129). Tombol Proceed menjalankan validate() dan, bila gagal, menampilkan alert 'Failed to proceed REVIVAL. Please check your form.' lalu fokus ke field yang salah (RevivalForm.tsx:69-84). Server memeriksa ulang: reason kosong ditolak (RevivalBaseHelper.java:121-123) dan kode harus ada di daftar RV aktif sumber OCMS dari DB (RevivalBaseHelper.java:86-97,175-183); bila pembacaan daftar gagal, set kosong dipakai sehingga semua kode ditolak (fail-closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Special remarks bersifat opsional: teks bebas sampai 200 karakter",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Revival/form/RevivalDetails.tsx:83-91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:639-643; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:139-145",
+      "fit": "Sesuai",
+      "detail": "TextAreaInput 'remark' tanpa aturan required, length=200 dan penghitung sisa karakter (RevivalDetails.tsx:83-91). Server menolak remark lebih dari 200 karakter di endpoint staff-revive-suspension (SuspensionProcessingController.java:639-643) dan di helper (RevivalBaseHelper.java:139-145). Komentar TemporaryRevivalHelper.java:114 menyebut 50 karakter, tetapi code memakai 200; batas yang diminta spec asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alasan dan remarks yang diisi ikut dikirim ke proses revival bersama ID officer yang login",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/mapping/Revival/Revival.ts:17-23; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:109-117; ocmsadminui/src/pages/Revival/form/RevivalForm.tsx:137-145; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:278-299",
+      "fit": "Sesuai",
+      "detail": "ReviveDataMapping membentuk payload {noticeNo[], suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival = user.userId} dari nilai form (Revival.ts:17-23), dipakai untuk request PS dan TS (RevivalForm.tsx:109-117,137-145). Di server nilai itu ditulis ke baris suspended_notice sebagai revival_reason, revival_remarks dan officer_authorising_revival (RevivalBaseHelper.java:278-299)."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/{SpecialVehUtils,NoticeProcessingHelper} (D/I and initial stage), agencies/lta/download/helpers (Diplomat to RD1), agencies/toppan/upload/{models/ToppanStage,jobs/ToppanUploadJob,helpers/ToppanUploadHelper}, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, crud/ocmsizdb/OcmsValidOffenceNotice (stage query). Other repos: no code for this story.",
+  "note": "The pipeline for special vehicle notices up to the 2nd reminder exists: I goes to RD1 directly, D goes to RD1 after LTA, then Toppan RD1 moves to RD2 with a 14-day gap (ToppanStage.java:19-20). But sending the reminder to the vehicle owner does not run automatically: letter generation is only a manual trigger, the cron call is commented out, and upload to Toppan is blocked in prod properties (sftp.upload.disabledServers=toppan), while the stage still advances (OCMS-DF-2026-192, status Ready to UAT, not final). The identification conditions come from properties, not a parameter table (see OCMS14.1 and 14.2). Real letters to owner/embassy and server values cannot verify from repo.",
+  "recommendation": "Claim partially. Stage movement up to RD2 exists, but reminders are not sent automatically and the Toppan upload is blocked in the prod properties. State the dependence on the manual trigger and on lifting the Toppan block.",
+  "steps": [
+    {
+      "step": "Notices of vehicles with a special number or suffix have been identified and have type D or I",
+      "detail": "D and I are identified when the notice is created and stored in vehicle_registration_type (SpecialVehUtils.java:114-131; CreateNoticeServiceImpl.java:714). The conditions come from properties, not a parameter table as the story text says; same fit as OCMS14.1 DIP/MID steps and OCMS14.2 suffix step."
+    },
+    {
+      "step": "Military (MID) notices enter the Reminder 1 stage right when they are created",
+      "detail": "processMilitaryVehicle sets the last stage to NPA and the next stage to RD1 with the next date today (NoticeProcessingHelper.java:609-615; called at CreateNoticeServiceImpl.java:812-813); the MINDEF owner and address are filled in automatically (NoticeProcessingHelper.java:727-765). Same fact as OCMS14.1 MID step, same fit."
+    },
+    {
+      "step": "Diplomat (DIP) notices enter the Reminder 1 stage after the LTA result is received",
+      "detail": "A D notice starts at NPA heading to ROV (NoticeProcessingHelper.java:438-441), then the LTA download cron (enabled=true, cron-schedules-prod.properties:148-149) sets RD1 only if the diplomaticFlag in the LTA file is Y (LtaDownloadHelper.java:418-425; LtaBatchCode0Processor.java:254-258; LtaProcessingStageManager.java:511-552). Same fact as OCMS14.1 DIP routing step, same fit. OCMS-DF-2026-052 (Closed): the RD1 bug for Diplomat has been fixed."
+    },
+    {
+      "step": "The Reminder 1 letter is produced and sent to the vehicle owner",
+      "detail": "Stage RD1 is picked by the query for notices whose next stage is RD1, due today, not suspended (OcmsValidOffenceNoticeRepository.java:608-611) and goes into the letter generator (ToppanStage.java:19). Toppan letter generation only runs through the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34): the call toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs is commented out (ToppanUploadJobsScheduler.java:118) even though the 00:15 schedule is enabled=true (cron-schedules-prod.properties:61-62). Upload to Toppan is blocked: sftp.upload.disabledServers=toppan (application-prod.properties:86), the delivery gate is bypassed so the stage still advances without proof of delivery (ToppanUploadJob.java:419-429, OCMS-DF-2026-192). Real server values cannot verify from repo."
+    },
+    {
+      "step": "After 14 days the notice enters Reminder 2 and its letter is produced and sent",
+      "detail": "RD1 sets the next stage to RD2 with a 14-day duration and RD2 is followed by RR3 (ToppanStage.java:19-20); the same stage query picks due RD2 notices (OcmsValidOffenceNoticeRepository.java:608-611). The stage move is done after the delivery gate; the gate is bypassed while the Toppan upload is blocked so the stage advances without proof of delivery (ToppanUploadJob.java:419-429, OCMS-DF-2026-192). Manual trigger and upload block are the same as in the Reminder 1 step. Real server values cannot verify from repo."
+    },
+    {
+      "step": "Processing of special notices stops after Reminder 2 and does not continue to the next stage",
+      "detail": "When stage RR3 or DR3 is processed, notices of type I or D are removed from the letter list and no RR3 letter is made (ToppanUploadHelper.java:1974-2018, filter at :1990-2003), and then PS-MID or PS-DIP is applied (see OCMS14.5). The stop at RD2 exists, but it only runs inside the letter generation that depends on the manual trigger (ToppanUnifiedController.java:34; the schedule call to executeJob is commented out ToppanUploadJobsScheduler.java:118)."
+    }
+  ]
+}

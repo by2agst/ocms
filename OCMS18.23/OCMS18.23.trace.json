@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.23",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST /plus-apply-suspension), helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}. Tidak ada code di ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi untuk story ini",
+  "note": "Status di stories.json: Fully paid. Untuk notice unpaid, POST /plus-apply-suspension menerapkan PS lalu mengembalikan response sinkron success:true, message 'PS Success', appCode OCMS-2000 (atau 'Success Notice already PS', OCMS-2001, bila kode PS sama sudah aktif). Dua hal yang perlu dicatat: daysToRevive wajib diisi PLUS walau PS tidak memakainya (HTTP 400 bila kosong), dan semua kegagalan dikembalikan dengan appCode OCMS-4000 karena createErrorResponse tidak menaruh appCode. Autentikasi PLUS (JwtFilter melewati plus-*, bergantung APIM), isi ocms_standard_code, dan tampilan di PLUS: cannot verify from repo. Tidak ada tiket yang mengubah verdict.",
+  "recommendation": "Bisa diklaim. Hal yang tidak bisa dibuktikan dari repo: autentikasi PLUS dan tampilan di PLUS.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim permintaan permanent suspension untuk notice unpaid dan OCMS memvalidasi isinya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-543",
+      "fit": "Sesuai",
+      "detail": "plusApplySuspension membaca noticeNo (list), suspensionType, reasonOfSuspension, daysToRevive, suspensionRemarks, officerAuthorisingSuspension (SuspensionProcessingController.java:493-501). Field wajib kosong menghasilkan HTTP 400 OCMS-4000 (:503-528); daysToRevive ikut wajib walau PS tidak memakainya (:519-523). suspensionSource dipaksa PLUS dan nilai lain ditolak (:530-543). Autentikasi PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan permanent suspension pada notice unpaid",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:64-76; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:99-111; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-192; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:324-326; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-348; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:383-401; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:474-497",
+      "fit": "Sesuai",
+      "detail": "processPS memvalidasi field (PermanentSuspensionHelper.java:64-69), mencari notice (:72-76), cek izin kode untuk sumber PLUS (:99-104) dan stage (:107-111), lalu updateDatabase (:139-144): updateVON mengisi suspension_type=PS, epr_reason, epr_date (SuspensionBaseHelper.java:345-348), updateEVON menyalin ke eVON (:399-401), insertSuspendedNotice menambah row riwayat (:443-467). Notice unpaid (crs reason null) lolos validatePaidNotice (:181) dan tidak membuat refund (:324-326). Kegagalan DB mengembalikan OCMS-4007 (SuspensionBaseHelper.java:493-496). Isi ocms_suspension_reason/standard_code yang menentukan kode mana boleh dari PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan ke PLUS bahwa permanent suspension berhasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:150; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-548; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1198",
+      "fit": "Sesuai",
+      "detail": "Sukses: {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150; SuspensionBaseHelper.java:541-548) ditambah appCode OCMS-2000 dari controller (SuspensionProcessingController.java:1186-1198), HTTP 200 berisi list per notice (:555). Kode PS sama yang sudah aktif: 'Success Notice already PS' appCode OCMS-2001 (PermanentSuspensionHelper.java:91). Kegagalan: success=false; createErrorResponse tidak menaruh appCode (SuspensionBaseHelper.java:528-535) sehingga controller memberi OCMS-4000 untuk semua kegagalan (SuspensionProcessingController.java:1191-1194). Langkah ini sama dengan langkah pesan sukses di OCMS18.22. Tampilan di PLUS cannot verify from repo."
+    }
+  ]
+}

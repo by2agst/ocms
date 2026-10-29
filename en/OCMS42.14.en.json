@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.14",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/HDQuests.ts, pages/Furnish/Furnish.ts (extractOffenceDate), utils/validation/Furnish/ValidHirerDriver.ts, utils/validation/error.ts, components/form/DatetimeInput.ts, utils/map/MapFurnish.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}, crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplication. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant.",
+  "note": "3-point story, status_with_ura 'Fully paid'. Selecting 'Vehicle is leased' shows Start/End Date and Start/End Time (mandatory). The check against the offence date runs in the UI when a field changes (500 ms debounce) and at Proceed to review, using the earliest offence date (for the start) and the latest (for the end) of all selected notices; the server re-checks per notice with the offence date from the DB. The 'live check' here is client-side validation of the notice dates that were already loaded, not an API call per keystroke. Edge cases: the UI compares to the minute (HH:mm) while the server uses the full LocalDateTime (seconds), and if a notice has no offence date both checks are skipped (return true). No relevant maintenance ticket.",
+  "recommendation": "Claimable: the rental period fields and the offence date check work in the UI and on the server.",
+  "steps": [
+    {
+      "step": "The owner indicates the relationship \"Vehicle is leased\" for the hirer",
+      "detail": "The 'Vehicle is leased' option (value H) is in RelationshipOptions and RelationshipUENOptions (option.ts:39, 42-54). onSelect sets isVehicleLeased = (value === 'H') (HDQuests.ts:189) and switches the document list so Vehicle Rental Agreement is available (HDQuests.ts:191-196)."
+    },
+    {
+      "step": "The page shows the rental period fields (from date/time to date/time)",
+      "detail": "When isVehicleLeased is true, the 'Rental Period' block is rendered with four inputs: Start Date, Start Time, End Date, End Time (HDQuests.ts:511-541), initialised in InitRentalPeriod (HDQuests.ts:418-486, triggered at HDQuests.ts:117-123). Selecting another option clears the four fields (HDQuests.ts:184-187)."
+    },
+    {
+      "step": "All four rental period fields are mandatory",
+      "detail": "When hdRelation = 'H', hdRentalSD, hdRentalST, hdRentalED, hdRentalET are all required (ValidHirerDriver.ts:73-109, 111-162) with messages such as 'Rental start date is required.' (error.ts:491-516). The server rejects an empty rentalPeriodFrom or rentalPeriodTo (FurnishRequestValidator.java:247-253)."
+    },
+    {
+      "step": "The system checks the rental period against the offence date(s) of the selected notice(s)",
+      "detail": "When notices are selected, extractOffenceDate computes the earliest and latest offence date+time of all selected notices (Furnish.ts:383-411, called at 435). Yup tests start <= earliest offence (ValidHirerDriver.ts:73-103) and end >= latest offence plus end > start (ValidHirerDriver.ts:111-155), so the period covers all notices. The test runs on every field change (DatetimeInput.ts:155-160, 190, CHANGE mode with debounce) and at Proceed to review. Edge case: if a notice has no offence date the check is skipped (ValidHirerDriver.ts:86, 128)."
+    },
+    {
+      "step": "The server re-checks and the rental period is stored with the submission",
+      "detail": "The UI combines date and time into rentalPeriodFrom/To (MapFurnish.ts:80-81, 117-118; null when the relationship is not 'H'). After the notices are validated, the controller calls validateRentalPeriod with the offence date (notice_date_and_time) from the DB (FurnishSubmissionController.java:170-177; FurnishRequestValidator.java:237-283). If it passes, the values are stored on the furnish application record (FurnishSubmissionServiceImpl.java:196-197) and shown on the summary page (Summary.ts:222-227)."
+    }
+  ]
+}

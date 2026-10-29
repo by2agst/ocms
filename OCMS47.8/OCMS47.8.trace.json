@@ -1,0 +1,46 @@
+{
+  "story": "OCMS47.8",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{PermanentSuspensionHelper,PermanentRevivalHelper,SuspensionProcessingHelper}, workflows/notice_management/suspension/revivenotice/helpers/ReviveProcessingHelper, crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl; ocmsadminprivateapi framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper}, utilities/emailutility/EmailService, application-prod.properties",
+  "note": "Status 'Replacement Story'. Story minta OCMS memicu email berisi detail refund advice ke URA Finance setelah refund advice di-interface ke Cumulus. Interface Cumulus tidak ada (kata 'cumulus' 0 hasil di enam repo). Yang ada: record refund (ID RE{YYYYMMDD}{NNN}) dibuat saat PS/revive atas notice yang sudah dibayar, lalu Payment Exception Report harian (08:00, kemarin) mengirim email HTML + attachment Excel berisi Refund ID/tanggal/alasan ke daftar penerima tetap di properties. Tidak ada email yang dipicu saat refund dibuat, tidak ada refund_amount di exception report (ada di Daily Paid Report), dan penerima adalah alamat perorangan yang peran Finance-nya cannot verify from repo. Tiket: OCMS-SR-2026-112 dan OCMS-SR-2026-190 (kolom/logika refund di report; 190 berstatus Ready to PRD, kode main sudah membuat refund untuk manual payment atas PS-APP di PaymentUpdateServiceImpl.java:103-112, deploy cannot verify), OCMS-DF-2026-152 (refundNoticeId ke PLUS; tiket Ready to DEV, kode main sudah mengembalikan ID asli). Template email di DB (PAYMENT_EXCEPTION_REPORT) dan nilai SMTP di server cannot verify from repo.",
+  "recommendation": "Klaim sebagian: email harian berisi detail refund ke daftar penerima sudah ada, tetapi bukan trigger per refund advice, tanpa interface Cumulus, dan penerima Finance belum bisa dibuktikan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Refund advice dibuat di OCMS dan di-interface ke Cumulus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:358; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:42-82",
+      "fit": "Sebagian",
+      "detail": "Record refund dibuat lewat refundNoticeService.createIfNotExists (PermanentSuspensionHelper.java:358; juga PermanentRevivalHelper.java:319, ReviveProcessingHelper.java:370, SuspensionProcessingHelper.java:741) dengan ID RE{YYYYMMDD}{NNN} (OcmsRefundNoticeServiceImpl.java:42-82) dan idempotent per receipt+notice. Bagian interface ke Cumulus tidak ada (grep 'cumulus' = 0 hasil), jadi Sebagian. OCMS-DF-2026-152: fungsi sekarang mengembalikan ID asli (:42-51); status tiket Ready to DEV, deploy cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memicu email notification setelah refund advice dibuat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:96; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256",
+      "fit": "Sebagian",
+      "detail": "Tidak ada email yang dikirim saat refund dibuat (createIfNotExists hanya menyimpan record, OcmsRefundNoticeServiceImpl.java:42-82). Email datang dari Daily Report Job 08:00 yang menjalankan Payment Exception Report atas data kemarin (DailyReportJobsScheduler.java:96; cron-schedules-prod.properties:255-256, enabled=true). Jadi pemicunya batch harian, bukan event per refund advice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email memuat detail refund advice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:123-141; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:497-550",
+      "fit": "Sebagian",
+      "detail": "Query refund mengambil notice_no, pp_code, suspension_type, CRS/EPR reason, receipt_no, rn.cre_date (Refund Date/Time), refund_notice_id, refund_reason (PaymentExceptionReportHelper.java:123-141). Email HTML (PaymentExceptionReportJob.java:497-550) dan Excel (PaymentExceptionReportHelper.java:527-529) menampilkan kolom itu. refund_amount dan jumlah refund tidak diambil di query ini (ada di Refund sheet Daily Paid Report, DailyPaidReportHelper.java:127-145). Isi body dari template DB PAYMENT_EXCEPTION_REPORT: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim ke URA Finance officers",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:55-56; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:201-213; ocmsadminprivateapi/src/main/resources/application-prod.properties:78; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/emailutility/EmailService.java:65-67",
+      "fit": "Sebagian",
+      "detail": "Penerima = email.report.paymentreport.exception.recipients (PaymentExceptionReportJob.java:55-56, setTo :201), di prod berisi alamat @ura.gov.sg perorangan (application-prod.properties:78); code tidak mengenal peran 'Finance', jadi apakah mereka Finance cannot verify from repo. email.enableSmtp=false (application-prod.properties:80) tetapi PAYMENT_EXCEPTION_REPORT ada di email.smtp.allowedSources (:81) sehingga EmailService tetap mengirim (EmailService.java:65-67); nilai di server asli cannot verify from repo."
+    }
+  ]
+}

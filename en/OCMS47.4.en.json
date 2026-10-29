@@ -1,0 +1,25 @@
+{
+  "story": "OCMS47.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "Only the front end of refunds exists: the ocms_refund_notice record (OcmsRefundNotice.java, created in PaymentUpdateServiceImpl, PermanentRevivalHelper, CronSyncTxnData) and the PaymentExceptionReportHelper report. There is no code for bank account details, refund advice/status, a Cumulus interface, refund letters, a unique URL or an X-days parameter in the six repos. The Epic46 refund UI routes are commented out in ocmsadminui/src/App.tsx:342-371.",
+  "note": "Status in stories.json is 'No requirement' (requirement not given); the story is traced from its text. Grep with synonyms (refund, bank account, cumulus, paynow, giro, payout, disburse, beneficiary, refund advice, unique url) across the six repos, UI and API, found no code for this flow. All that exists is the ocms_refund_notice record with no bank, payout status, address or letter date column (OcmsRefundNotice.java:20-58), and no job in ocmsadminprivateapi reads that table to create a letter (only PaymentExceptionReportHelper:123-137 reports on it). The Epic46 refund UI routes are in App.tsx:342-371 but inside a comment block and the Epic46 import is commented out too (App.tsx:60). The OCMS8 address mechanism for notices (e.g. ToppanUploadHelper.java:409) is not called for refunds. Tickets OCMS-SR-2026-112, OCMS-SR-2026-190 and OCMS-DF-2026-152 only concern creating the refund record/ID and the exception report, not the bank details flow. Cumulus and PayNow: cannot verify from repo. Note: the OCMS47.4 text is identical to OCMS47.3, so each step has the same fit.",
+  "recommendation": "Do not claim. The feature is not in the code; only the refund record and exception report can be reused. Ask URA in which repo (if any) the bank details and Cumulus flow was built.",
+  "steps": [
+    {
+      "step": "The offender does not submit bank account details X days after the 1st reminder is sent",
+      "detail": "There is nothing that stores a letter date, payout status or checks an X-day limit for refunds: ocms_refund_notice only has id, amount and reason columns (OcmsRefundNotice.java:20-58)."
+    },
+    {
+      "step": "OCMS checks and updates the offender's latest registered address (per OCMS8) for the refund case above",
+      "detail": "The OCMS8 address check exists only for notices (ToppanUploadHelper.java:409 sets letter_address in ONOD_addr after the Toppan file); it is not called from the refund record (OcmsRefundNotice.java:20-58 has no offender/address reference). No refund job calls it."
+    },
+    {
+      "step": "OCMS generates the 2nd reminder letter asking the offender to submit bank account details within X days (parameter)",
+      "detail": "No refund letter code: there is no template, job or letter date column for refunds; the only cron reader of ocms_refund_notice is the PaymentExceptionReportHelper.java:123-137 report. There is also no X-days parameter for refunds (grep refund/bank in *.properties and parameter table is empty)."
+    },
+    {
+      "step": "The X-day limit comes from an OCMS parameter",
+      "detail": "No parameter/properties for a refund day limit (api-authorization.properties:36 only registers the refundnotice list endpoint)."
+    }
+  ]
+}

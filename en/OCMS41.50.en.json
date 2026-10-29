@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.50",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot, hook/ApplyOperationAction, list/NoticeSearchAllList}, pages/BatchFurnish/{page/BatchFurnish, form/{BatchFurnishForm,BatchFurnishDetails}, list/BatchFurnishList}, utils/{mapping/Furnish/FurnishMap, validation/BatchFurnish}; ocmsadminapi workflows/furnish/stafffurnish/{StaffFurnishController.batchFurnish, StaffFurnishService.batchFurnish/staffFurnish}, api-authorization.properties (OCMS_BATCH_FURNISH). Other repos: no code.",
+  "note": "Status Demo paid (50% of 75%). The bulk flow exists end to end. Two remarks: the list marker 'notice has furnish data' is only a guess from stage and ownerDriverIndicator, not a read of the ONOD records; and batchFurnish runs in one @Transactional while catching exceptions per notice, so whether partial writes of a failed notice get committed cannot verify from repo. The offender type options come from standardcode OFFENDER_INDICATOR (DB), its content cannot verify from repo. No maintenance ticket is specific to bulk furnish.",
+  "recommendation": "Claim, with remarks: selecting notices, offender type and the bulk update are proven; the 'particulars already exist' marker in the list is only a stage heuristic.",
+  "steps": [
+    {
+      "step": "The list includes notices with and without already furnished particulars, and existing ones are marked",
+      "detail": "The list does not distinguish when selecting: every selected notice goes in. A row is highlighted 'Notice(s) highlighted have existing furnish data' when lastProcessingStage is in FURNISHED_STAGES (RD1, DN1, RD2, DN2, RR3, DR3, CFC, CPC; constant.ts:161) and the ownerDriverIndicator field is filled (BatchFurnishList.tsx:61-88). This is a guess from the stage, not a read of the ONOD records; stages RD1/RD2/RR3 are also reached through normal owner reminders without any furnish, so the marker can be wrong. Sebagian."
+    },
+    {
+      "step": "Officer selects the applicable notices from the list (checkbox, select all)",
+      "detail": "The search-result Datagrid has select-all and per-row checkboxes (NoticeSearchAllList.tsx:122-127). The Select button passes the selected rows to ApplyOperationAction (NoticeSearchSlot.tsx:232-237, 299-302; ApplyOperationAction.tsx:117-133). On the Batch Furnish page the officer can still remove rows (BatchFurnishList.tsx:49-59). Sesuai."
+    },
+    {
+      "step": "Officer chooses the Batch Furnish operation, only available to users with the related function",
+      "detail": "The Apply Operation dropdown holds Apply TS, Apply PS, Apply Revival, Batch Furnish (option.tsx:314-319), filtered by hasFunction (NoticeSearchSlot.tsx:284-288) using the mapping BATCH_FURNISH -> OCMS_BATCH_FURNISH (constant.ts:271-281). The server checks again through OcmsAuthorizationInterceptor: endpoint staff-furnish/batch-furnish is mapped to OCMS_BATCH_FURNISH (api-authorization.properties:72-73). Which role is given that function cannot verify from repo. Sesuai."
+    },
+    {
+      "step": "Officer selects the offender type (owner/hirer/driver) for the bulk update",
+      "detail": "The Batch Furnish form has a required 'Offender Role' dropdown (BatchFurnishDetails.tsx:76-101; validation ValidBatchFurnishForm.ts:21) with options from standardcode OFFENDER_INDICATOR (OptionsContext.tsx:450-453); the option rows in the DB cannot verify from repo. The UI removes ID type UEN when the role is Driver (BatchFurnishDetails.tsx:66-71); this guard is UI-only, staffFurnish does not check it (only staffRedirect does, StaffFurnishService.java:333-335). Sesuai."
+    },
+    {
+      "step": "One set of particulars is applied to all selected notices at once",
+      "detail": "After confirmation the UI sends one POST staff-furnish/batch-furnish holding noticeNumbers[] and one set of particulars (BatchFurnishForm.tsx:107-120; FurnishMap.ts:95-117). The server validates the required fields, then batchFurnish loops and calls staffFurnish per notice (StaffFurnishService.java:630-658), returning 207 if any failed (StaffFurnishController.java:260-263). A per-notice exception is caught and returned as a failure (StaffFurnishService.java:296-300), so one failed notice does not stop the others; whether partial writes of a failed notice get committed in the single transaction cannot verify from repo. Sesuai."
+    },
+    {
+      "step": "Notices that already have particulars are overwritten in the bulk update",
+      "detail": "The batch confirmation says 'All existing <role> details will be overwritten' (BatchFurnishForm.tsx:89). staffFurnish does not reject a notice that already has a record: the old offender gets indicator N, the old addresses of that role are deleted, the new record is saved (StaffFurnishService.java:196-232). Same fit as OCMS41.47 step 3. Sesuai."
+    },
+    {
+      "step": "Notices that turn out not to be furnishable are rejected during the bulk update, results reported per notice",
+      "detail": "staffFurnish calls checkFurnishable again per notice and returns a failure with the reason message (StaffFurnishService.java:181-184); the controller sends the per-notice results (StaffFurnishController.java:243-258) and the UI splits success/failed (BatchFurnishForm.tsx:122-132). This closes the UI filter gap in OCMS41.49 step 3. Sesuai."
+    }
+  ]
+}

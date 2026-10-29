@@ -1,0 +1,37 @@
+{
+  "story": "OCMS14.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Cron/list/CronList (daftar trigger manual); ocmsadminapi workflows/operational/cronproxy/{CronProxyController,CronProxyService}; ocmsadminprivateapi framework/controllers/ToppanUnifiedController (POST /toppan/generate-letters), schedulers/{ToppanUploadJobsScheduler,MhaDownloadJobsScheduler}, resources/{cron-schedules-prod,application-prod}.properties. Tidak ada trigger manual untuk reminder letter entity DIP/MID atau quarterly report.",
+  "note": "Story minta officer bisa menjalankan pembuatan letter dan report secara manual kapan saja bila job otomatis gagal. Mekanisme trigger manual di halaman Cron memang ada, tetapi hanya untuk job lain: letter Toppan generik per notice (Sebagian, upload diblokir di prod dan day-end cron tidak memanggilnya) dan report lain. Job otomatis dan manual untuk reminder letter entity DIP/MID (OCMS14.8) dan quarterly report (OCMS14.7) tidak ada, jadi tidak ada yang bisa dijalankan manual. Ticket: OCMS-DF-2026-192 (Ready to UAT) trigger manual letter Toppan di production gagal. Status story: Requirement given - Gen flow.",
+  "recommendation": "Klaim hanya sebagian kecil dan hati-hati: mekanisme trigger manual generik ada, tetapi output yang disebut story (reminder letter entity dan quarterly report DIP/MID) belum ada. Bergantung pada OCMS14.7 dan 14.8.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa membuat reminder letter secara manual kapan saja",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:45; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:165-169; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java:226-228; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-41; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Ada tombol manual 'Toppan Generate Letters' di halaman Cron staff portal (CronList.tsx:45) yang memanggil POST cron/toppan-enquiry/trigger (CronProxyController.java:165-169), diteruskan ke /toppan/generate-letters (CronProxyService.java:226-228, ToppanUnifiedController.java:34-41) dan menjalankan executeJob tanpa melihat flag enabled jadwal. Tetapi itu pembuat letter Toppan generik untuk semua stage per notice, bukan reminder letter entity DIP/MID (lihat OCMS14.8). Day-end cron justru tidak memanggilnya (ToppanUploadJobsScheduler.java:118 di-comment), sehingga manual adalah satu-satunya jalur. Upload ke Toppan diblokir di prod (sftp.upload.disabledServers=toppan, application-prod.properties:86; nilai server asli: cannot verify from repo). OCMS-DF-2026-192 (Ready to UAT): trigger manual di production gagal karena blokir itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa membuat quarterly report secara manual kapan saja",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:40-69; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:275-279; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:310-315",
+      "fit": "Tidak ada code",
+      "detail": "Daftar trigger manual di halaman Cron (CronList.tsx:40-69) dan di CronProxyController tidak punya entri untuk report quarterly atau report DIP/MID. Trigger report yang ada hanya RIP Hirer/Driver (CronProxyController.java:275-279), HST monthly (:310-315), report pembayaran, LTA/MHA/vHub, dan lainnya. Report quarterly sendiri tidak ada (lihat OCMS14.7)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Opsi manual tersedia sebagai cadangan jika job otomatis gagal",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-41; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-102; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "Untuk letter Toppan, endpoint manual berdiri sendiri dan tidak bergantung flag cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62) sehingga bisa dipakai saat job gagal (ToppanUnifiedController.java:34-41), dan job manual lain memakai pola yang sama (misalnya MhaDownloadJobsScheduler.executeMhaDownloadJobs yang langsung memanggil job 1 tanpa memeriksa flag enabled, MhaDownloadJobsScheduler.java:101-102). Namun cadangan itu hanya ada untuk letter Toppan generik; untuk reminder letter DIP/MID dan quarterly report tidak ada job otomatis maupun manual yang bisa dijadikan cadangan."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS8.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/agencies/mha/download/{helpers/MhaNricRecordValidator (selectMostRecentRecord: same or empty date flags TS-NRO), jobs/MhaNricDownloadJob (passes on TS_NRO_FLAG), helpers/MhaNricDownloadHelper (applies TS-NRO in batch)}, utilities/suspension_helpers/TemporarySuspensionHelper, workflows/autorevival/helpers/AutoRevivalHelper (auto revival), services/datahive/.../DataHiveFINBatchService + workflows/datahiveuenfin/services/DataHiveUenFinService (FIN path). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: 'Requirement given - Gen flow'. The NRIC path (MHA result file, job enabled in PROD) already covers the 'cannot decide' case: when two duplicate rows (same UIN + notice) have the same or empty Date of Address Change, the first row is kept, the record is flagged and the notice is suspended with TS-NRO with the remark 'Duplicate same date: <date>'. Gaps: TS-NRO is a shared code also used for invalid address, empty critical fields and inconsistent life status; TS-NRO is only applied when the notice has no suspension yet; TS-NRO has an automatic revival date (noOfDaysForRevival from the suspension_reason table, value cannot verify from repo) so the notice can move again without an OIC decision; the first row's address is still written as the letter address while the notice is suspended; the FIN path from DataHive has no suspend rule for an address conflict. Maintenance ticket: OCMS-DF-2026-177 (Closed) changed when TS-NRO may be applied (only if the ID is still the offender); the code already contains Scenario A/B (MhaNricDownloadHelper.java:836-846), proof in PROD cannot verify from repo.",
+  "recommendation": "Claim the NRIC path for conflict detection and applying TS-NRO. Mark Sebagian for 'does not escalate while waiting for the OIC' because of automatic revival, and Tidak ada code for FIN address conflicts. Consider a dedicated suspension code without auto-revival for this case",
+  "steps": [
+    {
+      "step": "OCMS cannot pick the address automatically because the two duplicate addresses have the same or empty update date",
+      "detail": "selectMostRecentRecord: when all Date of Address Change values are null, or all non-null dates are identical, the first row is kept and setFlagTsNro(true) is called (MhaNricRecordValidator.java:341-356). The counterpart (different dates, take the latest) is in OCMS8.7."
+    },
+    {
+      "step": "The record is flagged with the address-conflict reason for suspension",
+      "detail": "The reason is stored as tsNroReason 'True duplicate with missing Date Address Change' or 'Duplicate same date: <date>' (MhaNricRecordValidator.java:345,354-355). The job copies the flag into the record as TS_NRO_FLAG='Y' and TS_NRO_REASON (MhaNricDownloadJob.java:950-956); the helper reads it (MhaNricDownloadHelper.java:1119-1122) and uses the reason as the suspension remark (:1159-1163)."
+    },
+    {
+      "step": "OCMS temporarily suspends the notice under suspension code TS-NRO",
+      "detail": "Flagged notices are collected only when the VON has no suspensionType yet (MhaNricDownloadHelper.java:1137-1146), re-checked before applying (:1630-1655), then applied through tsHelper.processTSBatch with SuspensionReason.NRO and a per-notice remark (:2745-2755). Scenario A of OCMS-DF-2026-177 (Closed): if the ID in the file is no longer the offender the record is skipped without suspension (:836-846); proof in PROD cannot verify from repo. The NRO code is shared with other reasons (invalid address, empty critical fields), so the 'specific code' is distinguished by the remark, not by its own code."
+    },
+    {
+      "step": "The notice does not escalate while waiting for the OIC's decision",
+      "detail": "TS-NRO gets a revival date = today + noOfDaysForRevival from the suspension_reason table (MhaNricDownloadHelper.java:2677-2714; TemporarySuspensionHelper.java:127-131). AutoRevivalHelper revives TS whose dueDateOfRevival has passed, and NRO is in its reason list (AutoRevivalHelper.java:69-73, 394-398). So the notice is only held for N days (the value of N cannot verify from repo) and can then proceed without an OIC decision. Nothing holds the notice until the OIC decides."
+    },
+    {
+      "step": "The same applies when DataHive returns 2 FIN addresses that cannot be decided",
+      "detail": "For a FIN, two EPFOREIGNER rows with the same or empty LAST_CHANGE_ADDRESS_DT: the condition 'existing == null || after(existing)' keeps the first row without a flag or suspension (DataHiveFINBatchService.java:500-508). The work permit address then beats the pass address without noticing a conflict (DataHiveUenFinService.java:2533-2552). TS-NRO in the FIN path is only applied for a FIN not found in DataHive (trackSuspension('TS', 'NRO') then processFINNotFoundFlow, DataHiveUenFinService.java:1131-1136), not for an address conflict."
+    }
+  ]
+}

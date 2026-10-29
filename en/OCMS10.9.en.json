@@ -1,0 +1,37 @@
+{
+  "story": "OCMS10.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob, jobs/ToppanUploadJob, helpers/ToppanUploadHelper, helpers/AnLetterPdfService, models/ToppanStage}, framework/services/agencyFileExchange/AgencyFileExchangeServiceImpl, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAdvisoryNoticeLetters), crud/ocmsizdb/OcmsAnLetter, properties application-prod and cron-schedules-prod. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no AN letter code",
+  "note": "Sheet status: Requirement given - Gen flow; remark 'Check if SG completed this function for AN'. Answer: the code exists. The Toppan ANL stage selects notices with an_flag='Y' at RD1 that are not yet PS-ANS and not yet in ocms_an_letter (OcmsValidOffenceNoticeRepository.java:667-707), drops those without an address (ToppanUploadHelper.java:2580-2600), builds the PDF from the AN_LETTER template (AnLetterPdfService.java:36-62) and the same 719-character data file as the other stages (ToppanUploadJob.java:280-286; AgencyFileExchangeServiceImpl.java:84-85), then sends it through COMCRYPT to the Toppan SFTP (ToppanUploadJob.java:349). The weakness is delivery: the PDFs are only uploaded to blob, with no COMCRYPT/SFTP request for the PDFs (ToppanUploadJob.java:326-342; the log at :327 says 'blob and SFTP' but only uploadToBlob runs at :332). And sftp.upload.disabledServers=toppan in dev/uat/prod (application-prod.properties:86) blocks uploads to Toppan (ticket OCMS-DF-2026-170 block, OCMS-DF-2026-192 Ready to UAT). Because the delivery gate is bypassed while blocked (ToppanUploadJob.java:421-433), the ANL stage still 'advances': PS-ANS is applied, ocms_an_letter is recorded and letter_address is reset (ToppanUploadHelper.java:241-293) although no file reached the vendor. The AN_LETTER template in the database, the data file format against the Toppan spec, and receipt/printing by the vendor: cannot verify from repo.",
+  "recommendation": "Claim partially. Building the AN letter (query, PDF, data file) is complete, but delivery to the vendor is blocked by config and the PDFs have no send path beyond blob; the stage still advances although nothing was delivered. Ask URA whether the Toppan block still applies and how the vendor receives the PDFs",
+  "steps": [
+    {
+      "step": "OCMS selects the AN notices whose letter must be sent (not yet PS-ANS, never sent before)",
+      "detail": "findAdvisoryNoticeLetters selects an_flag='Y', next_processing_stage='RD1', next_processing_date <= today, not PS-ANS, and notice_no not yet in ocms_an_letter (OcmsValidOffenceNoticeRepository.java:667-707), called by getAdvisoryNoticeLettersOptimized (ToppanUploadHelper.java:2531-2545). ANL is the last stage in the Toppan loop (ToppanLettersGeneratorJob.java:152; ToppanStage.java:25) and the Toppan cron is enabled in prod (cron-schedules-prod.properties:61-62). The normal RD1 letter excludes ANs (:611) so there is no double send."
+    },
+    {
+      "step": "Only AN notices that have the latest address enter the letter",
+      "detail": "Addresses are added through enrichNoticesWithAddressesOptimized for ANL (ToppanUploadHelper.java:2574-2578) and notices without any address field are dropped from the letter (:2580-2600). The missing notification for dropped notices is covered in the last step of OCMS10.8; what this step asks (only notices with an address are sent) is met."
+    },
+    {
+      "step": "The AN letter is produced in PDF format",
+      "detail": "generateAnLetterPdfs calls AnLetterPdfService per notice (ToppanUploadHelper.java:356-380): the 'AN_LETTER' template is loaded from the database and rendered to PDF with OpenHTML2PDF (AnLetterPdfService.java:36-62, 73), called at ToppanUploadJob.java:324-342. A failed PDF is only logged and the notice stays in the data file. The AN_LETTER template is not in the repo; its existence, content and rendering: cannot verify from repo."
+    },
+    {
+      "step": "The AN letter is produced as a data file for the vendor",
+      "detail": "The ANL stage uses the same path as the other Toppan stages: file name URA-DPT-ANL-D1-{timestamp} and a 719-character fixed-width body from createToppanRequestFileContent for agencyType TOPPAN_ANL (ToppanUploadJob.java:280-286; AgencyFileExchangeServiceImpl.java:84-85, 560-600), sorted by postal code. Match with the Toppan spec: cannot verify from repo."
+    },
+    {
+      "step": "The data file is sent to the vendor for printing and postage",
+      "detail": "The file is uploaded to blob and a COMCRYPT encryption is requested whose callback uploads to the Toppan SFTP (ToppanUploadJob.java:314, 349-357). But sftp.upload.disabledServers=toppan in dev/uat/prod (application-prod.properties:84-86; application-uat.properties:77) blocks uploads to Toppan (properties comment: OCMS-DF-2026-170), so under the repo config the file does not reach the vendor. Ticket OCMS-DF-2026-192 (Ready to UAT) deals with stages not advancing because of this block. Receipt, printing and postage by Toppan, and per-environment values: cannot verify from repo. Same as OCMS1.9 send-to-vendor step."
+    },
+    {
+      "step": "The AN letter PDFs reach the vendor",
+      "detail": "The AN PDFs are only uploaded to blob through uploadToBlob (ToppanUploadJob.java:326-342); the log at :327 says 'uploading to blob and SFTP' but no SFTP call exists. The COMCRYPT request is only for requestFileName, the data file (:349-352). So the repo has no send path for the PDFs to the vendor other than blob; whether the vendor or another process picks the PDFs from blob: cannot verify from repo."
+    },
+    {
+      "step": "After the letter is sent, the notice is recorded as AN-letter sent and suspended (PS-ANS)",
+      "detail": "updateProcessingStage for ANL applies PS-ANS, moves next_processing_date forward, records to ocms_an_letter and resets letter_address (ToppanUploadHelper.java:241-293, 876-881, 955-975). However confirmDeliveryAndAdvanceStage bypasses the delivery gate while the Toppan server is blocked (ToppanUploadJob.java:421-433), so under the repo config all of this happens although no file reached the vendor: the notice is recorded as 'letter sent' and will not be sent again. The story does not ask for this step explicitly; it is listed because it decides whether an unsent letter is ever resent."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS17.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,form/NoticeSearchAllForm,form/NoticeSearchOutstandingForm,hook/useSearchParams,list/NoticeSearchAllList,list/NoticeSearchOutstandingList}, App.tsx route notices/search/:search_type; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (POST /validoffencenoticelist) and api-authorization.properties OCMS_NOTICE_SEARCH. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status in stories.json: Fully paid, 1 point. There is no OCMS flow deck, so Sesuai means the code does what the story text says. The search lives in the Staff Portal with two modes (All Notices and Outstanding Notices). Notice no., ID no., processing stage and dates are all available in All mode; Outstanding mode (closest to the word 'outstanding' in the story) has no Notice No. or Processing Stage field, and All mode also lists paid and PS notices. There are extra rules that are not in the story: a single stage/date criterion is rejected and date ranges are limited to 6 months. No maintenance ticket changes the verdict. Data content and menu roles: cannot verify from repo.",
+  "recommendation": "Claimable for the All-mode search. Note that Outstanding mode has no Notice No. or Processing Stage field; if URA insists on an 'outstanding' search with those parameters, this is a small gap.",
+  "steps": [
+    {
+      "step": "Officer opens the notice search page in the Staff Portal and picks All Notices or Outstanding Notices mode",
+      "detail": "The route notices/search/:search_type is defined in App.tsx:96-106 and the 'All Notices' / 'Outstanding Notices' dropdown is in NoticeSearchForm.tsx:126-138, so the officer can choose the search mode. On the server side the function OCMS_NOTICE_SEARCH maps to /v1/validoffencenoticelist and the supporting endpoints (api-authorization.properties:21-22). Who sees the Search menu in the UI was not checked; cannot verify from repo."
+    },
+    {
+      "step": "Officer searches notices by notice number or ID number",
+      "detail": "The All-mode form has a Notice No. field (uppercase, max 10 characters, NoticeSearchAllForm.tsx:64) and an ID No. field (:542). getParams turns them into noticeNo[$in] (useSearchParams.tsx:322) and idNo (:530); the server applies the owner/driver filter through a join query (OcmsValidOffenceNoticeServiceImpl.java:173-211). Notice No. or ID No. can be used alone: checkSearch only rejects a single criterion for fields in the must_multiple list (useSearchParams.tsx:47-101) and notice_no/id_no are not in that list."
+    },
+    {
+      "step": "Officer searches notices by current processing stage and date",
+      "detail": "Processing Stage (NoticeSearchAllForm.tsx:297) becomes lastProcessingStage[$in] (useSearchParams.tsx:521) and Offence Date From/To (:471) become noticeDateAndTime gte/lte (:525-527). There are extra rules that are not in the story: stage or a date range cannot be the only criterion ('Please enter another field' message, useSearchParams.tsx:47-101) and a date range is limited to 6 months (:104-160). These fields exist only in All mode; see the next step for Outstanding mode."
+    },
+    {
+      "step": "Search is limited to outstanding notices that can be temporarily suspended",
+      "detail": "Outstanding mode applies defaultFilters (empty/TS suspensionType, PS with reason FOR/DIP/MID/RIP/RP2, or PS with crs reason PP, plus offenderIndicator=Y; NoticeSearchOutstandingList.tsx:105-125). But its form only has ID No., Offender Name, Vehicle No., Offence Date, Court Mention Date and Court Trial Date (NoticeSearchOutstandingForm.tsx:41-85 onward): there is no Notice No. and no Processing Stage, although the story names both. They exist only in All mode (NoticeSearchAllForm.tsx:64), which also lists paid and PS notices. Sebagian."
+    },
+    {
+      "step": "OCMS shows the matching notices on screen",
+      "detail": "The Apply button runs checkSearch, then getParams and setAdvanceFilter (NoticeSearchForm.tsx:52-61); the Datagrid then POSTs to validoffencenoticelist (NoticeSearchAllList.tsx:114-131), served by OcmsValidOffenceNoticeController.java:55-76, and the result is rendered as a table. Actual data depends on the database; cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "story": "OCMS6.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm, hook/useSearchParams}, utils/validation/NoticeSearch/{Valid, ValidNoticeSearchAll}, utils/validation/Format/{ValidPerson, ValidFormat}, components/form/FormErrorList, i18n/en/translation.json. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/dto/NoticeQueryRequest (hanya pembanding). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Alert validasi pencarian ada dan tampil di layar sebagai modal. Terverifikasi di code: field kosong, hanya satu kriteria umum, format nomor notice, ID No. (NRIC/FIN/UEN), nomor summons, dan rentang tanggal (masa depan, From/To terbalik, >6 bulan). Gap: pemeriksaan format nomor kendaraan tidak aktif (Valid.ts:44-45 selalu true), hanya cek ketidakcocokan dengan tipe registrasi bila tepat satu tipe dipilih. Semua validasi ada di UI; server tidak mengirim pesan validasi ke user untuk query parameter tak aman. Tiket terkait yang Closed (Prod deployed): OCMS-DF-2026-098 (FIN M..J) dan OCMS-DF-2026-137 (UEN menerima NRIC); fix-nya terlihat di repo, tetapi versi yang jalan di PRO: cannot verify from repo. Daftar 'nilai tidak valid' yang diharapkan story tidak dirinci, jadi cakupan dinilai dari field yang ada di form.",
+  "recommendation": "Klaim alert untuk field kosong, nomor notice, ID No., summons dan rentang tanggal. Nomor kendaraan diklaim sebagian: format kendaraan lokal tidak divalidasi",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Apply tanpa mengisi kriteria apa pun memunculkan alert",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:38; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:100; ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:52-70",
+      "fit": "Sesuai",
+      "detail": "onApply (NoticeSearchForm.tsx:52-70) memanggil checkSearch. Bila tidak ada field terisi, useSearchParams.tsx:100 melempar {empty: 'Please enter at least 1 field to complete search.'} (pesan di baris 38) dan catch di NoticeSearchForm.tsx:61-69 menampilkan modal error."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya satu kriteria yang terlalu umum (misalnya satu dropdown atau satu tanggal) memunculkan alert 'isi field lain'",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:45-98; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:39; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:101",
+      "fit": "Sesuai",
+      "detail": "checkSearch memegang daftar must_multiple (vehicle_type, rule_code, notice_type, offender_type, suspension_type, ts/ps code, processing_stage, payment_status, pp_code, id_type, ntac_no dan pasangan tanggal) di baris 47-64. Jika hanya satu field dari daftar itu yang terisi (atau satu pasangan tanggal), baris 101 melempar {another: 'Please enter another field to complete search.'} (pesan di baris 39). Nomor notice, nomor kendaraan, ID No. dan nama tidak masuk daftar sehingga boleh dipakai sendirian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor notice dengan format salah memunculkan pesan 'Invalid notice no.'",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:18-32; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchAll.ts:25; ocmsadminui/src/i18n/en/translation.json:988-991",
+      "fit": "Sesuai",
+      "detail": "ValidNoticeSearchAll.ts:25 memasang NoticeNo; Valid.ts:18-32 memanggil Format('NOTICE', value) dan bila gagal memberi pesan error.notice_no.format = 'Invalid notice no.' (translation.json:988-991). Field juga dibatasi 10 karakter dan uppercase di NoticeSearchAllForm.tsx:76. Pesan tampil di modal dari NoticeSearchForm.tsx:61-69 lewat FormErrorList."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor kendaraan yang tidak cocok dengan tipe registrasi dipilih memunculkan alert",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:34-85",
+      "fit": "Sebagian",
+      "detail": "Valid.ts:48-85 memunculkan 'Number does not match selected registration type.' hanya bila tepat satu Vehicle Registration Type dipilih (Diplomat, Military, dst.). Pemeriksaan format kendaraan lokal di baris 35-46 sebenarnya tidak aktif: test selalu return true dan Format('VEHICLE') di-comment (baris 44-45). Jadi nomor kendaraan ngawur tanpa memilih tipe tidak memunculkan alert (hasilnya kosong saja)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID No. yang tidak sesuai format NRIC/FIN/UEN atau tipe ID yang dipilih memunculkan alert",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:106-158; ocmsadminui/src/utils/validation/Format/ValidPerson.ts:52-75; ocmsadminui/src/utils/validation/Format/ValidPerson.ts:141-157",
+      "fit": "Sesuai",
+      "detail": "Valid.ts:106-158 menolak ID No. dengan 'Number does not match NRIC/FIN/UEN format' (dikecualikan bila tipe Passport atau lebih dari satu tipe dipilih) dan 'Number does not match selected ID type.' bila tipe N/F/B dipilih. Tabel checksum FIN awalan M ada di ValidPerson.ts:72 dan UEN menolak bentuk NRIC di baris 141 (perbaikan dari OCMS-DF-2026-098 dan OCMS-DF-2026-137, keduanya Closed, Prod deployed; versi PRO sebenarnya: cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor summons dengan format salah memunculkan pesan 'Invalid summon no.'",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:179-192; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchAll.ts:31; ocmsadminui/src/i18n/en/translation.json:993-996",
+      "fit": "Sesuai",
+      "detail": "ValidNoticeSearchAll.ts:31 memasang SummonNo; Valid.ts:179-192 memanggil Format('SUMMON', value) dan memberi error.summon_no.format = 'Invalid summon no.' (translation.json:993-996). Alert validasinya ada; pencarian summons itu sendiri tidak punya sisi server (lihat OCMS6.2)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Rentang tanggal tidak valid (tanggal masa depan, From setelah To, atau lebih dari 6 bulan) memunculkan alert",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:205-280; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchAll.ts:39-125; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:104-161",
+      "fit": "Sesuai",
+      "detail": "NoticeSearchDateStart/End (Valid.ts:205-280) memberi pesan '... cannot be later than today's date', '... cannot be later than/earlier than ...' dan 'The Duration between the ... must not exceed 6 months.'. ValidNoticeSearchAll.ts:39-125 memasangnya ke Suspension, Court Mention, Court Trial dan Offence Date (tanggal masa depan diizinkan hanya untuk Court Mention/Trial, baris 69, 80, 91, 102). useSearchParams.tsx:104-161 mengecek lagi batas 6 bulan saat Apply dan melempar pesan per rentang."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan alert tampil di layar dalam modal berisi daftar kesalahan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:52-70; ocmsadminui/src/components/form/FormErrorList.tsx:57-65; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:541-547",
+      "fit": "Sesuai",
+      "detail": "Semua error validasi (Yup lewat validate() dan lemparan checkSearch/getParams) ditangkap di NoticeSearchForm.tsx:61-69 dan ditampilkan sebagai modal error 'Please check your form -' dengan daftar pesan (FormErrorList.tsx:57-65). Hasil yang terlalu besar (>1000 notice dari lookup) juga memunculkan alert 'The result set is too large...' (useSearchParams.tsx:541-547). Catatan: validasi hanya di sisi UI; QueryRequest di server (NoticeQueryRequest.java:37-61) membuang key tak aman dan memotong nilai >500 karakter tanpa pesan ke user."
+    }
+  ]
+}

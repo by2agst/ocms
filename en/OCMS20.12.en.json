@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi DataHiveUenFinService/DataHiveUenFinJob (adhoc FIN/UEN, queryAdhocNroTempData), MhaDownloadJobsScheduler + cron-schedules-prod.properties (uenfin.enabled=false), AutoRevivalHelper, ToppanUploadHelper.resetLetterAddressAfterToppan, ToppanUploadJobsScheduler; ocmsadminapi UnclaimedServiceImpl. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: Requirement given - Gen flow. The story asks OCMS to resume the foreigner's notice when the registered address and vehicle ownership have not changed. Resuming exists only as the date-based Auto Revival of TS-UNC (AutoRevivalHelper.java:113-134), without any 'no change' decision. FINs queued in ocms_adhoc_nro_temp (idType F/B) are processed by the DataHive UEN/FIN job, which saves the latest address to ocms_temp_unc_hst_addr (DataHiveUenFinService.java:325-328, DataHiveUenFinJob.java:197-204), but there is no comparison of old vs new address and no vehicle ownership change check on the UNC path, and that job is switched off in the prod properties (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). The real server value cannot be verified from the repo. The next reminder uses the address with letter_address='Y' (mha_reg first), but the daily file generation is commented out so it only runs through the manual trigger.",
+  "recommendation": "Do not claim in full. Resuming the notice through Auto Revival can be claimed in part; the 'no change in address/vehicle ownership' check for foreigners does not exist and the DataHive FIN job is switched off in prod according to the repo",
+  "steps": [
+    {
+      "step": "OCMS retrieves the foreigner's (FIN) latest registered address from DataHive",
+      "detail": "The DataHive UEN/FIN job reads ocms_adhoc_nro_temp with id_type F/B (DataHiveUenFinService.java:325-328), merges it with the main records (DataHiveUenFinJob.java:197-204) and saves the resulting address to ocms_temp_unc_hst_addr. However this job runs only when cron.mhadownload.uenfin.enabled=true, while in prod it is false (cron-schedules-prod.properties:52; MhaDownloadJobsScheduler.java:102-105 skips job 2). The real server value cannot be verified from the repo. OCMS-DF-2026-126 (Closed) earlier recorded FINs stored as type N and sent to MHA; OCMS-DF-2026-133 (Closed) removed PS notices from the queue."
+    },
+    {
+      "step": "OCMS identifies that the foreigner's registered address and vehicle ownership have not changed",
+      "detail": "The foreigner enquiry result is just copied to ocms_temp_unc_hst_addr (one row per id_no, overwritten if it exists) without comparing to the old address and without producing a 'no change' result. There is no vehicle ownership change check on the UNC path (the LTA query is not connected to the adhoc queue). DataHiveUenFinService.java:2566-2576 only handles the no-address case with findAlternativeAddress."
+    },
+    {
+      "step": "OCMS resumes processing of the foreigner's notice",
+      "detail": "Auto Revival reactivates notices whose TS-UNC has reached its due date (AutoRevivalHelper.java:113-134, VON update :644-650, called in the day-end run ToppanUploadJobsScheduler.java:119). It applies the same way to every ID and does not depend on a 'no change' result (step 2), so the notice resumes even when the address actually changed. The real schedule/enabled value cannot be verified from the repo."
+    },
+    {
+      "step": "Follow-up against the foreigner continues at the same registered address",
+      "detail": "For id type F/B the letter address is chosen mha_reg > lta_reg > lta_mail (ToppanUploadHelper.java:495-518), so the next reminder does use the existing registered address. However the daily Toppan file generation is commented out (ToppanUploadJobsScheduler.java:118) and runs only through POST /generate-letters; Toppan upload is switched off in the prod properties (application-prod.properties:86, OCMS-DF-2026-192). The real value cannot be verified from the repo."
+    }
+  ]
+}

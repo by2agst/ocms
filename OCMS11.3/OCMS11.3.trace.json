@@ -1,0 +1,55 @@
+{
+  "story": "OCMS11.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/services/datahive/contact/DataHiveContactServiceImpl, framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor (lookup saat LTA download), framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (refreshContactInfo, flag cron.enareminder.datahive), crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver, cron-schedules-*.properties. ocmsadminui: tidak ada tampilan sumber kontak. Repo lain: tidak ada code",
+  "note": "Status story 'Demo paid (50% of 75%)', demo_remark 'Notice details - show source name'. Story menyebut DOS; code mengambil kontak dari DataHive (view Singpass untuk individu, view CorpPass untuk company), apakah DOS sama dengan DataHive cannot verify from repo. Lookup berjalan saat LTA download (LtaSnowflakeProcessor) dan hasilnya ditulis ke owner/driver. Refresh kedua tepat sebelum kirim (NotificationSmsEmailHelper.refreshContactInfo) dimatikan lewat cron.enareminder.datahive=false di dev, UAT, dan prod, jadi kontak yang dipakai saat kirim adalah data tersimpan. Tidak ada pembatasan hanya untuk NOPO frontend, dan tidak ada kolom/tampilan sumber kontak (permintaan demo_remark). View DataHive dan isinya cannot verify from repo. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Klaim sebagian: lookup mobile/email saat LTA download sudah ada, tetapi refresh sebelum kirim dimatikan, tidak ada pembatasan frontend, dan permintaan 'show source name' belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan kontak berlaku untuk NOPO yang diterbitkan frontend enforcement system",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:434; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:134-166; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:721-735",
+      "fit": "Sebagian",
+      "detail": "Lookup kontak dijalankan untuk semua notice standar yang lolos exclusion list dan bukan passport (LtaProcessingOrchestrator.processStandardVehicle), tanpa membaca sumber notice; jadi NOPO frontend ikut, tetapi tidak dibatasi hanya frontend. Fakta yang sama dengan OCMS11.2 langkah 3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim NRIC/FIN pemilik individu ke sumber kontak dan menerima nomor mobile terbaru, lalu menyimpannya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:81-85; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:59-113; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:169-173",
+      "fit": "Sesuai",
+      "detail": "DataHiveContactServiceImpl.lookupContact mengklasifikasi ID type, membangun query ke view Singpass, menjalankannya dengan retry, lalu mem-parse hasil. LtaSnowflakeProcessor menulis offenderTelNo dan offenderTelCode ke ocms_offence_notice_owner_driver (baris 169-173). Sumbernya DataHive; apakah itu DOS cannot verify from repo, begitu juga isi view dan nomor yang dikembalikan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN company ke sumber kontak dan menerima alamat email terbaru, lalu menyimpannya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:59-113; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:177-179",
+      "fit": "Sesuai",
+      "detail": "Untuk ID type company, lookupContact memakai view CorpPass dan emailAddr hasilnya ditulis ke ocms_offence_notice_owner_driver (LtaSnowflakeProcessor.java:177-179). Kalau tidak ada kontak, notice diarahkan ke RD1 (baris 150). Akurasi data CorpPass cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sebelum notifikasi dikirim, OCMS menyegarkan lagi nomor mobile/email terbaru supaya yang dipakai benar-benar yang terakhir",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2477; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-189",
+      "fit": "Sebagian",
+      "detail": "Job eNotification memanggil batchPreloadContactInfo dan refreshContactInfo (NotificationSmsEmailJob.java:185-189), tetapi keduanya berhenti kalau cron.enareminder.datahive tidak 'true' (NotificationSmsEmailHelper.java:2329 dan 2468). Nilainya false di dev, UAT dan prod (cron-schedules-prod.properties:48), sehingga kontak yang dipakai saat kirim adalah data tersimpan dari LTA download, bukan hasil refresh."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice details menampilkan nama sumber kontak mobile/email (permintaan demo)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver/OcmsOffenceNoticeOwnerDriver.java:44-66",
+      "fit": "Tidak ada code",
+      "detail": "Entity owner/driver hanya punya kolom email_addr, offender_tel_code dan offender_tel_no (OcmsOffenceNoticeOwnerDriver.java:44-66), tanpa kolom sumber kontak. Grep contact source / mobile source / tel source di ocmsadminui/src dan ocmsadminapi/src/main tidak menemukan tampilan sumber kontak; hanya ada tampilan data DataHive owner di notice details yang bukan sumber mobile/email. Tidak ada tiket maintenance yang mengubah ini."
+    }
+  ]
+}

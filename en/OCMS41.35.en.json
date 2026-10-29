@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.35",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_notifications/{jobs/DailyOfficerNotificationJob,services/FurnishNotificationServiceImpl}, framework/schedulers/DailyReportJobsScheduler (job 6), framework/controllers/FurnishNotificationController, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminprivateapi furnish_processing/helpers/FurnishApprovalHelper (creates status P). ocmsadminui src/pages/Furnish/list/FurnishSummaryList.tsx",
+  "note": "The story status is User Story Removed, not claimed. There is a daily email to the OICs (job 6 in DailyReportJobsScheduler, cron.dailyreport.schedule = 0 0 8 * * ?, enabled=true in cron-schedules-prod.properties:255-256) listing all furnish applications with status P. But its query has no age limit: no 'older than X days' filter and no X parameter. workingDaysPending is computed (FurnishNotificationServiceImpl.java:228-237) but used neither in the query nor in the email rows (buildTableRows :186-201). Recipients are a fixed address list in furnish.notification.officer.emails (application-prod.properties:118), not per OIC. email.enableSmtp=false in application-prod.properties:80, but FURNISH_DAILY_NOTIFICATION is in email.smtp.allowedSources (:81); whether the email is really delivered on the real server cannot be verified from the repo. Ticket OCMS-DF-2026-004: the FURNISH_EMAIL_OFFICER_DAILY template was once missing from the PRD database so the email failed (Closed, DB script submitted; the current PRD state cannot be verified from the repo).",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Submissions that do not qualify for auto-approval are routed to the OIC as pending",
+      "detail": "executeManualReview sets the submission status to P and tries TS-PDP (FurnishApprovalHelper.java:499-536). The staff portal shows the status P list (FurnishSummaryList.tsx:60). Sebagian because of the Removed rule (this story is only context for the alert)."
+    },
+    {
+      "step": "OCMS checks for submissions still pending after more than X days",
+      "detail": "getPendingApplications fetches every furnish record with status P with no age filter (FurnishNotificationServiceImpl.java:146-157). calculateWorkingDays and workingDaysPending are computed (:160-180, :228-237) but not used to filter or shown (buildTableRows :186-201). There is no X-days property in the prod properties (grep furnish.* only finds furnish.notification.officer.emails)."
+    },
+    {
+      "step": "The OIC receives an alert so the review can be followed up promptly",
+      "detail": "Job 6 in DailyReportJobsScheduler.java:101 calls sendDailyOfficerNotification every day (cron.dailyreport.schedule = 0 0 8 * * ?, enabled=true, cron-schedules-prod.properties:255-256). It lists every pending furnish (notice no, vehicle no, offence date, stage, status, submission date, :186-201), sent to a fixed address list (application-prod.properties:118) through the FURNISH_EMAIL_OFFICER_DAILY template (:74). It is a daily digest of all pending items, not an alert 'after X days'. email.enableSmtp=false (application-prod.properties:80) but the source FURNISH_DAILY_NOTIFICATION is in allowedSources (:81); real delivery cannot be verified from the repo. Related ticket OCMS-DF-2026-004 (PRD template was once missing)."
+    }
+  ]
+}

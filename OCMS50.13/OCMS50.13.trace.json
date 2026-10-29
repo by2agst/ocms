@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentSearch}.ts dan Table/Column.ts (baris non-payable, ikon info, modal 'Payment Status'). ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (kode pesan E2/E4/E5/E10/E11 per notice), crud/ocmsezdb/eocmsusermessage (teks pesan di DB). ocmsadminapi workflows/notice_creation/core/helpers/{NoticeProcessingHelper,SuspensionBaseHelper,RevivalBaseHelper} (set eservice_message_code). thirdpartyapi, ocmsadminprivateapi, ocmsadminui: tidak ada code terkait",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark 'Check if this is ready'. Mekanismenya ada: notice yang tidak bisa dibayar tetap ditampilkan (daftar user Singpass atau hasil pencarian notice/vehicle) dengan payment_acceptance_allowed = N dan pesan per notice, dipilih lewat eservice_message_code (E5 annulled/PS-ANS, E4 blok court, E2 court pada pencarian vehicle, E10/E11 transaksi tertunda). Pesan tampil di modal 'Payment Status' setelah ikon info diklik. Gap: seluruh isi saran (termasuk 'Contact URA') ada di tabel eocms_user_message di DB dan tidak ada seed di repo, jadi apakah pesan benar-benar berisi langkah tindak lanjut: cannot verify from repo; baris non-payable hanya menampilkan '-' pada kolom Amount dan Status, saran baru terlihat setelah klik ikon; kode pesan hanya di-set eksplisit untuk beberapa kondisi (E1, E4, E5, E6, E2, E12) di ocmsadminapi, kondisi lain bergantung pada nilai yang sudah ada. Tiket terkait (semua Closed, Prod deployed): OCMS-DF-2026-009 (pesan salah untuk PS-APP dll di AXS), OCMS-SR-2026-043 (pesan eservice salah untuk court di AXS), OCMS-DF-2026-029 (revival: kode pesan berdasarkan stage). Tiket OCMS-DF-2026-011 memuat contoh teks pesan court yang berisi saran menghubungi URA; itu kutipan tiket, bukan bukti isi DB.",
+  "recommendation": "Klaim sebagian: mekanisme menampilkan pesan per notice non-payable ada, tetapi isi saran 'Contact URA' tidak bisa dibuktikan dari repo (ada di DB) dan saran hanya muncul setelah klik ikon",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User Singpass/Corppass melihat juga notice yang tidak bisa dibayar, bukan hanya yang bisa dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-312; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:334-338; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:80-102",
+      "fit": "Sesuai",
+      "detail": "Pencarian ID memakai findAllByNoticeNoInWithoutCrsFilter yang ikut mengembalikan notice annulled (an_flag = Y), PS-ANS, dan stage court (CPC/CFC/COM/COS/COW) selain yang bisa dibayar. Filter 'outstanding' hanya membuang yang sudah dibayar (FP), sehingga notice non-payable tetap ada di daftar dengan paymentAcceptanceAllowed = N."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pencarian notice/vehicle yang non-payable tetap ditampilkan dengan pesan, bukan dibuang",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-263; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:272-315",
+      "fit": "Sesuai",
+      "detail": "handleNoticeNoSearch dan handleVehicleNoSearch memetakan semua hasil ke DTO dengan eserviceMessage dan paymentAcceptanceAllowed; hanya yang 'Y' masuk allPayableNotices (baris 257-259 dan 408-410). applyTransactionAndConditionLogicBatch mengisi pesan per notice dari kode (E10 bila transaksi < 5 menit, E11 lewat 5 menit, lalu kondisi court E2/E4 atau eservice_message_code dari DB)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Isi saran tindak lanjut (mis. hubungi URA) per kondisi notice diambil dari pesan di database",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:59-67; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:212-218; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsusermessage/EocmsUserMessageRepository.java:17",
+      "fit": "Sebagian",
+      "detail": "getMessage(code) membaca kolom eservice_message dari eocms_user_message (EocmsUserMessageRepository.java:17) dan memakai DEFAULT_ERROR bila baris tidak ada (baris 65). Kode ke pesan dipetakan per kondisi (E5 untuk annulled/PS-ANS di baris 212-218, E4/E2 court, E10/E11). Isi teks, termasuk apakah ada kalimat 'Contact URA' atau langkah tindak lanjut lain: cannot verify from repo (tidak ada seed SQL di enam repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kode pesan per kondisi notice di-set oleh proses notice (annulled, court, suspension, revival)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:329; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:409; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:361; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:832-842",
+      "fit": "Sebagian",
+      "detail": "NoticeProcessingHelper menetapkan E5 untuk an_flag = Y (baris 329) dan E4 untuk blokir bayar (baris 409); SuspensionBaseHelper menetapkan E5 saat PS-ANS diterapkan (baris 361); RevivalBaseHelper.getEserviceMessageCodeForStage memberi E1 untuk stage pra-court dan E4 untuk stage lain (baris 832-842). Kode hanya di-set eksplisit untuk kondisi ini; jenis suspension lain tidak dicakup di sini dan bergantung pada nilai yang sudah tersimpan. Tiket OCMS-DF-2026-009, OCMS-SR-2026-043, OCMS-DF-2026-029 (semua Closed, Prod deployed) menunjukkan kode pesan sempat salah setelah go-live."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan saran tersebut kepada offender",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-243; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:244-274; ocmseserviceui/src/pages/Payment/Table/Column.ts:109-121; ocmseserviceui/src/pages/Payment/Table/Column.ts:139-160",
+      "fit": "Sebagian",
+      "detail": "Baris non-payable tidak punya checkbox; sebagai gantinya muncul ikon info (aria-label 'View notice message') yang membuka modal 'Payment Status' berisi pesan (baris 244-274). Kolom Amount dan Status baris itu hanya menampilkan '-' (Column.ts:119 dan 160), jadi saran tidak terlihat langsung di halaman, hanya setelah ikon diklik. Ikon hanya muncul bila pesan tidak kosong (showElement, baris 273); notice FP/PRA sengaja tanpa pesan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender tidak bisa lanjut membayar bila tidak ada fine yang boleh dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:578-587; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:589-592; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:728-731",
+      "fit": "Sesuai",
+      "detail": "hasPayableItems bernilai false bila allPayableNotices kosong dan tidak ada baris dengan isSelect = 'Y' (baris 578-587); dalam kondisi itu PaymentMode() dan PayButton() mengembalikan kosong (baris 590-592 dan 729-731), jadi halaman hanya menunjukkan pesan/ikon tanpa tombol 'Proceed to Payment'."
+    }
+  ]
+}

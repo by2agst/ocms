@@ -1,0 +1,55 @@
+{
+ "story": "OCMS46.1",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "Deteksi pembayaran ganda/berlebih dan pembuatan record ocms_refund_notice: ocmsadminapi workflows/payment_reduction/payment/PaymentUpdateServiceImpl + crud/ocmsizdb/OcmsRefundNotice; ocmsadminprivateapi framework/workflows/synctxndata/CronSyncTxnData (jalur pembayaran online). Tampilan: ocmsadminui pages/Notice/detail/PaymentDetails.tsx. Work item refund, interface Cumulus, dan halaman Refund Epic46 tidak ada atau berada di blok komentar.",
+ "note": "Status story 'No requirement' di stories.json (requirement tidak diberikan), dilacak seperti story biasa. Yang terbukti: deteksi pembayaran ganda (DBP), over payment (OVP), dan payment setelah PS-APP (APP) membuat baris ocms_refund_notice. Yang tidak ada: work item refund (tidak ada entity ocms_work_item; work item DataHive adalah PLACEHOLDER), interface ke Cumulus (grep cumulus: 0 hasil di enam repo), detail offender dan approving officer di record, serta dashboard review. Officer hanya melihat kolom refund di tab Payment detail notice. Tiket: OCMS-SR-2026-112 (Closed, kolom Refund ID/Date di Exception report), OCMS-SR-2026-190 (Ready to PRD, refund untuk payment di atas PS-APP; dipakai di step 1), OCMS-DF-2026-075 (Closed, refund untuk PS-APP pada notice yang sudah dibayar), OCMS-DF-2026-152 (Ready to DEV, refundNoticeId berisi receipt number; menurunkan keyakinan step 2). Cumulus dan nilai properties server asli: cannot verify from repo.",
+ "recommendation": "Klaim hanya bagian deteksi pembayaran ganda dan record refund. Work item, interface Cumulus, dan review di dashboard belum ada; jangan klaim sebagai selesai.",
+ "steps": [
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "OCMS mendeteksi pembayaran ganda/berlebih atas parking offence notice",
+   "repo": "ocmsadminapi",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:274-288; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:420-431",
+   "fit": "Sesuai",
+   "detail": "Dua jalur mendeteksi pembayaran ganda. Jalur Update Manual Payment (ocmsadminapi): validator mengembalikan DOUBLE_PAYMENT (PaymentUpdateServiceImpl.java:250-251) lalu handleDoublePayment membuat refund bersebab DBP (baris 274-288); kelebihan bayar ditangani handleOverPayment dengan alasan OVP (baris 339-367). Jalur pembayaran online (CronSyncTxnData, cron.syncinternetintranet tiap 10 menit, enabled=true di cron-schedules-prod.properties:305-306): notice yang sudah FP/PRA dan menerima transaksi lagi dibuat refund DBP (baris 420-431). Alasan lain yang juga memicu refund: pembayaran setelah PS-APP (alasan APP). Nilai properties di server asli tidak bisa diverifikasi dari repo."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "OCMS membuat refund advice berisi notice, detail offender, receipt, dan approving officer",
+   "repo": "ocmsadminapi",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:42-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNotice.java:26-58",
+   "fit": "Sebagian",
+   "detail": "Setiap kasus menghasilkan satu baris ocms_refund_notice lewat createIfNotExists (OcmsRefundNoticeServiceImpl.java:42-83; idempoten per receipt + notice, id format RE{YYYYMMDD}{NNN}). Kolomnya: refund_notice_id, receipt_no, notice_no, pp_code, amount_paid, amount_payable, suspension_type, EPR/CRS reason, refund_amount, refund_reason (OcmsRefundNotice.java:26-58). Detail notice dan receipt ada. Detail offender (nama/ID/alamat/rekening) dan approving officer tidak punya kolom sama sekali, jadi isi refund advice versi story belum lengkap. Ticket OCMS-DF-2026-152 (Ready to DEV) melaporkan refundNoticeId di response PLUS berisi receipt number; kode terkini sudah mengembalikan id RE... (OcmsRefundNoticeServiceImpl.java:82) tetapi fix belum tentu ter-deploy, cannot verify from repo."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "OCMS membuat work item untuk refund advice",
+   "repo": "ocmsadminapi",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNotice.java:19-62",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada work item refund. Entity OcmsRefundNotice (baris 19-62) hanya menyimpan baris refund, tanpa status, assignee, atau keterkaitan ke work item. Grep work item, ocms_work_item, workitem di enam repo hanya menemukan DataHiveUenFinService (ocmsadminprivateapi) untuk kasus FIN/work pass, dan di sana pembuatan work item adalah PLACEHOLDER yang cuma menulis log (DataHiveUenFinService.java:2920-2923), tidak ada entity ocms_work_item. Tidak ada kaitan dengan refund."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Work item di-interface ke Cumulus di dashboard officer",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsRefundNotices/OcmsRefundNotices.java:58",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada interface ke Cumulus. Kata cumulus tidak muncul di enam repo (UI dan API); tidak ada HTTP/SFTP client, cron, atau file export refund untuk Cumulus. Folder pages ocmsadminui juga tidak punya halaman Dashboard untuk refund (Dashboard tidak menyebut refund). Entity ocmsadminprivateapi berakhir di baris 62 tanpa kolom status kirim."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Officer mereview work item refund advice",
+   "repo": "ocmsadminui",
+   "code_ref": "ocmsadminui/src/pages/Notice/detail/PaymentDetails.tsx:126-144; ocmsadminui/src/pages/Notice/context/NoticeContext.tsx:1152-1168; ocmsadminui/src/App.tsx:343-358",
+   "fit": "Sebagian",
+   "detail": "Officer hanya bisa melihat baris refund di tab Payment pada detail notice: Refund Identified, Refund Reason, Refund Amount, Refund Notice ID (PaymentDetails.tsx:126-144), diambil lewat POST refundnoticelist (NoticeContext.tsx:1152-1168; /v1/refundnoticelist ada di mapping OCMS_NOTICE_DETAIL, api-authorization.properties:36), plus kolom Refund Identified Date di PS report (ReportListPS.tsx:265). Itu pandangan data, bukan review work item. Halaman Refund Epic46 (daftar refund, create, approval) ada di App.tsx:343-358 tetapi di dalam blok komentar (berakhir baris 371), folder pages/epic46 tidak ada, dan link menu Payment Refund juga di-comment (LinkData.tsx:281-285). Sama dengan OCMS46.6 langkah 4."
+  }
+ ]
+}

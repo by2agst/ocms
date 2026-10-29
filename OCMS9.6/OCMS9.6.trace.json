@@ -1,0 +1,64 @@
+{
+  "story": "OCMS9.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (loadAllExcludedIds, batchPreloadContactInfo, refreshCompanyContactInfo, sendEmail)}, schedulers/NotificationJobsScheduler, workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor, services/datahive/contact/{DataHiveContactServiceImpl, helpers/ContactQueryBuilder, helpers/ContactResponseParser}, cron-schedules-prod.properties. ocmsadminapi/ocmsadminui/ocmseserviceapi/ocmseserviceui/thirdpartyapi: tidak ada code untuk langkah ini",
+  "note": "Status di stories.json 'Fully paid'. Story minta urutan: cek exclusion list, kirim UEN ke DOS, terima email terbaru, kirim email di hari yang sama. 'DOS' tidak muncul di code; yang ada adalah DataHive (view Corppass di Snowflake), diasumsikan sama dengan DOS/Vault di demo remark; hal itu dan izin Vault/email di App Service cannot verify from repo. Ada dua jalur lookup UEN: (1) saat LTA download (LtaSnowflakeProcessor, cron ltadownload enabled=true di prod) yang menyimpan email ke ocms_offence_notice_owner_driver tanpa cek exclusion list sama sekali; (2) saat cron eNotification (refreshCompanyContactInfo), yang dikunci flag cron.enareminder.datahive=false di dev/uat/prod, dan cek exclusion-nya jalan SETELAH UEN dikirim ke DataHive. Cron eNotification utama sendiri cron.notification.enabled=false di semua env, jadi email perusahaan lewat cron ini belum jalan otomatis (OCMS-DF-2026-180 juga menunggu cron aktif). Email yang diterima hanya satu (baris pertama CP_ACCOUNT_EMAIL), bukan beberapa alamat.",
+  "recommendation": "Klaim sebagian. Yang terbukti: lookup UEN ke DataHive Corppass saat LTA download dan penyimpanan emailnya, serta pengiriman email di cron eNotification. Yang belum: urutan exclusion list sebelum kirim UEN, banyak alamat email, dan cron eNotification masih disabled di semua env. Minta URA konfirmasi apakah DataHive = DOS.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa bahwa UEN perusahaan tidak ada di exclusion list e-notification",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1213; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1225-1227; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-231",
+      "fit": "Sesuai",
+      "detail": "loadAllExcludedIds() membaca semua id_no dari ocms_enotification_exclusion_list (H:1207-1213); di loop job, ID yang ada di set itu di-skip dan kalau stage ENA di-patch ke RD1 hari berikutnya (J:226-231). Pengecekan berlaku untuk UEN karena kuncinya id_no tanpa membedakan idType."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya UEN yang lolos pengecekan exclusion yang dikirim ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:81",
+      "fit": "Beda dari flow",
+      "detail": "Urutannya terbalik. Di cron eNotification, batchPreloadContactInfo(records) dan refreshContactInfo() (J:185-187) dipanggil untuk SEMUA record, termasuk UEN yang ada di exclusion list; exclusion baru dimuat di J:194 dan dicek di J:226. Di jalur LTA download, lookupContact (LS:81) dipanggil tanpa pengecekan exclusion list sama sekali (tidak ada referensi exclusion di folder lta/download). Jadi UEN yang opt out tetap terkirim ke DataHive."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN perusahaan ke DOS (DataHive Corppass)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:149-152; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/helpers/ContactQueryBuilder.java:83; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sesuai",
+      "detail": "Saat LTA download, processSnowflakeFunction memanggil dataHiveContactService.lookupContact(ownerId, ownerIdType, notice) (LS:81); untuk tipe UEN, ID dikirim ke view Corppass dengan query ENTITY_ID IN (...) AND ACCOUNT_STATUS = 'ACTIVE' (QB:83, DC:149-152). Cron ltadownload enabled=true di prod (cron-schedules-prod.properties:149). Jalur kedua di cron eNotification (H:2419-2429, H:2508-2520) dikunci cron.enareminder.datahive=false. Bahwa DataHive = DOS dan akses Vault ke App Service cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima alamat email terbaru perusahaan dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/helpers/ContactResponseParser.java:84-103; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/helpers/ContactQueryBuilder.java:83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2543-2556",
+      "fit": "Sebagian",
+      "detail": "ContactResponseParser.parseCorppassResponse hanya mengambil CP_ACCOUNT_EMAIL dari firstRow (RP:84-103), jadi hanya satu alamat, bukan 'alamat-alamat'. 'Terbaru' hanya bergantung pada isi view (prod memakai view *_MASTER, dev/uat *_DELTA); code tidak membandingkan tanggal. Di jalur cron eNotification ditambah syarat ACCOUNT_TYPE = A01 dan ACCOUNT_STATUS = ACTIVE (H:2548-2556), kalau tidak cocok stage ENA di-patch ke RD1. Syarat A01 tidak ada di teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan email yang diterima ke data owner/driver notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:145; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:176-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2676-2698",
+      "fit": "Sesuai",
+      "detail": "Kalau ada email dari lookup, updateContactInfoFromResult mem-patch emailAddr ke ocms_offence_notice_owner_driver per noticeNo (LS:145, LS:176-187) lalu stage di-set ENA. Jalur cron eNotification melakukan hal yang sama lewat updateOcmsCompanyContactInfo (H:2676-2698) bila flag datahive aktif."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim email notifikasi ke perusahaan pada hari yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:354; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-388; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:42-50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:234-237",
+      "fit": "Sebagian",
+      "detail": "Untuk idType B, job memanggil notificationHelper.sendEmail (J:378-388, H:556-580) ke alamat dari ocms_offence_notice_owner_driver. Jadwal harian 11:00 (cron.notification.schedule=0 0 11 * * ?, prod:237) tapi cron.notification.enabled=false di dev, uat, dan prod (prod:236, scheduler return di SCH:49), dan comment prod:234 menyebut sengaja dimatikan agar tidak mengirim SMS/Email. Endpoint manual POST /notification-sms-email/execute ada. Selain itu OCMS-DF-2026-180 (Closed) mencatat 'Awaiting eNotification cron to activate'. Pengiriman email nyata ke perusahaan cannot verify from repo."
+    }
+  ]
+}

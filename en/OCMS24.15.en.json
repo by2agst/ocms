@@ -1,0 +1,25 @@
+{
+  "story": "OCMS24.15",
+  "flow_ref": "There is no OCMS flow deck; steps are taken from the story text. Sheet status: Demo paid (50% of 75%); demo_remark: Vault & SMS code split, SMS permission for the api App Service server may be needed, 'I recall seeing a court SMS on test phone' (a claim, not evidence).",
+  "code_summary": "The SMS path lives in the eNotification job (ocmsadminprivateapi): contacts from DataHive (when the flag is on), grouping per recipient (combineNotices), then sendBatchSms through SmsUtil to APIM. All of it is for parking reminder SMS RD1 to DR3; there is no court summons template or data. In prod sms.enable=false without sms.allowedSources (dev/uat have ENOTIFICATION) and cron.notification.enabled=false, so by repo config no SMS leaves.",
+  "note": "Status 'Demo paid (50% of 75%)' and the note 'court SMS on test phone' are demo claims; the repo has no court content. SMS permission on the App Service and numbers received from DOS cannot verify from repo. Ticket OCMS-DF-2026-180 is only a hint that the eNotification cron is not yet active.",
+  "recommendation": "Sebagian: batch SMS infrastructure exists but with no court summons content or selection, and SMS is switched off in the prod repo config. Do not claim in full.",
+  "steps": [
+    {
+      "step": "Mobile numbers are obtained from DOS",
+      "detail": "refreshIndividualContactInfo gets the number through DataHive Singpass (NotificationSmsEmailHelper.java:2710-2716) but only when statusGetDatahive = true (:2468); prod cron.enareminder.datahive=false (cron-schedules-prod.properties:48; real server value cannot verify from repo). DOS = DataHive/LTA cannot be confirmed from the repo. Same fact as OCMS24.14 step 2 and OCMS9.4, both Sebagian."
+    },
+    {
+      "step": "Unique individual defendants are identified for the SMSes in each batch job",
+      "detail": "combineNotices groups records per recipient (I_<id_no>) + stage + paymentDueDate so one person gets one SMS for reminder stages (NotificationSmsEmailHelper.java:2151-2200); ENA for individuals is deliberately not combined (:2168-2173). Applies to parking reminders, not a court summons batch. Same as OCMS9.5 (Sebagian)."
+    },
+    {
+      "step": "The SMS contains details of the court summonses",
+      "detail": "The SMS body is built from a per-stage template through prepareTemplateData and determineTemplateName (NotificationSmsEmailHelper.java:425-430, :459) with VON data for stages RD1 to DR3. The word court appears in neither the helper, the job nor SmsUtil; no court summons data goes into the message. The demo claim 'court SMS on test phone' has no code basis in the six repos."
+    },
+    {
+      "step": "OCMS sends the SMS reminder to the defendant through the SMS gateway",
+      "detail": "sendBatchSms calls smsUtil.sendBatchSmsSimple (NotificationSmsEmailHelper.java:1527, :1611) to APIM, invoked by the job when notification.sms.enabled=true (application.properties:176; NotificationSmsEmailJob.java:289-291). But prod has sms.enable=false (application-prod.properties:87) without sms.allowedSources (only dev/uat set ENOTIFICATION) and cron.notification.enabled=false (cron-schedules-prod.properties:236). The real server value and SMS permission on the App Service cannot verify from repo; the path is for parking reminders."
+    }
+  ]
+}

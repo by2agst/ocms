@@ -1,0 +1,29 @@
+{
+  "story": "OCMS9.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor, LtaSnowflakeProcessor}, framework/services/datahive/contact/{DataHiveContactServiceImpl, helpers/ContactQueryBuilder}, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}; properties cron-schedules-{dev,uat,prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The code does not mention DOS. The mobile number source is DataHive (Snowflake) view V_DH_SNDGO_SINGPASSCONTACT_MASTER queried with UIN = NRIC/FIN; whether that is the 'DOS' meant and whether the Vault/App Service permission is granted: cannot verify from repo. There are two paths: LTA download (enabled in uat/prod; exclusion check first, then DataHive lookup, write offender_tel_no and stage ENA, or RD1 when there is no number) and the eNotification cron (contact refresh again). The second is switched off in all three repo property files (cron.enareminder.datahive=false), and cron.notification.enabled=false in dev/uat/prod (OCMS-DF-2026-180: still waiting for activation), so 'send SMS on the same day' is not proven to run from the repo. One thing to watch: in the eNotification cron the DataHive lookup (lines 185-187) runs before the exclusion check (lines 194-232), so an opted-out NRIC is still sent to DataHive if the flag is turned on; in the LTA path the order is right. Also the LTA contact update overwrites all owner_driver rows of the notice, not only the current offender (LtaBatchCode0Processor.java:1264-1266) [Medium confidence: depends on whether a driver row exists at the LTA run]. SMS gateway and delivery status: cannot verify from repo.",
+  "recommendation": "Claim partially: the contact lookup through DataHive in the LTA path is proven, but 'DOS' is not named in code, the exclusion order in the eNotification cron is reversed, and same-day SMS is not proven (cron disabled in repo properties)",
+  "steps": [
+    {
+      "step": "Opted-out NRIC/FIN is not sent out; only IDs that pass the exclusion check are looked up",
+      "detail": "In the LTA download the exclusion check (LtaBatchCode0Processor.java:685-691) runs before lookupContact (:706-708), so an opted-out ID is not queried. In the eNotification cron the order is reversed: batchPreloadContactInfo and refreshContactInfo for all records (NotificationSmsEmailJob.java:185-187) run before the excluded IDs are dropped (:194-232), so an opted-out NRIC is still sent to DataHive if the cron.enareminder.datahive flag is turned on."
+    },
+    {
+      "step": "OCMS sends the NRIC/FIN to the government data source (called DOS in the story) to ask for the mobile number",
+      "detail": "lookupContact runs SELECT UIN, CONTACT FROM V_DH_SNDGO_SINGPASSCONTACT_MASTER WHERE UIN = '<NRIC/FIN>' through DataHive (ContactQueryBuilder.java:28-33; DataHiveContactServiceImpl.java:59-110; called at LtaBatchCode0Processor.java:706-708). The code names DataHive/Singpass contact, not DOS; whether they are the same: cannot verify from repo. In the eNotification cron the same lookup (NotificationSmsEmailHelper.java:1448-1450) is controlled by cron.enareminder.datahive, which is false in dev, uat and prod (cron-schedules-prod.properties:48)."
+    },
+    {
+      "step": "OCMS receives the latest mobile number and stores it on the offender record",
+      "detail": "planContactUpdate strips CONTACT to digits and stores it as offender_tel_no with offender_tel_code 65 (LtaBatchCode0Processor.java:773-796), and batchUpdateContacts UPDATEs ocms_offence_notice_owner_driver (:1262-1275, null does not overwrite the old value). In the eNotification cron (when the flag is on) the number must be at least 8 characters and is then stored on the record and in the DB (NotificationSmsEmailHelper.java:2738-2764). Note: the LTA UPDATE hits all owner_driver rows of the notice (comment at :1264-1266)."
+    },
+    {
+      "step": "If no mobile number is found or it is invalid, no SMS is sent and the notice is redirected to RD1 (letter)",
+      "detail": "In the LTA download a result without contact calls planStageToRD1 (LtaBatchCode0Processor.java:756-763). In the eNotification cron a contact not found or an invalid format sets contactError and, for ENA, calls patchNextStageToRd1NextDay (NotificationSmsEmailHelper.java:2719-2730,2741-2750); validateContactInfo rejects a record without a number (NotificationSmsEmailJob.java:253-267)."
+    },
+    {
+      "step": "OCMS sends the SMS notification on the same day after the number is received",
+      "detail": "A notice enters ENA in the LTA download (cron 05:00 and 21:00, enabled=true in prod: cron-schedules-prod.properties:148-149) with last_processing_date = now (planStageToENA, LtaBatchCode0Processor.java:844-845). The eNotification cron runs at 11:00 (cron-schedules-prod.properties:237) and takes ENA with last_processing_date <= now (NotificationSmsEmailHelper.java:1031-1032), then calls sendBatchSms (NotificationSmsEmailJob.java:287-293). So only notices from the 05:00 run can be SMSed that day; the 21:00 run waits for 11:00 next day. Also cron.notification.enabled=false in dev/uat/prod (cron-schedules-prod.properties:236; OCMS-DF-2026-180 says still waiting for activation), so SMS sending is not proven to run from the repo. SMS gateway: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS43.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/schedulers/MonthlyReportJobsScheduler, framework/workflows/paymentReport/{services/MonthlyPaidReportServiceImpl,jobs/MonthlyPaidReportJob,helpers/MonthlyPaidReportHelper}, utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminui pages/Cron/list/CronList.tsx (trigger only). The other three repos: no code for this story.",
+  "note": "Story status: Fully paid (status_with_ura). The Monthly Paid Report runs on the 1st at 08:30 for the previous month and is sent as an Excel attachment. But its content does not exactly match the story: (a) 'other agencies (JTC, MND)' is derived from 'PP code not in the REPCCS car park list' and then everything is labelled JTC (MonthlyPaidReportHelper.java:182-202), MND is not distinguished, and the JTC sheet lists only FP, not PRA (line 721); (b) no single sheet holds all story fields: the JTC sheet has no receipt number, payment source, or place name (only PP code), while the eService/AXS/Offline sheets have the receipt but not Vehicle No, Offence Date and Time, or rule code (lines 477-487); ticket OCMS-SR-2026-148 (Vehicle No, Offence Date/Time, LPS, NPS in the monthly report) is recorded as Prod deployed but is not visible in this main commit, the deployed version: cannot verify from repo; (c) the JTC total in Summary uses all JTC records including PRA (lines 224, 394) while the sheet is FP-only; (d) the recipients are a list of individual URA staff emails (application-prod.properties:75), none of which can be confirmed as URA Finance. Other tickets: OCMS-DF-2026-013, OCMS-SR-2026-016, OCMS-SR-2026-088, OCMS-SR-2026-153 (Closed/Prod deployed). email.enableSmtp=false in prod but MONTHLY_PAID_REPORT is in allowedSources (application-prod.properties:80-81); real SMTP delivery: cannot verify from repo.",
+  "recommendation": "Claim partially (see the Sebagian steps). The monthly job and email delivery exist; the report does not carry all story fields in one list, MND is not distinguished, and URA Finance as recipient is not proven from the repo.",
+  "steps": [
+    {
+      "step": "OCMS generates the monthly report automatically every month",
+      "detail": "cron.monthlyreport.schedule=0 30 8 1 * ? and enabled=true in prod; job 2 = Monthly Paid Report; the default period is the previous month (MonthlyPaidReportServiceImpl.java:42). Real server value: cannot verify from repo."
+    },
+    {
+      "step": "The report lists notices paid during that month",
+      "detail": "The query selects crs_reason_of_suspension IN ('PRA','FP') with YEAR/MONTH(crs_date_of_suspension) (lines 91-92), so a payment is mapped to a month by its suspension date. Like the daily report, results are deduplicated per notice keeping only the latest transaction (lines 100-128), and URA records with an unknown sender go to uncategorized and are left out of the total (lines 195, 210). Same logic as OCMS43.4 step 2, so the same fit."
+    },
+    {
+      "step": "The report separates collections at other agencies' car parks (JTC, MND)",
+      "detail": "A notice is treated as another agency's when its PP code is not in the REPCCS car park list (icarparkRepository.findAllCarparkIds, line 160; checked at line 182) and all of them go to the sheet 'JTC Collections' (line 202); MND or other agencies are not distinguished. That sheet lists only FP records (line 721), PRA does not appear. OCMS-SR-2026-088 (closed URA car parks wrongly placed in JTC) is Closed/Prod deployed. The real REPCCS car park list: cannot verify from repo."
+    },
+    {
+      "step": "The report carries the notice detail fields (notice number, date/time, place, amount paid, payment date, receipt, vehicle, type, fine, rule, payment source, notice status)",
+      "detail": "The fields are split over two kinds of sheet. The JTC sheet (lines 697-711) has Notice No, Notice Date And Time, PP Code (not the place name), Vehicle No, Vehicle Category and Registration Type, Computer Rule Code, Composition Amount, Amount Paid, Suspension Type + CRS reason (status), and the payment date, but no Receipt No and no payment source. The eService/AXS sheets (lines 477-487) have Receipt No, Amount Paid, Amount payable, PP code, CRS/EPR reason, but no Vehicle No, Offence Date and Time, vehicle type, or rule code. Ticket OCMS-SR-2026-148 asked for Vehicle No and Offence Date and Time in the monthly report (Prod deployed per the ticket) but they are not in this main commit: which version is running: cannot verify from repo."
+    },
+    {
+      "step": "The report gives monthly totals per channel and for other agencies",
+      "detail": "The Summary sheet computes counts per channel and 'Total Amount Collected on Behalf of JTC' from jtcCollectionRecords (line 394, calculateTotalAmount uses amount_paid). jtcCollectionCount uses all JTC records (line 224) including PRA, while the JTC sheet is FP-only (line 721); the daily report uses an FP-only count (around DailyPaidReportHelper.java:198). So the monthly JTC summary figure can differ from the sheet content. Ticket OCMS-DF-2026-013 (JTC total $0 in the daily report) is Closed."
+    },
+    {
+      "step": "OCMS produces the monthly Excel file and emails it as an attachment",
+      "detail": "MonthlyPaidReportJob builds the workbook (sheets Summary, eService, AXS, Offline, JTC, Refund; MonthlyPaidReportHelper.java:262-276) and sends it through EmailService with the attachment and source MONTHLY_PAID_REPORT (lines 215, 227); there are separate emails for no data and failure (lines 285, 327). email.enableSmtp=false in prod but MONTHLY_PAID_REPORT is in email.smtp.allowedSources (application-prod.properties:80-81), so it is not held back. Real SMTP delivery: cannot verify from repo."
+    },
+    {
+      "step": "The email is sent to URA Finance",
+      "detail": "Recipients come from email.report.paymentreport.monthly.recipients (MonthlyPaidReportJob.java:51-52), which holds 21 individual @ura.gov.sg addresses (application-prod.properties:75). No address or group can be confirmed as URA Finance; ticket OCMS-SR-2026-016 added JTC reconciliation officers, not Finance. The recipient list running on the server: cannot verify from repo."
+    }
+  ]
+}

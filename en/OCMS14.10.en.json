@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper,helpers/MhaNricRecordValidator}, agencies/mha/upload/helpers/MhaNricDataHelper and crud/ocmsizdb/OcmsValidOffenceNotice (enquiry query), utilities/suspension_helpers/PermanentSuspensionHelper, schedulers/MhaDownloadJobsScheduler, workflows/datahiveuenfin/services/DataHiveUenFinService, resources/cron-schedules-prod.properties. The real sources are the MHA file and DataHive FIN; ICA/DOS is not in the code.",
+  "note": "The story asks OCMS to identify notices of individuals with a given life status from a daily ICA/DOS interface and then temporarily suspend immediately. The code processes life status and date of death from the MHA result file (three times a day Monday-Saturday) and, for FINs, from DataHive (job switched off in prod); suspension is applied right away in the same job, but as a permanent suspension PS-RIP/PS-RP2, not temporary with a period, and only for notices included in the enquiry file. ICA/DOS is not in the code; DOS = DataHive/LTA cannot be confirmed from the repo. The demo remark asks for Vault Code Split and Vault connection permission for the api App Service server; that is per-environment and cannot verify from repo (no Vault on this path). Tickets used: OCMS-DF-2026-135 and OCMS-DF-2026-177 (both Closed, Prod deployed; they affect notice scope and the offender check). Story status: Requirement given - Gen flow.",
+  "recommendation": "Claim partially and carefully: life status processing from the MHA file and automatic suspension exist, but the type is permanent (not temporary), the source is MHA not ICA/DOS, and the DataHive FIN path is switched off in prod. Ask URA to confirm whether PS-RIP/PS-RP2 is accepted in place of temporary suspension.",
+  "steps": [
+    {
+      "step": "OCMS receives life status data every day from the ICA/DOS interface",
+      "detail": "Life status arrives through the MHA NRIC result file (fields lifeStatus and dateOfDeath), processed by the MHA Download job three times a day Monday to Saturday (cron.mhadownload.schedule=0 30 11,16,23 ? * MON-SAT, enabled=true, cron-schedules-prod.properties:119-120; job 1 runs in MhaDownloadJobsScheduler.java:101-102; folder sftp.folders.mha.download in MhaNricDownloadJob.java:62). So the source is not ICA/DOS and it does not run on Sunday. 'ICA' does not appear in the code; DOS = DataHive/LTA cannot be confirmed from the repo. The DataHive NRIC source is off in prod (cron.mhadownload.datahive=false, :50). The real MHA file and interface: cannot verify from repo."
+    },
+    {
+      "step": "Life status and date of death are validated and saved on the offender record",
+      "detail": "The validator accepts lifeStatus only A or D and dateOfDeath in YYYYMMDD format (MhaNricRecordValidator.java:118-122, :134-139); an inconsistent combination (A with a date of death, or D without one) is flagged TS-NRO (MhaNricRecordValidator.java:216-230, MhaNricDownloadJob.java:902-907). Valid results write lifeStatus and dateOfDeath to the offender's owner_driver row only, and records that are not the offender are skipped (MhaNricDownloadHelper.java:841-858; OCMS-DF-2026-177, Closed, Prod deployed)."
+    },
+    {
+      "step": "OCMS identifies notices issued to individuals with a given life status (deceased)",
+      "detail": "Identification only happens for notices that were sent in the MHA enquiry file: the upload query takes notices with next_processing_stage RD1...DR3 due by tomorrow, with no suspension, id_type = N, offender_indicator = Y, not in ocms_nro_temp and not an HST ID (OcmsValidOffenceNoticeRepository.java:565-581). When the result returns, a notice is recognised only if lifeStatus = D and a dateOfDeath exists (MhaNricDownloadHelper.java:874), and the scope is only the notice in that file (uraReferenceNo, :885; OCMS-DF-2026-135, Closed, Prod deployed). So it is not a daily sweep of all notices of individuals with that life status; already-suspended notices or notices not yet due at a stage are not asked. Notices are split by date of death versus offence date (:962-966)."
+    },
+    {
+      "step": "OCMS applies the suspension to those notices immediately, with no manual step",
+      "detail": "In the same result-file run, after the record loop, PS-RIP and PS-RP2 are applied in one go through applyPsSuspensionGetApplied (MhaNricDownloadHelper.java:1557-1610; remarks 'Auto-applied PS-RIP due to DateOfDeath from MHA' at :1575), so no manual step. Note: notices that already have a suspension or a payment go through the per-notice path with validation (:1015-1037) and can be rejected; a batch failure is only logged (log.warn, :1577-1579) with no retry inside the job; whether the notice is tried again on a later cycle depends on the enquiry query (OcmsValidOffenceNoticeRepository.java:565-581). A future date of death is not PS-ed but gets TS-NRO (:890-922)."
+    },
+    {
+      "step": "The suspension applied is temporary, with a specific suspension code and period",
+      "detail": "The code applies a permanent suspension: PS-RIP when the date of death is on or after the offence date and PS-RP2 when it is before (MhaNricDownloadHelper.java:962-966, :1021, :1084), through PermanentSuspensionHelper with no period. The only temporary suspension on this path is TS-NRO when the date of death is in the future (:890-922), which is an invalid-data case, not a life-status suspension. The story asks for a temporary suspension with a code and period; sibling OCMS14.11 asks for the same."
+    },
+    {
+      "step": "For FIN holders, life status is also read from DataHive and the notice is suspended",
+      "detail": "DataHiveUenFinService reads the FIN death status, saves date_of_death and life_status = D and applies PS-RIP or PS-RP2 (plus a work item for PS-RP2 when Hirer/Driver) (DataHiveUenFinService.java:1558-1572, :3283-3320). This job is switched off in prod: cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52) and MhaDownloadJobsScheduler skips job 2 when the flag is false (MhaDownloadJobsScheduler.java:43, :103-107). Value on the real server: cannot verify from repo. The suspension type is still permanent (same as the previous step)."
+    }
+  ]
+}

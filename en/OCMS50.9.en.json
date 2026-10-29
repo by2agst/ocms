@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement} (Paid tab via JWT), workflows/receipt/{ReceiptController,ReceiptServiceImplement,TemplateService,ZipUtility} (printslip), auth/filter/JwtFilter, crud/ocmsezdb/{eocmsvalidoffencenotice,eocmswebtxndetail}. ocmseserviceui pages/Payment/{PaymentSearchResult,API}.ts, Table/Column.ts. PDF copies of hardcopy reminders: no code in any of the six repos. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no portal access to reminders",
+  "note": "The story asks that an offender logged in with Singpass (individual/business) can access PDF copies of the hardcopy reminders and receipts of notices paid in the past X months. The receipt part exists: the Paid tab loads FP notices within 6 months (hardcoded SQL, EocmsValidOffenceNoticeRepository.java:84) and the 'Download Receipt(s)' button calls POST v1/printslip which builds a PDF from the receipt.html template and returns it as a ZIP. The reminder part is not built: there is no page, endpoint or call in eservice for reminders; the reminder report in ocmsadminui/ocmsadminapi is a staff report, and the Toppan PDF-D2 file is only processed in the ocmsadminprivateapi cron. A receipt can only be generated if an eocms_web_txn_detail transaction with status 'S' exists; notices paid outside the web channel will fail (Download Failed). The printslip endpoint is public in JwtFilter with no ownership check, so anyone who knows a notice number can download its receipt. The sheet status 'Built - Has gap' is consistent with the findings: receipts exist, reminders do not.",
+  "recommendation": "Claim only the receipt part (partially). PDF copies of hardcopy reminders are not in the code; do not claim them. Note the risk of printslip without an ownership check and that receipts fail for non-web payments",
+  "steps": [
+    {
+      "step": "The offender is logged in through Singpass (individual) or Corppass (business) and the session carries the NRIC or UEN",
+      "detail": "Same as OCMS50.8 step 1: createSession(sessionId, nric, entityId) then the JWT (SpcpController.java:199, 203), and the ID search uses that session to pick type N,F or B (ParkingFinesController.java:308-311). The Singpass/Corppass handshake cannot verify from repo."
+    },
+    {
+      "step": "The offender opens the list of notices already paid",
+      "detail": "The 'paid' filter in handleIdNoSearchFromJwt returns notices with payment_status 'FP' (ParkingFinesController.java:338-341). The UI has a 'Paid' tab/box (PaymentCountBox) that calls APIPostSearchFinesSPCP({filter: 'paid'}) and PaidTable shows Notice Number, Vehicle Number, Place of Offence, Offence, Amount (Column.ts:208-217) with a checkbox to select notices."
+    },
+    {
+      "step": "The list only holds notices paid in the past X months",
+      "detail": "The 6 month limit is written directly in SQL: crs_date_of_suspension IS NULL OR >= DATEADD(MONTH, -6, GETDATE()) (EocmsValidOffenceNoticeRepository.java:84), and the UI note says '6 months' (PaymentSearchResult.ts:165-168). X cannot be changed through properties and what is measured is the CRS suspension date, not the payment date. Whether X = 6 matches URA's need cannot be known from the repo."
+    },
+    {
+      "step": "The offender views or downloads the PDF copy of the receipt of a paid notice",
+      "detail": "The 'Download Receipt(s)' button sends the selected noticeNo to POST v1/printslip; ReceiptServiceImplement finds the latest transaction with status 'S' per notice (EocmsWebTxnDetailRepository.java:17-18), fills the receipt.html template from the DB, builds the PDF and returns a ZIP (:185-219); there is no PDF viewer in the portal, only a .zip download (PaymentSearchResult.ts:827-828). Notices without an 'S' transaction (for example paid outside the web channel) are skipped, and if all fail the UI shows 'Download Failed' (ReceiptServiceImplement.java:199-215). The printslip endpoint is public in JwtFilter (:136) and does not check that the notice belongs to the logged-in user, so anyone with a notice number can download its receipt. The content of the receipt.html template in the DB cannot verify from repo."
+    },
+    {
+      "step": "The offender accesses the PDF copies of the hardcopy reminders sent to them",
+      "detail": "routes only holds payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). The eservice controllers are only parkingfines, printslip, furnish, spcp, epayment callback, upload, webtxndetail, turnstile, urapg, plus; grep 'reminder' in ocmseserviceapi and ocmseserviceui only finds an unrelated Address.ts component. On the staff side reminders are only a report (ocmsadminui ReportListReminder.tsx, OCMS_REPORT_REMINDER without /v1/download/blob), and the Toppan PDF-D2 file is only processed in ocmsadminprivateapi (ToppanReportHelper.java:50,96). No endpoint gives a reminder PDF to the offender."
+    }
+  ]
+}

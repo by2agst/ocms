@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.45",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (combineNotices, generateMessages, sendEmail), utilities/emailutility/EmailService, schedulers/NotificationJobsScheduler, application-prod.properties, cron-schedules-prod.properties. Other repos: no code specific to this story.",
+  "note": "Status in stories.json: Demo paid (50% of 75%); demo_remark mentions Vault and email permission for the App Service. The email flow for company hirers (id_type B) after the 3rd letter exists: candidates come from the reminder query (last stage RR3), notices of the same company are combined per UEN + stage + due date, template RR3_EMAIL_COMPANY (or _COMBINED), and the email is sent per record through EmailService with source ENOTIFICATION. Not active according to the repo: the eNotification scheduler is skipped (cron.notification.enabled=false, cron-schedules-prod.properties:236) and in prod email.enableSmtp=false with email.smtp.allowedSources lacking ENOTIFICATION (application-prod.properties:80-81), so EmailService refuses to send; in UAT the allowlist contains ENOTIFICATION but the cron is also false. OCMS-DF-2026-180 waits for the eNotification cron to be activated. The template text is in the DB, not in the repo. The company email comes from the furnish form or stored data because the CorpPass refresh is inactive (cron.enareminder.datahive=false). Vault, email permission and per-environment values cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "recommendation": "Claim partially. The RR3 reminder email code for companies exists, but the eNotification job and email sending are switched off in prod, and the template content is not proven from the repo. Ask URA to confirm the activation schedule, the email allowlist and the template text.",
+  "steps": [
+    {
+      "step": "OCMS obtains the company hirer email address from the data source (DOS)",
+      "detail": "A company is looked up in the DataHive CorpPass view by UEN (CP_ACCOUNT_EMAIL, admin account A01 and ACTIVE) and the new email is saved through updateOcmsCompanyContactInfo (NotificationSmsEmailHelper.java:2496-2530, 2676-2690), called from NotificationSmsEmailJob.java:183-188. But refreshContactInfo only runs when cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:2461-2485), and it is false in dev, UAT, prod (cron-schedules-prod.properties:48), so the stored email is used (for a hirer from the furnish form, FurnishApprovalHelper.java:554-558). DataHive = DOS cannot verify from repo. Same assessment as OCMS11.10."
+    },
+    {
+      "step": "OCMS identifies the unique company hirers (UEN) per batch and combines their outstanding NOPOs in one email",
+      "detail": "getRecipientKey uses B_<UEN> for id_type B and combineNotices combines notices per UEN + stage + due date, summing amount_payable and filling combinedNotices (NotificationSmsEmailHelper.java:2151-2182, 2205-2227; called from NotificationSmsEmailJob.java:191). Companies are removed from the SMS batch and only emailed (NotificationSmsEmailJob.java:270-277). Partial because the key includes the due date, so one company with notices of different due dates receives more than one email. Same assessment as OCMS11.10."
+    },
+    {
+      "step": "Company hirers that opted out or have no valid email address are not sent an email",
+      "detail": "A UEN in ocms_enotification_exclusion_list is skipped (NotificationSmsEmailJob.java:222-232; the reminder query also drops it, NotificationSmsEmailHelper.java:1131-1134). validateContactInfo for id_type B only passes when the email is filled (NotificationSmsEmailHelper.java:2259-2275), failed records are skipped (NotificationSmsEmailJob.java:252-266), and sendEmail refuses an empty email (NotificationSmsEmailHelper.java:556-566). The exclusion list content is DB data: cannot verify from repo. Same assessment as OCMS11.10."
+    },
+    {
+      "step": "The email contains the outstanding NOPOs and refers to the 3rd letter reminder",
+      "detail": "For reminders, nextProcessingStage is set to the last stage (RR3) so template RR3_EMAIL_COMPANY or RR3_EMAIL_COMPANY_COMBINED is chosen and split into subject and body (NotificationSmsEmailHelper.java:274-345, 459-476) with data noticeNo, combinedNotices, noticeCount, amountPayable and a paymentDueDate from the letter date + POS + PDD (410-437, 1076-1100). The email is only skipped for DN1, DN2, DR3 (driver path, no company template, 313-317); RR3 is not affected. The template text is in ocms_template_store (DB), not in the repo, so whether it lists the outstanding NOPOs and refers to the 3rd letter cannot verify from repo; a missing template means the email is skipped with an error log."
+    },
+    {
+      "step": "The email reminder is sent to the company hirer in the batch job",
+      "detail": "The job sends email only for id_type B (NotificationSmsEmailJob.java:353-354) through sendEmail per record with source ENOTIFICATION (NotificationSmsEmailJob.java:378-390; NotificationSmsEmailHelper.java:556-580). The scheduler is skipped when cron.notification.enabled=false (NotificationJobsScheduler.java:48-53; false in prod, cron-schedules-prod.properties:236). In prod email.enableSmtp=false and email.smtp.allowedSources does not contain ENOTIFICATION (application-prod.properties:80-81), so EmailService.sendEmail returns false (EmailService.java:64-72). Email permission for the App Service and SMTP cannot verify from repo."
+    }
+  ]
+}

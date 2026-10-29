@@ -1,0 +1,55 @@
+{
+  "story": "OCMS1.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager, framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob; ocmseserviceapi workflows/urapg/service/EPaymentCallbackService. ocmsadminapi, ocmsadminui, ocmseserviceui, thirdpartyapi: tidak ada code konversi NOPO",
+  "note": "Status story: User Story Removed (5 poin), verdict tetap Removed. Di code, 'pre-notice' dan 'NOPO' bukan dua entitas: notice sudah ada di ocms_valid_offence_notice sejak dibuat, lalu berjalan lewat stage (ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC) yang dijadwalkan lewat next_processing_stage/next_processing_date. Setelah stage ENA, masa tunggu (parameter STAGEDAYS untuk kode ENA di ocms_parameter) menentukan kapan notice jatuh ke RD1 dan keluar sebagai letter reminder bila belum dibayar. Pembayaran penuh menyetel suspension PS/FP sehingga notice itu tidak lagi dipilih. Tidak ada proses yang 'mengonversi charges menjadi NOPO' sebagai langkah terpisah, dan masa tunggu dimulai saat notice masuk ENA, bukan saat notifikasi berhasil terkirim (update stage ke RD1 di job eNotification dikomentari, NotificationSmsEmailJob.java:411-414). Isi Appendix B of Annex 1A tidak ada di repo, jadi kesesuaian detail stage cannot verify from repo. Letter RD1 sendiri terkena catatan di OCMS1.9 (upload Toppan diblokir config, job tidak terjadwal). Catatan double check: story Removed, jadi step yang ada code-nya dihitung Sebagian (bukan Sesuai) agar konsisten dengan OCMS1.1-1.5; tidak ada klaim.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah SMS/email/surat berhasil dikirim, masa tunggu pembayaran dimulai",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:412-435; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:411-414; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1279-1296",
+      "fit": "Sebagian",
+      "detail": "Masa tunggu dimulai saat notice masuk stage ENA: updateProcessingStageToENA menyetel last=ENA dan next=RD1 dengan nextProcessingDate = hari ini + STAGEDAYS (LtaProcessingStageManager.java:412-435), bukan saat pengiriman notifikasi sukses. Job eNotification tidak mengubah stage setelah kirim berhasil (baris update ke RD1 dikomentari, NotificationSmsEmailJob.java:411-414); stage hanya diubah pada kegagalan/ kontak kosong (NotificationSmsEmailHelper.java:1279-1296). Untuk stage letter, tanggal stage berikutnya diset saat file diproses (ToppanUploadHelper.java:1368-1371)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Grace period X hari dapat dikonfigurasi lewat parameter di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:381-408; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:157-163; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1170-1185",
+      "fit": "Sebagian",
+      "detail": "Jumlah hari tidak di-hardcode: ENA memakai ocms_parameter (parameter_id STAGEDAYS, code ENA) dan proses gagal bila parameter tidak ada (LtaProcessingStageManager.java:381-408); stage letter memakai STAGEDAYS per stage (ToppanUploadHelper.java:157-163) dan hari POS/PDD juga dari ocms_parameter; hari e-notifikasi dari ENOTEDAYS (NotificationSmsEmailHelper.java:1170-1185). Nilai X di database cannot verify from repo. Layar staff untuk mengubah parameter ada di staff portal (tiket OCMS-SR-2026-039 menyebut halaman system/parameter/edit), tapi tidak ditelusuri di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang dibayar dalam grace period tidak dikonversi",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/EPaymentCallbackService.java:474-486; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:603-611",
+      "fit": "Sebagian",
+      "detail": "Pembayaran lewat portal menyetel suspensionType='PS', crsReasonOfSuspension='FP' dan paymentStatus='FP' bila lunas (EPaymentCallbackService.java:474-486). Query letter Toppan hanya memilih notice dengan suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:603-611), query eNotification juga memfilter suspension (NotificationSmsEmailHelper.java:1033-1040), jadi notice lunas tidak ikut naik stage. Jalur pembayaran lain (AXS, counter) tidak ditelusuri di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jika tidak ada pembayaran, outstanding charges dikonversi menjadi NOPO",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:432-435; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1368-1371; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:238",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada proses yang membuat atau mengonversi apa pun menjadi NOPO setelah grace period. Notice sudah berupa baris ocms_valid_offence_notice sejak awal; setelah ENA ia hanya maju ke stage berikutnya (RD1 lalu seterusnya) dan keluar sebagai letter reminder (LtaProcessingStageManager.java:432-435; ToppanUploadHelper.java:1368-1371). Kata NOPO di repo hanya muncul sebagai nama channel pembayaran/archive (misalnya findNoticesForNopoarc, OcmsValidOffenceNoticeRepository.java:238; AxsNopo di thirdpartyapi), bukan konversi dari pre-notice. Grep 'nopo' pada ocmsadminprivateapi, ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi sudah dicoba."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NOPO diproses sesuai Appendix B dari Annex 1A",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1814-1816; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-25; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1320-1324",
+      "fit": "Sebagian",
+      "detail": "Rantai stage setelah ENA diambil dari ocms_stage_map (getNextProcessingStageFromMap, ToppanUploadHelper.java:1814-1816) dengan urutan RD1, RD2, RR3, DN1, DN2, DR3 (ToppanStage.java:19-25) dan admin fee di RR3/DR3 (ToppanUploadHelper.java:1320-1324). Isi Appendix B of Annex 1A tidak ada di repo, jadi apakah urutan, durasi, dan fee sama dengan Appendix itu cannot verify from repo; baris ocms_stage_map dan ocms_parameter di database juga cannot verify from repo."
+    }
+  ]
+}

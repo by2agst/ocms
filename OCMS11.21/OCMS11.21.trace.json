@@ -1,0 +1,64 @@
+{
+  "story": "OCMS11.21",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/datahiveuenfin/services/DataHiveUenFinService (pemilihan notice F/B, storeUenDataResult, updateCompanyDetails, updateCompanyAddressWithNullSupport, updateCompanyName), schedulers/MhaDownloadJobsScheduler (job kedua 'DH UEN and FIN'), agencies/toppan/upload (query dan letter RR3), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini.",
+  "note": "Story minta: kalau particulars owner/partner/director tidak bisa diterima (tidak ada individu teridentifikasi, atau kandidat adalah badan usaha lain), OCMS mengecek dan meng-update nama dan alamat terbaru company supaya reminder ke-3 bisa dikirim. Yang ada: job DataHive UEN memilih notice company (id_type B) di stage RD1-DR3 termasuk RR3, mengambil data company, lalu menimpa name di ocms_offence_notice_owner_driver dan alamat mha_reg di tabel alamat. Tiga hal menurunkan klaim: (1) job 'DH UEN and FIN' dimatikan di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; scheduler melewatinya di MhaDownloadJobsScheduler.java:103-107), jadi di konfigurasi repo update ini tidak jalan; (2) kata 'DOS' tidak ada di repo, sumbernya GovTech DataHive (view ACRA) dan apakah itu yang dimaksud DOS: cannot verify from repo; (3) tidak ada kondisi 'individu tidak teridentifikasi' sebagai pemicu: query memilih semua company B tanpa melihat hasil pencarian owner/partner/director (lihat OCMS11.18 sampai OCMS11.20), jadi update ini berjalan untuk semua company, bukan hanya kasus fallback. Data hasil DataHive dan isi view: cannot verify from repo. Status sheet: Demo paid (50% of 75%); remark Vault: koneksi Vault/DataHive di server cannot verify from repo. Tidak ada tiket maintenance yang memuat job ini.",
+  "recommendation": "Klaim sebagian. Update nama dan alamat company dari DataHive sudah ada, tetapi mati di prod, sumbernya DataHive (bukan terbukti DOS), dan tidak dibatasi pada kasus 'individu tidak teridentifikasi'. Minta konfirmasi URA soal konfigurasi prod dan arti 'DOS' sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice company (id_type B) yang jatuh tempo reminder, termasuk RR3, dipilih untuk pengecekan UEN",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL memilih notice dengan next_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3), next_processing_date <= hari ini, suspension_type NULL, offender_indicator 'Y', id_type IN ('F','B'), belum ada di ocms_nro_temp dan bukan HST (DataHiveUenFinService.java:221-246); B = company. Tetapi job kedua 'DH UEN and FIN' dilewati bila cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107) dan nilainya false di cron-schedules-prod.properties:52 (komentar: tunggu view DataHive diverifikasi). Nilai di server prod: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan hanya dipicu bila individu owner/partner/director tidak bisa diidentifikasi (withdrawn atau kandidat adalah badan usaha lain)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:235-239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1363",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada kondisi yang melihat hasil pencarian owner/partner/director. Query hanya memfilter stage, id_type B, dan status notice (DataHiveUenFinService.java:235-239); storeUenDataResult hanya menyimpan company, shareholder dan board (:1346-1363) dan penulisan board dinonaktifkan (OCMS-DEV-2026-231, :1472-1477) sehingga tidak ada langkah memilih individu atau memutuskan 'tidak teridentifikasi'. Grep 'withdrawn', 'candidate', 'identified' di cronservice: tidak ada logic fallback (sama dengan temuan OCMS11.18 sampai OCMS11.20)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meminta data company terbaru (UEN) ke sumber eksternal ('DOS')",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1014-1030; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1372",
+      "fit": "Sebagian",
+      "detail": "batchProcessUenRecords mengirim pasangan UEN + noticeNo ke DataHive dalam batch dan hasilnya (CompanyInfo: entity name, status, alamat) dikonsumsi storeUenDataResult (DataHiveUenFinService.java:1014-1030, :1346-1372); UEN tidak ditemukan atau company de-registered memicu TS-ACR. Sumbernya GovTech DataHive (view ACRA), kata 'DOS' tidak ada di repo: apakah DataHive = DOS cannot verify from repo. Job mati di prod (lihat langkah 1), isi respons dan koneksi Vault: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nama company terbaru dari hasil pengecekan menimpa nama owner di notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1410; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1798-1810",
+      "fit": "Sebagian",
+      "detail": "updateCompanyName mem-patch kolom name di ocms_offence_notice_owner_driver untuk noticeNo + idNo + offender_indicator 'Y' dengan entityName dari DataHive (DataHiveUenFinService.java:1798-1810, dipanggil di :1410). Detail company juga disimpan di ocms_dh_acra_company_detail (:1600-1630). Logic cocok dengan story, tetapi berada di job yang mati di prod (langkah 1), jadi fit disamakan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat company terbaru disimpan sebagai alamat surat owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1383; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1633-1712; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723-1790",
+      "fit": "Sebagian",
+      "detail": "updateCompanyAddress memvalidasi street, block, postal (tiga field kunci kosong atau street/block kosong memicu TS-ACR) lalu updateCompanyAddressWithNullSupport membuat baris type_of_address 'mha_reg' atau meng-update baris yang ada lewat native SQL, termasuk menimpa nilai lama dengan NULL, dan menandai letter_address 'Y' bila belum ada (DataHiveUenFinService.java:1383, :1633-1712, :1723-1790). Alamat ini yang dipakai letter. Berada di job yang mati di prod (langkah 1), jadi Sebagian; isi alamat DataHive: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder ke-3 (RR3) untuk company memakai nama dan alamat hasil update",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:584-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:266; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "Query letter RR3 (findToppanNoticesForStage) membaca onod.name dan id_type dari ocms_offence_notice_owner_driver tanpa membedakan company (OcmsValidOffenceNoticeRepository.java:584-614), lalu hanya notice dengan letter_address 'Y' diproses (ToppanUploadJob.java:266), jadi data hasil update ikut ke letter. Urutan: job MHA/DataHive berjalan 11:30/16:30/23:30 (cron-schedules-prod.properties:119), letter 00:15. Tetapi upload SFTP ke Toppan diblok di application-prod.properties:86 (lihat OCMS11.22) dan job DataHive mati, jadi data company tidak diperbarui sebelum letter di konfigurasi repo."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS10.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticesForMhaNricUpload, findNoticesForDataHiveEnrichment), framework/workflows/agencies/mha/{upload,download}, framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper, jobs/ToppanLettersGeneratorJob}. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus AN untuk langkah ini",
+  "note": "Status sheet: Demo paid (50% of 75%). Tidak ada flow deck. Notice AN yang tidak bisa dinotifikasi elektronik (tanpa kontak, kirim gagal setelah retry, passport, exclusion list) dipindah ke RD1 dengan an_flag tetap 'Y' (NotificationSmsEmailHelper.java:1237-1262, 1279-1296; NotificationSmsEmailRetryJob.java:1219-1275). Cek alamat terbaru memakai pipeline MHA Epic OCMS8, bukan code khusus AN: MHA NRIC upload memilih notice di stage RD1 tanpa suspension dengan id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581), jadi AN di RD1 ikut terpilih. Celahnya: hanya NRIC; FIN/UEN lewat query DataHive (:529-554) yang pemanggilnya dikomentari di ToppanLettersGeneratorJob.java:126-148 dan cron.mhadownload.datahive=false (cron-schedules-prod.properties:50), passport tidak punya jalur. Pembaruan alamat hasil MHA punya tiket terbuka/terbaru: OCMS-DF-2026-176 (Ready to UAT, timestamp owner_driver/addr tidak diperbarui), OCMS-DF-2026-177 (Closed, update tanpa cek offender indicator), OCMS-DF-2026-183 (Pending Closure, file URA2NRO menumpuk di SFTP). Notice AN tanpa alamat dibuang diam-diam dari letter dan terus muncul tiap run (ToppanUploadHelper.java:2587-2600). Nilai per-environment dan perilaku Vault/DataHive/MHA nyata cannot verify from repo. Kelengkapan Epic OCMS8 dinilai di story OCMS8.",
+  "recommendation": "Klaim sebagian. Perpindahan AN ke jalur letter dan pipeline alamat MHA ada, tapi pengecekan alamat hanya mencakup NRIC dan belum khusus AN; notice AN tanpa alamat tidak ditandai atau dieskalasi",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mendeteksi SMS/email AN tidak bisa dikirim (tanpa kontak, gagal setelah retry, passport, exclusion list)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-262; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:356-370; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:285-320; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1219-1240",
+      "fit": "Sesuai",
+      "detail": "Job mengeluarkan ID di exclusion list dan passport (NotificationSmsEmailJob.java:226-245), contact tidak valid (:254-262), serta ENA tanpa nomor/email (:356-370) dan memindahkannya ke jalur letter. Untuk kirim yang gagal, retry job mengambil record SMS/email berstatus error (NotificationSmsEmailRetryJob.java:285-320) dan setelah kirim ulang memindahkan notice gagal yang masih di stage ENA ke RD1 (:1219-1240). Aturan ini generik untuk semua notice ENA, termasuk AN."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice AN dialihkan ke jalur letter (RD1) dengan flag AN tetap",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1237-1262; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1279-1296; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1261-1275",
+      "fit": "Sesuai",
+      "detail": "patchNextStageToRd1NextDay dan updateStageToRd1 mengisi last=ROV, next=RD1, next_processing_date=besok, is_sync='N' (NotificationSmsEmailHelper.java:1237-1262, 1279-1296); retry job melakukan hal sama (NotificationSmsEmailRetryJob.java:1261-1275). an_flag tidak disentuh sehingga notice tetap AN; query letter AN mencari an_flag='Y' di RD1 (OcmsValidOffenceNoticeRepository.java:693-694), sedangkan letter RD1 biasa mengecualikan AN (:611)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek alamat terbaru (Epic OCMS8) memilih notice AN yang kini di jalur letter",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:563-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:529-554; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanLettersGeneratorJob.java:126-148; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:50; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sebagian",
+      "detail": "findNoticesForMhaNricUpload memilih notice next_processing_stage RD1-DR3, suspension_type NULL, offender_indicator 'Y' dan id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581), tanpa filter an_flag, jadi AN di RD1 terpilih; cron MHA upload aktif di prod (cron-schedules-prod.properties:105-106). Tapi hanya NRIC: FIN dan UEN lewat findNoticesForDataHiveEnrichment (:529-554) yang pemanggilnya dikomentari di ToppanLettersGeneratorJob.java:126-148 dan flag cron.mhadownload.datahive=false (cron-schedules-prod.properties:50); passport tidak punya jalur. Jalur ini generik (Epic OCMS8), tidak ada pemanggilan khusus AN. Vault/DataHive nyata cannot verify from repo. Fit sama dengan OCMS1.8 langkah alamat."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat terbaru hasil pengecekan diperbarui di data alamat owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:630; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:760-764; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1348-1355",
+      "fit": "Sebagian",
+      "detail": "Hasil MHA diproses MhaNricDownloadHelper: alamat terdaftar disimpan ke ocms_offence_notice_owner_driver_addr dengan type_of_address 'mha_reg' lewat bulk insert/update (MhaNricDownloadHelper.java:630, 1348-1355) dan update dibatasi per notice (:760-764). Masih ada tiket: OCMS-DF-2026-176 (Ready to UAT; tanggal/waktu owner_driver dan addr tidak diperbarui saat hasil MHA diproses), OCMS-DF-2026-177 (Closed, Prod deployment; update tanpa cek offender indicator), OCMS-DF-2026-183 (Pending Closure; beberapa file URA2NRO menumpuk di SFTP). Hasil MHA nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat terbaru dipakai untuk letter AN; notice tanpa alamat tidak dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2574-2578; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2580-2600",
+      "fit": "Sebagian",
+      "detail": "getAdvisoryNoticeLettersOptimized menambahkan alamat ke tiap notice AN (ToppanUploadHelper.java:2574-2578) lalu membuang yang tidak punya satu pun field alamat (:2580-2600). Notice yang dibuang hanya dicatat di log dan tetap di RD1, sehingga muncul lagi setiap run tanpa penanda atau eskalasi ke officer. Isi data alamat nyata cannot verify from repo."
+    }
+  ]
+}

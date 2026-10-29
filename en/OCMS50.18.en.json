@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.18",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/urapg/{controller/UraPaymentCallbackRedirectController,service/EPaymentCallbackService}, crud/ocmsezdb/eocmswebtxndetail; ocmseserviceui route/route.ts, pages/Payment/{PaymentProcessing,Payment,PaymentResult,API}.ts. Other repos: no code",
+  "note": "The status flow exists: the PG calls the success/failure callback, the API verifies with checkPaymentStatus (success path), stores status S or E, then redirects the browser to /payment/processing?txnId=; that page reads the status from the DB and shows 'Payment Successful' or a failure message. Gaps: (1) the failure path does not verify with the PG and only checks 'already E' (EPaymentCallbackService.java:168-178, 207), so a late or repeated failure callback can overwrite status S with E; (2) the processing page sends any status other than S to the failure page, including status I/P and data read errors (PaymentProcessing.ts:57-65), so an offender who was already charged may see a failure message; (3) callbackCache and retriedTransactions live only in the memory of one instance (EPaymentCallbackService.java:50-53). The real callback caller and PG payload: cannot verify from repo. OCMS-SR-2026-186 (investigation of 7,843 started vs 81 completed transactions, status Ready to PRD) has no root cause in the ticket, so reliability of this flow in production is not proven. The real-server value of ocms.frontend.payment.status.url cannot be confirmed from the repo (prod properties:72).",
+  "recommendation": "Claim the success/failure status display steps. Fix or confirm two risks: a failure callback that can overwrite S, and the processing page that treats every non-S as failed. Ask for the result of the OCMS-SR-2026-186 investigation",
+  "steps": [
+    {
+      "step": "The Payment Gateway calls the success or failure callback after the offender finishes on the bank website or QR",
+      "detail": "Two POST endpoints /v1/epayment/callback/success and /failure accept form or JSON (UraPaymentCallbackRedirectController.java:73-98, 108-125). The success path calls checkPaymentStatus/v1 on the PG (EPaymentCallbackService.java:91, 233-263), retries once if not PG200 (96-106), and marks S only when ResponseCode is in SUCCESS_RESPONSE_CODES and paymentStatus = S (118-131, SystemConstant.java:48-59); otherwise status E (135). Gap: the failure path calls the verification but does not use the result and always writes E (EPaymentCallbackService.java:207-208), and its idempotency only checks 'already E' (168-178), so a late or repeated failure callback for a transaction that is already S will overwrite it with E. Who may call these endpoints and the real PG payload: cannot verify from repo."
+    },
+    {
+      "step": "System redirects the offender's browser back to the portal with the transaction number",
+      "detail": "After the callback is processed, the controller redirects to ocms.frontend.payment.status.url + the URL-encoded txnId (UraPaymentCallbackRedirectController.java:278-293). Prod value: https://parking.ura.gov.sg/car-parks-portal/ocms/payment/processing?txnId= (application-prod.properties:72). On a callback error it still redirects with &error= (157-164). The value on the real server: cannot verify from repo."
+    },
+    {
+      "step": "The processing page reads the transaction status from the database and picks the success or failure page",
+      "detail": "Routes /payment/processing, /payment/success and /payment/failure exist (route.ts:22-35). PaymentProcessing.ts calls APIPostWebTxnDetail(receiptNo) (line 45), stores the result in sessionStorage (52) and only status 'S' goes to /payment/success (57-58). Gap: any other status (I, P, E), empty data, or a network error all go to /payment/failure (60-65), so a transaction that actually succeeded but could not be read is shown as failed. The result relies on the same sessionStorage in the same tab."
+    },
+    {
+      "step": "The page shows 'Payment Successful' when the transaction succeeded",
+      "detail": "Payment.ts reads the /success or /failure path (ResolveCallbackParams 187-200), takes the data from sessionStorage and fills formData (HandleCallback 230-297); for success it calls InitTransactionSuccess (PaymentResult.ts:38-45) which shows a green alert 'Payment Successful - Your parking fine has been paid.' (88-97)."
+    },
+    {
+      "step": "The page shows a message when the transaction did not succeed",
+      "detail": "For a failure status HandleCallback calls InitTransactionFailed (Payment.ts:289-294) which shows a red alert 'Error occured while processing payment.' and the URA phone number (PaymentResult.ts:58-68, 226-248). The message is generic (no transaction number or reason) and has the typo 'occured'; failure details are covered in OCMS50.20."
+    }
+  ]
+}

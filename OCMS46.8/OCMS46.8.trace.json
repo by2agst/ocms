@@ -1,0 +1,55 @@
+{
+ "story": "OCMS46.8",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "Payment Exception Report (PaymentExceptionReportJob/Helper, ocmsadminprivateapi) memuat refund yang dibuat per hari. Tidak ada status closed/cancelled, tidak ada letter reminder refund, dan tidak ada download di UI.",
+ "note": "Status Removed. Tidak diklaim. Laporan harian yang mirip ada (Payment Exception Report, jam 08:00 lewat cron.dailyreport, plus Monthly Exception Report tanggal 1), tetapi hanya memuat refund yang dibuat pada tanggal laporan (cre_date) tanpa status closed/cancelled dan tanpa letter reminder. Download oleh officer lewat UI tidak ditemukan; laporan dikirim sebagai lampiran email. Tiket: OCMS-SR-2026-112 (Closed, Refund ID dan logika flag refund), OCMS-SR-2026-157 (Closed, digabung), OCMS-SR-2026-190 (Ready to PRD, skenario refund ID PS-FP over PS-APP).",
+ "recommendation": "Tidak diklaim (Removed)",
+ "steps": [
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Laporan harian dibuat",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255",
+   "fit": "Sebagian",
+   "detail": "Ada laporan harian terjadwal: cron.dailyreport.schedule=0 0 8 * * ? dan enabled=true (cron-schedules-prod.properties:255-256), job pertama Payment Exception Report (baris 262). Isinya laporan exception/refund, bukan laporan khusus status refund advice."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Laporan memuat refund advice yang dibuat",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:141",
+   "fit": "Sebagian",
+   "detail": "Record refund yang dibuat ada: query ke ocms_refund_notice dengan WHERE CAST(rn.cre_date AS DATE) = ? (baris 123-141), ditandai REFUND di baris 167. Tidak ada filter atau kolom untuk refund yang closed atau cancelled; entity tidak punya kolom status (OcmsRefundNotices.java:28-58)."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Laporan memuat refund advice closed atau cancelled",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:141",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada code untuk refund advice closed atau cancelled di report. Query refund hanya menyaring cre_date; tidak ada kolom close/cancel di OcmsRefundNotices.java dan ocmsadminapi/.../OcmsRefundNotice.java. Grep cancel/close/status di PaymentExceptionReportHelper hanya menemukan workbook.close() (baris 575)."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Laporan memuat letter reminder terkirim",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:529",
+   "fit": "Tidak ada code",
+   "detail": "Tidak ada letter reminder refund di laporan. Header laporan (baris 527-529) tidak punya kolom reminder, dan grep reminder di folder paymentReport/ nol hasil. Reminder yang ada di repo (halaman UnclaimedReminders di ocmsadminui/src/pages) untuk notice unclaimed, bukan refund; tidak dikaitkan ke story ini."
+  },
+  {
+   "flow_file": "User story (tidak ada di flow deck)",
+   "slide": "",
+   "step": "Officer bisa download laporan",
+   "repo": "ocmsadminprivateapi",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:216",
+   "fit": "Sebagian",
+   "detail": "Laporan tidak bisa di-download officer lewat UI; laporan dikirim sebagai lampiran Excel via email (PaymentExceptionReportJob.java:207-216) ke recipients di application-prod.properties:78. Di prod email.enableSmtp=false (baris 80) tetapi PAYMENT_EXCEPTION_REPORT ada di allowedSources (baris 81); nilai di server asli tidak bisa diverifikasi dari repo. PaymentExceptionReportController ada untuk trigger manual (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/PaymentExceptionReportController.java:26), bukan halaman download di UI."
+  }
+ ]
+}

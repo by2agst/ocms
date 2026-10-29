@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.47",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper (queryRecordsForReminder, refreshContactInfo, refreshIndividualContactInfo, validateContactInfo, generateMessages)}, framework/schedulers/NotificationJobsScheduler, cron-schedules-prod.properties (cron.notification.enabled, cron.enareminder.datahive). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for these steps. The stale copy ocmsadminprivateapi/cronservice/ was not used as evidence.",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark about Vault and code split. The contact check before the e-reminder for drivers uses the same eNotification code as for owners (stage DN1 is in the candidate stage list). Points that lower the claim: (1) cron.notification.enabled=false in dev, UAT and prod, ticket OCMS-DF-2026-180 waits for the cron to be activated; (2) the DataHive number refresh is switched off by cron.enareminder.datahive=false in every environment, so the old number in the DB is used; (3) there is no email check for individuals, only the mobile number; (4) the DN1 template text lives in the DB. Vault, permissions and server values: cannot verify from repo.",
+  "recommendation": "Claim partially. Candidate selection and the opt-out exclusion exist, but the job is off in every environment per the repo, the DataHive refresh is off, and individual email is not checked. Ask for proof of the cron activation and the DN1 template in PRD before claiming in full.",
+  "steps": [
+    {
+      "step": "After the 1st letter reminder (DN1) is sent to the driver, the notice becomes a candidate for an electronic reminder as the due date nears",
+      "detail": "queryRecordsForReminder selects notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) whose due date (last_processing_date + POS + PDD) falls inside the ENOTEDAYS window, offender_indicator='Y', not suspended (except TS-HST), and with no reminder yet sent for the same stage (NotificationSmsEmailHelper.java:1076-1163); the main job calls it (NotificationSmsEmailJob.java:160-163). The trigger is the due-date window, not 'right after the letter is sent'. Also NotificationJobsScheduler stops at lines 49-52 when cron.notification.enabled=false, and the value is false in dev, UAT and prod (cron-schedules-prod.properties:236); ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. The server value: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the driver's latest mobile number from the data source (DOS/DataHive) before the reminder is sent",
+      "detail": "For individuals, refreshContactInfo calls refreshIndividualContactInfo, which queries the CONTACT column of V_DH_SNDGO_SINGPASSCONTACT_MASTER in DataHive, checks a minimum length of 8 digits, then overwrites phoneNo and ocms_offence_notice_owner_driver.offender_tel_no (NotificationSmsEmailHelper.java:2710-2760, 2800-2828, 1434-1445). But the whole block is skipped when cron.enareminder.datahive != 'true' (lines 2468-2478), and the value is false in dev, UAT and prod (cron-schedules-prod.properties:48), so the old number in the DB is used. DataHive/DOS content and Vault: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the latest email address of the individual driver",
+      "detail": "For individuals the DataHive query only fetches CONTACT (mobile number) (NotificationSmsEmailHelper.java:1444-1451). updateOcmsContactInfo writes emailAddr from the same record unchanged (lines 2800-2828), so no new email is fetched. Delivery to individuals is SMS only; email is for companies (idType B) only (NotificationSmsEmailJob.java:353-355). A latest-email check exists only for companies through CorpPass (refreshCompanyContactInfo, line 2496). Tried the keywords email, emailAddr, CONTACT and both layers; ocmsadminui/ocmsadminapi have no such check. Note: the story refers to Epic OCMS9 for the details."
+    },
+    {
+      "step": "A driver who opted out, holds a passport or has no valid mobile number is skipped and gets no electronic reminder",
+      "detail": "Before the SMS is prepared, ids found in ocms_enotification_exclusion_list are dropped (NotificationSmsEmailJob.java:226-231; the query also excludes them at NotificationSmsEmailHelper.java:1133), passport id_type is dropped at every stage (lines 237-244), and validateContactInfo rejects individuals without phoneNo (NotificationSmsEmailHelper.java:2259-2286; job lines 254-266). For non-ENA stages (including DN1) a failing record is only skipped, with no stage change. Same fit as the equivalent step in OCMS11.9."
+    },
+    {
+      "step": "The electronic reminder is prepared referring to the 1st letter reminder (template chosen per stage DN1)",
+      "detail": "generateMessages picks the template name {stage}_{channel}_{recipientType}[_COMBINED], which becomes DN1_SMS_INDIVIDUAL for an individual driver, then fills placeholders from prepareTemplateData: noticeNo, vehicleNo, amountPayable, paymentDueDate, noticeCount (NotificationSmsEmailHelper.java:274-345, 410-438, 459-476). The template text lives in ocms_template_store (DB) and there is no seed in the repo; whether the wording really mentions the 1st letter reminder: cannot verify from repo. When the template is missing, the SMS is skipped (log.error at line 308). Same fit as OCMS11.9."
+    }
+  ]
+}

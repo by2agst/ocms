@@ -1,0 +1,25 @@
+{
+  "story": "OCMS4.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/create-notice), CreateNoticeServiceImpl.processSingleNotice}, helpers/NoticeValidationHelper, dto/OffenceNoticeDto (decision field unused), crud/ocmsizdb/OcmsValidOffenceNotice (decision column commented out). ocmsadminui utils/constant.ts (003=EEPS). thirdpartyapi only has the CES relay and AXS NOPO. No endpoint, status or table for the EEPS decision",
+  "note": "Status in the sheet is 'Built - Has gap'. The code has no EEPS decision intake at all: no endpoint, DTO or 'waiting for decision' status. Only the generic create-notice with label 003 (EEPS) can be used, and it creates the notice immediately. If the real EEPS interface is just 'send the already-confirmed notice', the receive and create steps are partly covered; the EEPS contract is not in the repo (cannot verify from repo). Matching a decision to a held notice does not exist. No relevant maintenance ticket.",
+  "recommendation": "Claim only a small part (generic receive + create). Ask URA/the EEPS team for the contract: does EEPS send a separate decision or the confirmed notice directly; if separate, the feature is not built.",
+  "steps": [
+    {
+      "step": "OCMS receives the decision from EEPS to confirm creation of the payment evasion notice",
+      "detail": "There is no endpoint, DTO or field for an 'EEPS decision' in the six repos. The only generic entry point that can receive an EEPS submission is POST /v1/create-notice (CreateNoticeController.java:28-32) with subsystem label 003, which the UI knows as EEPS (constant.ts:98-104) and which is exempt from the noticeNo requirement (NoticeValidationHelper.java:84-103). thirdpartyapi only has the CES relay (CesCreateNoticeController.java:22) and AXS NOPO (AxsNopoController.java:38,81), nothing for EEPS. So 'receive the decision' only holds if EEPS simply sends the already-confirmed notice as a normal create-notice; the EEPS interface contract: cannot verify from repo. For authentication of this path see OCMS4.2 step 1."
+    },
+    {
+      "step": "OCMS links the EEPS decision to the offence that is waiting for a decision",
+      "detail": "There is no 'waiting for EEPS' record or status to link to: a notice that passes validation is INSERTed into VON right away (CreateNoticeServiceImpl.java:1195). The decision field in OffenceNoticeDto (OffenceNoticeDto.java:49-52) is unused and its column in the VON entity is commented out (OcmsValidOffenceNotice.java:165-172). No lookup by an EEPS transaction id exists in any repo."
+    },
+    {
+      "step": "After the confirmation, OCMS proceeds to create the parking offence notice",
+      "detail": "The creation pipeline (validation, DBB, AN, vehicle type, notice number, INSERT VON and eVON) exists and runs synchronously (see OCMS4.1 and OCMS4.4), but it is triggered directly by a create-notice call (CreateNoticeServiceImpl.java:1192-1195), not by a decision linked to a waiting notice. There is no 'confirm' versus 'reject' branch."
+    },
+    {
+      "step": "OCMS creates the correct type of parking offence notice",
+      "detail": "The creation pipeline does decide the notice variation (PS-ANS, PS-DBB/TS-OLD, PS-FOR, UPL, military) as in OCMS4.1, but the stored offenceNoticeType comes from the sender and is not matched to the rule table (NoticeValidationHelper.java:140-143; CreateNoticeServiceImpl.java:967-971). Same fact as OCMS4.1 and OCMS4.2, so the same fit."
+    }
+  ]
+}

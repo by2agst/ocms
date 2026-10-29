@@ -1,0 +1,100 @@
+{
+  "story": "OCMS49.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceapi workflows/spcp/controller/SpcpController (session NRIC + JWT), workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud/ocmspii/eocmsoffencenoticeownerdriver. ocmseserviceui route/route.ts, pages/Payment/{API,PaymentSearch,PaymentSearchResult}.ts. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code clearance",
+  "note": "Story minta halaman mengecek apakah clearance slip bisa dibuat atas NRIC berdasarkan kondisi pre-defined (semua warrant permanently suspended, dalam X bulan terakhir). Code tidak punya fitur Clearance Slip: kata 'clearance' tidak muncul di enam repo, tidak ada route UI, endpoint, rule, atau flag kelayakan. Yang ada hanya fondasi yang bisa dipakai ulang: session NRIC dari login (SpcpController.java:118) dan lookup notice per NRIC lewat JWT (ParkingFinesController.java:279-312) yang dipakai pencarian denda. Window 6 bulan di EocmsValidOffenceNoticeRepository.java:84 milik pencarian noticeNo/vehicleNo, bukan clearance, dan tidak dipakai pencarian NRIC. Status 'Built - Has gap' di sheet tidak didukung code untuk langkah inti (cek warrant PS, X bulan, keputusan). Singpass dan gateway: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya session NRIC dari login dan lookup notice per NRIC yang bisa dipakai ulang; pengecekan kondisi clearance (warrant PS, X bulan, keputusan) belum ada. Minta URA/tim konfirmasi di repo mana fitur ini dibangun, atau tandai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender sudah login ke Online Customer Portal dan session membawa NRIC",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:118; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/SpcpController.java:122",
+      "fit": "Sesuai",
+      "detail": "Setelah auth response Singpass/Corppass, createSession(sessionId, nric, entityId) menyimpan NRIC di PII DB lalu generateToken(sessionId) menerbitkan JWT (SpcpController.java:118,122; jalur bypass :199,203). Handshake Singpass itu sendiri cannot verify from repo. Story ini tidak punya halaman login sendiri (itu OCMS49.1)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman layanan Clearance Slip terbuka untuk offender yang sudah login",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/route/route.ts:15-42",
+      "fit": "Tidak ada code",
+      "detail": "routes hanya berisi payment, payment/processing, payment/success, payment/failure, dan furnish-particulars (route.ts:15-42). Tidak ada route, komponen, atau kata 'clearance' di ocmseserviceui, ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi, ocmsadminui, maupun thirdpartyapi (grep case-insensitive, 0 hasil)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman meminta server mengecek apakah ada clearance slip yang bisa dibuat",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:100-105; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:465",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya request ber-NRIC dari UI adalah APIPostSearchFinesSPCP yang POST {searchType: 'id', filter} ke endpoint parkingfines (API.ts:100-105, dipanggil PaymentSearch.ts:465). Itu pencarian notice untuk bayar denda, bukan pengecekan clearance; tidak ada endpoint clearance di ocmseserviceapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NRIC offender diambil dari session login, bukan diketik user",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:306-311",
+      "fit": "Sesuai",
+      "detail": "handleIdNoSearchFromJwt memvalidasi Bearer JWT, mencari session by subject, lalu memakai getUserId() (atau entityId untuk Corppass) sebagai idNo; payload dari UI hanya searchType/filter/$limit/$skip (ParkingFinesController.java:52-54, 279, 306-311). Mekanisme ini cocok untuk 'atas NRIC saya', tapi saat ini dipakai pencarian denda."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengambil semua notice milik offender berdasarkan NRIC",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:148-160; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:29",
+      "fit": "Sebagian",
+      "detail": "findParkingFinesByIdNo mengambil notice_no dari eocms_offence_notice_owner_driver dengan id_no (didecrypt) dan offender_indicator = 'Y' (OwnerDriverRepository:29), lalu eocms_valid_offence_notice (ParkingFinesServiceImplement.java:148-160). Lookup by NRIC ada, tapi hasilnya daftar bayar denda (outstanding/paid), tidak difilter ke notice berstatus warrant dan tidak dievaluasi untuk clearance."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengenali notice yang sudah menjadi warrant of arrest",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:771-777; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:33; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:365-367",
+      "fit": "Sebagian",
+      "detail": "Warrant dikenali dari last_processing_stage: UI memakai daftar COW/CWW/CWM/CTW/CWT hanya untuk menampilkan Terms and Conditions warrant sebelum bayar (PaymentSearchResult.ts:771-777), API memakai COURT_PROCESSING_STAGES untuk logika kondisi pembayaran (ParkingFinesServiceImplement.java:33, 365-367). Data stage terbaca, tapi tidak dipakai menilai kelayakan clearance."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengecek semua warrant of arrest sudah permanently suspended",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:96; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:98; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:212",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pengecekan 'semua warrant berstatus PS'. suspension_type = 'PS' hanya dipakai untuk PS-ANS (annulled) sebagai non-payable E5 (EocmsValidOffenceNoticeRepository.java:98, ParkingFinesServiceImplement.java:212) dan untuk pengecualian furnish. Sebaliknya, notice berstatus warrant stage COW justru ikut masuk daftar bayar (Repository:96)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengecek suspension sudah berlangsung dalam X bulan terakhir",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:84; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:102",
+      "fit": "Beda dari flow",
+      "detail": "Satu-satunya window bulan terkait suspension adalah DATEADD(MONTH, -6, GETDATE()) pada crs_date_of_suspension, hardcoded di query findAllByNoticeNoIn (Repository:84) untuk pencarian noticeNo/vehicleNo. Query yang dipakai pencarian NRIC, findAllByNoticeNoInWithoutCrsFilter (Repository:102), tidak punya window itu. Tidak ada properti X bulan di application.properties; angka 3/6 bulan lain ada di furnish (FurnishApplicationListServiceImpl.java:172-173), tidak terkait clearance."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kondisi pre-defined lain bisa diatur tanpa ubah code (nilai X, daftar kondisi)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/resources/application.properties",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada konfigurasi aturan clearance di application.properties (grep month/clearance: tidak ada) maupun tabel/parameter di repo lain. Kata 'e.g.' di story berarti ada kondisi lain yang tidak didefinisikan di repo; daftar finalnya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem memutuskan dan mengembalikan hasil: clearance slip bisa dibuat atau tidak",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:315-360",
+      "fit": "Tidak ada code",
+      "detail": "Respons pencarian berisi daftar notice, totalOutstanding, totalPaid, dan error E7 kalau kosong (ParkingFinesController.java:315-360). Tidak ada field atau flag 'eligible for clearance slip' dan tidak ada pemicu pembuatan slip. Yang dekat hanya ReceiptController printslip (struk pembayaran), bukan clearance."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS1.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, cron-schedules-*.properties; ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController; ocmsadminui App.tsx + pages/ManageTemplate. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story: User Story Removed (5 poin), verdict tetap Removed. Code yang mirip adalah jalur email company di cron eNotification yang sama dengan OCMS1.6: owner dengan idType 'B' (UEN) dapat email, bukan SMS. Notice company digabung per UEN + stage + due date jadi satu email (combineNotices), mendekati 'unique company owner', tapi notice dengan due date berbeda tetap menghasilkan email terpisah. Seperti OCMS1.6, template data tidak memuat admin fee, scheduler cron.notification.enabled=false di semua environment (cron-schedules-prod.properties:236), tiket OCMS-DF-2026-180 menunggu cron aktif, dan lookup DataHive/CorpPass mati (cron.enareminder.datahive=false). Email untuk stage driver DN1/DN2/DR3 sengaja di-skip karena template company tidak ada (NotificationSmsEmailHelper.java:313-318). Sumber 'DOS', SMTP/email gateway, dan isi template di database cannot verify from repo. Source yang dipakai adalah src/main/java (salinan cronservice/ di root ocmsadminprivateapi berbeda dan tidak dibuild). Catatan double check: story Removed, jadi step yang ada code-nya dihitung Sebagian (bukan Sesuai) agar konsisten dengan OCMS1.1-1.5; tidak ada klaim.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat email company vehicle owner sudah diperoleh dari DOS sebelum email dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Untuk idType 'B', refreshContactInfo memanggil refreshCompanyContactInfo (CorpPass DataHive) hanya kalau cron.enareminder.datahive=true (NotificationSmsEmailHelper.java:2461-2476, :2496); di semua environment nilainya false (cron-schedules-prod.properties:48), jadi yang dipakai adalah email_addr yang sudah tersimpan di owner/driver (query :1017). Sumber 'DOS' cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Unique company vehicle owner untuk email di setiap batch diidentifikasi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2153; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2178-2200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2241",
+      "fit": "Sebagian",
+      "detail": "Notice company (idType B) digabung per recipientKey 'B_'+UEN, stage, dan paymentDueDate menjadi satu record dengan combinedNotices dan amountPayable yang dijumlah (NotificationSmsEmailHelper.java:2178-2200; key UEN di getRecipientKey :2230-2241). Jadi satu UEN dengan due date sama menerima satu email. Tapi key memuat due date dan stage, sehingga satu UEN dengan due date berbeda tetap dapat beberapa email; story minta satu per unique company owner per batch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email hanya dikirim ke company vehicle owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:353-354; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:377-389; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:443-452",
+      "fit": "Sebagian",
+      "detail": "sendEmail = idType 'B' (NotificationSmsEmailJob.java:353-354) dan email dikirim per record di blok :377-389 hanya untuk record itu; determineDeliveryChannel memetakan 'B' ke EMAIL (NotificationSmsEmailHelper.java:443-452). Individu tidak mendapat email dari jalur ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dibuat dari email template yang dikonfigurasi di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:313-328; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-475; ocmsadminui/src/App.tsx:277; ocmsadminui/src/App.tsx:291; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:52-60",
+      "fit": "Sebagian",
+      "detail": "Template company dipilih dengan nama {stage}_EMAIL_COMPANY[_COMBINED] (NotificationSmsEmailHelper.java:459-475), diambil dari ocms_template_store dan dipecah jadi subject dan body lewat splitEmailTemplate (:313-328). Staff mengelola template EMAIL lewat ManageTemplate (ocmsadminui/src/App.tsx:277 edit, :291 create) dan OcmsTemplateStoreController (:52). Stage DN1/DN2/DR3 di-skip karena tidak ada template company (:313-318). Isi template di database cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email memuat outstanding parking charges dan admin fee",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:410-421; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1320-1324",
+      "fit": "Sebagian",
+      "detail": "Data placeholder hanya amountPayable (hasil penjumlahan notice yang digabung) dan paymentDueDate (NotificationSmsEmailHelper.java:410-421); admin fee tidak dikirim ke template. Admin fee baru diisi di RR3/DR3 (ToppanUploadHelper.java:1320-1324; tahap lain 0 sesuai OCMS-DF-2026-170). Sama dengan fit OCMS1.6 langkah 'memuat charges, admin fee, due date'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email dikirim ke setiap company owner lewat batch job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:377-396; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:556-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:48-54; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Per record company, job memanggil notificationHelper.sendEmail (NotificationSmsEmailJob.java:377-389) yang memakai emailService.sendEmail (NotificationSmsEmailHelper.java:556-580) bila notification.email.enabled=true, lalu saveSendStatus (:396). Sama seperti SMS, trigger terjadwal mati karena cron.notification.enabled=false (NotificationJobsScheduler.java:48-54; cron-schedules-prod.properties:236) dan tiket OCMS-DF-2026-180 menyebut cron belum aktif. Pengiriman nyata lewat email service cannot verify from repo."
+    }
+  ]
+}

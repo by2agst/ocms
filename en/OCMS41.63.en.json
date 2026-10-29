@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.63",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, agencies/mha/download/MhaNricDownloadHelper (bufferMhaRegistrationAddress), furnish_processing/FurnishApprovalHelper (furnished_mail), toppan/upload/ToppanUploadHelper (letter_address), syncintranetinternet/SyncIntranetInternetService, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, cron-schedules-prod.properties, application-prod.properties. ocmseserviceapi: EocmsValidOffenceNoticeRepository (payment data). Appendices A and B of Annex 1: not in the repo",
+  "note": "Story status: Requirement given - Gen flow. The code updates the address through the mha_reg row from the MHA result, but without checking whether it matches the furnished address, and a furnished_mail row already marked letter_address=Y is not displaced. Sync to eService and reminder letter generation exist, but Toppan letters only run through a manual trigger and the Toppan upload is switched off in the prod config. The content of Appendices A and B of Annex 1 is not in the repo, so conformity with that workflow cannot be verified from the repo. Tickets: OCMS-DF-2026-130 (mha_reg is now a full replace), OCMS-DF-2026-024 (previous offender address), OCMS-DF-2026-067 and OCMS-DF-2026-077 (is_sync gap that kept notices out of eService, Closed), OCMS-DF-2026-192 (manual letter generation failed, not yet UAT).",
+  "recommendation": "Claim only in part: the address update from MHA and the sync exist, the match check against the furnished address does not. Confirm with URA whether the rule 'furnished address wins' (letter_address) replaces the comparison, and supply Appendices A and B for verification",
+  "steps": [
+    {
+      "step": "OCMS checks the latest registered address of the furnished hirer/driver",
+      "detail": "Notices at RD1/DN1 (the stage after furnish) are included in the MHA upload query when NPD is on or before tomorrow, with no suspension, offender_indicator Y and id_type N (NRIC only) (OcmsValidOffenceNoticeRepository.java:565-569); the MHA result is applied only to ONOD rows that are still the current offender (MhaNricDownloadHelper.java:777-784, OCMS-DF-2026-177). The upload (Mon-Sat 09:00, 14:00, 21:00) and download (11:30, 16:30, 23:30) crons are enabled=true in prod (cron-schedules-prod.properties:105-106, :119-120). Hirers/drivers with UEN, FIN or passport ID types are not in this query, and the DataHive UEN/FIN job is switched off in prod (:52). The real server value cannot be verified from the repo. Consistent with OCMS41.61 step 1."
+    },
+    {
+      "step": "OCMS confirms the registered address matches the furnished address",
+      "detail": "No comparison of the mha_reg row with furnished_mail (postal code, unit) exists in the six repos; the mha_reg write path does not read furnished_mail. Same fact as OCMS41.61 step 2, so the fit is the same."
+    },
+    {
+      "step": "OCMS updates the address accordingly",
+      "detail": "The mha_reg row is fully rewritten from the MHA result, including clearing fields that are now blank (MhaNricDownloadHelper.java:2294-2334, OCMS-DF-2026-130), but with no match condition. letter_address=Y is only given when no Y row exists (:2323-2325), so the furnished_mail from furnish stays in use for the first letter. After one Toppan letter is sent, the flag moves to mha_reg, then lta_reg, then lta_mail, and furnished_mail is not in the fallback chain (ToppanUploadHelper.java:468-520), so later reminders use the registered address. A hirer with only a furnished address risks having no letter address (addendum fact). OCMS-DF-2026-024 (previous offender address shown for the new offender) is Closed."
+    },
+    {
+      "step": "The updated notice and data are available in eService for payment through the Internet-Intranet sync",
+      "detail": "The MHA result marks ONOD isSync='N' (MhaNricDownloadHelper.java:802-803) and SyncIntranetInternetService copies VON, ONOD and OND to the Internet side (SyncIntranetInternetService.java:127, :437, :612) every 10 minutes, enabled=true in prod (cron-schedules-prod.properties:291-292). SyncIntranetInternetService does not copy the address (mha_reg) rows, and payment reads eocms_valid_offence_notice (EocmsValidOffenceNoticeRepository.java:44). OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed) show that paths changing a stage without is_sync='N' kept notices out of eService; whether all paths have been audited cannot be verified from the repo. The real eService display depends on data: cannot verify from repo."
+    },
+    {
+      "step": "Follow-up against the furnished hirer/driver runs according to the automated processing workflows in Appendices A and B of Annex 1",
+      "detail": "Reminder letters use the address row with letter_address=Y (ToppanUploadHelper.java:2199). The Toppan 00:15 schedule is enabled=true (cron-schedules-prod.properties:61-62), but the call to toppanLettersGeneratorService.executeJob() inside it is commented out (ToppanUploadJobsScheduler.java:118), so letters are only generated through POST /toppan/generate-letters (ToppanUnifiedController.java:34). The upload to Toppan is switched off in the prod config (sftp.upload.disabledServers=toppan, application-prod.properties:86); the real server value cannot be verified from the repo. OCMS-DF-2026-192 (manual letter generation failed in production) is still Ready to UAT. Content of Appendices A and B: cannot verify from repo."
+    }
+  ]
+}

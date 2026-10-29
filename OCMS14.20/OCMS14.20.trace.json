@@ -1,0 +1,46 @@
+{
+  "story": "OCMS14.20",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Notice/form/VehicleForm.tsx, pages/Notice/hook/useNoticeSubmit.tsx, utils/mapping/Notice/Notice.ts; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController (/validoffencenoticepatch), api-authorization.properties (OCMS_NOTICE_EDIT); ocmsadminprivateapi framework/workflows/autorevival/helpers/AutoRevivalHelper (processTsClvLooping, processClvPostRevival). Tidak ada code relevan di ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "Story minta officer bisa mengubah vehicle registration type secara manual (misalnya V kembali ke S) agar notice diproses normal. Layar edit notice punya dropdown Vehicle Registration Type; pada mode edit, memilih nilai memunculkan konfirmasi 'Are you sure you want to change the Vehicle Registration Type ?' (VehicleForm.tsx:62-64, 127-130). Simpan memakai POST validoffencenoticepatch dengan vehicleRegistrationType (Notice.ts:179, useNoticeSubmit.tsx:64-94) dan controller hanya mem-patch kolom yang dikirim (OcmsValidOffenceNoticeController.java:92-112) tanpa validasi nilai atau aturan transisi; endpoint ada di grup OCMS_NOTICE_EDIT (api-authorization.properties:46-48), pemetaan role ke grup cannot verify from repo. Efek ke proses: TS-CLV looping berhenti untuk notice bukan tipe V (AutoRevivalHelper.java:1111), tetapi TS-CLV yang sedang aktif tidak otomatis dicabut saat tipe diubah dan re-apply setelah revival (AutoRevivalHelper.java:823-837) tidak mengecek tipe V sehingga CLV bisa terpasang lagi satu kali; officer perlu merevive TS secara manual. Tambahan UI: setelah konfirmasi, form mengosongkan vehicle_no dan vehicle_category (VehicleForm.tsx:147) sehingga harus diisi ulang. Status story 'Demo paid (50% of 75%)'.",
+  "recommendation": "Klaim sebagian besar: ubah tipe manual dengan konfirmasi dan simpan sudah ada. Yang kurang: tidak ada pencabutan TS-CLV otomatis saat V diubah ke tipe lain dan re-apply CLV setelah revival tidak mengecek tipe; perlu konfirmasi URA apakah officer diharapkan merevive TS-CLV sendiri.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka notice di layar edit dan bisa mengganti Vehicle Registration Type",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:50-65; ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:127-130; ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:172-182",
+      "fit": "Sesuai",
+      "detail": "VehicleForm menampilkan dropdown vehicle_type (isRequired, opsi VEHICLE_TYPE dari standard code list) di VehicleForm.tsx:172-182. Pada mode selain CREATE, onVehicleTypeChange membuka modal konfirmasi 'Are you sure you want to change the Vehicle Registration Type ?' (baris 61-64, 127-130). Daftar opsi tipe (apakah ada V dan S) ada di data standard code di DB, cannot verify from repo. Siapa yang boleh membuka mode edit ditentukan role di luar repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perubahan tipe disimpan ke notice",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/utils/mapping/Notice/Notice.ts:179; ocmsadminui/src/pages/Notice/hook/useNoticeSubmit.tsx:64-94; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:92-112; ocmsadminapi/src/main/resources/api-authorization.properties:46-48",
+      "fit": "Sesuai",
+      "detail": "MapAPINoticeValidVehicle memasukkan vehicleRegistrationType ke payload (Notice.ts:179); useNoticeEdit mengirim POST validoffencenoticepatch (useNoticeSubmit.tsx:64, 91-94). Controller mengubah payload jadi entity lalu service.patchWithFiles (OcmsValidOffenceNoticeController.java:106-112). Endpoint termasuk grup OCMS_NOTICE_EDIT (api-authorization.properties:46-48). Edge case: server tidak memvalidasi nilai tipe atau transisi (V ke S, S ke V, nilai bebas) dan tidak ada side effect lain di jalur ini (tidak ada penyebutan CLV di crud/OcmsValidOffenceNotice)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah tipe bukan V, proses penangguhan classified berhenti untuk notice itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1107-1112",
+      "fit": "Sesuai",
+      "detail": "processTsClvLooping melewati notice yang tipenya bukan 'V' (AutoRevivalHelper.java:1111), sehingga looping TS-CLV tidak diteruskan setelah tipe diubah ke S. Jalur Toppan tidak memakai tipe (regex plat, lihat OCMS14.19) jadi tidak terpengaruh."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kembali diproses mengikuti alur normal setelah tipe diubah",
+      "repo": "ocmsadminprivateapi, ocmsadminapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:823-837; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:106-112; ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:147",
+      "fit": "Sebagian",
+      "detail": "TS-CLV yang sedang aktif tidak dicabut ketika tipe diubah (patch hanya menulis kolom, OcmsValidOffenceNoticeController.java:106-112). Re-apply setelah revival memasang CLV lagi untuk setiap suspension CLV yang baru direvive tanpa melihat tipe notice (AutoRevivalHelper.java:823-837; processTS/SuspensionBaseHelper tidak merujuk vehicle_registration_type), jadi notice yang sudah diubah ke S bisa ditangguhkan sekali lagi; officer harus merevive TS-CLV manual (/v1/staff-revive-suspension ada di OCMS_NOTICE_EDIT, api-authorization.properties:50). Laporan Classified Vehicle memang memuat kategori 'V ke S' hanya untuk CLV yang sudah direvive (ocmsadminprivateapi OcmsValidOffenceNoticeRepository.java:749). Pembacaan dari code, belum dijalankan. Tambahan UI: setelah konfirmasi, vehicle_no dan vehicle_category dikosongkan (VehicleForm.tsx:147) dan harus diisi ulang."
+    }
+  ]
+}

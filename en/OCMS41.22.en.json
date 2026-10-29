@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{ActionNotice,useNoticeSubmit}.tsx, pages/Notice/form/Form.tsx, pages/Notice/detail/{Preview,DecissionDetails}.tsx, pages/Furnish/{form/DecisionForm,form/ReplyComposeForm,form/ComposeList,components/SelectTemplate,components/ComposeEditor,hooks/useFurnishAPI,list/FurnishSummaryList}; ocmsadminapi workflows/furnish/manualreview/{ManualReviewController,ManualReviewService}, workflows/furnish/helpers/FurnishNotificationService, crud/BaseEntity, crud/ocmsizdb/OcmsTemplateStore, utilities/emailutility/EmailService. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'. Approval through the staff portal runs immediately, not after a send schedule: status 'A' is saved on submit, before the email/SMS is sent (useNoticeSubmit.tsx:198-216), and there is no scheduling in the code. The OIC user ID is stored as the audit column upd_user_id (not a dedicated approved_by column), so a later update can overwrite it. The status + user display exists only on the Furnish page, not on the notice view. A second controller POST /v1/furnish/officer/approve (FurnishApprovalController.java:24-38) exists that ocmsadminui never calls and that is not in api-authorization.properties; it is not counted as evidence. No relevant maintenance ticket.",
+  "recommendation": "Claim with a caveat: the Approved status and the OIC user ID are recorded and shown on the Furnish page. Note that the user ID is a generic audit column and is not shown on the normal notice view; ask URA whether that is enough.",
+  "steps": [
+    {
+      "step": "OIC chooses Approve (as Hirer or Driver) and confirms",
+      "detail": "DecisionForm shows Decision Status (Approve/Reject) and, for Approve, a required 'Approve As' Driver/Hirer radio (DecisionForm.tsx:438-465). The confirmation dialog reads 'Do you wish to proceed to approve as Hirer/Driver?' (ActionNotice.tsx:194-197). UEN is blocked from Approve As Driver in the UI (ActionNotice.tsx:163-178) and on the server (ManualReviewService.java:336-340)."
+    },
+    {
+      "step": "OCMS automatically sets the request status to Approved",
+      "detail": "approveFurnish picks manual-review/approve-hirer or approve-driver by approveAs (useFurnishAPI.ts:202-225). approveSubmission checks furnishability and then calls submission.setStatus(STATUS_APPROVED) with value 'A' (ManualReviewService.java:80, 363) and saves it through furnishService.update plus a sync to PII (365-366). The status changes on submit and does not wait for a send schedule (there is no schedule in the code)."
+    },
+    {
+      "step": "The OIC user ID is recorded on the request",
+      "detail": "furnishService.update triggers @PreUpdate in BaseEntity, which fills updUserId from the JWT username (BaseEntity.java:104-109, 114-127); JwtFilter puts that username in a request attribute (JwtFilter.java:96, 114). So the request's upd_user_id column holds the approving OIC. reviewedBy is also sent by the UI and required (FurnishMap.ts:38; ManualReviewController.java:183-187) but is used only for logging and the offender processing (ManualReviewService.java:325, 376), not for a dedicated column on the furnish application. The remark 'Approved by <user>' is only filled when the OIC wrote no remarks (ManualReviewService.java:364). Because upd_user_id is a generic audit column, a later update of the same record overwrites it; without a request/username the value falls back to DEFAULT_SYSTEM_USER_ID (BaseEntity.java:127)."
+    },
+    {
+      "step": "The Approved status and user ID are displayed when the OIC browses the notice in OCMS",
+      "detail": "The Summary tab on the Furnish page (UPDATE mode) shows the Status (code mapped to a label) and 'Updated By' (DecissionDetails.tsx:153-160, 328-331; Preview.tsx:91), opened from the Furnished List (FurnishSummaryList.tsx:99-101). The normal notice view page does not show the furnish decision: the decision tab in GroupPreview.tsx:166-173 is commented out. The Furnished List has a status column, but its default filter is Pending 'P' only (FurnishSummaryList.tsx:57-61) and there is no user column. So 'when browsing the notice' is met only through the Furnished List, not the general notice view, and the label is 'Updated By', not 'Approved by'."
+    }
+  ]
+}

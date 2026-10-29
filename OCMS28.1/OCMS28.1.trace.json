@@ -1,0 +1,55 @@
+{
+  "story": "OCMS28.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/UnclaimedReminders/{page/UnclaimedRemindersPage,form/SubmitForm}.tsx, utils/validation/UnclaimedReminders. ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedController,UnclaimedServiceImpl} (check-unclaimed, submit-unclaimed, prepareAdhocNroTempRecords). ocmsadminprivateapi MHA/DataHive crons yang membaca ocms_adhoc_nro_temp. Tidak ada page, endpoint, atau tabel untuk court summons yang dikembalikan (ocms_summon/date_of_return hanya tipe di UI).",
+  "note": "Story minta staff mencatat court summons yang dikembalikan ke URA, lalu OCMS otomatis mengecek perubahan registered address. Code yang mirip hanya fitur Unclaimed Reminders: staff upload nomor notice, isi date of return dan alasan, lalu submit-unclaimed (UnclaimedController.java:77) menyimpan return ke data reminder (RDP/DN) dan memasukkan offender ke ocms_adhoc_nro_temp untuk dicek MHA/DataHive (UnclaimedController.java:163-171). Itu dokumen reminder letter, bukan court summons. Untuk notice di court stage, service hanya update RDP/DN dan melewati TS-UNC (UnclaimedServiceImpl.java:341-347). Tidak ada penyimpanan return pada record summons: Isummon.d.ts:6 punya date_of_return tetapi hanya sebagai tipe di UI, dan /v1/summon hanya muncul di api-authorization.properties:23 tanpa controller/entity di ocmsadminapi. Cek ke MHA/DataHive berjalan lewat cron terpisah dan tidak bisa dipastikan nilai server aslinya dari repo. Status story kosong di stories.json; dianalisis normal. Dicari juga: returned summons, ReturnedSummons, court return, summon return, DNATA; hasilnya tidak ada.",
+  "recommendation": "Klaim parsial saja: mekanisme catat return dan antrian cek alamat ada untuk reminder letter, bukan court summons. Minta URA/tim konfirmasi apakah pencatatan return court summons dibangun di sistem lain (CAS) atau memang belum dibuat.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuka halaman untuk mencatat pengembalian court summons",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/UnclaimedReminders/page/UnclaimedRemindersPage.tsx:285",
+      "fit": "Sebagian",
+      "detail": "Halaman yang ada adalah Unclaimed Reminders: upload nomor notice lalu memanggil check-unclaimed (UnclaimedRemindersPage.tsx:285). Itu untuk reminder letter yang dikembalikan, bukan court summons. Tidak ada page atau route untuk court summons yang dikembalikan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff mengisi tanggal pengembalian dan alasan lalu submit",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/UnclaimedReminders/form/SubmitForm.tsx:239",
+      "fit": "Sebagian",
+      "detail": "dateOfReturn wajib diisi (utils/validation/UnclaimedReminders/UnclaimedReminders.ts:49-51), lalu form memanggil endpoint submit-unclaimed (SubmitForm.tsx:239; ocmsadminapi UnclaimedController.java:77). Field dan endpoint ini milik reminder letter, bukan court summons."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengembalian disimpan pada record court summons",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/resources/api-authorization.properties:23",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penyimpanan return pada summons. Isummon.d.ts:6 (ocmsadminui/src/utils/models/Isummon.d.ts) hanya tipe di UI; /v1/summon hanya terdaftar di api-authorization.properties:23, dan tidak ada controller, entity, atau repository summon di ocmsadminapi maupun ocmsadminprivateapi. Dicari: summon, courtmention, date_of_return, ReturnedSummons di kedua layer."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di court stage tetap bisa diproses saat return dicatat",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:341-347",
+      "fit": "Sebagian",
+      "detail": "Stage di luar NON_COURT_STAGES dianggap court stage (UnclaimedServiceImpl.java:630-632); untuk notice itu service hanya update RDP/DN dan melewati TS-UNC (UnclaimedServiceImpl.java:341-347). Jadi pencatatan tidak ditolak di court stage, tetapi yang diupdate data reminder, bukan summons."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS otomatis mengantre offender untuk pengecekan perubahan registered address",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:163-171",
+      "fit": "Sebagian",
+      "detail": "Setelah submit, prepareAdhocNroTempRecords (UnclaimedController.java:167; UnclaimedServiceImpl.java:753-762) memasukkan offender yang masih current ke ocms_adhoc_nro_temp, dengan id_type default N. Notice PS tidak diantre (OCMS-DF-2026-133, Closed, Prod deployed). Kegagalan hanya di-log dan tidak membatalkan submit (UnclaimedController.java:163-171). Antrean ini dibaca cron MHA/DataHive; itu pengecekan generik untuk reminder, bukan dipicu court summons. Nilai cron di server asli cannot verify from repo."
+    }
+  ]
+}

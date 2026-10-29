@@ -1,0 +1,29 @@
+{
+  "story": "OCMS14.27",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/autorevival/helpers/AutoRevivalHelper (processTsClvLooping, getCurrentSuspensionFromPreloaded, checkIfTsClvNeedsReapplicationFromPreloaded), utilities/suspension_helpers/TemporarySuspensionHelper (Step 7.1 multiple TS), framework/workflows/autorevival/jobs/AutoRevivalJob. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story status 'Requirement given - Gen flow'. Recognising 'another TS exists' is done in processTsClvLooping: all active suspensions of notices at RR3/DR3 are loaded, the newest one (highest sr_no) is read, and CLV is applied when the active one is not CLV. But the code applies CLV straight on top of the other TS (overlap), it does not wait for the other TS to end as the story says: TemporarySuspensionHelper allows stacked TS and the due_date_of_revival on VON takes the furthest date (TemporarySuspensionHelper.java:97-99,133-147). A similar pattern for TS-HST was questioned by users in OCMS-DF-2026-117 (closed, investigation, no code change), so this is known behaviour, not a new finding. One condition needs checking: the branch 'CLV active but was revived before and another TS is still active' (checkIfTsClvNeedsReapplicationFromPreloaded) can be true again on every run because the new CLV becomes the newest active record; by reading the code this can add a new CLV every day while the other TS is active. Not confirmed on a running system. OCMS-DF-2026-184 (Pending UAT): the TS-UNC path in ocmsadminapi overwrites due_date_of_revival without comparing dates; this cron path uses the correct max logic.",
+  "recommendation": "Claim partially. Detection of other TS exists, but the code applies CLV concurrently (overlap), not after the other TS ends. Do not claim 'after the existing suspension expires'. Ask the team to check whether CLV is re-applied on every run while another TS is active.",
+  "steps": [
+    {
+      "step": "OCMS loads classified-vehicle notices at RR3/DR3 together with their active and past suspensions",
+      "detail": "processTsClvLooping loads VON rows at RR3/DR3 (AutoRevivalHelper.java:1048-1050), then two queries on ocms_suspended_notice: active suspensions (date_of_revival IS NULL) and the full history (:1068-1100). Only type V notices that are not yet PS-FP are processed (:1111-1112). The cron runs through the day-end scheduler (cron.toppanupload.enabled=true in prod, cron-schedules-prod.properties:61-62); the real server value cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS recognises notices that have an active temporary suspension under a code other than CLV",
+      "detail": "getCurrentSuspensionFromPreloaded takes the active suspension with the highest sr_no (AutoRevivalHelper.java:1259-1272). When none exists or its reason is not CLV, needsClv=true (:1114-1119). Only the newest record is read; other suspensions below it are covered by the history branch in the next step."
+    },
+    {
+      "step": "OCMS recognises notices whose CLV ended earlier while a TS under another code is still active",
+      "detail": "checkIfTsClvNeedsReapplicationFromPreloaded is true when a CLV has been revived AND a non-CLV TS is still active (AutoRevivalHelper.java:1277-1291). This branch is only used when the newest active record is CLV (:1119-1122). By reading the code, a freshly applied CLV becomes the newest active record, so the condition can be true again on the next run while the other TS stays active and a new CLV is added every day. Not confirmed on a running system; the suspended_notice data needs checking."
+    },
+    {
+      "step": "CLV is applied AFTER the existing suspension expires",
+      "detail": "processTS deliberately allows a new TS on top of an existing one (TemporarySuspensionHelper.java:97-99). The reason on VON follows the newest TS and due_date_of_revival follows the furthest date (:133-147); suspended_notice keeps the CLV's own date (:168-170). So CLV is applied right now, together with the other TS, not after the other TS ends. The end result is that the notice stays suspended, but the order differs from the story sentence. The same pattern for TS-HST was questioned by users in OCMS-DF-2026-117 (closed, no code change). Another path that writes due_date_of_revival without the max logic (TS-UNC, OCMS-DF-2026-184, Pending UAT) is not used by this cron."
+    },
+    {
+      "step": "The notice stays continuously suspended through CLV without a gap",
+      "detail": "When processTS succeeds the success count goes up; when it fails the error is only logged and failureCount goes up (AutoRevivalHelper.java:1126-1136), then it is retried on the next run (AutoRevivalJob.java:176-179). There is no per-notice alert, and an active PS makes processTS refuse through validateOverlap (TemporarySuspensionHelper.java:199-217). Continuity depends on the daily job running; the CLV period from the DB cannot be verified from the repo."
+    }
+  ]
+}

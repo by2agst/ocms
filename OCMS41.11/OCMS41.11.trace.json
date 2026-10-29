@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Furnish/{list/FurnishSummaryList,form/SearchForm}, App.tsx route furnished-list, components/datagrid/{Datagrid,table/TableHeader}, hooks/useTable. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplication}, crud/BaseImplement, api-authorization.properties. ocmsadminprivateapi workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishSyncHelper}, cron-schedules-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk sisi staf",
+  "note": "Status di stories.json: Demo paid (50% of 75%); requirement punya status. Story ini ditelusuri sebagai pencarian dan daftar submission Furnished Hirer/Driver di staff portal (halaman furnished-list), karena hanya halaman itu yang punya kolom submission date dan pencarian by ID furnished/submitter. Pencarian notice umum (NoticeSearchAllList) tidak punya kolom submission date. Pencarian, daftar, dan klik-ke-detail ada. Dua gap: stage yang tampil adalah snapshot saat submission, dan pengurutan hanya lewat klik header kolom (tanpa default sort dan tanpa kolom ID). Demo remark menyebut cron Internet-Intranet sync harus aktif: job Furnish Processing berjalan tiap 10 menit dengan enabled=true di cron-schedules-prod.properties:305-306; nilai di server sebenarnya cannot verify from repo.",
+  "recommendation": "Klaim sebagian: pencarian, daftar kolom utama, dan klik ke detail bisa dibuktikan. Jangan klaim 'current processing stage' live dan pengurutan default by submission date / ID sebelum diperbaiki",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer opens the Furnished Hirer/Driver page and searches with standard parameters",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:192-194; ocmsadminui/src/utils/data/LinkData.tsx:326; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:45-97; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:203-221; ocmsadminapi/src/main/resources/api-authorization.properties:86-87",
+      "fit": "Sesuai",
+      "detail": "Menu 'Furnished Hirer/Driver' (path /furnished-list, LinkData.tsx:326, App.tsx:192-194) membuka FurnishSummaryList. SearchForm punya field Notice No, Vehicle No, Furnished ID No, Submitter's ID No, Submission Date From/To, dan Status (SearchForm.tsx:45-97) yang diubah jadi filter noticeNo/vehicleNo/furnishIdNo/ownerIdNo [$regex], status [$in], creDate [$gte]/[$lte] (SearchForm.tsx:203-221). Story tidak mendefinisikan 'parameter standar', jadi dinilai terhadap isi form ini. Akses API lewat mapping OCMS_FURNISHED_LIST (api-authorization.properties:86-87); penugasan role ke user cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS returns the matching furnished submissions from the intranet database",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController.java:52-71; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationController.java:87-100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:53-56; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306",
+      "fit": "Sesuai",
+      "detail": "POST /v1/furnishapplicationlist membaca ocms_furnish_application lewat service CRUD generik dengan filter dari UI, lalu menambah flag resubmission (Y/N) per baris (OcmsFurnishApplicationController.java:52-71, 87-100). Baris baru masuk ke tabel intranet lewat job Furnish Processing fase 1 (FurnishProcessingService.java:53-56) yang dijadwalkan tiap 10 menit dengan cron.syncinternetintranet.enabled=true (cron-schedules-prod.properties:305-306); nilai di server sebenarnya cannot verify from repo. OCMS-DF-2026-067 dan OCMS-DF-2026-077 (keduanya Closed, Prod deployed) mencatat is_sync tidak di-set 'N' sehingga notice tidak muncul di eService; itu sisi Internet, bukan pencarian staf ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The list shows notice number, vehicle number, submission date/time and current processing stage",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:82; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:110; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:118; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:129; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:189; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplication.java:42-43",
+      "fit": "Sebagian",
+      "detail": "Kolom ada: Notice No (FurnishSummaryList.tsx:82), Vehicle No (:110), Current Processing Stage (:118, field lastProcessingStage), Submission Date & Time (:129, field creDate). Gap: Kolom lastProcessingStage di ocms_furnish_application hanya disalin dari eocms_furnish_application saat sync (ocmsadminprivateapi/.../furnish_processing/helpers/FurnishSyncHelper.java:189). Saya tidak menemukan kode yang memperbarui kolom ini setelah notice berpindah stage; persetujuan hanya mengubah VON (ManualReviewService.java:904). Jadi yang tampil adalah stage saat submission, bukan stage terkini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Results are sorted by submission date/time and/or owner/hirer ID number",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:66-76; ocmsadminui/src/components/datagrid/Datagrid.tsx:226-229; ocmsadminui/src/components/datagrid/table/TableHeader.tsx:42; ocmsadminui/src/components/datagrid/table/TableHeader.tsx:56; ocmsadminui/src/hooks/useTable.ts:111; ocmsadminui/src/pages/Furnish/form/SearchForm.tsx:84-93",
+      "fit": "Sebagian",
+      "detail": "FurnishSummaryList tidak mengirim sortBy (:66-76), jadi Datagrid memakai default source '' (Datagrid.tsx:226-229) dan tidak ada $sort yang dikirim (useTable.ts:111); urutan bergantung pada database. Officer bisa mengurutkan dengan klik header kolom karena sortable default true (TableHeader.tsx:42,56), termasuk Submission Date & Time. Tidak ada kolom ID owner/hirer di daftar (ID hanya jadi field pencarian, SearchForm.tsx:84-93), jadi pengurutan by ID tidak bisa dilakukan dari UI. Perilaku sort per kolom saya baca dari komponen generik, tidak dijalankan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "The officer clicks a notice to view more detailed information",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:96-101; ocmsadminui/src/App.tsx:152; ocmsadminui/src/utils/Meta/Notice.ts:17-18",
+      "fit": "Sesuai",
+      "detail": "Notice No adalah link yang membuka #/notices/update/{noticeNo}/{txnNo} di tab baru (FurnishSummaryList.tsx:96-101; route App.tsx:152; PathNoticeUpdate Notice.ts:17-18). Isi layar detail dan documentary proof dinilai di OCMS41.13 dan OCMS41.14."
+    }
+  ]
+}

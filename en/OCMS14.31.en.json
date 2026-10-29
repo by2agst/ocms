@@ -1,0 +1,29 @@
+{
+  "story": "OCMS14.31",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: agencies/toppan/upload/helpers/ToppanUploadHelper (foreign filter), agencies/vhub/upload/jobs/VhubEndDayFileJob, adminfee/{helpers/AdminFeeHelper,jobs/AdminFeeJob}, repccs/notice_creation/core/helpers/NoticeProcessingHelper (PS-FOR); ocmsadminapi workflows/furnish/manual/dto/ManualFurnishRequest. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no foreign-vehicle reminder code",
+  "note": "The story asks OCMS to send a reminder letter (PDF/data file) to a vendor for printing and postage so the foreign-vehicle driver learns of the overdue fine. Status is Removed, so nothing is claimed. The code runs the opposite way: ToppanUploadHelper drops unpaid foreign-vehicle notices (vehicle_registration_type F) from letter generation and re-applies PS-FOR (ToppanUploadHelper.java:1950-1971), because foreign vehicles are deliberately permanently suspended. For foreign vehicles the only things that exist are the AdminFee cron (admin fee after FOD days) and the end-day XML file to vHub (VhubEndDayFileJob). Neither is a reminder letter to the driver. Toppan upload is switched off in prod (sftp.upload.disabledServers=toppan, application-prod.properties:86; the comment in that file mentions OCMS-DF-2026-170); the real server value cannot be verified from the repo. Whether vHub is a print vendor: cannot verify from repo.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Driver's particulars (including a foreign address) for a foreign-vehicle notice are received/updated in OCMS",
+      "detail": "Story Removed; not claimed. Existing code is generic only: the furnish payload in ocmsadminapi accepts foreign addresses without a postal code (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manual/dto/ManualFurnishRequest.java:52), and foreign-vehicle notices get PS-FOR settings on creation (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:460-490). No flow was found that specifically receives/updates driver's particulars for foreign-vehicle notices and then triggers a reminder, so only Sebagian."
+    },
+    {
+      "step": "Unpaid foreign-vehicle notices are selected for a reminder letter",
+      "detail": "Story Removed; not claimed. The code does the opposite: a notice with vehicle_registration_type F and empty crs_reason_of_suspension (isForeignUnpaid, :1950) is removed from the letter list (:1959) and PS-FOR is re-applied via applyPsSuspensionForForeignVehicles (:1971, defined :805-845); its Javadoc says foreign vehicles must not receive reminder letters."
+    },
+    {
+      "step": "A reminder/notification data file is built to send to an outside party",
+      "detail": "Story Removed; not claimed. The vHub End-Day cron (cron.vhubupload.enabled=true, ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:163) builds an XML file of FOR notices (Settled/Cancelled/Outstanding) and uploads it to blob then COMCRYPT (VhubEndDayFileJob.java:88-113). This is a data file to vHub for violation cases, not a reminder to the driver for printing and postage. vHub's role (print vendor or not): cannot verify from repo."
+    },
+    {
+      "step": "The letter/data file is sent to the vendor for printing and postage",
+      "detail": "Story Removed; not claimed. The print vendor path (Toppan) is generic and excludes foreign vehicles (see previous step). In prod sftp.upload.disabledServers=toppan (ocmsadminprivateapi/src/main/resources/application-prod.properties:86, the file comment refers to OCMS-DF-2026-170), so Toppan upload is switched off per the repo; the real server value cannot be verified from the repo. No foreign-vehicle-specific PDF/data file delivery was found."
+    },
+    {
+      "step": "The foreign-vehicle driver is notified of the overdue fine",
+      "detail": "Story Removed; not claimed. The only overdue action for foreign vehicles is the AdminFee cron, which adds administration_fee to unpaid F + PS-FOR notices after FOD days (AdminFeeHelper.java:166-171). Nothing is sent to the driver; the result only goes to vHub. A search on three synonyms (reminder, letter, notification) across the six repos found no foreign-vehicle-specific notification."
+    }
+  ]
+}

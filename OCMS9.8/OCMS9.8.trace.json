@@ -1,0 +1,55 @@
+{
+  "story": "OCMS9.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailRetryJob, jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (sendBatchSms, saveSendStatus, queryRecordsForRetry, isSmsRetryNeeded, isEmailRetryNeeded)}, schedulers/NotificationJobsScheduler, controllers/NotificationSmsEmailController, cron-schedules-prod.properties. Repo lain: tidak ada code",
+  "note": "Status di stories.json 'Demo paid (50% of 75%)'; demo remark minta cek logic retry SMS jam 14:00. Retry job ada dan jadwalnya 14:00 (cron.notification.retry.schedule=0 0 14 * * ?). Tapi story minta retry sampai X kali dari parameter OCMS, sedangkan code hanya satu kali pass: ambil record hari ini yang status != 'S', kirim ulang sekali (SMS: satu batch baru + satu retryBatch bila seluruh batch gagal), lalu notice yang tetap gagal dipindah ke jalur RD1 letter. Field maxSmsRetries/maxEmailRetries (default 3, @Value notification.sms.retry.max / notification.email.retry.max) dan isSmsRetryNeeded/isEmailRetryNeeded tidak pernah dipanggil, propertinya tidak ada di file resources, dan bukan dari ocms_parameter. Jadi 'X kali yang bisa dikonfigurasi' tidak berfungsi. Scheduler juga cron.notification.enabled=false di semua env.",
+  "recommendation": "Klaim sebagian. Retry satu kali jam 14:00 terbukti di code; retry sampai X kali dari parameter tidak ada, dan scheduler masih mati di semua env. Minta URA konfirmasi apakah retry satu kali cukup.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat pengiriman SMS/email yang gagal pada hari itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1801; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:578-580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:601-624; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:766",
+      "fit": "Sesuai",
+      "detail": "Hasil pengiriman SMS (sendBatchSms, status batch dipetakan di mapBatchStatusToRecords) dan email (emailService.sendEmail mengembalikan boolean) masuk saveSendStatus, yang menyimpan record status 'E' lewat recordFailedNotificationForSingleNotice bila gagal (H:601-624, H:766). Record ini yang dibaca retry job."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengulang pengiriman pada hari yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:65-85; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:242; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:197-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:226-247",
+      "fit": "Sebagian",
+      "detail": "Retry job (send_ena_reminder_retry) dijadwalkan 14:00 (prod:242) dan hanya mengambil record dengan CAST(date_sent AS DATE) = hari ini dan status != 'S' (H:214-216; RJ:226-247), jadi memang same-day. Tapi runNotificationRetryJobs return bila enabled=false (SCH:72) dan cron.notification.enabled=false di dev/uat/prod (prod:236); endpoint manual POST /notification-sms-email/retry ada. Flow berjalan hanya bila dipicu manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah percobaan ulang maksimal X kali, nilainya diatur lewat parameter di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:62-66; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:843-851; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:858-866; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:531-536; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:220-268",
+      "fit": "Beda dari flow",
+      "detail": "Retry hanya satu pass: tiap record dikirim ulang sekali (RJ:220-268); untuk SMS ada satu retryBatch kalau seluruh batch gagal (RJ:531-536). maxSmsRetries/maxEmailRetries (@Value default 3, H:62-66) dan isSmsRetryNeeded/isEmailRetryNeeded (H:843-866) tidak pernah dipanggil di mana pun, properti notification.sms.retry.max / notification.email.retry.max tidak ada di resources, dan nilainya bukan dari tabel ocms_parameter (yang dipakai hanya ENOTEDAYS dan PDD). Tidak ada penghitung percobaan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record SMS yang gagal dikirim ulang dan hasilnya dicatat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:333-345; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:500-576",
+      "fit": "Sesuai",
+      "detail": "processResendSms mengirim ulang record SMS yang belum 'S' dalam batch baru, polling sampai status terminal, retry sekali bila seluruh batch gagal, lalu INSERT record baru dengan status hasil (RJ:333-345, RJ:500-576) dan mengirim summary email resend (RJ:570). Pengiriman SMS nyata lewat provider cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Record email yang gagal dikirim ulang dan hasilnya dicatat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1119-1124; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1133-1210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1218-1270",
+      "fit": "Sesuai",
+      "detail": "processResendEmail mengirim ulang email dengan subject/content yang tersimpan (RJ:1133-1168), menandai status 'S' bila berhasil atau 'E' dengan remark 'Email retry failed' bila gagal (RJ:1176-1196) dan batch-update tabel record (RJ:1203-1210). Notice yang SMS dan email-nya sama-sama gagal diarahkan ke RD1 letter (RJ:1218-1270)."
+    }
+  ]
+}

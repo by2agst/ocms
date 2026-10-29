@@ -1,0 +1,25 @@
+{
+  "story": "OCMS47.8",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{PermanentSuspensionHelper,PermanentRevivalHelper,SuspensionProcessingHelper}, workflows/notice_management/suspension/revivenotice/helpers/ReviveProcessingHelper, crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl; ocmsadminprivateapi framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper}, utilities/emailutility/EmailService, application-prod.properties",
+  "note": "Status 'Replacement Story'. The story asks OCMS to trigger an email with refund advice details to URA Finance after the refund advice is interfaced to Cumulus. The Cumulus interface does not exist (the word 'cumulus' has 0 hits in the six repos). What exists: a refund record (ID RE{YYYYMMDD}{NNN}) is created on PS/revive of an already-paid notice, then the daily Payment Exception Report (08:00, yesterday's data) emails an HTML body plus Excel attachment with Refund ID/date/reason to a fixed recipient list in the properties. No email is triggered when a refund is created, refund_amount is not in the exception report (it is in the Daily Paid Report), and the recipients are individual addresses whose Finance role cannot verify from repo. Tickets: OCMS-SR-2026-112 and OCMS-SR-2026-190 (refund columns/logic in the report; 190 is Ready to PRD, main already creates a refund for manual payment over PS-APP in PaymentUpdateServiceImpl.java:103-112, deployment cannot verify), OCMS-DF-2026-152 (refundNoticeId to PLUS; ticket Ready to DEV, main already returns the real ID). The email template in the DB (PAYMENT_EXCEPTION_REPORT) and the real SMTP value cannot verify from repo.",
+  "recommendation": "Claim partially: a daily email with refund details to a recipient list exists, but it is not a per-refund-advice trigger, has no Cumulus interface, and Finance recipients cannot be proven.",
+  "steps": [
+    {
+      "step": "The refund advice is created in OCMS and interfaced to Cumulus",
+      "detail": "A refund record is created via refundNoticeService.createIfNotExists (PermanentSuspensionHelper.java:358; also PermanentRevivalHelper.java:319, ReviveProcessingHelper.java:370, SuspensionProcessingHelper.java:741) with ID RE{YYYYMMDD}{NNN} (OcmsRefundNoticeServiceImpl.java:42-82), idempotent per receipt+notice. The interface to Cumulus does not exist (grep 'cumulus' = 0 hits), so Sebagian. OCMS-DF-2026-152: the method now returns the real ID (:42-51); ticket status Ready to DEV, deployment cannot verify from repo."
+    },
+    {
+      "step": "OCMS triggers an email notification once the refund advice is created",
+      "detail": "No email is sent when a refund is created (createIfNotExists only saves the record, OcmsRefundNoticeServiceImpl.java:42-82). The email comes from the 08:00 Daily Report Job that runs the Payment Exception Report on yesterday's data (DailyReportJobsScheduler.java:96; cron-schedules-prod.properties:255-256, enabled=true). So the trigger is a daily batch, not an event per refund advice."
+    },
+    {
+      "step": "The email contains the refund advice details",
+      "detail": "The refund query reads notice_no, pp_code, suspension_type, CRS/EPR reason, receipt_no, rn.cre_date (Refund Date/Time), refund_notice_id, refund_reason (PaymentExceptionReportHelper.java:123-141). The email HTML (PaymentExceptionReportJob.java:497-550) and Excel (PaymentExceptionReportHelper.java:527-529) show those columns. refund_amount is not selected in this query (it is in the Refund sheet of the Daily Paid Report, DailyPaidReportHelper.java:127-145). Body content from DB template PAYMENT_EXCEPTION_REPORT: cannot verify from repo."
+    },
+    {
+      "step": "The email is sent to URA Finance officers",
+      "detail": "Recipients are email.report.paymentreport.exception.recipients (PaymentExceptionReportJob.java:55-56, setTo :201), which in prod holds individual @ura.gov.sg addresses (application-prod.properties:78); the code has no 'Finance' role, so whether they are Finance cannot verify from repo. email.enableSmtp=false (application-prod.properties:80) but PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources (:81), so EmailService still sends (EmailService.java:65-67); the real server value cannot verify from repo."
+    }
+  ]
+}

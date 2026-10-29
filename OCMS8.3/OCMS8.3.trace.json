@@ -1,0 +1,91 @@
+{
+  "story": "OCMS8.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: agencies/mha/upload/{MhaNricDataHelper,MhaNricUploadJob}, agencies/mha/download/{jobs/MhaNricDownloadJob,helpers/MhaNricDownloadHelper}, services/agencyFileExchange/helper/MhaFileFormatHelper (format file MHA), datahiveuenfin/{DataHiveUenFinService,DataHiveUenFinJob} + services/datahive/.../DataHiveFINBatchService (FIN), cron-schedules-prod.properties. Repo lain: tidak ada",
+  "note": "Status 'Fully paid'. NRIC dikirim ke MHA lewat file NRO enquiry (fixed-width, idNo + timestamp, di-encrypt COMCRYPT lalu SFTP) tiga kali sehari dan hasilnya diproses oleh MHA download job; keduanya aktif di PROD. FIN diambil lewat DataHive (view MHA dan MOM), tetapi job itu off di PROD (cron-schedules-prod.properties:52). Passport tidak dikirim ke mana pun. Hasil MHA berisi nama, DOB, alamat, date of death, life status, tag alamat tidak valid; tidak ada field citizenship, jadi 'citizenship conversion' hanya tertangkap untuk FIN yang jadi PR/SC lewat view PRGRANT/SCGRANT (ke TS-OLD), tidak untuk pemegang NRIC. Catatan tiket pemeliharaan: OCMS-DF-2026-183 (Pending Closure) melaporkan di PROD file enquiry menumpuk di /mhanro/input dan hasil MHA tidak tertulis ke tabel sementara report menyebut sukses; OCMS-DF-2026-176 dan -178 (Ready to UAT) soal timestamp upd_date yang ikut berubah dan report summary berisi nol/dobel. OCMS-DF-2026-130, -134, -135, -177 (Closed) sudah memperbaiki penimpaan alamat dan cek offender. Ada satu hal yang perlu diperhatikan di jalur FIN: updateOwnerDriverPersonalInfo meng-update name dan DOB dengan WHERE notice_no saja (DataHiveUenFinService.java:2425-2428), jadi semua baris owner/driver pada notice itu ikut tertimpa, bukan hanya offender.",
+  "recommendation": "Klaim sebagian. Jalur NRIC ke MHA lengkap tetapi ada defect PROD yang belum ditutup (OCMS-DF-2026-183). Jalur FIN ada namun off di PROD, passport tidak ada jalur, dan citizenship conversion hanya untuk FIN ke PR/SC. Minta URA konfirmasi cakupan 'foreign passport' dan status aktivasi DataHive.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice milik pemegang NRIC lokal (ID type N) untuk dicek ke ICA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:198; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:345-346; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "Sama dengan routing NRIC pada OCMS8.1: stage RD1/RD2/RR3/DN1/DN2/DR3 (MhaNricDataHelper.java:198), offenderIndicator Y dan idType N (baris 345-346), tidak suspended, bukan HST. Job upload aktif di PROD (cron-schedules-prod.properties:105-106)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice milik pemegang FIN untuk dicek ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:185; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Query id_type IN ('F','B') offender Y di stage reminder (DataHiveUenFinService.java:221-246, DataHiveUenFinJob.java:185). Seleksi berjalan di job DataHive yang hanya aktif bila cron.mhadownload.uenfin.enabled=true (MhaDownloadJobsScheduler.java:101-107), dan di PROD false (cron-schedules-prod.properties:52). Fit sama dengan routing FIN pada OCMS8.1 dan OCMS8.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim nomor NRIC ke ICA (MHA)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:156; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:197; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:217; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/helper/MhaFileFormatHelper.java:35-36; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sebagian",
+      "detail": "MhaNricUploadJob membaca data (baris 156), membuat nama file request (baris 197), menaruh file di blob (baris 217) lalu callback COMCRYPT meng-encrypt dan menaruhnya di SFTP /mhanro/input. Isi record: idNo (9) + timestamp (MhaFileFormatHelper.java:35-36). Jadwal 3x sehari Senin-Sabtu, enabled di PROD. Sebagian karena OCMS-DF-2026-183 (Pending Closure, Prod deployed): tiap run menaruh file baru tanpa cek file sebelumnya sudah diambil, sehingga file menumpuk dan MHA PH2 menolak seluruh batch (6 file terdampar 13-17 Sep 2026). Enkripsi COMCRYPT dan SFTP partner: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim nomor FIN ke ICA/DOS (DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1095-1113; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:46-54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:370-375; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "batchProcessFinRecords memanggil batchRetrieveFINData (DataHiveUenFinService.java:1113) yang mengirim FIN sebagai query IN ke view MHA (V_DH_MHA_FINDEATH, PRGRANT, SCGRANT, LTVP, STP) dan MOM (EPFOREIGNER, WPWORKER) (DataHiveFINBatchService.java:46-54, 370-375). Sebagian: job off di PROD (cron-schedules-prod.properties:52), nama view PROD belum diverifikasi, koneksi DataHive cannot verify from repo. Fit sama dengan OCMS8.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim nomor foreign passport ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:237",
+      "fit": "Tidak ada code",
+      "detail": "Query pemilihan hanya untuk idType N (MhaNricDataHelper.java:346) dan F/B (DataHiveUenFinService.java:239). Tidak ada query, file, atau view untuk idType P; satu-satunya logic P adalah melewati eNotification (NotificationSmsEmailJob.java:237). Fit sama dengan OCMS8.1 dan OCMS8.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan meng-update alamat tempat tinggal terbaru pemegang NRIC dari MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:727-731; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:784; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:855; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/agencyFileExchange/helper/MhaFileFormatHelper.java:44-61",
+      "fit": "Sebagian",
+      "detail": "File hasil di-parse (alamat: block, street, floor, unit, building, postal, tag alamat tidak valid, tanggal ubah alamat; MhaFileFormatHelper.java:44-61). Per record, alamat di-buffer ke record mha_reg hanya untuk notice yang disebut uraReferenceNo dan baris yang masih offender (MhaNricDownloadHelper.java:784, 855), lalu disimpan massal. Alamat tidak valid memicu TS-NRO. Sebagian karena OCMS-DF-2026-183 (Pending Closure): di PROD hasil MHA dilaporkan tidak tertulis ke ONOD/ONODA/VON sementara report menyebut sukses; OCMS-DF-2026-176 (Ready to UAT) upd_date ikut berubah di baris tak berubah; OCMS-DF-2026-130, -134, -135, -177 (Closed) sudah diperbaiki."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan meng-update alamat tempat tinggal terbaru pemegang FIN dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1560; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2523-2570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1508; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1539; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2425-2428",
+      "fit": "Sebagian",
+      "detail": "updateAddressForFIN mengambil alamat dari work permit (EP/WP, MOM) atau pass (LTVP/STP, MHA) dan membuat record mha_reg (DataHiveUenFinService.java:1560, 2523-2570). FIN tanpa work permit/pass tidak mendapat alamat; fallback-nya findAlternativeAddress memakai alamat LTA/furnish yang sudah ada (baris 2566), bukan data ICA. Nama dan DOB di-update dengan WHERE notice_no saja (baris 2425-2428), jadi semua baris owner/driver notice itu tertimpa. Job off di PROD. Fit sama dengan OCMS8.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan menyimpan life status (meninggal) offender dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:874; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:855; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3285; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3313; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3317",
+      "fit": "Sebagian",
+      "detail": "NRIC: lifeStatus dan dateOfDeath dari file MHA ditulis ke owner_driver baris offender (MhaNricDownloadHelper.java:855) dan 'D' + DoD memicu PS-RIP / PS-RP2 / TS-NRO (baris 874). FIN: view FINDEATH lalu processDeathStatusFlow menulis DoD dan menerapkan PS-RIP / PS-RP2 (DataHiveUenFinService.java:3285, 3313, 3317). Sebagian: jalur data yang sama dengan alamat NRIC (OCMS-DF-2026-183 Pending Closure), dan jalur FIN off di PROD."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima perubahan citizenship (misalnya FIN menjadi PR/SC) dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:321-334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1504; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1577-1582; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:3241-3262",
+      "fit": "Sebagian",
+      "detail": "View PRGRANT dan SCGRANT dicari berdasarkan PREVIOUS_FIN dan hasilnya ditandai isConverted PR/SC (DataHiveFINBatchService.java:321-334); storeFinDataResult membaca prScConverted (DataHiveUenFinService.java:1504) dan menjalankan processPRSCGrantFlow (baris 1577-1582, 3241-3262). Hanya FIN yang jadi PR/SC yang tertangkap. File MHA untuk NRIC tidak punya field citizenship, jadi perubahan status pemegang NRIC tidak ditangkap. Job off di PROD."
+    }
+  ]
+}

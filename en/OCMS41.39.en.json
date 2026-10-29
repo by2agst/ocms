@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.39",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{helpers/FurnishApprovalHelper,services/FurnishProcessingService}, crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl. ocmsadminapi workflows/furnish/{domain/FurnishStatus,helpers/FurnishPersistenceService}, crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplication}. ocmsadminui pages/Notice/mode/update/UpdateForm.tsx, pages/Furnish/{list/FurnishSummaryList.tsx,form/DecisionForm.tsx}",
+  "note": "Status 'Demo paid (50% of 75%)'. Status 'Resubmission' exists in the FurnishStatus enum and in FurnishPersistenceService (POST /furnish/submit path), but the live path (eService -> Furnish Processing cron) always stores 'P', the status column is only 1 character, and /furnish/submit has no caller in the repos. What the officer sees is a 'Resubmission' badge on the Notice update page, from a Y/N flag computed at read time. The officer's user ID is not shown (system account only), same as OCMS41.37.",
+  "recommendation": "Claim a small part: a resubmission request lands in the Pending queue and a Resubmission badge exists on the Notice page, but the status 'Resubmission' is not stored on the live path and the officer's user ID is not shown",
+  "steps": [
+    {
+      "step": "A resubmission request still goes to the queue waiting for officer approval",
+      "detail": "A prior submission makes CHECK 6 fail and the request goes to executeManualReview with status P (FurnishApprovalHelper.java:432-435, 529-531; FurnishProcessingService.java:171-176). The staff list filters on status P by default (FurnishSummaryList.tsx:60). Same fact as step 4 in OCMS41.38."
+    },
+    {
+      "step": "OCMS automatically sets the request status to 'Resubmission'",
+      "detail": "The live path (cron) only writes 'P' (FurnishApprovalHelper.java:529, OcmsFurnishApplicationServiceImpl.java:85). The value 'Resubmission' exists only in FurnishStatus.java:17 and FurnishPersistenceService.java:120-121 (POST /furnish/submit path, FurnishSubmissionController.java:39), which has no caller in the repos, and the status column is 1 character wide (OcmsFurnishApplication.java:105) so the 12-character 'Resubmission' does not fit. The portal API also only accepts status P/A/R (FurnishApplicationListController.java, status validation)."
+    },
+    {
+      "step": "The officer sees a 'Resubmission' marker when browsing in OCMS",
+      "detail": "UpdateForm.tsx shows a 'Resubmission' badge when data.FURNISH_APPLICATION.resubmission === 'Y' (lines 193-197), with data from furnishapplicationlist (NoticeContext.tsx:1180, OcmsFurnishApplicationController.java:87-99). The badge exists only on the Notice update page, not in the status column of the Furnish list (FurnishSummaryList.tsx:60, 121 shows status P)."
+    },
+    {
+      "step": "The Resubmission status is shown with the officer's user ID",
+      "detail": "Same as OCMS41.37 step 4: the recorded user is the technical account ocmsiz_app_conn (SystemConstant.java:9, FurnishSyncHelper.java:242-244), DecisionForm.tsx only shows 'Created By'/'Updated By' (lines 414, 419). The Resubmission badge (UpdateForm.tsx:193-197) carries no user ID."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension (POST /plus-apply-suspension, query checking), helpers/SuspensionProcessingHelper.validateSuspension (mode checking), helpers/PermanentSuspensionHelper.processPS + SuspensionBaseHelper (mode execute). Ada salinan di ocmsadminprivateapi framework/workflows/plus dan utilities/suspension_helpers. Sisi PLUS: cannot verify from repo.",
+  "note": "Story minta OCMS mengirim error ke PLUS bila PS tidak boleh diterapkan. Endpoint POST /plus-apply-suspension memvalidasi (kode PS diizinkan untuk source PLUS, stage, notice sudah dibayar, stage CFC/CPC) lalu mengembalikan pesan error per notice. Tiga catatan: (1) mode checking=true untuk notice yang sudah PS melompati cek stage/court (Rule 4 return di SuspensionProcessingHelper.java:405 sebelum Step 4) sehingga PLUS bisa dibilang eligible padahal eksekusi nanti menolak; (2) semua error execute keluar dengan appCode OCMS-4000 dan HTTP 200 karena createErrorResponse (SuspensionBaseHelper.java:528) mengabaikan parameter appCode dan addAppCodeToResults (SuspensionProcessingController.java:1194) mengisi OCMS-4000; (3) pesan penolakan notice sudah dibayar bertuliskan 'Unable to TS' walau request-nya PS (SystemConstant TS_NOTICE_PAID). Tampilan error di UI PLUS, APIM/auth dan salinan mana (ocmsadminapi atau ocmsadminprivateapi) yang dipanggil PLUS: cannot verify from repo. Tidak ada maintenance ticket yang mengubah verdict.",
+  "recommendation": "Klaim sebagian: error message ke PLUS ada. Perbaiki mode checking agar cek stage ikut jalan untuk notice yang sudah PS, dan beri appCode yang membedakan alasan penolakan. Sisi tampilan PLUS dikonfirmasi tim PLUS.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi permintaan permanent suspension dari PLUS dan menemukan bahwa permintaan tidak dapat diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:503-543; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1001-1007; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:491-503; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:100-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-211",
+      "fit": "Sebagian",
+      "detail": "Mode execute (checking=false): processPS menolak bila field wajib kosong (SuspensionProcessingController.java:503-528), kode PS tidak aktif untuk source PLUS di ocms_suspension_reason (PermanentSuspensionHelper.java:100-104 via SuspensionBaseHelper.java:323-335), stage tidak diizinkan atau court (PermanentSuspensionHelper.java:106-111, SuspensionBaseHelper.java:209-211), notice sudah dibayar dengan kode selain refund code (PermanentSuspensionHelper.java:180-192). Mode checking=true (SuspensionProcessingHelper.java:342-458) mengulang aturan tersebut, tetapi untuk notice yang sudah PS dari PLUS validasi berhenti di Rule 4 (SuspensionProcessingHelper.java:386-405) yang hanya memeriksa kode, paid, dan CFC/CPC; cek stage/court dilewati, jadi hasil check bisa eligible padahal execute menolak. Isi ocms_suspension_reason dan PS_REFUND_CODES per environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim error message ke PLUS berisi alasan permanent suspension tidak dapat diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-535; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:552-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1199; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1211-1217",
+      "fit": "Sesuai",
+      "detail": "Penolakan execute dikembalikan sebagai {noticeNo, success:false, message} (SuspensionBaseHelper.java:528-535) dan penolakan checking sebagai {noticeNo, eligible:false, message} (SuspensionProcessingHelper.java:1211-1217); addAppCodeToResults menambah appCode OCMS-4000 (SuspensionProcessingController.java:1186-1199) dan list dikirim sebagai HTTP 200 (SuspensionProcessingController.java:555). Kode error spesifik (mis. OCMS-4003, OCMS-4002) yang diberikan pemanggil dibuang oleh createErrorResponse (parameter appCode tidak dipakai, SuspensionBaseHelper.java:528), jadi PLUS hanya bisa membedakan alasan dari teks message, bukan dari appCode. Pesan untuk notice sudah dibayar bertuliskan 'Unable to TS' (SystemConstant TS_NOTICE_PAID) walau request PS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User PLUS mendapat informasi bahwa permanent suspension tidak dapat diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:552-555",
+      "fit": "Sebagian",
+      "detail": "OCMS hanya mengirim response (SuspensionProcessingController.java:552-555). Pesan sampai ke user PLUS lewat UI PLUS yang tidak ada di enam repo: cannot verify from repo. Sisi OCMS lengkap, sisi tampilan tidak bisa dibuktikan."
+    }
+  ]
+}

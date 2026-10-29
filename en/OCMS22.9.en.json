@@ -1,0 +1,25 @@
+{
+  "story": "OCMS22.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper (mha_reg address update), agencies/mha/upload/helpers/MhaNricDataHelper (stage RD1-DR3 selection), agencies/toppan/upload/helpers/ToppanUploadHelper (CPC as letter next stage). ocmsadminapi: OcmsChangeOfProcessing (manual CPS). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court batch code",
+  "note": "The story wants that after the latest particulars from the agency are received and updated, OCMS updates the court processing stage of the notice so it is added to the court application batch. The code only has the first part: the MHA download replaces the mha_reg address (MhaNricDownloadHelper.java:2288-2334). No code moves the notice to a court stage or adds it to a batch after that update: the court batch does not exist (OCMS22.7), and the stage after the MHA response is decided by the normal letter flow, e.g. CPC is only a next stage after DR3/RR3 in Toppan (ToppanUploadHelper.java:1818). CPS in ocmsadminapi changes the stage manually per notice, not automatically after a particulars update. Tickets OCMS-DF-2026-134 and OCMS-DF-2026-135 (addresses/suspensions of notices outside the batch affected by the MHA cron) are Closed. Confirm with URA whether the feature is built elsewhere.",
+  "recommendation": "Do not claim as done. Only the address update from MHA exists; the automatic court stage move and adding to a court application batch do not. Ask URA/the team where this feature is built, or mark it as a gap",
+  "steps": [
+    {
+      "step": "The latest particulars from the agency are successfully received and updated on the notice",
+      "detail": "The MHA download replaces the mha_reg address with the MHA response (MhaNricDownloadHelper.java:2288-2334), the mhadownload cron is enabled=true in prod (cron-schedules-prod.properties:119-120). It applies to notices at letter stages RD1-DR3 (MhaNricDataHelper.java:186-193), not notices in a court batch, so Sebagian. Content of the MHA response and the real server value: cannot verify from repo."
+    },
+    {
+      "step": "After a successful update, OCMS updates the court processing stage of the notice",
+      "detail": "No code in the MHA download flow changes the stage to a court stage after a successful address update. The only CPC assignment in the cron is the fallback next stage after DR3/RR3 in the Toppan letter flow (ToppanUploadHelper.java:1818), triggered by the letter, not by a particulars update."
+    },
+    {
+      "step": "Successfully updated notices are added to the court application batch",
+      "detail": "The court application batch does not exist (OCMS22.7): no batch number, batch column or adding process. CPS (ChangeOfProcessingService.java:88-92) only changes stages manually per notice."
+    },
+    {
+      "step": "Notices that failed to update are not added to the batch (kept apart from the successful ones)",
+      "detail": "There is no success/failure split for a court batch. The only split in the MHA download is the Success/Error rows of the MHA report (MhaReportHelper.java:441, 523), with no effect on a court batch since none exists."
+    }
+  ]
+}

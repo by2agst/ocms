@@ -1,0 +1,46 @@
+{
+  "story": "OCMS9.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob (doExecute), helpers/NotificationSmsEmailHelper (combineNotices, getRecipientKey, prepareTemplateData, determineTemplateName, saveSendStatus, sendBatchSms)}. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "combineNotices menggabungkan notice dengan kunci id_no + stage + payment due date, sehingga untuk stage reminder (RD1, RD2, RR3, DN1, DN2, DR3) satu individu hanya menerima satu SMS berisi semua notice nomor. Untuk stage ENA, individu (id_type bukan B) sengaja dikecualikan dari penggabungan: tiap notice mendapat SMS sendiri (NotificationSmsEmailHelper.java:2166-2174; komentar job :249,:279). Ini kebalikan dari story, padahal ENA adalah stage yang disorot catatan demo (Vault saat notice masuk ENA). Keputusan 'ENA tidak digabung' tampak disengaja (komentar UPDATED di code); sumber permintaannya tidak ada di tiket maintenance yang di-grep, dan di story ini tidak ada requirement yang menyebutnya. Ada juga satu hal yang perlu diwaspadai: kunci menyertakan stage dan due date, jadi individu yang punya notice RD1 dan RD2 pada hari yang sama, atau due date berbeda, tetap menerima lebih dari satu SMS. Cron eNotification nonaktif di properti repo (lihat OCMS9.4).",
+  "recommendation": "Klaim sebagian: penggabungan hanya untuk stage reminder dengan due date sama; ENA individu sengaja tidak digabung sehingga bertentangan dengan story",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengelompokkan record batch hari itu berdasarkan NRIC/FIN yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2178; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2252",
+      "fit": "Sebagian",
+      "detail": "Setelah record ENA dan reminder digabung (NotificationSmsEmailJob.java:191), combineNotices mengelompokkan dengan kunci recipientKey (I_<id_no> untuk individu, B_<UEN> untuk perusahaan) + nextProcessingStage + paymentDueDate (NotificationSmsEmailHelper.java:2151-2160,2178,2230-2252). NRIC yang sama dengan stage atau due date berbeda tidak dikelompokkan, jadi ID yang sama tetap bisa menerima lebih dari satu SMS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Individu dengan beberapa notice di stage ENA menerima hanya 1 SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2166-2174; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:249; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:279-284",
+      "fit": "Beda dari flow",
+      "detail": "Untuk stage ENA dan id_type bukan B, combineNotices memakai kunci unik recipientKey + '_ENA_' + noticeNo sehingga tiap notice jadi record sendiri (NotificationSmsEmailHelper.java:2166-2174). Job menegaskan 'each notice gets its own SMS (no deduplication by phone)' (NotificationSmsEmailJob.java:249,279-284). Hasilnya individu dengan tiga notice ENA menerima tiga SMS, berlawanan dengan story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk stage reminder, notice dengan NRIC sama digabung menjadi satu record berisi semua nomor notice dan total jumlah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2180-2200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:425-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-473",
+      "fit": "Sesuai",
+      "detail": "Saat kunci sama, nomor notice ditambahkan ke combinedNotices dengan pemisah titik dan amountPayable dijumlahkan (NotificationSmsEmailHelper.java:2180-2200). prepareTemplateData mengisi noticeCount dan combinedNotices (:425-430) dan determineTemplateName menambah akhiran _COMBINED (:459-473) sehingga SMS memuat detail semua notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim 1 SMS per record gabungan dan mencatat status ke tiap notice di dalamnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:601-620; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1527-1580; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:279-284",
+      "fit": "Sesuai",
+      "detail": "sendBatchSms membuat satu entri batch per record, jadi record gabungan menjadi satu SMS (NotificationSmsEmailHelper.java:1527-1580; NotificationSmsEmailJob.java:279-284). saveSendStatus memecah combinedNotices dan menyimpan status SMS untuk tiap notice (NotificationSmsEmailHelper.java:601-620). Berlaku untuk record yang memang digabung (reminder); hasil nyata di environment cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi UnclaimedController/UnclaimedServiceImpl (ocms_adhoc_nro_temp queue); ocmsadminprivateapi workflows/datahiveuenfin (DataHiveUenFinJob, DataHiveUenFinService), services/datahive/nricFinUenDataRetrieval (DataHiveUENServiceImpl, DataHiveUENBatchService), schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties; ocmsadminui pages/Vault/Datahive/DirectorDetail.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "The story asks OCMS to receive the owner/partner/director particulars from DOS based on the date of offence and the appointment period. DOS = DataHive cannot be confirmed from repo; what exists is a DataHive query on the ACRA views (shareholder and board info) per UEN. The board query (V_DH_ACRA_BOARD_INFO_FULL) filters on ENTITY_UEN only: appointment/withdrawn dates are fetched but never compared with the date of offence. The board DB write is switched off (comment OCMS-DEV-2026-231), shareholders are written; for adhoc rows coming from unclaimed only the company address is kept. The DH UEN and FIN job is switched off in the prod properties. Story status: Requirement given - Gen flow (demo_remark 'No vault'). No maintenance ticket in the CSV covers this step (OCMS-DEV-2026-231 is only mentioned in a code comment, not in the CSV).",
+  "recommendation": "Claim partially. The ACRA data fetch per UEN exists, but the date-of-offence / appointment-period filter does not and board data is not saved. Do not claim in full until the filter is built and the board write is enabled",
+  "steps": [
+    {
+      "step": "OCMS sends the UEN of the suspended notice to DOS",
+      "detail": "After staff submit unclaimed, prepareAdhocNroTempRecords puts the ID of an offender who is still the current offender and not PS into ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:722-762). The DH UEN and FIN job reads the id_type F/B rows (DataHiveUenFinService.java:325-328) and sends them to DataHive; DOS = DataHive cannot be confirmed from repo. But: cron.mhadownload.uenfin.enabled=false in cron-schedules-prod.properties:52 (MhaDownloadJobsScheduler.java:103-107 skips this job); the real server value cannot be verified from the repo. Adhoc rows are only merged after the main notice query; when the main query is empty the job stops first (DataHiveUenFinJob.java:189-192 before :197-203), so the unclaimed UEN may never be sent."
+    },
+    {
+      "step": "OCMS receives the owner/partner/director data from DOS",
+      "detail": "Per UEN, DataHive is queried on V_DH_ACRA_SHAREHOLDER_NGZ (DataHiveUENServiceImpl.java:417-423) and V_DH_ACRA_BOARD_INFO_FULL (position, appointment/withdrawn dates, person ID columns; :579-590), batch version in DataHiveUENBatchService.java:432-441. For adhoc rows (unclaimed, no noticeNo) the result is only used to take the company address (DataHiveUenFinService.java:1055-1056); the person data is discarded. DOS = DataHive cannot be confirmed from repo."
+    },
+    {
+      "step": "The data is filtered by the date of offence and the appointment period",
+      "detail": "The board query only uses WHERE ENTITY_UEN (DataHiveUENServiceImpl.java:585, DataHiveUENBatchService.java:432-441); there is no date-of-offence parameter. Appointment/withdrawn dates are only copied into fields to be written (DataHiveUenFinService.java:1898-1899, a path that is switched off); a grep of getPositionAppointmentDate/getPositionWithdrawnDate in ocmsadminapi and ocmsadminprivateapi finds no comparison with the date of offence. The shareholder query has no date either (DataHiveUENServiceImpl.java:423)."
+    },
+    {
+      "step": "The particulars are saved in OCMS so the officer can see them",
+      "detail": "Shareholders are saved to ocms_dh_acra_shareholder_info for regular notice rows (DataHiveUenFinService.java:1442-1448). The board write is switched off: updateBoardInfo(boardInfo) is commented out because the DataHive mapping was wrong (OCMS-DEV-2026-231, DataHiveUenFinService.java:1469-1477), although the Director tab in the staff portal reads the position and appointment-date columns (DirectorDetail.tsx:31-47), so that tab stays empty for new runs. Adhoc unclaimed rows save neither shareholder nor board."
+    }
+  ]
+}

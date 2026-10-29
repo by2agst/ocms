@@ -1,0 +1,29 @@
+{
+  "story": "OCMS16.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{dto/ReductionRequest,helpers/ReductionValidator,helpers/ReductionPersistenceService,ReductionServiceImpl}, workflows/notice_creation/core/helpers/RevivalBaseHelper (revert on revival). ocmsadminui utils/models/Fnotice.d.ts (TStageReductionType unused), pages/Notice/detail/SuspensionDetail.tsx (Reduced Amount field with source UNKNOWN). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no stage-reduction calculation code",
+  "note": "Status in stories.json: 'Requirement given - Gen flow' (no flow deck). The core of the story (officer chooses the number of stages, OCMS computes and shows the result) is not in the repo. The PLUS endpoint /v1/plus-apply-reduction takes amountReduced and amountPayable from the caller and only verifies amountPayable = current amount payable - amountReduced (ReductionValidator.java:188-195); there is no stage table or formula ($55 to $40 = 1-stage, $140 to $40 = 2-stage). The stage calculation is probably done in PLUS: cannot verify from repo. The validity period (expiryDateOfReduction) is mandatory, validated to be after the reduction date, and saved. The only use of 'stage' near reduction in OCMS is the notice processing stage for eligibility, not a reduction stage. Ticket: OCMS-DF-2026-028 mentions an old 'stage-based formula' in revival that was replaced by reading the original value from ocms_reduced_offence_amount (not a stage calculation at apply time).",
+  "recommendation": "Do not claim the stage calculation. Claim only that the validity period is stored. Ask URA to confirm the stage calculation is done in PLUS (outside the repo).",
+  "steps": [
+    {
+      "step": "Officer indicates the number of reduction stages (1-stage or 2-stage)",
+      "detail": "There is no stage count input in the staff portal or in the apply request. ReductionRequest only carries amountReduced and amountPayable (ReductionRequest.java:37,43). The only trace is the type TStageReductionType 'custom-dollar' | 'custom-precentage' (Fnotice.d.ts:536), declared and never used. Searched stage reduction, 1-stage, 2-stage, noOfStage in ocmsadminui, ocmsadminapi and ocmsadminprivateapi; no hit. Whether PLUS has a stage input: cannot verify from repo."
+    },
+    {
+      "step": "Officer indicates the validity period of the reduction",
+      "detail": "The validity period is accepted as the mandatory expiryDateOfReduction (@NotNull, ReductionRequest.java:55-57) and validated to be after dateOfReduction (ReductionValidator.java:264-271, called from ReductionServiceImpl.java:90-96; failure = 400 'Invalid format'). But there is no officer input in the staff portal; the value comes in the PLUS payload. The input screen in PLUS: cannot verify from repo."
+    },
+    {
+      "step": "OCMS automatically computes the reduced composition amount from the number of stages",
+      "detail": "No calculation exists. The validator takes amountReduced and amountPayable from the caller and only checks amountReduced < current amount payable and amountPayable = current amount payable - amountReduced (ReductionValidator.java:177-195). There is no stage table or formula ($55 to $40 = 1-stage, $140 to $40 = 2-stage) in ocmsadminapi, ocmsadminprivateapi or ocmseserviceapi. Whether PLUS does the calculation: cannot verify from repo."
+    },
+    {
+      "step": "OCMS shows the reduced composition amount to the officer",
+      "detail": "No screen shows the computed result before the reduction is applied. After a reduction the new amount payable is only visible as the amount_payable column in the list (NoticeSearchOutstandingList.tsx:178). The 'Reduced Amount' field in the suspension detail is not wired to data: its source is 'UNKNOWN' (SuspensionDetail.tsx:246) and another version is commented out (SuspensionDetail.tsx:173-180)."
+    },
+    {
+      "step": "The validity period is saved with the reduction",
+      "detail": "applyReduction saves expiryDateOfReduction as due_date_of_revival on the VON (the furthest value against other TS, ReductionPersistenceService.java:105-106, rule OCMS-DF-2026-184 in the comment on line 104), in ocms_suspended_notice (ReductionPersistenceService.java:135) and in the expiry_date column of ocms_reduced_offence_amount (ReductionPersistenceService.java:168), called from ReductionServiceImpl.java:113."
+    }
+  ]
+}

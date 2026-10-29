@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.61",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: agencies/mha/{upload,download} (OcmsValidOffenceNoticeRepository.findNoticesForMhaNricUpload, MhaNricDownloadHelper.bufferMhaRegistrationAddress), datahiveuenfin/DataHiveUenFinService (updateCompanyAddress, placeholder createWorkItem*), furnish_processing/FurnishApprovalHelper (furnished_mail), toppan/upload/ToppanUploadHelper (letter_address). ocmsadminui: Work Items menu (LinkData.tsx, Meta/WorkItem.ts) without a page. ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no address comparison code",
+  "note": "Story status: User Story Removed, so it is not claimed; steps are written from the story text and matched to the code as found. What exists is only the retrieval of the registered address (mha_reg) from MHA for NRIC and, for companies, from DataHive UEN (the UEN/FIN job is switched off in the prod config). No code compares the registered address with the furnished address (postal code, unit), there is no proceed-or-work-item decision, and work item creation is only a log placeholder. DOS/DataHive coverage beyond MHA: cannot verify from repo. No maintenance ticket changes the verdict.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "OCMS retrieves the latest registered address of the individual or company",
+      "detail": "Individual: the MHA upload query picks notices at stage RD1/RD2/RR3/DN1/DN2/DR3 with offender_indicator Y and id_type N (NRIC only; FIN and passport are excluded) (OcmsValidOffenceNoticeRepository.java:565-569); the MHA result is written as an mha_reg row with a full replace (MhaNricDownloadHelper.java:2294-2334, OCMS-DF-2026-130). Company: DataHiveUenFinService stores the ACRA address as mha_reg (:1633, :1732), but the DataHive UEN/FIN job is switched off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52) and DataHive NRIC enrichment is also false (:50). The real server value cannot be verified from the repo. Removed story: any step that has code is recorded as Sebagian."
+    },
+    {
+      "step": "OCMS compares the registered address with the furnished address (same postal code, unit number not omitted)",
+      "detail": "No postal code or unit comparison between the mha_reg and furnished_mail rows was found in the six repos (searched: compare, mismatch, equals on postal, furnished together with mha_reg/lta_reg, sameAddress). The only equals on postal code is the invalid address check for '000000' (MhaNricRecordValidator.java:193). The mha_reg write paths (MhaNricDownloadHelper.java:2280-2340, DataHiveUenFinService.java:1723-1760) never read the furnished_mail row."
+    },
+    {
+      "step": "If they match, OCMS proceeds with the updated particulars",
+      "detail": "There is no match-or-not decision: the mha_reg row is written unconditionally, and letter_address=Y is only given when no Y row exists yet for that notice and role (MhaNricDownloadHelper.java:2323-2325). So the furnished_mail created at furnish time with letter_address=Y (FurnishApprovalHelper.java:627-634) stays the letter address. The result looks like proceeding with the new data, but it is not the outcome of a comparison. Removed story: Sebagian."
+    },
+    {
+      "step": "If they do not match, OCMS creates a work item routed to the OIC dashboard for follow-up",
+      "detail": "createWorkItemForPRSC and its siblings (EP/LTVP/WP) only write the log '[PLACEHOLDER] Work item creation skipped' (DataHiveUenFinService.java:2920-2924) and are used for FIN/pass cases, not for an address mismatch. The staff UI only has a Work Items menu with an HST child (LinkData.tsx:170-176, Meta/WorkItem.ts:1-12); there is no /work-item route or OIC dashboard page for such items, and ocmsadminapi has no work item entity or endpoint."
+    }
+  ]
+}

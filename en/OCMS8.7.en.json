@@ -1,0 +1,29 @@
+{
+  "story": "OCMS8.7",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: workflows/agencies/mha/download/{helpers/MhaNricRecordValidator (handleDuplicateUins, selectMostRecentRecord), jobs/MhaNricDownloadJob (call site), helpers/MhaNricDownloadHelper (bufferMhaRegistrationAddress, letter_address)}, workflows/agencies/toppan/upload/jobs/ToppanUploadJob (letter_address filter), workflows/agencies/mha/upload/jobs/MhaNricUploadJob (letter_address reset), services/datahive/.../DataHiveFINBatchService + workflows/datahiveuenfin/services/DataHiveUenFinService (FIN addresses from DataHive). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: 'Fully paid'. The NRIC path (MHA result file, job enabled in PROD: cron-schedules-prod.properties:119-122) does the core of the story: two rows with the same UIN and notice number in one file are grouped as a duplicate, the row with the latest Date of Address Change is chosen, and it is written as the mha_reg address with letter_address='Y', which Toppan uses. The gap: the choice only compares rows inside one file; the address already stored is not compared, so a later file with an older date overwrites a newer address (full replace, OCMS-DF-2026-130). The FIN path from DataHive only compares dates for EP and ranks WP/EP above LTVP/STP without looking at dates; the DH UEN/FIN job is false in PROD. The direct ICA source and the content of the MHA file cannot verify from repo. Maintenance tickets: OCMS-DF-2026-130 and OCMS-DF-2026-134 (both Closed) touch the overwriting of mha_reg addresses; the code already contains the fixes (full replace and per-notice scope).",
+  "recommendation": "Claim the NRIC path for choosing the address by latest date within one file. Mark Sebagian for overwriting across files and for FIN addresses from DataHive. Consider comparing the date with the stored address and comparing dates across EP/WP/pass",
+  "steps": [
+    {
+      "step": "OCMS receives 2 different address sets for the same record in the MHA result file and recognises them as a duplicate",
+      "detail": "handleDuplicateUins groups records by UIN, then by uraReferenceNo; the same UIN and notice number with more than one row is treated as a true duplicate (MhaNricRecordValidator.java:261-295). It is called from the job in the 'RED Step' (MhaNricDownloadJob.java:936-940). Note: the same UIN with different notices is processed separately, not as a duplicate (:277-283). That MHA stands for ICA and the file content in PROD cannot verify from repo."
+    },
+    {
+      "step": "OCMS compares the address update dates (Date of Address Change) and picks the latest",
+      "detail": "selectMostRecentRecord collects the unique non-null dates; when more than one different date exists, the row with the largest date is chosen without a flag (MhaNricRecordValidator.java:357-368, max with Comparator.naturalOrder). The same-date or empty-date case is handled in story OCMS8.8."
+    },
+    {
+      "step": "OCMS updates the notice address with the chosen address",
+      "detail": "The chosen address is written to the notice's mha_reg address in the file through bufferMhaRegistrationAddress (MhaNricDownloadHelper.java:765-786), using a full replace so empty fields clear old values (:2292-2316, fix for OCMS-DF-2026-130) and limited to the notice in the file (OCMS-DF-2026-134). What is missing: there is no comparison with the address already stored; effectiveDate is only filled from the new Date of Address Change (:2310-2314). So if a later file carries an address with an older date, that older address overwrites the newer one. The 'latest' choice only applies between rows in the same file."
+    },
+    {
+      "step": "The letter notification is sent to the most recently updated address",
+      "detail": "The new mha_reg row is flagged letter_address='Y' when no other row holds 'Y' for that notice and owner/driver indicator (MhaNricDownloadHelper.java:2321-2326); the mha_reg letter_address is reset before the enquiry is sent (MhaNricUploadJob.java:190). Toppan only takes notices with letter_address='Y' (ToppanUploadJob.java:265-268), so the letter follows the newly written address. The PDF/Toppan file generation itself is outside this chunk."
+    },
+    {
+      "step": "For a FIN: OCMS picks the latest address when DataHive returns more than one address",
+      "detail": "For EP, when one FIN has several EPFOREIGNER rows, the one with the latest LAST_CHANGE_ADDRESS_DT is chosen (DataHiveFINBatchService.java:454-456, 500-508). For WP, the choice is by ISSUANCE_DT, not the address date (:610). Between sources, the work permit address always wins over the LTVP/STP pass address without comparing dates (DataHiveUenFinService.java:2533-2552). The DH UEN/FIN job is false in cron-schedules-prod.properties:52 (deployed value cannot verify from repo)."
+    }
+  ]
+}

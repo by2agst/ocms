@@ -1,0 +1,29 @@
+{
+  "story": "OCMS6.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/list/{NoticeSearchAllList, NoticeSearchOutstandingList}, pages/NoticeSearch/hook/useSearchParams, components/datagrid/{Datagrid, column/index}, hooks/useTable. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{OcmsValidOffenceNoticeController, OcmsValidOffenceNoticeServiceImpl}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "A summary table of notices with the key columns (notice number, offence date/time, rule code, amount payable, payment status) and a Payment Status filter exists. First gap: the default order in the All Notices search is processing stage first, then latest notice date/time (the server adds noticeDateAndTime DESC only as the second key); only the Outstanding page sorts by newest date directly. Second gap: sorting by column header works, but OCMS-DF-2026-187 (Payment Status sort, Pending UAT Verification) is not verified, and sorting other columns has no date tie-break. The Summon No., NTAC No. and Court Date columns always show '-'. Tickets used: OCMS-DF-2026-187, OCMS-SR-2026-048. Not verifiable: the display on PRO after DF-187 is deployed.",
+  "recommendation": "Claim the table, key columns and status filter. Default newest-date order is claimed as partial (correct in Outstanding, not in All Notices). Column sorting is held as partial until DF-187 passes UAT",
+  "steps": [
+    {
+      "step": "After Apply, the search results appear as a summary table of notices",
+      "detail": "The Datagrid in NoticeSearchAllList.tsx:113-173 and NoticeSearchOutstandingList.tsx:135-170 POSTs validoffencenoticelist and renders one row per notice with paging and checkboxes. OcmsValidOffenceNoticeController.java:55-80 returns the notice data with the current offender."
+    },
+    {
+      "step": "The list is sorted by default by the latest notice date and time",
+      "detail": "Outstanding mode uses sortBy noticeDateAndTime desc (NoticeSearchOutstandingList.tsx:139-143), as the story says. All Notices mode, the main search, uses sortBy lastProcessingStage desc (NoticeSearchAllList.tsx:117-120). On the server, OcmsValidOffenceNoticeServiceImpl.java:515-533 orders by a CASE WHEN processing-stage order first and only then noticeDateAndTime DESC as the second key. So the primary order is not the latest date/time; the date applies only within the same stage."
+    },
+    {
+      "step": "Staff can sort the table by clicking a column header",
+      "detail": "Clicking a header (Datagrid.tsx:337-355) toggles asc/desc and sends $sort[column] (useTable.ts:111); the server maps it to ORDER BY (OcmsValidOffenceNoticeServiceImpl.java:535-543). The second key noticeDateAndTime is added only when sorting by lastProcessingStage, so sorting any other column has no date tie-break. OCMS-DF-2026-187 (Pending UAT Verification): sorting the Payment Status column used to use source suspensionType; in this repo the Payment Status column already uses source crsReasonOfSuspension (column/index.tsx:270-282), but the ticket is not UAT-verified, so it is not claimed in full."
+    },
+    {
+      "step": "The table shows key information: notice number, offence date and time, offence rule, amount payable",
+      "detail": "The Notice No. column is a link (column/index.tsx:57-92), Offence Date and Time comes from noticeDateAndTime (158-164), Computer Rule Code has a rule-description tooltip (180-198) and Total Amount Payable is $-formatted from amountPayable (284-296). Other columns: Offence Type, AN Flag, Place of Offence, Processing Stage, Vehicle No./Type, Suspension Type/Reason, Payment Status, Current Offender. Note: the Summon No., NTAC No. and Court Date columns are placeholders that always show '-' (133-137, 142-146, 343-348)."
+    },
+    {
+      "step": "The table has headers and an outstanding / settled status filter",
+      "detail": "The Payment Status column shows FP / Partially Paid / '-' from crsReasonOfSuspension (column/index.tsx:270-282). The Payment Status filter (Unpaid, Fully Paid, Partial Paid) is mapped in useSearchParams.tsx:284-352, and the Outstanding Notices page uses a default filter that excludes hard PS and non-FP notices (NoticeSearchOutstandingList.tsx:105-125) per OCMS-SR-2026-048 (Closed, Prod deployed). An unpaid notice shows '-' in the column, not an 'Outstanding' label."
+    }
+  ]
+}

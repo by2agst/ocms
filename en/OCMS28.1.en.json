@@ -1,0 +1,29 @@
+{
+  "story": "OCMS28.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/UnclaimedReminders/{page/UnclaimedRemindersPage,form/SubmitForm}.tsx, utils/validation/UnclaimedReminders. ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedController,UnclaimedServiceImpl} (check-unclaimed, submit-unclaimed, prepareAdhocNroTempRecords). ocmsadminprivateapi MHA/DataHive crons that read ocms_adhoc_nro_temp. No page, endpoint or table for returned court summons (ocms_summon/date_of_return exists only as a UI type).",
+  "note": "The story asks staff to record a court summons returned to URA, after which OCMS automatically checks for a registered address change. The only similar code is the Unclaimed Reminders feature: staff upload notice numbers, fill in date of return and reason, then submit-unclaimed (UnclaimedController.java:77) stores the return on the reminder data (RDP/DN) and queues the offender in ocms_adhoc_nro_temp for MHA/DataHive checks (UnclaimedController.java:163-171). That is a reminder letter, not a court summons. For notices in a court stage the service only updates RDP/DN and skips TS-UNC (UnclaimedServiceImpl.java:341-347). Nothing stores the return on a summons record: Isummon.d.ts:6 has date_of_return but only as a UI type, and /v1/summon appears only in api-authorization.properties:23 with no controller/entity in ocmsadminapi. The MHA/DataHive check runs in separate crons and the real server values cannot be verified from the repo. The status in stories.json is blank; traced normally. Also searched: returned summons, ReturnedSummons, court return, summon return, DNATA; nothing found.",
+  "recommendation": "Claim partially only: the return-recording and address-check queue exists for reminder letters, not court summons. Ask URA/the team whether recording of returned court summons is built in another system (CAS) or not built yet.",
+  "steps": [
+    {
+      "step": "Staff opens a page to record the returned court summons",
+      "detail": "The existing page is Unclaimed Reminders: upload notice numbers, then call check-unclaimed (UnclaimedRemindersPage.tsx:285). It covers returned reminder letters, not court summons. There is no page or route for returned court summons."
+    },
+    {
+      "step": "Staff enters the date of return and reason, then submits",
+      "detail": "dateOfReturn is required (utils/validation/UnclaimedReminders/UnclaimedReminders.ts:49-51), then the form calls the submit-unclaimed endpoint (SubmitForm.tsx:239; ocmsadminapi UnclaimedController.java:77). These fields and the endpoint belong to reminder letters, not court summons."
+    },
+    {
+      "step": "The return is stored on the court summons record",
+      "detail": "Nothing stores the return on a summons. Isummon.d.ts:6 (ocmsadminui/src/utils/models/Isummon.d.ts) is only a UI type; /v1/summon is only listed in api-authorization.properties:23, and there is no summon controller, entity or repository in ocmsadminapi or ocmsadminprivateapi. Searched: summon, courtmention, date_of_return, ReturnedSummons in both layers."
+    },
+    {
+      "step": "A notice in a court stage can still be processed when the return is recorded",
+      "detail": "A stage outside NON_COURT_STAGES counts as a court stage (UnclaimedServiceImpl.java:630-632); for such notices the service only updates RDP/DN and skips TS-UNC (UnclaimedServiceImpl.java:341-347). So recording is not rejected in a court stage, but what is updated is reminder data, not the summons."
+    },
+    {
+      "step": "OCMS automatically queues the offender for a registered address check",
+      "detail": "After submit, prepareAdhocNroTempRecords (UnclaimedController.java:167; UnclaimedServiceImpl.java:753-762) inserts offenders that are still current into ocms_adhoc_nro_temp, defaulting id_type to N. PS notices are not queued (OCMS-DF-2026-133, Closed, Prod deployed). A failure is only logged and does not undo the submit (UnclaimedController.java:163-171). The queue is read by the MHA/DataHive crons; this is a generic check for reminders, not triggered by a court summons. Cron values on the real server: cannot verify from repo."
+    }
+  ]
+}

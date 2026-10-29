@@ -1,0 +1,64 @@
+{
+  "story": "OCMS17.25",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionPersistenceService}, workflows/notice_creation/core/helpers/TsDueDateRule. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/agencies/toppan/upload, notification_sms_email, utilities/suspension_helpers/RevivalBaseHelper",
+  "note": "Tidak ada pengecekan 'apakah ada reduction' yang berdiri sendiri. Reduction dari PLUS (POST /plus-apply-reduction) dicatat sebagai TS dengan alasan RED: VON.suspension_type='TS', epr_reason='RED', due_date_of_revival = tanggal terjauh antara TS yang ada dan expiry reduction (ReductionPersistenceService.java:101-106), plus baris di ocms_suspended_notice dan ocms_reduced_offence_amount. Karena itu job reminder yang mengecualikan suspension_type tidak-null otomatis ikut menahan notice selama periode reduction. Query reminder tidak membaca ocms_reduced_offence_amount sama sekali. Reduction court (/plus-apply-reduction-court) hanya mengubah amount_payable tanpa suspension (ReductionServiceImpl.java:266-269); itu di stage court sehingga tidak relevan untuk reminder, tetapi tidak ada penahanan. Gap yang sama dengan OCMS17.22: LTA upload tetap memajukan stage TS, SMS/email punya pengecualian dan nonaktif di prod, pembuatan surat Toppan hanya lewat trigger manual. Tiket OCMS-DF-2026-072 (amount_payable di ocms_reduced_offence_amount disimpan pra-reduction) dan OCMS-DF-2026-028 (revival TS-RED) Closed/Prod deployed; revival kini menghitung ulang dari stage (RevivalBaseHelper.java:561-581), bukan membaca tabel itu.",
+  "recommendation": "Klaim sebagian: reduction ikut menahan reminder lewat TS-RED, tetapi tidak ada pengecekan reduction eksplisit dan gap jalur LTA/SMS/email sama dengan OCMS17.22.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reduction dari PLUS dicatat di notice sebagai TS-RED (suspension_type TS, reason RED)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:29; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:101-103; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:123-139",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-reduction (ReductionController.java:29) berujung di ReductionPersistenceService yang mengisi VON suspension_type='TS' dan epr_reason='RED' (baris 101-103) serta menyisipkan baris ocms_suspended_notice TS-RED (baris 123-139)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Masa reduction (expiry) disimpan dan digabung dengan TS lain memakai tanggal terjauh",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:104-106; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:151-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TsDueDateRule.java:22-30",
+      "fit": "Sesuai",
+      "detail": "due_date_of_revival VON = TsDueDateRule.furthest(tanggal VON, expiry reduction) (ReductionPersistenceService.java:104-106; TsDueDateRule.java:22-30). Riwayat reduction beserta expiry disimpan di ocms_reduced_offence_amount (baris 151-168). Fit sama dengan OCMS17.24 langkah 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat reminder tidak dibuat untuk notice yang sedang dalam periode TS atau reduction",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sesuai",
+      "detail": "Seleksi surat Toppan memakai 'von.suspension_type IS NULL' (OcmsValidOffenceNoticeRepository.java:610; ToppanUploadHelper.java:1887; ToppanUploadJob.java:248); karena TS-RED mengisi suspension_type='TS', notice dalam periode reduction ikut dikecualikan. Pembuatan surat hanya lewat trigger manual karena executeJob() dikomentari (ToppanUploadJobsScheduler.java:118). Fit sama dengan OCMS17.22 langkah 3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa secara eksplisit apakah ada reduction pada notice sebelum reminder dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1034-1035; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1120-1121",
+      "fit": "Sebagian",
+      "detail": "Tidak ada query reminder yang membaca ocms_reduced_offence_amount atau memeriksa epr_reason='RED'; semua hanya melihat suspension_type (OcmsValidOffenceNoticeRepository.java:610; NotificationSmsEmailHelper.java:1034-1035, 1120-1121). Hasilnya benar selama TS-RED masih terpasang di VON, tetapi pengecekan reduction itu sendiri tidak ada. Reduction court tidak membuat TS-RED sama sekali (ReductionServiceImpl.java:266-269)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Periode TS dan reduction yang tumpang tindih digabung menjadi satu periode terpanjang",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:104-106; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:110-118",
+      "fit": "Sesuai",
+      "detail": "Reduction dan TS lain sama-sama memakai tanggal terjauh untuk VON (ReductionPersistenceService.java:104-106; TemporarySuspensionHelper.java:110-118), jadi notice tetap tertahan sampai periode terpanjang selesai. Start date mengikuti catatan OCMS17.24 langkah 4 (memakai TS terbaru)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jalur lain (LTA upload, SMS/email) juga tidak memajukan atau mengirim reminder untuk notice TS-RED",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:172-176; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/resources/application-prod.properties:87",
+      "fit": "Sebagian",
+      "detail": "LTA upload tetap memajukan notice TS (termasuk TS-RED) dari ROV ke RD1 (OcmsValidOffenceNoticeRepository.java:73; LtaUploadHelper.java:172-176), dan query SMS/email hanya mengecualikan TS selain TS-HST; di prod cron.notification.enabled=false (cron-schedules-prod.properties:236) dan sms.enable=false (application-prod.properties:87), nilai server asli cannot verify from repo. Fit sama dengan OCMS17.22 langkah 4 dan 5."
+    }
+  ]
+}

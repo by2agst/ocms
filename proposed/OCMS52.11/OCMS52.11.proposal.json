@@ -1,0 +1,75 @@
+{
+ "id": "OCMS52.11",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "Menu HST > Manual HST Update opens the page /hst/update",
+    "id": "Menu HST > Manual HST Update membuka halaman /hst/update"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:193-195",
+   "detail": {
+    "en": "The HST menu has an entry with title MetaHST['UPDATE'] = 'Manual HST Update' and path /hst/update (ocmsadminui/src/utils/Meta/HSTs.ts:13-14). The route <Route path=\"update\"> under \"hst\" renders HST.HSTUpdate (ocmsadminui/src/App.tsx:199). On the server, the function OCMS_HST_UPDATE allows /v1/check-hst, /v1/update-hst and /v1/offencenoticeownerdriverlist (ocmsadminapi/src/main/resources/api-authorization.properties:99-100). Which roles hold OCMS_HST_UPDATE is configured outside the repo.",
+    "id": "Menu HST punya entry dengan title MetaHST['UPDATE'] = 'Manual HST Update' dan path /hst/update (ocmsadminui/src/utils/Meta/HSTs.ts:13-14). Route <Route path=\"update\"> di bawah \"hst\" merender HST.HSTUpdate (ocmsadminui/src/App.tsx:199). Di server, function OCMS_HST_UPDATE mengizinkan /v1/check-hst, /v1/update-hst dan /v1/offencenoticeownerdriverlist (ocmsadminapi/src/main/resources/api-authorization.properties:99-100). Role mana yang punya OCMS_HST_UPDATE diatur di luar repo."
+   }
+  },
+  {
+   "step": {
+    "en": "The officer enters an ID; the screen shows the name and address stored in the HST row and the notices listed for that ID (not filtered to outstanding ones)",
+    "id": "Officer memasukkan ID; layar menampilkan name dan address yang tersimpan di row HST dan notice yang terdaftar untuk ID itu (tidak difilter ke notice outstanding)"
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/HST/update/form/SearchIDForm.tsx:53-93",
+   "detail": {
+    "en": "The address shown is the address in the HST row, and the notice list is unfiltered. The search calls POST check-hst with checkType 'update' and shows an error if the ID is not in HST (SearchIDForm.tsx:62-69). The name and address shown come from the HST row itself (buildHstResponse, HstManagementServiceImpl.java:168-195), not from the latest address of the offender in ONOD. The 'Outstanding Notices' list is a call to offencenoticeownerdriverlist with only {idNo, $limit: 1000} (SearchIDForm.tsx:77-83): there is no filter on offender indicator, notice status or stage, so it lists every notice row of that ID, not only the outstanding ones. If this call fails the error is swallowed and the list is empty (the screen then says 'No outstanding notices found').",
+    "id": "Address yang tampil adalah address di row HST, dan list notice tidak difilter. Search memanggil POST check-hst dengan checkType 'update' dan menampilkan error kalau ID tidak ada di HST (SearchIDForm.tsx:62-69). Nama dan alamat yang tampil diambil dari row HST sendiri (buildHstResponse, HstManagementServiceImpl.java:168-195), bukan alamat terbaru offender di ONOD. List 'Outstanding Notices' adalah panggilan offencenoticeownerdriverlist dengan hanya {idNo, $limit: 1000} (SearchIDForm.tsx:77-83): tidak ada filter offender indicator, status atau stage notice, jadi isinya semua row notice dari ID itu, bukan hanya yang outstanding. Kalau panggilan ini gagal, error ditelan dan list kosong (layar lalu menulis 'No outstanding notices found')."
+   }
+  },
+  {
+   "step": {
+    "en": "The officer edits name and address fields (postal code, block, street, building, floor, unit, date of address change, invalid address tag) with form validation",
+    "id": "Officer mengedit field nama dan alamat (postal code, block, street, building, floor, unit, tanggal ganti alamat, invalid address tag) dengan validasi form"
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/HST/update/form/HSTUpdateForm.tsx:131-228",
+   "detail": {
+    "en": "All fields exist in the form (name, postal_code, blk_hse_no, street, building, floor, unit, date_of_address_change, invalid_address_tag). Validation yup (ocmsadminui/src/utils/validation/HST/ValidHSTUpdate.ts:4-46) requires only the name and has length limits, but the limits do not match the API: UI allows name 100 characters and invalid_address_tag 50, while HstUpdateDto allows name 66 and invalidAddrTag 1 character (Bean Validation @Size), so a value that passes the UI can be rejected by the API. The 'required fields' message in HSTUpdateForm.tsx:54-57 names Postal Code and Block/House No, but canSubmit (line 48-50) checks only the name.",
+    "id": "Semua field ada di form (name, postal_code, blk_hse_no, street, building, floor, unit, date_of_address_change, invalid_address_tag). Validasi yup (ocmsadminui/src/utils/validation/HST/ValidHSTUpdate.ts:4-46) hanya mewajibkan name dan punya batas panjang, tapi batasnya tidak sama dengan API: UI mengizinkan name 100 karakter dan invalid_address_tag 50, sedangkan HstUpdateDto mengizinkan name 66 dan invalidAddrTag 1 karakter (Bean Validation @Size), jadi nilai yang lolos UI bisa ditolak API. Pesan 'required fields' di HSTUpdateForm.tsx:54-57 menyebut Postal Code dan Block/House No, tapi canSubmit (baris 48-50) hanya cek name."
+   }
+  },
+  {
+   "step": {
+    "en": "On save, POST update-hst updates the HST row; if the ID is not in HST the API returns 'HST ID not found in system'",
+    "id": "Saat save, POST update-hst meng-update row HST; kalau ID tidak ada di HST, API mengembalikan 'HST ID not found in system'"
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:142-160",
+   "detail": {
+    "en": "updateHst first calls hstExists(idNo); if false it returns HTTP 404 with message 'HST ID not found in system' (line 147-149). Otherwise HstManagementServiceImpl.updateHst (line 354-378) sets name, postal code, block, street, floor, unit, building, date of address change and invalid address tag on the HST row and saves it with hstService.update. The UI hook posts to endpoint update-hst (ocmsadminui/src/pages/HST/hooks/useHST.tsx:101-104) after a confirm dialog. The updater stored is SystemConstant.User.DEFAULT_SYSTEM_USER_ID = 'ocmsiz_app_conn' (line 375), not the logged-in officer, so the audit trail does not show who edited. Review: UI and API limits differ (street 50 vs 32, invalid address tag 50 vs 1; HstUpdateDto.java:25-47, ValidHSTUpdate.ts:31-39), so the UI can submit values the API rejects with 400.",
+    "id": "updateHst lebih dulu memanggil hstExists(idNo); kalau false, return HTTP 404 dengan pesan 'HST ID not found in system' (baris 147-149). Kalau ada, HstManagementServiceImpl.updateHst (baris 354-378) mengisi name, postal code, block, street, floor, unit, building, date of address change dan invalid address tag di row HST lalu menyimpannya dengan hstService.update. Hook UI memanggil endpoint update-hst (ocmsadminui/src/pages/HST/hooks/useHST.tsx:101-104) setelah dialog confirm. Updater yang disimpan adalah SystemConstant.User.DEFAULT_SYSTEM_USER_ID = 'ocmsiz_app_conn' (baris 375), bukan officer yang login, jadi audit trail tidak menunjukkan siapa yang mengedit. Review: batas UI dan API berbeda (street 50 vs 32, invalid address tag 50 vs 1; HstUpdateDto.java:25-47, ValidHSTUpdate.ts:31-39), jadi UI bisa mengirim nilai yang ditolak API dengan 400."
+   }
+  },
+  {
+   "step": {
+    "en": "The name is also updated on the offender (ONOD) rows of every notice where this ID is the current offender; the notice address is not changed",
+    "id": "Nama juga di-update di row offender (ONOD) setiap notice yang ID ini menjadi current offender-nya; alamat notice tidak diubah"
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:380-412",
+   "detail": {
+    "en": "updateHst loads onodRepository.findByIdNoAndOffenderIndicator(idNo, \"Y\") (line 382), and for each row whose idNo equals the ID calls onod.setName(request.getName()) (line 400) and saveAll; no address field of ONOD or of the notice is written. The per-notice save is inside try/catch that only logs (line 409), so one failing notice does not stop the others and the API still answers success: a partial update is possible and the officer is not told. Whether every outstanding notice has an ONOD row with indicator 'Y' for this ID depends on data and cannot be verified from the repo. Review: the name is written to every ONOD row with indicator Y of the ID, including notices that are not outstanding (HstManagementServiceImpl.java:381-411); the swallowed-error claim is not proven because the method is @Transactional.",
+    "id": "updateHst memuat onodRepository.findByIdNoAndOffenderIndicator(idNo, \"Y\") (baris 382), lalu untuk tiap row yang idNo-nya sama memanggil onod.setName(request.getName()) (baris 400) dan saveAll; tidak ada field alamat ONOD atau notice yang ditulis. Save per notice berada di try/catch yang hanya log (baris 409), jadi satu notice gagal tidak menghentikan yang lain dan API tetap menjawab sukses: update parsial mungkin terjadi dan officer tidak diberi tahu. Apakah setiap notice outstanding punya row ONOD dengan indicator 'Y' untuk ID ini bergantung pada data dan cannot verify from repo. Review: nama ditulis ke setiap baris ONOD dengan indicator Y milik ID itu, termasuk notice yang tidak outstanding (HstManagementServiceImpl.java:381-411); klaim error ditelan tidak terbukti karena method-nya @Transactional."
+   }
+  }
+ ],
+ "note": {
+  "en": "The update itself (HST row and ONOD name) is proven in code. Gaps: the notice list is not limited to outstanding notices, the address shown is the HST row address, UI and API length limits differ, per-notice errors are swallowed and the updater is a system user. Not provable from the repo: role assignment of OCMS_HST_UPDATE, data completeness of ONOD rows, and whether URA considers this screen part of OCMS20.18/20.28 (no flow deck; tickets OCMS-DF-2026-091 to -094 concern applying HST, not this edit screen).",
+  "id": "Update-nya sendiri (row HST dan nama ONOD) terbukti di code. Gap: list notice tidak dibatasi ke notice outstanding, alamat yang tampil adalah alamat row HST, batas panjang UI dan API berbeda, error per notice ditelan dan updater adalah system user. Tidak bisa dibuktikan dari repo: pemberian role OCMS_HST_UPDATE, kelengkapan data row ONOD, dan apakah URA menganggap layar ini bagian dari OCMS20.18/20.28 (tidak ada flow deck; ticket OCMS-DF-2026-091 sampai -094 membahas apply HST, bukan layar edit ini)."
+ },
+ "corrections": [
+  "Acceptance 2: 'the outstanding notices of that ID' is too strong. The list shows every notice row of the ID (offencenoticeownerdriverlist with idNo only); 'latest address' is the address stored on the HST row.",
+  "Acceptance 3: 'with form validation' should say the validation is partial (only name required; UI limits differ from API limits: name 100 vs 66, invalid address tag 50 vs 1).",
+  "Acceptance 5 / risks: add that the API answers success even if some notices failed to update (errors logged only), and that the updater is stored as system user 'ocmsiz_app_conn'."
+ ]
+}

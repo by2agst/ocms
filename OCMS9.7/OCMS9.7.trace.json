@@ -1,0 +1,55 @@
+{
+  "story": "OCMS9.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cron tier): workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper (queryRecordsForEna, queryRecordsForReminder, combineNotices, getRecipientKey, determineTemplateName, saveSendStatus)}, cron-schedules-prod.properties. Repo lain: tidak ada code",
+  "note": "Status di stories.json 'Demo paid (50% of 75%)'. Code menggabungkan notice per UEN di combineNotices: kunci grup = B_<UEN> + nextProcessingStage + paymentDueDate, notice nomor-nomornya digabung dengan '.', amount dijumlah, dan template *_COMBINED dipakai. Tapi ada tiga celah: (1) kunci grup memuat stage dan due date, jadi satu UEN dengan due date berbeda atau stage ENA vs RD1 tetap menerima lebih dari satu email di hari yang sama; (2) retry job mengirim ulang per baris notification record (satu per ref_no), jadi email gabungan yang gagal bisa terkirim ulang sebanyak jumlah notice; (3) cron eNotification disabled di semua env (cron.notification.enabled=false), jadi pengiriman otomatis belum jalan. Isi template *_COMBINED ada di database (ocms_template_store), cannot verify from repo. Ticket OCMS-DF-2026-180 (due date ENA) menyentuh query yang sama dan masih menunggu cron aktif.",
+  "recommendation": "Klaim sebagian. Penggabungan per UEN terbukti di code; yang belum: satu email per perusahaan per hari tanpa memandang due date/stage, retry yang bisa mengirim email gabungan berulang, dan cron yang masih mati.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengambil notice outstanding yang akan dikirim di batch job hari itu (ENA dan reminder)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:992-1075; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1100",
+      "fit": "Sesuai",
+      "detail": "Job memanggil queryRecordsForEna() dan queryRecordsForReminder() (J:161-162). Query ENA mengambil notice dengan last_processing_stage = 'ENA', last_processing_date <= sekarang, offender_indicator = 'Y', tanpa notification record yang sudah ada dalam window parameter ENOTEDAYS (H:994-997, H:1045-1073), dan membawa onod.id_no / id_type / email_addr."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi UEN perusahaan yang sama di antara notice dalam satu batch",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2151-2160; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2230-2245",
+      "fit": "Sesuai",
+      "detail": "combineNotices(records) (J:191) mengelompokkan lewat getRecipientKey: untuk idType B kuncinya 'B_' + UEN (H:2230-2245), jadi notice dengan UEN sama jatuh ke grup yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Semua notice satu UEN digabung menjadi satu kelompok per perusahaan, tanpa terpecah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2176-2181; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2171-2175",
+      "fit": "Sebagian",
+      "detail": "compositeKey = recipientKey + '_' + stage + '_' + dueDate (H:2178). Jadi UEN yang sama dengan paymentDueDate berbeda, atau satu notice stage ENA dan satu stage RD1, menjadi grup terpisah dan tetap mendapat lebih dari satu email di hari yang sama. Story minta 1 email per perusahaan unik."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Email gabungan memuat detail semua offence perusahaan tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2182-2196; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:298-301; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:467-473",
+      "fit": "Sesuai",
+      "detail": "Notice nomor digabung ke combinedNotices dengan '.', amountPayable dijumlahkan (H:2182-2196). generateMessages menandai isCombined bila combinedNotices berisi '.' lalu memilih template <STAGE>_EMAIL_COMPANY_COMBINED (H:298-301, H:467-473). Isi template di tabel ocms_template_store, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS hanya mengirim 1 email notifikasi untuk setiap perusahaan unik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:378-388; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:601-624; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1133-1168; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Di flow utama, satu record gabungan menghasilkan satu panggilan sendEmail (J:388) dan status disimpan per notice (H:614). Tapi retry job iterasi per notification record (RJ:1133-1168), bukan per perusahaan, sehingga email gabungan yang gagal bisa dikirim ulang sebanyak jumlah notice. Cron utama juga cron.notification.enabled=false (prod:236). Kesimpulan 1 email per perusahaan hanya benar untuk jalur sukses dengan due date dan stage yang sama."
+    }
+  ]
+}

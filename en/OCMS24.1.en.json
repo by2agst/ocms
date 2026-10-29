@@ -1,0 +1,25 @@
+{
+  "story": "OCMS24.1",
+  "flow_ref": "User story (not in a flow deck, OCMS has none)",
+  "code_summary": "ocmsadminprivateapi sftp-prod.properties (server list without State Courts); ocmsadminapi crud/ocmsizdb/OcmsCourtCase (3 columns), workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}, auth/filter/JwtFilter; ocmsadminui NoticeSearch/hook/useSearch.ts, Notice/form/History.tsx, utils/models/{Icourtcase,Icsdbatch}.d.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court application code",
+  "note": "The story asks OCMS to receive the court application outcome return file from State Courts (one batch or sub-batches) and update the batch of notices. The code has no such feature: there is no State Courts SFTP server (sftp-prod.properties:57-107 only lists ces, mha, toppan, icms, repccs, lta, cftvhub), no cron or return-file parser, and entity ocms_court_case only has notice_no, court_payment_due_date, reason with no batch number. What exists is the REST casUpdateCourtNotices that takes a per-notice push from CAS (not a file, not a batch) and the TypeScript types Icsdbatch/Icourtcase in the UI with no backend. Ticket OCMS-SR-2026-164 (36 notices already closed in CAS as WWP but still outstanding in OCMS, patched manually) hints that court results do not flow into OCMS automatically; this is a hint, not proof. The sheet status 'Fully paid' is not supported by code. SFTP permission for the api App Service server and the State Courts file contract: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Ask URA/the team in which repo State Courts return-file intake is built, or mark it as a gap. Only the REST casUpdateCourtNotices (per-notice push from CAS) can be named as related groundwork.",
+  "steps": [
+    {
+      "step": "OCMS receives the return file with the court application outcome from State Courts (via SFTP)",
+      "detail": "The prod SFTP server list only has ces, mha, toppan, icms, repccs, lta, cftvhub (sftp-prod.properties:57-107); there is no State Courts server and no court return-file cron/parser in the six repos (grep state court, statecourt, judiciary, chargesheet, csd_batch: zero hits in src of ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi). The demo remark mentions SFTP permission for the api App Service server: cannot verify from repo."
+    },
+    {
+      "step": "OCMS accepts the return file as one full batch or as smaller sub-batches of the same batch",
+      "detail": "There is no court application batch concept in the backend: entity ocms_court_case only has notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31); csd_batch_no/batch_no only appear as a TypeScript type in the UI (Icsdbatch.d.ts:1-11) with no table, repository or controller. No sub-batch merge logic exists."
+    },
+    {
+      "step": "OCMS processes the file to update the batch of notices accordingly",
+      "detail": "No file processor exists. The closest path is the REST casUpdateCourtNotices: an external caller (CAS) sends JSON per notice (max 500) and OCMS overwrites stage, suspension, amount_payable columns on VON/eVON (CasIntegrationServiceImpl.java:96-119). That is a per-notice push, not a return file, and carries no batch number or approved/rejected result. The endpoint bypasses JwtFilter (JwtFilter.java:183); protection relies on APIM: cannot verify from repo. Treated as a different channel, not as meeting this step."
+    },
+    {
+      "step": "Notice status inside the batch is updated and the batch is marked as processed",
+      "detail": "No batch status column/table exists in the backend (see step 2). In the UI, the Court Application History grid (batch_status, Outcome Date) is at History.tsx:71-100 but its tab is commented out (History.tsx:170-172) and the courtcase resource has no controller in ocmsadminapi."
+    }
+  ]
+}

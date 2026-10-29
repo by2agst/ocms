@@ -1,0 +1,33 @@
+{
+  "story": "OCMS19.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,page/upload/Upload,page/upload/UploadResult,context/NoticeSearchUploadContext,component/NoticeSearchUploadSlot}, components/SheetUpload.tsx, context/SheetContext.tsx, utils/validation/Format/ValidFile.ts, utils/data/SheetData.ts; ocmsadminapi validoffencenoticelist. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not used",
+  "note": "The upload exists and works as an alternative to search, but the format is XLSX, not CSV as the story says. A CSV reader is still present in SheetContext.tsx, but the accepted format list is xlsx only (ValidFile.ts:154, csv commented out), so CSV cannot be uploaded from the UI. The template is not just a list of notice numbers: its columns are Notice No, Summon No, Vehicle No, ID No. The upload is generic (the Notice Search page), not revival-specific; revival is picked after the results appear. The SheetUpload hint says 10 MB while the limit FileInput enforces is the config maxsize of 2 MB (FileInput.tsx:160-164). Ticket OCMS-DF-2026-187 (Pending UAT, bulk search sort) does not change a fit.",
+  "recommendation": "Claim the upload as the alternative to search, noting that XLSX replaces CSV. Ask URA to confirm XLSX is accepted; if not, CSV has to be enabled again.",
+  "steps": [
+    {
+      "step": "Officer opens the upload page from Notice Search as an alternative to searching",
+      "detail": "The Search Notices accordion has an XLSX File Upload button that goes to the upload route (NoticeSearchForm.tsx:179-182); the notices/search/:search_type/upload and /result routes are in App.tsx:107-118. The button and routes are the same for the All and Outstanding types."
+    },
+    {
+      "step": "Officer uses a template that holds the list of notice numbers",
+      "detail": "The Search-Notices-Template holds the columns Notice No., Summon No., Vehicle No., ID No. (SheetData.ts:531-536; SheetContext.tsx:103-111). The uploaded header is checked against the template; a different column count or label is rejected with a template-mismatch message (SheetContext.tsx:211-229). The Notice No. column exists so a list of notice numbers works; the other columns are optional."
+    },
+    {
+      "step": "The notice number list is uploaded in CSV format",
+      "detail": "The accepted format is XLSX only: FileTypeFormat.Sheet holds only the xlsx FileExt and csv/xls are commented out (ValidFile.ts:154), used by upload_notices (ValidFile.ts:167-170) and NOTICE_SEARCH_ALL (SheetContext.tsx:103-111). The on-screen hint says Accepted file format is only .xlsx (SheetUpload.tsx:206) and the button and title say XLSX (NoticeSearchForm.tsx:181). A CSV parser still exists (SheetContext.tsx:183-193) but is unreachable because FileInput rejects extensions outside the format list with File format is not acceptable (FileInput.tsx:107, 148-154). The size limit FileInput applies is the config maxsize of 2 MB (FileInput.tsx:160-164, ValidFile.ts:167-169); the 10 MB hint text in SheetUpload.tsx:206 does not match the config."
+    },
+    {
+      "step": "Each row is format-checked and then looked up in the database",
+      "detail": "Each row is validated with yup (notice no, summon no, ID no; NoticeSearchUploadContext.tsx:90-101, ValidNoticeSearchUpload.ts:8-16). Rows that pass are sent to validoffencenoticelist with noticeNo/vehicleNo/idNo and offenderIndicator Y; duplicate rows share one request through a cache (NoticeSearchUploadContext.tsx:106-121)."
+    },
+    {
+      "step": "OCMS shows the uploaded notices on screen",
+      "detail": "After proceed, onSearch fills the result (NoticeSearchUploadContext.tsx:142-151) and UploadResult shows NoticeValidList plus the list of failed rows (UploadResult.tsx:64-76). One row can yield many notices (for example a search by ID). Ticket OCMS-DF-2026-187 (Pending UAT) about sorting the Payment Status column in bulk search results: the column source in this commit is already crsReasonOfSuspension (components/datagrid/column/index.tsx:270-272), so what is shown is unchanged."
+    },
+    {
+      "step": "From the upload result the officer can go on to select notices for revival",
+      "detail": "UploadResult mounts NoticeSearchUploadSlot, which has an Apply Operation dropdown with the same options (including Apply Revival) and a Select button (NoticeSearchUploadSlot.tsx:126-146), using the same ApplyOperationAction as the search results (NoticeSearchUploadSlot.tsx:39)."
+    }
+  ]
+}

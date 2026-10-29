@@ -1,0 +1,25 @@
+{
+  "story": "OCMS26.12",
+  "flow_ref": "User story (not in a flow deck OCMS)",
+  "code_summary": "Tidak ada code penerimaan Master/Offence code dari State Courts di enam repo. Yang ditelusuri dan tidak cocok: ocmsadminapi workflows/cas_integration/CasIntegrationController (hanya casGetPaymentStatus, casUpdateCourtNotices, plus-get-court-case-info, plus-payment-activation), crud/ocmsizdb/{standardcode,offencerulecode} (CRUD tabel code URA), ocmsadminprivateapi resources/sftp/* dan cron-schedules-prod.properties (tidak ada server atau job court), ocmsadminui utils/Meta/System.ts (menu COURT_CODE tanpa path).",
+  "note": "The story status in the sheet is blank (requirement not given), traced normally. No inbound endpoint, SFTP server, cron job, parser or table for Master/Offence codes from State Courts was found. Synonyms tried in every repo: mastercode, master_code, master code, offence code, offenceCode, courtcode, court_code, courtoffence, judiciary, state court(s), sftp court. The four existing CAS endpoints carry no codes (only notices, stages, amounts, payments). The standardcode and offencerulecode tables exist but hold internal URA codes (reference_code/code/description; computer rule code, composition amount) maintained manually through the staff portal, not filled by a court interface. The 'Court Code' menu in ocmsadminui is only a stub (path null). Whether State Courts sends codes through another channel cannot verify from repo.",
+  "recommendation": "Do not claim. There is no code to receive Master/Offence codes from State Courts. Do not count the standardcode/offencerulecode tables as proof because they are not filled by a court interface. Ask URA/the team which repo or system hosts this interface.",
+  "steps": [
+    {
+      "step": "State Courts sends the Master and Offence Codes to OCMS through an interface (file or API)",
+      "detail": "CasIntegrationController has only four endpoints: casGetPaymentStatus (:42), casUpdateCourtNotices (:101), plus-get-court-case-info (:167), plus-payment-activation (:220); none receives codes. In ocmsadminprivateapi and thirdpartyapi there is no SFTP server, cron job or court controller (grep court/judiciary/mastercode/courtcode in src and properties: nothing; cron-schedules-prod.properties has no court job). The CAS endpoints are not credited because their payload is notices, not codes."
+    },
+    {
+      "step": "OCMS parses and validates the received Master and Offence Codes",
+      "detail": "There is no parser, DTO or validator for court Master/Offence code records in ocmsadminapi, ocmsadminprivateapi or thirdpartyapi. The only inbound validation from the court is in updateCourtNotices (CasIntegrationServiceImpl.java:246), which validates noticeNo, dates and paid status, not codes."
+    },
+    {
+      "step": "OCMS stores or updates the Master and Offence Codes in the database",
+      "detail": "The standardcode (StandardCodeController.java:52) and offencerulecode (OffenceRuleCodeController.java:53) tables can only be filled through POST from the staff portal; they hold internal URA codes, with no 'State Courts' column or source, and no upsert from an interface. The 'Court Code' menu in ocmsadminui is only a stub: COURT_CODE: null in System.ts:62 and a label at :187, with no route or page. There is no separate court Master code table."
+    },
+    {
+      "step": "The State Courts codes are used to support court processing in OCMS",
+      "detail": "The existing court processing data (OcmsCourtCase: noticeNo, courtPaymentDueDate, reason, read at CasIntegrationServiceImpl.java:637) does not refer to court Master/Offence codes. There is no lookup, join or validation against State Courts codes in the court flow (plus-get-court-case-info, plus-payment-activation, casUpdateCourtNotices)."
+    }
+  ]
+}

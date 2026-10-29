@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.58",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (plus-furnish, plus-redirect), workflows/furnish/stafffurnish/services/StaffFurnishService (staffFurnish, staffRedirect, createOrUpdateFurnishedMailAddress, updateAuditUser, StaffFurnishRequest.updatedBy), workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus (plus-update-offence-notice-owner-driver). ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: not relevant for updates from PLUS",
+  "note": "Story status: Requirement given - Gen flow. Sheet demo remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (sheet claim). Receiving and updating particulars from PLUS exists and uses the same logic as the staff portal (StaffFurnishService). The requesting username is stored through the updatedBy field (alias updUserId) into creUserId/updUserId for the notice, the offender and the furnished_mail address. Two notes: (1) there is no check that PLUS confirmed the overwrite; (2) the endpoint /plus-update-offence-notice-owner-driver does not store the username and does not change the stage. The content of Appendix B Annex 1A is not in the repos (cannot verify from repo); the follow-up step is judged from the RD1/DN1 stage change the code performs. PLUS key validation is off in all profiles (ocms.plus.key.validation.enabled=false) and JwtFilter lets plus-* paths through; protection depends on APIM, not visible in the repo.",
+  "recommendation": "Claim most of it: particulars update, requester username and stage move from PLUS all work. Notes for URA: there is no overwrite-confirmation gate, and the content of Appendix B Annex 1A cannot be verified from the repos.",
+  "steps": [
+    {
+      "step": "OCMS receives the furnish/redirect request from PLUS with the hirer/driver particulars (POST /plus-furnish, /plus-redirect)",
+      "detail": "plusFurnish accepts a StaffFurnishRequest and validates mandatory noticeNo, ownerDriverIndicator, name, idType, idNo (validateFurnishRequest, lines 242-259); address is optional (line 258). plusRedirect only requires noticeNo, ownerDriverIndicator, idNo (lines 226-236). Validation failure returns 400, business failure 422, error 500 (lines 144, 159, 164-166). PLUS authentication: JwtFilter lets plus-* paths through (JwtFilter.java:179) and ocms.plus.key.validation.enabled=false (application-prod.properties:61); protection via APIM: cannot verify from repo."
+    },
+    {
+      "step": "OCMS continues the overwrite only after PLUS confirms the old particulars may be overwritten",
+      "detail": "The PLUS request has no confirmation field or check (StaffFurnishRequest, StaffFurnishService.java:1165-1228). plusFurnish calls staffFurnish directly (PlusIntegrationController.java:148), which demotes the old offender and overwrites records without asking anything. The manual path has overwriteExisting (ManualFurnishServiceImpl.java:85-91) but PLUS does not use it. Confirmation on the PLUS side: cannot verify from repo."
+    },
+    {
+      "step": "OCMS updates the hirer/driver particulars (offender, contact, furnished_mail address) for the notice",
+      "detail": "Furnish: the old offender is set to indicator N (line 201), a new record is created with name, ID, tel, email and offenderIndicator=Y (lines 214-223), saved and synced to the PII DB (lines 231-232), then the furnished_mail address is created/updated and made the letter address (line 236). Redirect: the target offender with the matching ID is set to Y and the supplied fields are updated (lines 373-400). Note: old addresses for that role are deleted first (line 206, OCMS-DF-2026-024) and the record of the same role is overwritten (see OCMS41.56)."
+    },
+    {
+      "step": "OCMS stores the username of the requester from PLUS",
+      "detail": "StaffFurnishRequest accepts JSON updatedBy as an alias of updUserId (StaffFurnishService.java:1227-1228). On furnish the value is set as creUserId of the new offender (lines 225-228) and stamped onto the notice, offender and furnished_mail address through updateAuditUser (lines 264-270); on redirect via lines 428-434. The /plus-update-offence-notice-owner-driver path (OwnerDriverServiceImplPlus.java:111-160) does not read updatedBy/updUserId (grep is empty), so edits through that endpoint carry no username. updatedBy is not mandatory (validateFurnishRequest does not check it, PlusIntegrationController.java:242-259), so a request without a username is still processed. Sebagian because only one of the two PLUS update paths stores the username and the field is optional."
+    },
+    {
+      "step": "OCMS follows up the latest hirer/driver through the automated processing workflow (stage, amount, next processing date)",
+      "detail": "After the update the stage is changed to RD1 (owner/hirer) or DN1 (driver) and validated against ocms_stage_map (lines 240-241, 924-934), amount payable is recalculated to the composition amount (lines 245-247), the administration fee is zeroed (OCMS-DF-2026-170, line 251), next_processing_date = max(notice date + 7 days, tomorrow 00:00) (lines 254-260 and 144-157), the VON is synced to the internet DB (line 262), HST is applied/revived (lines 272-283, OCMS-DF-2026-093). The next cron runs then process the new person as current offender. The content of Appendix B Annex 1A is not in the repos (cannot verify from repo); the judgement uses the story text."
+    }
+  ]
+}

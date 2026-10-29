@@ -1,0 +1,25 @@
+{
+  "story": "OCMS24.13",
+  "flow_ref": "There is no OCMS flow deck; steps are taken from the story text. Sheet status is blank; demo_remark: 'Check with Rafif if function is ready' (a claim, not evidence).",
+  "code_summary": "A similar mechanism exists in the eNotification job (ocmsadminprivateapi, NotificationSmsEmailHelper.queryRecordsForReminder): the X-day threshold is read from ocms_parameter ENOTEDAYS per stage code, notices are selected when the due date (last_processing_date + POS + PDD) falls within X days, then SMS/email is sent. But it covers only parking stages RD1, RD2, RR3, DN1, DN2, DR3, not a court summons batch, the court due date (ocms_court_case.court_payment_due_date) is not used, and the 'not paid' check is only implicit via stage and suspension_type. Prod has cron.notification.enabled=false.",
+  "note": "Sheet status is blank and demo_remark holds a note 'Check with Rafif'; traced normally. The parking eNotification mechanism is used as comparison: at most Sebagian because it is not a court summons batch. Ticket OCMS-DF-2026-180 (wrong ENA due date, Closed, awaiting eNotification cron activation) is used as a hint that the cron is not yet active; it is not proof of the real server value.",
+  "recommendation": "Sebagian: the X-days-before-due-date mechanism exists for parking reminders but not for a court summons batch. Court work (court due date and court stages) is still needed.",
+  "steps": [
+    {
+      "step": "The number of days X is configurable through a parameter maintained in OCMS",
+      "detail": "getParameterValueForEna reads ocms_parameter with parameter_id = 'ENOTEDAYS' and code = stage (NotificationSmsEmailHelper.java:1170-1175); the reminder query also joins ENOTEDAYS per last_processing_stage (:1107-1109, :1118). So X is a database parameter, but the rows used are parking stage codes, not court. The parameter row contents cannot verify from repo (DB-only)."
+    },
+    {
+      "step": "OCMS selects the batch of court summonses whose payment due date falls within X days",
+      "detail": "The query only takes von.last_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3') with due date = last_processing_date + POS + PDD <= today + ENOTEDAYS (NotificationSmsEmailHelper.java:1114-1118). There is no court stage and no court summons batch, and court_payment_due_date in ocms_court_case is not used here; that column is only read by findNoticeNosDue for the payment acceptance cutoff (OcmsCourtCaseRepository.java:16-19, PaymentAcceptanceCutoffServiceImpl.java:55) and is filled from CAS (CasIntegrationServiceImpl.java:805-821). The eNotification due date calculation was once wrong (OCMS-DF-2026-180, ENA 13 days instead of 7)."
+    },
+    {
+      "step": "OCMS checks whether payment has been made before the due date",
+      "detail": "There is no explicit payment check. Paid notices are excluded only implicitly: the query takes notices with suspension_type IS NULL or TS-HST (NotificationSmsEmailHelper.java:1119-1129) at reminder stages; no paid/FP column is read. That a paid notice always has a suspension_type or another stage cannot verify from repo. Applies to parking reminders, not court summonses."
+    },
+    {
+      "step": "The check result decides whether an SMS/email is sent to the defendant",
+      "detail": "The job fetches ENA and reminder records (NotificationSmsEmailJob.java:161-162), combines them, and only those passing the query filter and exclusion go to sendBatchSms (:289-291). The check-then-send pattern exists, but for parking reminders. This cron has cron.notification.enabled=false in prod (cron-schedules-prod.properties:236; real server value cannot verify from repo), so by repo config it does not run (OCMS-DF-2026-180: awaiting eNotification cron activation)."
+    }
+  ]
+}

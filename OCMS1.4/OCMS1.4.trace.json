@@ -1,0 +1,46 @@
+{
+  "story": "OCMS1.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/NoticeProcessingHelper (stage NPA/ROV saat create). ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (query ROV), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'User Story Removed': verdict tetap Removed, tidak diklaim. Pengecekan owner via LTA (ROV) ada dan dijadwalkan 2x sehari, dan hasilnya disimpan ke ocms_offence_notice_owner_driver. Tapi urutan di story (setelah admin fee dan payment reference number) tidak sesuai: ROV jalan langsung setelah notice dibuat. Epic OCMS7 yang dirujuk story tidak ada di input, jadi 'sesuai OCMS7' tidak bisa diperiksa. Tiket OCMS-DF-2026-160 dan OCMS-SR-2026-182 menunjukkan ribuan notice maju tanpa owner ID. Isi file LTA dan SFTP partner: cannot verify from repo.",
+  "recommendation": "Tidak diklaim (Removed). Pengecekan owner via LTA ada tapi tidak dipicu setelah admin fee dan payment reference number; notice bisa maju tanpa owner ID.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan owner particulars berjalan setelah admin fee dikenakan dan payment reference number dibuat",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:924-927",
+      "fit": "Beda dari flow",
+      "detail": "Notice REPCCS langsung di-set next_processing_stage ROV saat dibuat (NoticeProcessingHelper.java:924-927), jadi pengecekan owner jalan tepat setelah notice dibuat, sebelum ada admin fee dan tanpa payment reference number. Admin fee baru dikenakan belakangan (AdminFeeHelper hanya foreign vehicle PS-FOR; ToppanUploadHelper.java:1390-1401 di RR3/DR3), dan payment reference number tidak dibuat di code mana pun (lihat OCMS1.3)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice yang menunggu pengecekan owner particulars dan mengirim enquiry ke LTA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74",
+      "fit": "Sebagian",
+      "detail": "Cron LTA Upload memilih notice next_processing_stage='ROV', tanggal <= hari ini, offence type O/E, bukan PS, bukan foreign vehicle (OcmsValidOffenceNoticeRepository.java:70-74), dijalankan 2x sehari (cron-schedules-prod.properties:134-135). Foreign vehicle tidak dicek (OCMS-DF-2026-118) dan notice PS dikecualikan (OCMS-DF-2026-002). Pengiriman file ke LTA lewat SFTP partner cannot verify from repo. Pengecekan 'seperti Epic OCMS7' sendiri tidak ada di input, hanya diukur ke teks story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File hasil LTA diproses dan ID, nama, serta tipe ID owner disimpan di notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:427-476",
+      "fit": "Sebagian",
+      "detail": "LTA Download cron (cron.ltadownload.schedule=0 0 5,21 * * ? enabled=true, cron-schedules-prod.properties:148-149) memproses file hasil; planOffenceNoticeOwnerDriver membuat atau mengupdate baris owner di ocms_offence_notice_owner_driver dengan idNo (sudah disanitasi), idType, dan name (LtaBatchCode0Processor.java:427-476). Hanya untuk hasil LTA kode 0 (ditemukan); isi file LTA dari partner cannot verify from repo. Tiket OCMS-DF-2026-160 (Pending Closure) mencatat notice kehilangan ownership retrieval."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengetahui ID owner kendaraan dan dapat menindaklanjuti mereka",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:200-216",
+      "fit": "Sebagian",
+      "detail": "Notice maju ke stage ENA/RD1 di LtaUploadHelper.java:200-216, yaitu saat file dikirim ke LTA, bukan setelah hasil dengan owner ID diterima. Akibatnya notice bisa lanjut tanpa owner ID: OCMS-DF-2026-160 mencatat 894 notice di ENA/RD1 tanpa ownership dan OCMS-SR-2026-182 1.367 notice tersangkut di ENA/RD1 tanpa offender (patch kembali ke ROV, status Pending UAT Verification). Jadi 'OCMS tahu ID owner' hanya benar untuk notice yang hasilnya berhasil disimpan."
+    }
+  ]
+}

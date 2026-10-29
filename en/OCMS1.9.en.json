@@ -1,0 +1,33 @@
+{
+  "story": "OCMS1.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob, jobs/ToppanUploadJob, helpers/ToppanUploadHelper, models/ToppanStage}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, application-*.properties, cron-schedules-*.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Story status: User Story Removed (5 points), the verdict stays Removed. Similar code: the 'Toppan Generate Letters' cron builds a data file per stage (RD1, RD2, RR3, DN1, DN2, DR3, ANL), calculates the post-dated letter date (today + parameter POS) and the due date (+ PDD), then sends the file to the Toppan vendor through COMCRYPT/SFTP. The format produced is a data file (URA-DPT-{stage}-D1-timestamp); PDF is only for the Advisory Notice Letter (ANL), not for RD1 notices. Three things lower the result: (1) in the day-end scheduler the call to the letter job is commented out (ToppanUploadJobsScheduler.java:118), so it can only run through the manual endpoint /toppan/generate-letters; (2) sftp.upload.disabledServers=toppan in dev/uat/prod blocks uploads to Toppan (application-prod.properties:86); (3) ticket OCMS-DF-2026-192 (Ready to UAT) records that stages did not advance during that block, and the code now bypasses the delivery gate when the server is blocked, so notices can advance a stage without the file being delivered. The admin fee is only set at RR3/DR3, not on RD1 letters. The property values per environment and receipt by Toppan: cannot verify from repo. Double check note: the story is Removed, so steps that have code are counted as Partial (not Matches) to stay consistent with OCMS1.1-1.5; nothing is claimed.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "Only notices with a latest registered (letter) address go into the letter",
+      "detail": "The Toppan query picks notices at next_processing_stage = stage, date <= today, with no suspension and owner offender_indicator='Y' (OcmsValidOffenceNoticeRepository.java:603-614). Then filterByLetterAddress drops notices without a letter_address='Y' address row and overrides the address fields with that address (ToppanUploadHelper.java:2372-2376; called from ToppanUploadJob.java:266)."
+    },
+    {
+      "step": "The letter is post-dated (the letter date is set ahead)",
+      "detail": "calculateLetterDate = processing date + the POS parameter value per stage (default 14 days when missing) (ToppanUploadHelper.java:196-210) and is used when building the letter data (:2059-2061). The POS value in the database: cannot verify from repo; ticket OCMS-DF-2026-180 mentions POS = 6 days."
+    },
+    {
+      "step": "The letter states the outstanding parking charges and the admin fee",
+      "detail": "Due date = letter date + PDD (ToppanUploadHelper.java:217-231). amountPayable is set to compositionAmount; administration_fee is calculated and added to amountPayable only for RR3/DR3, while other stages (including RD1) write fee 0 (OCMS-DF-2026-170) (:1320-1324, :1390-1401, :2063-2077). So RD1/RD2 letters carry the charges without an admin fee; the story asks for both. The Toppan letter layout: cannot verify from repo (the vendor builds it from the data file)."
+    },
+    {
+      "step": "The letter is produced as a data file (or PDF) for the vendor",
+      "detail": "For each stage the job builds a data file named URA-DPT-{stage}-D1-yyyyMMddHHmmss through agencyFileExchangeService.createRequestFileContent (ToppanUploadJob.java:279-290). PDF is only built for the Advisory Notice Letter (generateAnLetterPdfs, :326-334). The story says 'PDF or data file', so a data file for RD1 onward satisfies it. Stages handled: RD1, RD2, RR3, DN1, DN2, DR3, ANL (ToppanStage.java:19-25)."
+    },
+    {
+      "step": "The file is sent to the vendor for printing and postage",
+      "detail": "The file is uploaded to blob and sent through COMCRYPT to the Toppan SFTP (ToppanUploadJob.java:314; the callback encrypts and uploads). But sftp.upload.disabledServers=toppan in dev/uat/prod (application-prod.properties:84-86) blocks uploads to Toppan (added by OCMS-DF-2026-170). Because of that, confirmDeliveryAndAdvanceStage bypasses the delivery gate while the server is blocked so the stage still advances (ToppanUploadJob.java:405-434, the OCMS-DF-2026-192 fix whose status is Ready to UAT). So with the repo configuration the file does not reach the vendor while the notice still moves up a stage. Whether Toppan really receives, prints, and posts, and the per-environment values: cannot verify from repo."
+    },
+    {
+      "step": "The letter sending runs automatically as a batch job",
+      "detail": "ToppanLettersGeneratorJob processes all stages in order (ToppanLettersGeneratorJob.java:151-160), but in ToppanUploadJobsScheduler.executeDayEndJobs the line that calls it is commented out (ToppanUploadJobsScheduler.java:118) even though cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62). The job only runs through POST /toppan/generate-letters (ToppanUnifiedController.java:34-40), which is also triggered manually from the staff portal (ticket OCMS-DF-2026-192). So there is no automatic scheduled run of the letters in this commit."
+    }
+  ]
+}

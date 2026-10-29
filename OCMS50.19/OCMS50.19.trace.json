@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.19",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentResult,PaymentSearchResult,API}.ts; ocmseserviceapi workflows/receipt/{controller/ReceiptController,service/ReceiptServiceImplement,service/TemplateService}, utilities/pdf/PdfGeneratorService, crud/ocmsezdb/eocmswebtxndetail. Repo lain: tidak ada code",
+  "note": "Halaman sukses menampilkan tanggal-jam, nomor transaksi, metode dan jumlah, plus tabel per notice, dan tombol Print mengunduh receipt. Perbedaan dengan story: file yang diunduh selalu ZIP berisi satu PDF per notice, bukan satu file PDF (ReceiptController.java:51-61, PaymentResult.ts:138), dan tidak ada tampilan receipt di browser (hanya download). Receipt-based request tidak memfilter status S (ReceiptServiceImplement.java:150), jadi receiptNo dari transaksi gagal pun menghasilkan PDF bila dipanggil langsung; UI hanya menawarkan tombol di halaman sukses. Isi template PDF dibaca dari database (TemplateService, baris 91) dan tidak bisa diverifikasi dari repo. Jumlah 'Amount Paid' dihitung dari amount_payable notice yang tersimpan di UI, bukan dari jumlah yang dikonfirmasi PG (PaymentResult.ts:83-86). Tiket: OCMS-SR-2026-158 (Transaction Reference Number disembunyikan hanya di step 3, tetap tampil di step 4).",
+  "recommendation": "Klaim detail transaksi di layar. Receipt PDF: klaim sebagian (ZIP, bukan PDF tunggal; tanpa view di browser). Pertimbangkan filter status S di receipt berbasis receiptNo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman sukses menampilkan detail transaksi: tanggal-jam, nomor referensi, metode bayar, jumlah",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentResult.ts:74-118; ocmseserviceui/src/pages/Payment/Payment.ts:248-287",
+      "fit": "Sesuai",
+      "detail": "TransactionSummary menampilkan Date and Time, Transaction Reference Number, Payment Method dan Amount Paid (PaymentResult.ts:99-117). Datanya dari sessionStorage PAYMENT_RESULT yang diisi halaman processing dari database (Payment.ts:248-287). Jumlah dijumlahkan dari amount_payable notice yang tersimpan di UI (PaymentResult.ts:83-86), bukan dari konfirmasi PG."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan tabel transaksi per notice yang dibayar",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentResult.ts:151-174; ocmseserviceui/src/pages/Payment/Payment.ts:211-228",
+      "fit": "Sesuai",
+      "detail": "TransactionSummaryTable memakai uds-table-payment dengan ColumnsPayment, pagination bila lebih dari 10 baris (PaymentResult.ts:151-174). Baris dipetakan dari eocms_web_txn_detail lewat MapDetailToMatrix (Payment.ts:211-228)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail dan receipt tersedia untuk semua mode bayar (eNETS, kartu, PayNow)",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/service/ReceiptServiceImplement.java:233-248; ocmseserviceui/src/pages/Payment/PaymentResult.ts:81-82; ocmseserviceui/src/pages/Payment/Payment.ts:202-209",
+      "fit": "Sesuai",
+      "detail": "Receipt memetakan ENETC ke Credit Card, JX ke eNets Debit dan PYNOW ke PayNow, mode lain jadi 'Online Payment' (ReceiptServiceImplement.java:233-248). Halaman sukses memakai label mode yang sama untuk tiga mode (PaymentResult.ts:81-82, Payment.ts:202-209). Alur yang sama untuk semua mode setelah callback."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender menekan Print untuk mengunduh receipt",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentResult.ts:122-149; ocmseserviceui/src/pages/Payment/PaymentResult.ts:176-197; ocmseserviceui/src/pages/Payment/API.ts:204-234; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:798-830",
+      "fit": "Sebagian",
+      "detail": "Tombol Print memanggil APIPostPrintSlip({receiptNo}) lalu menyimpan blob sebagai Receipts_<receiptNo>_<n>_notices.zip (PaymentResult.ts:132-138). Yang diunduh ZIP, bukan PDF tunggal, dan tidak ada opsi lihat receipt di browser. Di tab notice terbayar ada juga 'Download Receipt(s)' (PaymentSearchResult.ts:798-830) dengan ZIP yang sama. Bila download gagal, catch kosong (PaymentResult.ts:144), offender tidak mendapat pesan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem membuat receipt PDF dari template untuk setiap notice yang dibayar",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/controller/ReceiptController.java:38-66; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/service/ReceiptServiceImplement.java:83-131; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/service/ReceiptServiceImplement.java:147-183; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/receipt/service/ReceiptServiceImplement.java:214-219; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmswebtxndetail/EocmsWebTxnDetailRepository.java:17-18; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmswebtxndetail/EocmsWebTxnDetailRepository.java:35-36",
+      "fit": "Sebagian",
+      "detail": "POST /v1/printslip menghasilkan ZIP (ReceiptController.java:38-66). Per notice: template HTML dari database (ReceiptServiceImplement.java:91) diisi tanggal, receiptNo, metode, notice, vehicle, tanggal offence dan jumlah (96-122) lalu dirender jadi PDF (127). Celah: jalur receiptNo memakai findByReceiptNo tanpa filter status (ReceiptServiceImplement.java:150; repository baris 35-36), sedangkan jalur notice memakai findByNotice dengan status 'S' (repository baris 17-18); jadi receipt bisa dibuat untuk transaksi yang gagal bila endpoint dipanggil langsung. Notice yang gagal dibuat dilewati dengan log saja (179-181). Isi template di database: cannot verify from repo."
+    }
+  ]
+}

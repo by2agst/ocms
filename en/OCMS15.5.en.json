@@ -1,0 +1,33 @@
+{
+  "story": "OCMS15.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui App.tsx (route cps/*), pages/CPS/page/{CPSSearch,CPS}.tsx, pages/CPS/hook/useCPSSearch.ts, pages/NoticeSearch/hook/useBatchOperation.ts, pages/CPS/form/CPSForm.tsx (CPSApplyAll), pages/CPS/list/CPSList.tsx (mode FORM), utils/constant.ts (CPS_ALLOWED_NEW_STAGES); ocmsadminapi OcmsChangeOfProcessing/EligibilityService (stage rules per role, used at validate). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The story asks that after the officer selects notices, OCMS shows the relevant fields for input. The flow exists: tick rows/select all, the Change Processing Stage button enables when something is selected, then the /notices/cps page shows the selected notices with New Processing Stage, Reason of Change (mandatory) and Remark (mandatory when reason is OTH), plus an Apply to All panel. Note: the New Processing Stage options are the same for every notice (ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC), not narrowed by Driver or Owner/Hirer/Director; a wrong combination is only rejected at validate (EligibilityService.java:49-50, 108-113), so 'relevant fields' is only partial. The /notices/cps page only renders when the batch context holds notices; otherwise the page is empty (CPS.tsx:34). Maintenance tickets: none touches this form (OCMS-DF-2026-097/-173 concern the submit result, not the form).",
+  "recommendation": "Can be claimed with a note (Evidence 92%): the select flow and input form are Sesuai; stage options are not yet narrowed per role",
+  "steps": [
+    {
+      "step": "The officer ticks one or more notices in the list (row or select all)",
+      "detail": "The Datagrid has row and select-all checkboxes; onSelected stores the chosen notices in the selectedNotices state (CPSSearch.tsx:346-349; useCPSSearch.ts:22-24). Select All above 1000 notices is refused with a modal (CPSSearch.tsx:88-100)."
+    },
+    {
+      "step": "The Change Processing Stage button is enabled only when notices are selected",
+      "detail": "The 'Change Processing Stage' button in the right slot of the Datagrid uses disabled={selectedNotices.length === 0} (CPSSearch.tsx:351-359)."
+    },
+    {
+      "step": "Clicking the button carries the selected notices to the Change Processing Stage input page",
+      "detail": "onProceedToCPS calls setBatch({type:'CPS', notices, path:'/notices/cps'}) (useCPSSearch.ts:26-32). updateBatch stores the notices in the data context under key batch_operation.cps and then calls nav(path) (useBatchOperation.ts:114, 118). App.tsx:169 maps cps/* to CPS.CPS."
+    },
+    {
+      "step": "The input page shows the selected notices and lets the officer remove a notice from the list",
+      "detail": "CPS.tsx reads batch.CPS.notices and renders CPSForm; if empty, the page renders nothing (CPS.tsx:27-36). CPSForm shows CPSList in mode FORM (CPSForm.tsx:595-604), supports removing a notice (544-550) and returns to the search page when all notices are removed (528-532)."
+    },
+    {
+      "step": "Each notice gets input fields New Processing Stage, Reason of Change and Remark, plus Apply to All",
+      "detail": "CPSList in mode FORM adds a dropdown 'New Processing Stage *' (260-283), a dropdown 'Reason of Change *' from the REASON_OF_CHANGE option (285-307) and a 'Remark' input of max 200 characters (309-326). The Apply to All panel fills all three into every notice at once and requires Remark when the reason is OTH (CPSForm.tsx:399-478; 421-425)."
+    },
+    {
+      "step": "The fields shown are relevant to each notice (stage options match the offender type)",
+      "detail": "The stage dropdown uses one list for every notice: PROCESSING_STAGE filtered by CPS_ALLOWED_NEW_STAGES (CPSList.tsx:268; constant.ts:149-159). Yet a Driver may only use DN1/DN2/DR3/CPC while Owner/Hirer/Director may use ROV/RD1/RD2/RR3/CFC/CPC (EligibilityService.java:49-50). A mismatching choice is only rejected by validate (108-113)."
+    }
+  ]
+}

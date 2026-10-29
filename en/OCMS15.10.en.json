@@ -1,0 +1,33 @@
+{
+  "story": "OCMS15.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/CPS/form/CPSForm.tsx (onConfirmation, onSubmit, ModalConfirm), page/CPSView.tsx. ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController (POST /v1/change-processing-stage), ChangeOfProcessingService.processBatch/processNotice/updateVonStage/syncCpsFieldsToInternetDb, OcmsChangeOfProcessing entity}. Other repos: not relevant",
+  "note": "Saving works: a 'CPS Confirmation' modal, then POST change-processing-stage, then the server fills prev/last/next stage on VON and writes an audit row in the change-of-processing table. Side effects on VON (amount payable, admin fee, surcharge, payment_acceptance_allowed) were fixed several times through OCMS-DF-2026-097 (AN flag), OCMS-DF-2026-170 (admin fee) and OCMS-SR-2026-107 (surcharge), all Closed. Still visible in code: payment_acceptance_allowed is set to 'Y' for every non-AN notice without checking payment status (ChangeOfProcessingService.java:1010-1013), matching the report in OCMS-DF-2026-173 (Closed; the root cause in the ticket is written as still to be investigated); whether this is fixed on the server: cannot verify from repo. Technical note [Medium confidence]: processNotice is annotated @Transactional but is protected and called from processBatch in the same class (self-invocation), so the Spring proxy is probably not active; saving VON and saving the audit row may not be atomic. Needs a test to verify.",
+  "recommendation": "Claim with a note: 5 Sesuai, 1 Sebagian (payment flag side effect, OCMS-DF-2026-173).",
+  "steps": [
+    {
+      "step": "The officer confirms through a 'CPS Confirmation' modal before saving",
+      "detail": "After the validity check passes, the UI opens a ModalConfirm 'CPS Confirmation' with the text 'Do you want to proceed to Change Processing Stage for N notice(s)?'. If a notice already has a stage change today (existingChangeToday), the text becomes a warning (CPSForm.tsx:149-172). OK calls onSubmit (:332-335). The trigger is the 'Proceed to CPS' button (:380-386), not a button inside the Summary tab."
+    },
+    {
+      "step": "Confirming sends the changes to OCMS to be saved",
+      "detail": "onSubmit maps the items (noticeNo, newStage, reason, remark, letterAddress, isConfirmation, source) and POSTs change-processing-stage with an X-User-Id header (CPSForm.tsx:213-224). The controller calls processBatch (ChangeOfProcessingController.java:74). Submit does not repeat the 'remark required for OTH' rule that exists only in validate (:163-185); the UI guards it."
+    },
+    {
+      "step": "OCMS reverts/escalates the notice's processing stage on VON",
+      "detail": "updateVonStage(von, newStage, true) saves the old stage into prev (prevProcessingStage/Date), sets lastProcessingStage = new stage, and for a manual change sets nextProcessingStage = new stage with the current timestamp (ChangeOfProcessingService.java:1097-1114), then vonService.save (:1036). The new stage may go backwards (revert) or forwards (escalate) as long as it passes EligibilityService; there is no direction comparison. Old/new stage values in the DB: cannot verify from repo."
+    },
+    {
+      "step": "Side effects on VON when the stage changes: amount payable, admin fee, surcharge, payment flag",
+      "detail": "Amount payable is recalculated from composition_amount (:1006-1010), the $15 admin fee applies only at RR3/DR3 (:1157-1168, OCMS-DF-2026-170 Closed), the court surcharge is stored on the VON column (:1016-1029, OCMS-SR-2026-107 Closed), payment_acceptance_allowed stays 'N' for AN-flag notices (:1010-1013, OCMS-DF-2026-097 Closed), and the result is synced to eVON right away (:1041, 1191-1230, soft failure). But payment_acceptance_allowed is still set to 'Y' for every non-AN notice with no check for fully paid or PS-APP (:1010-1013), which is reported in OCMS-DF-2026-173 (Closed, root cause not filled in on the ticket). These side effects are not requested by the story; fit Sebagian because they can leave wrong payment data."
+    },
+    {
+      "step": "The change is logged as a change-of-processing audit record",
+      "detail": "OcmsChangeOfProcessing is saved with noticeNo, dateOfChange, lastProcessingStage (old), newProcessingStage, reasonOfChange, authorisedOfficer = userId, remarks (ChangeOfProcessingService.java:1048-1061). userId comes from the X-User-Id header; without the header the controller falls back to 'SYSTEM' (ChangeOfProcessingController.java:93-107). The UI always sends the header (CPSForm.tsx:222). Atomicity with the VON save: see the @Transactional remark in note."
+    },
+    {
+      "step": "The officer is told the save result per notice and can see the updated notices",
+      "detail": "The UI splits the result into success/failed per notice (FAILED vs others), reloads the successful notices through validoffencenoticelist, then shows a summary modal and opens /notices/cps/view (CPSForm.tsx:249-326, :329). CPSView shows the successful notices (VIEW mode) and a list of failed notices with an 'Edit Failed Notices' button (CPSView.tsx:71-98). Outcome WARNING (same-day duplicate without confirmation) counts as failed in the server summary."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS34.18",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui src/pages/NoticeSearch (context/NoticeSearchUploadContext.tsx, page/upload/UploadResult.tsx, list/NoticeValidList.tsx), components/datagrid/column/index.tsx (payment_status, suspension_type, suspension_reason); ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (validoffencenoticelist), workflows/notice_creation/core/SuspensionProcessingController (plus-apply-suspension, inbound). Tidak ada call OCMS ke PLUS; tidak ada field tanggal appeal, status appeal, atau tanggal reply",
+  "note": "Story minta setelah upload, OCMS otomatis mengecek real-time status pembayaran dan appeal di PLUS (tanggal appeal, status appeal, tanggal reply) lalu menampilkan hasil di layar. Cek pembayaran ada sebagian: begitu officer klik proceed, tiap baris langsung memanggil validoffencenoticelist (NoticeSearchUploadContext.tsx:118-122) dan kolom Payment Status dibaca dari crsReasonOfSuspension (FP/PRA = FP, PP = Partially Paid, selain itu '-'; column/index.tsx:270-283); tanggal bayar tidak ada (export 'Payment Date' selalu '-', SheetData.ts:596). Cek ke PLUS tidak ada: OCMS tidak punya call keluar ke PLUS. Satu-satunya jejak appeal adalah kolom Suspension Type dan Reason for Suspension (eprReasonOfSuspension) yang terisi bila PLUS sebelumnya menerapkan suspension lewat endpoint inbound plus-apply-suspension; appeal yang diterima PLUS tapi belum men-suspend notice tidak terlihat. Tanggal appeal, status appeal, dan tanggal reply tidak ada (tipe Appeal di model.ts:5 dan key i18n appeal_details tidak dipakai komponen mana pun; hanya 'Date of Suspension' di export). Tiket terkait PLUS suspension: OCMS-DF-2026-070 dan OCMS-DF-2026-075 (PS-APP tidak tampil di Suspension Details, status Closed/Prod deployed) menunjukkan data appeal di OCMS bergantung pada suspension dari PLUS; tidak mengubah verdict tapi menguatkan Sebagian. Status story kosong, requirement tidak diberikan.",
+  "recommendation": "Klaim sebagian. Cek status bayar langsung ada, tetapi cek appeal ke PLUS dan data tanggal appeal/status/reply belum ada. Hanya reason suspension dari PLUS yang terlihat",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah upload, OCMS menjalankan pengecekan otomatis real-time per baris",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/Upload.tsx:64-67; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:58-166",
+      "fit": "Sesuai",
+      "detail": "onProceed memanggil onSearch lalu pindah ke halaman result (Upload.tsx:64-67). onSearch memanggil validoffencenoticelist per baris saat itu juga, dengan cache untuk baris kembar (NoticeSearchUploadContext.tsx:71-130), tanpa batch terjadwal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek status pembayaran tiap notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/column/index.tsx:270-283; ocmsadminui/src/utils/data/SheetData.ts:575-578,596",
+      "fit": "Sebagian",
+      "detail": "Payment Status dibaca live dari crsReasonOfSuspension notice: FP/PRA tampil FP, PP tampil Partially Paid, selain itu '-' (column/index.tsx:270-283). Notice belum bayar tampil '-', tidak ada label Unpaid di layar. Tanggal bayar tidak ada: kolom 'Payment Date' di export selalu '-' (SheetData.ts:596). Nilai crsReasonOfSuspension diisi oleh proses payment lain; kebenarannya cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek ke PLUS apakah ada appeal yang diterima untuk notice tersebut",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminui/src/components/datagrid/column/index.tsx:242-260",
+      "fit": "Sebagian",
+      "detail": "Tidak ada call real-time ke PLUS. Yang terlihat hanya Suspension Type dan Reason for Suspension dari data OCMS sendiri (column/index.tsx:242-260), terisi jika PLUS sebelumnya menerapkan suspension lewat endpoint inbound plus-apply-suspension (SuspensionProcessingController.java:485). Appeal di PLUS yang belum men-suspend notice tidak terlihat. OCMS-DF-2026-070 dan OCMS-DF-2026-075 (Closed): PS-APP tidak tampil di Suspension Details; sudah di-deploy ke prod, perilaku sekarang cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil cek memuat tanggal appeal, status appeal, dan tanggal reply appeal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:41-69; ocmsadminui/src/utils/model.ts:5",
+      "fit": "Tidak ada code",
+      "detail": "Grid hasil upload (NoticeValidList.tsx:41-69) tidak punya kolom tanggal appeal, status appeal, atau tanggal reply. Tipe Appeal di utils/model.ts:5 dan key i18n appeal_details tidak dipakai komponen mana pun. 'Date of Suspension' di export bukan tanggal appeal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pengecekan ditampilkan di layar untuk direview officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-76; ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:41-69",
+      "fit": "Sebagian",
+      "detail": "Halaman result menampilkan grid notice (notice no, stage, suspension, payment status, amount payable) dan error list (UploadResult.tsx:64-76). Isinya belum memuat data appeal dari PLUS, jadi layar hanya menampilkan sebagian hasil yang diminta. Sama dengan langkah tampil-layar di OCMS34.19."
+    }
+  ]
+}

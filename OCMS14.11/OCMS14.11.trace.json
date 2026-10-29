@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper (life_status D + date_of_death memicu processPS RIP/RP2, TS-NRO untuk DoD masa depan), utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper} (PS tanpa revival date, stage NPA-CPC), framework/workflows/datahiveuenfin/services/DataHiveUenFinService (jalur DataHive FIN, dimatikan di prod), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: tidak ada jalur khusus untuk story ini",
+  "note": "Story minta notice milik individu dengan life status tertentu (RIP = deceased) langsung disuspend sementara (temporary) dengan suspension code dan period tertentu agar tidak eskalasi. Code: hasil MHA (life_status D + date_of_death) membuat OCMS otomatis menerapkan suspension di job MHA Download yang sama, kode RIP (DoD pada/setelah offence) atau RP2 (DoD sebelum offence). Tetapi itu PS (permanent) tanpa revival date, bukan temporary dengan period; TS hanya dipakai untuk DoD di masa depan (TS-NRO). Status requirement: 'Requirement given - Gen flow' (flow umum, tidak ada flow deck OCMS). Jalur DataHive FIN (cron.mhadownload.uenfin.enabled=false) mati di prod. Isi file MHA dan nilai property di server asli cannot verify from repo. Tiket: OCMS-DF-2026-135 (closed, PS dibatasi ke notice dalam batch) dan OCMS-DF-2026-177 (closed, offender indicator) mengubah cakupan step 1-2",
+  "recommendation": "Klaim sebagian: identifikasi deceased dan penerapan suspension otomatis ada. Bagian 'temporary' dan 'period' tidak sesuai story (code memakai PS tanpa revival date); minta URA konfirmasi apakah PS-RIP/PS-RP2 boleh dianggap setara",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengenali individu dengan life status deceased dari hasil MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:730; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:745-748; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:873-874; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:119-120",
+      "fit": "Sesuai",
+      "detail": "While processing the MHA result file, life_status is saved (MhaNricDownloadHelper.java:730) and date_of_death is parsed and saved (:745-748). The suspension branch only runs when dod != null and life_status is 'D' (:873-874). The MHA Download job is enabled=true in prod, Mon-Sat 11:30, 16:30, 23:30 (cron-schedules-prod.properties:119-120); the real server value cannot be verified from the repo. Scope is limited to the notice in the batch file (OCMS-DF-2026-135, closed), not all notices of the individual; a record without date_of_death is not handled. No role restriction because it is an automatic job."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS langsung menerapkan suspension setelah life status dikenali",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1015-1024; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1566-1575",
+      "fit": "Sesuai",
+      "detail": "The suspension is applied in the same loop that stores life_status (processPS is called at MhaNricDownloadHelper.java:1017-1024 for notices that are not batch-safe; the rest are applied through applyPsSuspensionGetApplied after the loop, :1566-1575). So 'immediately' means in the same MHA Download run, not real-time. A notice that already has another suspension or is paid goes through the per-notice processPS validation and can be rejected (PermanentSuspensionHelper.java:160-163). The second path through DataHive FIN (DataHiveUenFinService.java:1572, :3285) is also off because cron.mhadownload.uenfin.enabled=false (cron-schedules-prod.properties:52)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension memakai code khusus untuk kasus deceased",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:962-965; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1020; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:890; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:34-35",
+      "fit": "Sesuai",
+      "detail": "A dedicated code exists: RIP when date_of_death is on/after the offence date, RP2 when before it (MhaNricDownloadHelper.java:962-965; processPS with SuspensionReason.RIP at :1020; RIP/RP2 constants in SystemConstant.java:34-35). A future DoD uses TS-NRO (:890)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension bersifat temporary (sementara)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/download/helpers/MhaNricDownloadHelper.java:1017-1022; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:68-72; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:25-27",
+      "fit": "Beda dari flow",
+      "detail": "The story asks for a temporary suspension. RIP/RP2 are applied through PermanentSuspensionHelper.processPS (MhaNricDownloadHelper.java:1017-1022; PermanentSuspensionHelper.java:68), so suspension_type = PS (SystemConstant.SuspensionType.PERMANENT). TS is only used for a future DoD (TS-NRO, :890), not for the RIP/RP2 cases."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspension memiliki period (masa berlaku) tertentu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:179-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:606",
+      "fit": "Beda dari flow",
+      "detail": "PS computes the revival date and it is always NULL ('Step 7: Calculate revival date (PS-specific) - Always NULL', PermanentSuspensionHelper.java:179-180), so a RIP/RP2 notice has no period and does not revive automatically. There is no period setting for the RIP/RP2 codes."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak eskalasi ke stage berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:85-88; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:210-214",
+      "fit": "Sebagian",
+      "detail": "A RIP/RP2 suspension can only be applied at stages NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC; at CFC it is rejected (SuspensionBaseHelper.java:85-88, :210-214). A notice with a suspension is marked in VON, but the repo does not prove that every stage cron (reminder, DN, court) skips PS notices; only some were checked. So stopping escalation is only proven for applying the suspension, not for all crons."
+    }
+  ]
+}

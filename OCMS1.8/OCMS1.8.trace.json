@@ -1,0 +1,55 @@
+{
+  "story": "OCMS1.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, jobs/NotificationSmsEmailRetryJob, helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, framework/workflows/agencies/{mha/upload/helpers/MhaNricDataHelper, toppan/upload}; ocmsadminui pages/ENotifExclusion (App.tsx). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story: User Story Removed (1 poin), verdict tetap Removed. Code mirip: tiga kondisi di story (gagal kirim, ID di exclusion list, tidak ada kontak) masing-masing punya jalur yang memindahkan notice ke jalur surat RD1 (last=ROV, next=RD1 besok, patchNextStageToRd1NextDay) supaya Toppan mengambilnya sebagai letter. Pengecekan alamat 'sesuai Epic OCMS8' tidak dipanggil dari jalur ini: alamat dicek oleh job MHA/DataHive/LTA yang berdiri sendiri berdasarkan stage notice, dan Toppan hanya mengirim notice yang punya alamat letter_address='Y'. Step DataHive enrichment di ToppanLettersGeneratorJob dikomentari (ToppanLettersGeneratorJob.java:126-148). Semua ini ikut terkena status scheduler eNotification yang mati (cron.notification.enabled=false) dan Toppan upload yang diblokir config (sftp.upload.disabledServers=toppan). Source yang dipakai adalah src/main/java (salinan cronservice/ di root ocmsadminprivateapi berbeda, tidak dibuild; salinan itu belum memuat gate exclusion sebelum SMS, OCMS-DEV-2026-260). Catatan double check: story Removed, jadi step yang ada code-nya dihitung Sebagian (bukan Sesuai) agar konsisten dengan OCMS1.1-1.5; tidak ada klaim.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengiriman SMS/email gagal walau sudah dicoba berulang terdeteksi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:36-45; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:247; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1218-1230; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:849; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:864; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:72-75",
+      "fit": "Sebagian",
+      "detail": "Retry job (send_ena_reminder_retry, jadwal 14:00) mengambil record SMS/email berstatus 'E' yang date_sent-nya hari ini lalu mengirim ulang (NotificationSmsEmailRetryJob.java:36-45), dan notice yang tetap gagal diproses oleh processFailedNotificationResults (:247, :1218-1230). Jadi ada satu putaran retry per hari, bukan jumlah percobaan yang bisa diatur; properti notification.sms.retry.max/email.retry.max dibaca helper (NotificationSmsEmailHelper.java:62-65) dan hanya dipakai oleh cek retry di helper (:849, :864); loop retry job tidak memakainya. Scheduler retry juga mati bila cron.notification.enabled=false (NotificationJobsScheduler.java:72-75; cron-schedules-prod.properties:236)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID yang ada di exclusion list tidak dikirimi notifikasi elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:197-232; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1228; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1134; ocmsadminui/src/App.tsx:302",
+      "fit": "Sebagian",
+      "detail": "Job memuat semua id_no dari ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1207-1228) dan, SEBELUM batch SMS disiapkan, membuang record yang ID-nya ada di daftar itu; untuk notice ENA langsung dipindah ke RD1 lewat patchNextStageToRd1NextDay (NotificationSmsEmailJob.java:197-232). Query reminder juga memfilter id_no NOT IN exclusion list (NotificationSmsEmailHelper.java:1131-1134). Staff mengelola daftar lewat halaman ENotifExclusion (ocmsadminui/src/App.tsx:302). Gate sebelum batch SMS adalah perbaikan OCMS-DEV-2026-260; salinan lama di root repo masih mengirim SMS dulu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tidak ada nomor mobile atau alamat email (misalnya foreigner) tidak dikirimi SMS/email",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:234-245; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-264; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290",
+      "fit": "Sebagian",
+      "detail": "validateContactInfo menolak individu tanpa phoneNo dan company tanpa email (NotificationSmsEmailHelper.java:2259-2290); untuk notice ENA job memindahkannya ke RD1 (NotificationSmsEmailJob.java:254-264, dan :356-367 untuk kontak kosong di loop kirim). Pemegang paspor (id type P/PASSPORT) tidak pernah dikirimi eNotification dan notice ENA-nya dipindah ke RD1 (:234-245)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dipindahkan ke jalur surat post-dated",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1237-1272; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailRetryJob.java:1262-1275; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:603-614",
+      "fit": "Sebagian",
+      "detail": "patchNextStageToRd1NextDay mengisi lastProcessingStage=ROV, nextProcessingStage=RD1, nextProcessingDate=besok (NotificationSmsEmailHelper.java:1237-1272); retry job memakai target yang sama untuk notice yang tetap gagal (NotificationSmsEmailRetryJob.java:1262-1275). Query Toppan memilih notice dengan next_processing_stage = stage dan next_processing_date <= hari ini (OcmsValidOffenceNoticeRepository.java:603-614), sehingga notice itu keluar sebagai letter RD1 berikutnya. Tanggal surat post-dated dihitung di OCMS1.9."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek alamat terdaftar terbaru vehicle owner sesuai Epic OCMS8",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:563-581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2372-2376; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:266",
+      "fit": "Sebagian",
+      "detail": "Pengecekan alamat ada tapi berdiri sendiri: query MHA NRIC upload memilih notice di next stage RD1/RD2/RR3/DN1/DN2/DR3 dengan id_type 'N' (OcmsValidOffenceNoticeRepository.java:563-581, dipanggil MhaNricDataHelper.java:81), job DataHive/LTA mengisi tipe alamat dan letter_address, dan Toppan membuang notice tanpa alamat letter_address='Y' (ToppanUploadHelper.java:2372-2376; ToppanUploadJob.java:266). Jalur eNotification tidak memanggil pengecekan alamat; langkah DataHive enrichment di ToppanLettersGeneratorJob dikomentari (:126-148). Kelengkapan Epic OCMS8 dinilai di story OCMS8, bukan di sini."
+    }
+  ]
+}

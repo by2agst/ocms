@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload,download} (LtaIdTypeUtil, LtaBatchCode0Processor, LtaProcessingOrchestrator, LtaSnowflakeProcessor, LtaProcessingStageManager), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.streamLtaUploadData, cron-schedules-prod.properties (ltaupload/ltadownload). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "The requirement is given in the story text (status_with_ura: Demo paid 50% of 75%). The story asks OCMS to check and update the vehicle owner details per Epic OCMS7 so the owner ID type is known. In code this is done by the LTA crons in ocmsadminprivateapi: LTA Upload sends an enquiry for notices at stage ROV (non-Foreign vehicles), LTA Download writes the owner into ocms_offence_notice_owner_driver, maps the LTA code to ID type N/F/B/P, then routes the notice to ENA or RD1. Two remarks: (1) the order in code differs from the epic narrative because notices that have a mobile/email go to ENA (eNotification) before the RD1 letter; (2) ticket OCMS-DF-2026-160 (Pending Closure, Prod deployed) reports 894 notices leaving the ROV loop without owner data, so the owner update and routing steps are Sebagian because the fix status cannot be proven from the repo. The Epic OCMS7 document is not in the repo. Vault/DataHive access per environment: cannot verify from repo.",
+  "recommendation": "Claim partially (50% of 75% demo). ID type mapping and the LTA enquiry are proven in code; ask for confirmation that OCMS-DF-2026-160 is closed and that DataHive/Vault access is active in the target environment before a full claim.",
+  "steps": [
+    {
+      "step": "LTA Upload cron sends an ownership enquiry for local-vehicle notices at stage ROV",
+      "detail": "Query streamLtaUploadData selects notices with next_processing_stage = 'ROV', date <= today, offence_notice_type O/E, not PS, and vehicle_registration_type != 'F' (Foreign excluded, per OCMS-DF-2026-118). The ltaupload cron is enabled=true in cron-schedules-prod.properties (03:00 and 19:00). The file content sent to LTA and the LTA SFTP connection: cannot verify from repo."
+    },
+    {
+      "step": "LTA result is read and the owner details (name, ID, ID type) are updated on the notice",
+      "detail": "The code updates ocms_offence_notice_owner_driver with idNo, name, idType and ltaEntityType from the LTA record (Orchestrator:495-503; batch path via planNoticeWithOwnerData, Code0Processor:170). But ticket OCMS-DF-2026-160 (Pending Closure, Prod deployed) records 894 notices that advanced to ENA/RD1 with last stage ROV and no ownership data, plus inconsistent TS-ROV resends; the fix status cannot be proven from the repo, so only Sebagian."
+    },
+    {
+      "step": "OCMS identifies the owner ID type (NRIC, FIN, Passport, UEN) from the LTA code",
+      "detail": "mapLtaOwnerIdTypeToOcms: code 1 -> N, D -> F, 2/3 -> P, 4-9/A-C -> B. The batch path (Code0Processor:1449-1463) returns '-' for an unknown code, while LtaDatabaseOperations.java:142 (Diplomat/VIP path) uses the default N from LtaIdTypeUtil:56; this small difference applies only to unknown codes, valid codes map the same on both paths."
+    },
+    {
+      "step": "Notice is routed by ID type: passport/Diplomat/VIP to RD1, NRIC/FIN/UEN contact lookup then ENA or RD1",
+      "detail": "Passport (code 2/3) -> planStageToRD1; NRIC/FIN/UEN -> dataHiveContactService.lookupContact, then contact found -> planStageToENA, none -> RD1 (Code0Processor:693-763); Diplomat and VIP go straight to RD1 (Orchestrator:101-127; the Diplomat cache bug was closed in OCMS-DF-2026-052). Only Sebagian because (a) the same ticket OCMS-DF-2026-160 says notices advanced to ENA/RD1 without an owner, (b) the definition of 'appropriate follow-up' is in Epic OCMS7, which is not in the repo, (c) notices with a contact go to ENA first, not straight to a letter. DataHive/Vault access in the environment: cannot verify from repo."
+    }
+  ]
+}

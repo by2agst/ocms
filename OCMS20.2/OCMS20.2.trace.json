@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedServiceImpl,UnclaimedController}, crud ocmsizdb/OcmsAdhocNroTemp. ocmsadminprivateapi workflows/agencies/mha/upload/{helpers/MhaNricDataHelper,jobs/MhaNricUploadJob}, workflows/datahiveuenfin/{jobs/DataHiveUenFinJob,services/DataHiveUenFinService}, schedulers/{MhaUploadJobsScheduler,MhaDownloadJobsScheduler}, cron-schedules-prod.properties. ocmsadminui constant.ts (ID_TYPE). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status stories.json 'Requirement given - Gen flow'. Story minta OCMS membedakan notice terhadap perusahaan atau individu lalu otomatis menjalankan pengecekan alamat terdaftar. Code membedakannya lewat id_type penerima surat (dari RDP.owner_id_type atau DN.driver_id_type): N = NRIC, F = FIN, B = UEN. Saat submit Unclaimed, offender yang masih current dan bukan PS dimasukkan ke ocms_adhoc_nro_temp beserta id_type-nya. Id_type N diambil job MHA upload (cron.mhaupload.enabled=true di prod), id_type F/B diambil job DataHive UEN & FIN. Di prod properties cron.mhadownload.uenfin.enabled=false sehingga jalur perusahaan (B) tidak jalan; nilai server nyata cannot verify from repo. Ada dua celah tambahan: (1) DataHiveUenFinJob keluar lebih awal saat tidak ada notice reguler (DataHiveUenFinJob.java:189-191) sebelum membaca antrean adhoc (baris 200), jadi UEN adhoc hanya diproses jika kebetulan ada record reguler; (2) id_type lain seperti P (passport) dan U (unknown) tidak masuk MHA (hanya N) maupun DataHive (hanya F,B) sehingga diam-diam tidak dicek. Tidak ada tiket pemeliharaan yang spesifik pada routing ini; OCMS-DF-2026-133 (PS tidak masuk antrean MHA, Closed) terlihat di code.",
+  "recommendation": "Klaim sebagian: identifikasi tipe ID dan routing individu ke MHA ada; jalur perusahaan (DataHive UEN) mati di prod properties dan punya early-return yang melewati antrean adhoc. Verifikasi flag di server dan perbaiki early-return sebelum diklaim penuh",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membaca tipe ID penerima reminder yang kembali (NRIC, FIN, UEN) dari record reminder letter",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:223; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:268; ocmsadminui/src/utils/constant.ts:191; ocmsadminui/src/utils/constant.ts:193",
+      "fit": "Sesuai",
+      "detail": "buildDtoFromRdp mengisi idType dari rdp.getOwnerIdType() (UnclaimedServiceImpl.java:223) dan buildDtoFromDn dari dn.getDriverIdType() (baris 268); default 'N' bila kosong. Kode tipe di UI: NRIC=N, UEN=B (constant.ts:191,193). Perusahaan dikenali karena tipe ID B, bukan dari field jenis entitas lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah suspension TS-UNC, offender yang masih current offender dan bukan PS dimasukkan ke antrean pengecekan alamat beserta tipe ID-nya",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedController.java:167; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:676; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:691; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:751; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:762",
+      "fit": "Sesuai",
+      "detail": "submit-unclaimed memanggil prepareAdhocNroTempRecords (UnclaimedController.java:167). Method ini melewati notice PS aktif (UnclaimedServiceImpl.java:691, OCMS-DF-2026-133 Closed), memastikan ONOD offender_indicator Y cocok dengan ID penerima, lalu menyimpan idNo dan idType ke ocms_adhoc_nro_temp (baris 751-762). Kegagalan di langkah ini hanya di-log dan tidak membatalkan submit (UnclaimedController.java:166-171)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk individu (NRIC), OCMS otomatis mengirim ID ke MHA untuk mencari alamat terdaftar terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:447; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:160; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:106",
+      "fit": "Sesuai",
+      "detail": "MhaNricDataHelper.queryUnclaimedAndHstData mengambil ocms_adhoc_nro_temp dengan idType N (MhaNricDataHelper.java:442-447); MhaNricUploadJob menggabungkannya ke file enquiry MHA (MhaNricUploadJob.java:160). Cron.mhaupload.schedule jalan Senin-Sabtu 09:00, 14:00, 21:00 dan enabled=true di cron-schedules-prod.properties:105-106. Apakah SFTP ke MHA benar jalan di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Untuk perusahaan (UEN), OCMS otomatis mengirim UEN ke DataHive untuk mencari alamat terdaftar terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:325; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:328; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:336; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:189; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:191; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Code untuk jalur perusahaan ada: queryAdhocNroTempData mengambil ocms_adhoc_nro_temp dengan id_type F atau B (DataHiveUenFinService.java:325-328, 336) dan DataHiveUenFinJob menggabungkannya (DataHiveUenFinJob.java:200). Tetapi (a) cron.mhadownload.uenfin.enabled=false di prod (cron-schedules-prod.properties:52) sehingga MhaDownloadJobsScheduler melewati job ini (MhaDownloadJobsScheduler.java:103-104); nilai server nyata cannot verify from repo; (b) job keluar lebih awal bila query notice reguler kosong (DataHiveUenFinJob.java:189-191) sebelum antrean adhoc dibaca di baris 200, jadi UEN adhoc hanya diproses saat ada record reguler; (c) id_type P/U tidak diproses jalur mana pun. DOS = DataHive/ACRA tidak bisa dikonfirmasi dari repo; yang dipanggil adalah view DataHive V_DH_ACRA_*."
+    }
+  ]
+}

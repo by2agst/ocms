@@ -1,0 +1,25 @@
+{
+  "story": "OCMS27.24",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "There is no check for 'settled X days before the new court mention date' and no decision to send an SMS for warrants. Only the generic parameter maintenance (parameter table + System > Parameter page) can hold the value X; a WARRANT_SETTLE_DATE menu entry exists in the UI metadata but has no route and no code reads that parameter.",
+  "note": "Status blank (requirement not given / status blank); traced normally. Follows OCMS27.23; the new court mention date does not exist in code (see OCMS27.23 step 2), so the date comparison has no input. No relevant maintenance ticket.",
+  "recommendation": "Minimal claim (Sebagian for the generic parameter). The settled-X-days check and the SMS decision do not exist.",
+  "steps": [
+    {
+      "step": "Processed warrant execution details yield the new court mention date as the reference",
+      "detail": "The new court mention date is neither received nor stored (see OCMS27.23 step 2: CasUpdateNoticeItem.java:25-73 has no mention field, OcmsCourtCase.java:27-31 holds only court_payment_due_date). Synonyms searched: mention, next_mention, date_of_next_mention, court date in UI and API."
+    },
+    {
+      "step": "The value X (number of days) is configurable through a parameter maintained in OCMS",
+      "detail": "Generic parameter maintenance exists: the System > Parameter page (App.tsx:377-378, ParameterList.tsx) and APIs /v1/parameter, /v1/parameterlist, /v1/parameterpatch (ParameterController.java:48,81,98; authorization api-authorization.properties:166-167), so X can be stored as a parameter row. The WARRANT_SETTLE_DATE menu entry exists only in metadata (ocmsadminui/src/utils/Meta/System.ts:22,56,163-166; ocmsadminui/src/utils/models/Fsystemadmin.d.ts:30) without a route or page, and no code reads a warrant/settle parameter. Parameter table contents in the DB cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS checks whether the warrant notice is settled X days before the new court mention date",
+      "detail": "There is no comparison of payment/settled date against the mention date. The only payment-status check on the CAS path just rejects an already FULL_PAYMENT notice (CasIntegrationServiceImpl.java:336) with no date. The day calculation in NotificationSmsEmailHelper.java:1114-1118 uses parameter ENOTEDAYS from last_processing_date for reminder stages, not a mention date. Searched: settle, settled, paid before, mention in UI and API."
+    },
+    {
+      "step": "OCMS decides whether to send an SMS to the defendant based on that check",
+      "detail": "There is no warrant-based SMS decision. NotificationSmsEmailJob selects records only for last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) (NotificationSmsEmailHelper.java:1114); warrant stages are not included. In prod cron.notification.enabled=false (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236); the real server value cannot be verified from the repo."
+    }
+  ]
+}

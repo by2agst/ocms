@@ -1,0 +1,21 @@
+{
+  "story": "OCMS14.17",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/casvipvehicle/{jobs/CasVipVehicleRefreshJob,services/CasVipVehicleService,models/*}, framework/schedulers/CasVipVehicleJobsScheduler, framework/controllers/CasVipVehicleController, crud/ocmsizdb/OcmsVipVehicle/*, cron-schedules-prod.properties, application-prod.properties. No relevant code in ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi; ocmsadminapi only has a /vipvehicle CRUD",
+  "note": "The story asks OCMS to receive the daily list of classified vehicles with the start and end date of each record from FOMS. In code, the CasVipVehicleJobsScheduler cron at 02:00 calls the CAS API (/CAS/casOCMS/v1/getVIPVehicles via APIM) and replaces the content of table ocms_vip_vehicle (delete all, then insert). But the response is read for only three fields (vehicleNo, description, status) and the table has no start/end date columns, so the record date range is neither received nor stored. The word FOMS does not appear in the repo; the source is named CAS, so FOMS = CAS cannot be confirmed from repo. Flag cron.casvipvehicle.enabled=true in the prod properties, but the real server value and whether the partner call succeeds cannot be verified from repo. The comment in CasVipVehicleRefreshJob says upsert + mark defunct, while the code deletes all rows and re-inserts. Ticket OCMS-SR-2026-051 (Closed, Prod deployed): table ocms_vip_vehicle was once patched manually through a DB script; such a patch is overwritten by the next refresh unless CAS sends that row. Demo remark: 'Was working previously' (cannot be proven from the repo).",
+  "recommendation": "Partial claim: the daily list pull and storage of vehicle numbers exist. Record start/end dates are neither received nor stored; ask URA to confirm whether FOMS is the same as CAS and whether a date range is actually sent.",
+  "steps": [
+    {
+      "step": "OCMS calls the external source every day to pull the classified vehicle list",
+      "detail": "@Scheduled uses cron.casvipvehicle.schedule = '0 0 2 * * ?' (cron-schedules-prod.properties:336) and runs only when cron.casvipvehicle.enabled=true (properties:337, checked in CasVipVehicleJobsScheduler.java:43). The job calls apimUtil.callApimPostCustomSecret to /CAS/casOCMS/v1/getVIPVehicles (application-prod.properties:112) with sender=OCMS and targetReceiver=CASOCMS (CasVipVehicleService.java:70-86); a manual trigger POST /cas-vip/refresh exists (CasVipVehicleController.java:48). The word FOMS is not in the repo, the source is named CAS in code: FOMS = CAS cannot be confirmed from repo. The flag value on the real server and whether the partner call succeeds cannot be verified from repo."
+    },
+    {
+      "step": "The received vehicle numbers are stored in OCMS for identification",
+      "detail": "If the response is empty the table is left unchanged (CasVipVehicleService.java:123-131). Otherwise all ocms_vip_vehicle rows are deleted (line 135) and re-filled: vehicleNo is trimmed and upper-cased (149), rows without vehicleNo are skipped (144-147), status defaults to 'A' (154), saved via saveAll (161) inside one @Transactional (114). Entity OcmsVipVehicle: vehicle_no (PK), description, status (OcmsVipVehicle.java:28-36). The job header comment says upsert + mark defunct, but the code is delete-all then insert; manual changes to the table (e.g. the OCMS-SR-2026-051 patch) are overwritten by the next refresh."
+    },
+    {
+      "step": "OCMS receives and stores the start date and end date of each classified vehicle record",
+      "detail": "The CAS response is mapped only to vehicleNo, description, status (CasVipVehicleResponse.java:29-42) and @JsonIgnoreProperties(ignoreUnknown=true) (line 23) drops other fields. Entity OcmsVipVehicle has no start/end date columns (OcmsVipVehicle.java:28-36). The request to CAS carries only sender, targetReceiver, dateSend, timeSend (VipVehicleRequest.java:19-25). Whether CAS/FOMS actually sends a date range cannot be verified from repo."
+    }
+  ]
+}

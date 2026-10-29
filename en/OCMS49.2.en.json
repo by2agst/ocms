@@ -1,0 +1,49 @@
+{
+  "story": "OCMS49.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi workflows/spcp/controller/SpcpController (session NRIC + JWT), workflows/parkingfines/{ParkingFinesController.handleIdNoSearchFromJwt,ParkingFinesServiceImplement.findParkingFinesByIdNo}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud/ocmspii/eocmsoffencenoticeownerdriver. ocmseserviceui route/route.ts, pages/Payment/{API,PaymentSearch,PaymentSearchResult}.ts. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no clearance code",
+  "note": "The story asks the page to check whether a clearance slip can be generated under the NRIC from pre-defined conditions (all warrants permanently suspended, within the past X months). The code has no Clearance Slip feature: the word 'clearance' does not appear in any of the six repos, and there is no UI route, endpoint, rule or eligibility flag. Only reusable groundwork exists: the NRIC session from login (SpcpController.java:118) and notice lookup by NRIC through the JWT (ParkingFinesController.java:279-312), used by the fine search. The 6-month window at EocmsValidOffenceNoticeRepository.java:84 belongs to the noticeNo/vehicleNo search, not clearance, and the NRIC search does not use it. The 'Built - Has gap' status in the sheet is not backed by code for the core steps (warrant PS check, X months, decision). Singpass and gateway: cannot verify from repo.",
+  "recommendation": "Do not claim as done. Only the NRIC login session and notice lookup by NRIC can be reused; the clearance condition check (warrant PS, X months, decision) does not exist. Ask URA/the team in which repo this feature was built, or mark as a gap",
+  "steps": [
+    {
+      "step": "Offender has logged in to the Online Customer Portal and the session carries the NRIC",
+      "detail": "After the Singpass/Corppass auth response, createSession(sessionId, nric, entityId) stores the NRIC in the PII DB and generateToken(sessionId) issues a JWT (SpcpController.java:118,122; bypass path :199,203). The Singpass handshake itself: cannot verify from repo. This story has no login page of its own (that is OCMS49.1)."
+    },
+    {
+      "step": "The Clearance Slip service page opens for the logged-in offender",
+      "detail": "routes only holds payment, payment/processing, payment/success, payment/failure and furnish-particulars (route.ts:15-42). There is no route, component or the word 'clearance' in ocmseserviceui, ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi, ocmsadminui or thirdpartyapi (case-insensitive grep, 0 hits)."
+    },
+    {
+      "step": "The page asks the server whether any clearance slip can be generated",
+      "detail": "The only NRIC-based request from the UI is APIPostSearchFinesSPCP, which POSTs {searchType: 'id', filter} to the parkingfines endpoint (API.ts:100-105, called from PaymentSearch.ts:465). That is a notice search for fine payment, not a clearance check; ocmseserviceapi has no clearance endpoint."
+    },
+    {
+      "step": "The offender's NRIC is taken from the login session, not typed by the user",
+      "detail": "handleIdNoSearchFromJwt validates the Bearer JWT, looks up the session by subject, then uses getUserId() (or entityId for Corppass) as idNo; the UI payload carries only searchType/filter/$limit/$skip (ParkingFinesController.java:52-54, 279, 306-311). The mechanism fits 'under my NRIC' but is currently used by the fine search."
+    },
+    {
+      "step": "The system loads all notices belonging to the offender by NRIC",
+      "detail": "findParkingFinesByIdNo reads notice_no from eocms_offence_notice_owner_driver with the decrypted id_no and offender_indicator = 'Y' (OwnerDriverRepository:29), then eocms_valid_offence_notice (ParkingFinesServiceImplement.java:148-160). The NRIC lookup exists, but the result is a pay-fines list (outstanding/paid), not filtered to warrant notices and not evaluated for clearance."
+    },
+    {
+      "step": "The system recognises which notices have become a warrant of arrest",
+      "detail": "A warrant is recognised by last_processing_stage: the UI uses the list COW/CWW/CWM/CTW/CWT only to show the warrant Terms and Conditions before payment (PaymentSearchResult.ts:771-777), the API uses COURT_PROCESSING_STAGES for payment condition logic (ParkingFinesServiceImplement.java:33, 365-367). The stage data is readable, but it is not used to judge clearance eligibility."
+    },
+    {
+      "step": "The system checks that all warrants of arrest are permanently suspended",
+      "detail": "There is no check that 'all warrants are PS'. suspension_type = 'PS' is only used for PS-ANS (annulled) as non-payable E5 (EocmsValidOffenceNoticeRepository.java:98, ParkingFinesServiceImplement.java:212) and for furnish exclusions. Notices at warrant stage COW are instead included in the pay list (Repository:96)."
+    },
+    {
+      "step": "The system checks the suspension happened within the past X months",
+      "detail": "The only month window tied to suspension is DATEADD(MONTH, -6, GETDATE()) on crs_date_of_suspension, hardcoded in the findAllByNoticeNoIn query (Repository:84) for noticeNo/vehicleNo search. The query used by the NRIC search, findAllByNoticeNoInWithoutCrsFilter (Repository:102), has no such window. There is no X-months property in application.properties; other 3/6 month values live in furnish (FurnishApplicationListServiceImpl.java:172-173), unrelated to clearance."
+    },
+    {
+      "step": "Other pre-defined conditions are configurable without a code change (the X value, the condition list)",
+      "detail": "There is no clearance rule configuration in application.properties (grep month/clearance: none) nor a table/parameter in the other repos. The story's 'e.g.' implies further conditions that the repo does not define; the final list: cannot verify from repo."
+    },
+    {
+      "step": "The system decides and returns the result: a clearance slip can be generated or not",
+      "detail": "The search response carries the notice list, totalOutstanding, totalPaid, and error E7 when empty (ParkingFinesController.java:315-360). There is no 'eligible for clearance slip' field or flag and no trigger to generate a slip. The nearest thing is the ReceiptController printslip (a payment receipt), not clearance."
+    }
+  ]
+}

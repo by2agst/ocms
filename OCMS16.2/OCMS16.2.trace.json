@@ -1,0 +1,55 @@
+{
+  "story": "OCMS16.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/{Valid,ValidNoticeSearchOutstanding,ValidNoticeSearchAll}, pages/NoticeSearch/list/NoticeSearchOutstandingList, components/datagrid/table/TableBody. ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticeValidationStatus). Repo lain: tidak ada code terkait",
+  "note": "Status di stories.json: 'Requirement given - Gen flow' (tidak ada flow deck). Pesan error yang diminta story tersebar di dua tempat: validasi format di form pencarian staff portal, dan penolakan per notice di endpoint PLUS /v1/plus-apply-reduction (404 'Notice not found', 409 'Notice has been paid' / 'Notice is not eligible'). Tidak ada pesan error di langkah pencarian untuk paid atau cancelled; daftar hanya kosong ('No records to display'). Yang paling berisiko: pengecekan PS/cancelled di ReductionValidator tidak pernah dipanggil, jadi notice PS (termasuk kode CAN) yang berada di stage eligible tidak ditolak oleh endpoint apply. Kondisi di PLUS: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Pesan not found / paid / not eligible ada di endpoint apply, bukan di pencarian; pesan cancelled belum ada. Jangan klaim sebagai 'error di layar pencarian' tanpa konfirmasi bahwa PLUS meneruskan pesan endpoint ke officer.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nilai pencarian dengan format salah ditolak dengan pesan error",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchOutstanding.ts:15-19; ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:38; ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:117; ocmsadminui/src/utils/validation/NoticeSearch/Valid.ts:24; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchAll.ts:25",
+      "fit": "Sebagian",
+      "detail": "Form Outstanding memvalidasi ID (pesan 'Number does not match NRIC/FIN/UEN format', Valid.ts:117), vehicle no. (Valid.ts:38) dan nama (ValidNoticeSearchOutstanding.ts:15-19). Format notice number hanya divalidasi di form All Notices (ValidNoticeSearchAll.ts:25, pesan error.notice_no.format di Valid.ts:24). Ini validasi format saja: notice number yang formatnya benar tapi tidak ada, tidak menghasilkan error di tahap ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error jika notice sudah paid",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:149; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:184-189; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:53-54; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:105-124",
+      "fit": "Sebagian",
+      "detail": "Penolakan paid ada di endpoint apply: query findNoticeValidationStatus menandai PAID bila crs_reason_of_suspension = 'FP' atau epr_reason_of_suspension = 'PRA' (OcmsValidOffenceNoticeRepository.java:53-54), ReductionServiceImpl.java:184-189 mengembalikan NOTICE_PAID, dan controller memetakannya ke 409 'Notice has been paid' (ReductionController.java:149). Di langkah pencarian staff portal tidak ada pesan paid: list Outstanding hanya memakai default filter (NoticeSearchOutstandingList.tsx:105-124). Pesan 409 sampai ke officer hanya jika PLUS menampilkannya: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error jika notice sudah cancelled",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:73-94; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionValidator.java:312-316; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:49-72; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:39; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:114-122",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pesan cancelled. Kata 'cancel' tidak muncul di folder payment_reduction maupun pencarian staff portal. Kode PS 'CAN' ada sebagai konstanta (SystemConstant.java:39) tetapi tidak dirujuk jalur reduction. Query kelayakan hanya melihat rule code dan last_processing_stage (OcmsValidOffenceNoticeRepository.java:49-72). ReductionValidator.validateNotPermanentlySuspended (ReductionValidator.java:73-94) yang menolak PS kecuali DIP/FOR/MID/RIP/RP2 hanya dipanggil dari validateAll (ReductionValidator.java:312-316) dan validateAll tidak dipanggil siapa pun, jadi notice PS-CAN di stage eligible tidak ditolak endpoint apply. List Outstanding menyaring PS dari tampilan (NoticeSearchOutstandingList.tsx:114-122) tetapi diam-diam, tanpa pesan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan error jika notice tidak ditemukan atau tidak eligible",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:60-67; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:190-195; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:148; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:150; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:55-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:108-118",
+      "fit": "Sebagian",
+      "detail": "Endpoint apply mengembalikan 404 'Notice not found' bila notice tidak ada (ReductionServiceImpl.java:60-67, ReductionController.java:148) dan 409 'Notice is not eligible' (ReductionServiceImpl.java:190-195, ReductionController.java:150). Eligible = rule code 30305/31302/30302/21300 di stage NPA..CWT, atau rule code lain hanya di RR3/DR3/stage court (OcmsValidOffenceNoticeRepository.java:55-68, SystemConstant.java:108-118). Pesan ini keluar pada saat apply lewat PLUS, bukan di langkah pencarian; sampai ke officer: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan pesan jika tidak ada notice yang berlaku",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/components/datagrid/table/TableBody.tsx:19; ocmsadminui/src/components/datagrid/table/TableBody.tsx:73",
+      "fit": "Sebagian",
+      "detail": "Jika pencarian tidak menemukan baris, Datagrid hanya menampilkan teks default 'No records to display' (TableBody.tsx:19, dirender di TableBody.tsx:73). Itu pesan generik, tanpa alasan (nilai salah / tidak ada yang bisa di-reduce) seperti yang diminta story."
+    }
+  ]
+}

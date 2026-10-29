@@ -1,0 +1,82 @@
+{
+  "story": "OCMS48.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController (POST /v1/plus-payment-activation), dto/PlusPaymentActivationNotice, service/CasIntegrationServiceImpl.updatePaymentActivation}, auth/filter/JwtFilter, config/WebConfig; crud OcmsCourtCase. ocmsadminprivateapi workflows/plus/payment_activation_court/{PaymentActivationCourtController,PaymentActivationCourtServiceImpl} (POST /v1/plus-payment-activation-court, hanya noticeNumber + flag). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah ini.",
+  "note": "Status sheet 'No requirement' (requirement tidak diberikan), jadi story ditrace dari teksnya. Bagian ini adalah yang paling nyata dibangun di epic 48: PLUS memanggil POST /v1/plus-payment-activation (maks 10 notice) membawa noticeNumber, amountPayable, courtPaymentDueDate, remarks, createdBy, paymentAcceptanceAllowed (Y/N). OCMS memvalidasi notice ada (OCMS-4001) dan belum bayar (OCMS-4003), lalu menyimpan amount + flag ke VON, due date + remarks ke ocms_court_case, dan flag + amount ke eVON (yang dibaca portal). Gap: (1) adminapi tidak mengecek court stage; cek court stage hanya ada di endpoint kembar di ocmsadminprivateapi (plus-payment-activation-court, hanya noticeNumber + flag, PaymentActivationCourtServiceImpl.java:44). (2) 'sudah bayar' dinilai dari crs_reason_of_suspension tidak kosong (CasIntegrationServiceImpl.java:790), sedangkan casUpdateCourtNotices memakai payment_status FP (:336), dua definisi berbeda. (3) amountPayable hanya @NotNull, nilainya tidak divalidasi. (4) /v1/plus-* di-skip dari JwtFilter dan interceptor otorisasi (JwtFilter.java:179; WebConfig.java:83), proteksi bergantung APIM yang tidak terlihat di repo, cannot verify from repo. (5) VON dan eVON memakai datasource berbeda; atomicity lintas DB tidak dibuktikan. Tiket: OCMS-SR-2026-021 (court notice payable di e-service karena data patch, ePay tidak membaca flag; bukan perubahan code ini), OCMS-SR-2026-043 (closed, tanpa perubahan code).",
+  "recommendation": "Klaim sebagian besar: penerimaan request PLUS, validasi dasar dan penyimpanan ke VON/ocms_court_case/eVON ada. Catat gap court stage di adminapi, definisi 'sudah bayar' yang tidak seragam, dan proteksi endpoint yang bergantung APIM. Konfirmasi ke URA/tim bahwa jalur PLUS (bukan layar staff) memang yang dimaksud story.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request enable/disable payment ke OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:220-222; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83",
+      "fit": "Sesuai",
+      "detail": "POST /v1/plus-payment-activation (CasIntegrationController.java:220-222) menerima request dari PLUS. Path /v1/plus-* di-skip dari JwtFilter (JwtFilter.java:179) dan dari interceptor otorisasi (WebConfig.java:83), jadi proteksi hanya bisa datang dari APIM; itu tidak terlihat di repo, cannot verify from repo. Ada endpoint kembar di ocmsadminprivateapi (PaymentActivationCourtController.java:24, /plus-payment-activation-court); repo tidak menunjukkan mana yang dipanggil PLUS di produksi, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request membawa detail: notice number, composition amount, payment due date, flag Y/N",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/PlusPaymentActivationNotice.java:26-47; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:229",
+      "fit": "Sesuai",
+      "detail": "DTO PlusPaymentActivationNotice memuat noticeNumber (:26-27), amountPayable (@NotNull, :30-31), courtPaymentDueDate (:34-35), remarks (:37-38), createdBy (:41-42), dan paymentAcceptanceAllowed yang wajib Y/N lewat @Pattern (:46-47). Batas 10 notice per request (CasIntegrationController.java:229). Catatan: nilai amountPayable tidak divalidasi selain tidak null."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi notice yang diminta ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:777-784",
+      "fit": "Sesuai",
+      "detail": "Notice dicari di VON lewat map hasil findAllById; kalau tidak ada, hasil per notice OCMS-4001 'Invalid Notice Number' (CasIntegrationServiceImpl.java:777-784) dan notice lain tetap diproses."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memvalidasi notice applicable (court notice dan belum bayar)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:789-796; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/payment_activation_court/PaymentActivationCourtServiceImpl.java:44; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:336",
+      "fit": "Sebagian",
+      "detail": "Cek belum bayar ada: crs_reason_of_suspension tidak kosong dianggap sudah bayar, hasil OCMS-4003 (CasIntegrationServiceImpl.java:789-796). Tidak ada cek bahwa notice berada di court stage di endpoint ini. Cek court stage (COURT_STAGES, SystemConstant.java:103) hanya ada di endpoint kembar ocmsadminprivateapi (PaymentActivationCourtServiceImpl.java:44) yang tidak menerima amount/due date. 'Sudah bayar' di sini beda definisi dengan casUpdateCourtNotices yang memakai payment_status FP (CasIntegrationServiceImpl.java:336). Sebagian karena setengah kriteria applicable tidak dicek di endpoint utama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan composition amount dan payment acceptance flag ke VON",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:800-803; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:741",
+      "fit": "Sesuai",
+      "detail": "amount_payable dan payment_acceptance_allowed di-set dari request lalu disimpan lewat noticeRepository.saveAll (CasIntegrationServiceImpl.java:800-803, :741), upd_user_id diisi createdBy."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan payment due date dan remarks ke data court case",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:805-826; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:742; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:27-28",
+      "fit": "Sesuai",
+      "detail": "Kalau row ocms_court_case ada, courtPaymentDueDate (hanya bila dikirim) dan reason (dari remarks) di-update; kalau belum ada dan due date dikirim, row baru dibuat (CasIntegrationServiceImpl.java:805-826, saveAll :742). Tanpa due date dan tanpa row lama, tidak ada row dibuat dan due date tidak tersimpan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memperbarui eVON agar portal publik membaca flag dan amount yang sama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:828-837; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:743; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:258",
+      "fit": "Sesuai",
+      "detail": "Bila row eVON ada, amount_payable dan payment_acceptance_allowed ikut di-set dan disimpan (CasIntegrationServiceImpl.java:828-837, :743). Portal memfilter notice payable dengan flag 'Y' dari data eVON (ParkingFinesController.java:258). VON dan eVON ada di datasource berbeda; atomicity penyimpanan lintas DB tidak dibuktikan dari repo, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membalas hasil per notice ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:748-752; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:243-245",
+      "fit": "Sesuai",
+      "detail": "Response berisi updatedCount, failedCount dan daftar hasil per notice dengan appCode (OCMS-2000 sukses, OCMS-4001, OCMS-4003, OCMS-4007 system error per notice) (CasIntegrationServiceImpl.java:748-752; CasIntegrationController.java:243-245). Request di atas 10 notice ditolak OCMS-4013 (:229-241)."
+    }
+  ]
+}

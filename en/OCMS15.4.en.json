@@ -1,0 +1,29 @@
+{
+  "story": "OCMS15.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/CPS/page/CPSSearch.tsx (Datagrid 'Eligible Notices', columns, getAddress, useSelectAll), utils/constant.ts (NOTICE_SEARCH_LIMIT); ocmsadminapi OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices/populateAddressFieldsFromBatch, dto/SearchChangeProcessingStageResponse, dto/SearchChangeProcessingStageRequest}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The story asks for a list of notices with key details (notice number, current processing stage) so the officer can select them for the bulk change. The 'Eligible Notices' Datagrid shows notice no, current stage and its date, plus offence type, offence date, vehicle no, offender ID/name, suspension type/reason and address; every row can be selected (row/all). Gap: the address columns use getAddress, which only handles letterAddress furnished_mail and mha_reg; every other value (including lta_mail, which the API sends) falls back to the lta_reg address, so a notice whose letter address is lta_mail shows the registered address, not the mail address. Select All is limited to 1000 notices (NOTICE_SEARCH_LIMIT) with a warning modal. Maintenance tickets: none touches this list. The result total and UI pagination were not traced into the Datagrid component (cannot verify).",
+  "recommendation": "Can be claimed with a note (Evidence 90%): the list and key details are Sesuai; fix getAddress so lta_mail shows correctly",
+  "steps": [
+    {
+      "step": "The search result is shown as a list of eligible notices",
+      "detail": "The Datagrid titled 'Eligible Notices' fetches from change-processing-stage/search via POST and loads nothing until Search is pressed (showInitData={false}) (CPSSearch.tsx:333-364). The API only sends notices that pass the eligibility filters (Controller:251-259)."
+    },
+    {
+      "step": "The list shows key details: notice number, current processing stage and stage date, plus offence type, vehicle, offender, suspension",
+      "detail": "Columns: Notice No (366), Offence Type (369-372), Offence Date & Time (375-378), Vehicle No (418), Offender ID (421), Offender Name (424-427), Current Processing Stage (430-433), Current Processing Date (436-439), Suspension Type (442-445) and Reason for Suspension (448-451). Both details named in the story exist."
+    },
+    {
+      "step": "The list shows the offender letter address",
+      "detail": "The API sends letterAddress = the type_of_address flagged letter_address 'Y' (lta_reg, lta_mail, mha_reg or furnished_mail) with its address field group (Service:884-886, 902-910). getAddress in the UI only matches furnished_mail and mha_reg and takes everything else from lta_reg (CPSSearch.tsx:45-73), so letterAddress lta_mail shows the LTA registered address, not the mail address. The address is not named in the story, but the column is wrong for that case."
+    },
+    {
+      "step": "The API returns those fields per notice, sorted and paginated",
+      "detail": "Each EligibleNotice is filled with noticeNo, offenceType, offenceDateTime, offender name/id (ONOD offender_indicator='Y'), vehicleNo, currentProcessingStage, currentProcessingStageDate, suspensionType and reasonForSuspension (Service:529-546). Default order is offenceDateTime DESC and can be changed through a whitelisted field (493-503); default limit 10, default skip 0 (SREQ:136-142; Service:505-516)."
+    },
+    {
+      "step": "The officer can select one, several or all notices from the list for the bulk change",
+      "detail": "The Datagrid uses a checkbox per row and select all (CPSSearch.tsx:346-349). Select All repeats the search with $limit = total; when the total exceeds NOTICE_SEARCH_LIMIT (1000, constant.ts:96) a modal 'The result set is too large' appears and nothing is selected (CPSSearch.tsx:81-116)."
+    }
+  ]
+}

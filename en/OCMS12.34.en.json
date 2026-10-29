@@ -1,0 +1,33 @@
+{
+  "story": "OCMS12.34",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, utilities/{smsutility/SmsUtil, emailutility/EmailService}, properties cron-schedules-prod, application-prod and application-uat. Other repos: no related code. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark: Vault & email, Code Split, email permission for the api App Service (cannot verify from repo). There is no flow deck. The hirer's 3rd letter = stage RR3 (see OCMS12.31). The same eNotification cron as OCMS9.8 and OCMS12.20 sends email reminders to companies for stage RR3: notices are picked through the due-date window, combined per UEN, and template RR3_EMAIL_COMPANY[_COMBINED] is chosen from the stage. The email skip for stages DN1/DN2/DR3 does not apply to RR3. Not proven: the sentence that refers to the 3rd letter (it lives in the DB template) and real delivery, because in PROD cron.notification.enabled=false, email.enableSmtp=false and ENOTIFICATION is not in email.smtp.allowedSources. Fetching the email from 'DOS' is covered by OCMS12.32; DOS = DataHive/LTA cannot be confirmed from the repo. The fit of the combining step equals OCMS9.8 and OCMS12.20.",
+  "recommendation": "Claim partially. Selecting RR3 company hirers, combining per UEN, and choosing the email template exist in code, but cron.notification.enabled and email.enableSmtp are off in PROD and the template text is not in the repo. Switch them on in UAT and show one RR3 company-hirer email that lists the notices and refers to the 3rd letter",
+  "steps": [
+    {
+      "step": "OCMS collects the outstanding notices of company hirers already at stage RR3 for the day's batch",
+      "detail": "The eNotification job calls queryRecordsForReminder() (NotificationSmsEmailJob.java:162) and sets the stage from last_processing_stage on each row (NotificationSmsEmailJob.java:170-182). The query picks notices with last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3), offender_indicator Y, not on the exclusion list, no SMS/email record yet for the same stage, and a due date inside the ENOTEDAYS window (NotificationSmsEmailHelper.java:1109-1114, 1135-1160). A company hirer at RR3 is included because the query does not tell owner and hirer apart (hirer 3rd letter = RR3, see OCMS12.31); vehicle types I, D, V are excluded. The ENOTEDAYS/POS/PDD parameters are in the DB, cannot verify from repo. Fetching the email from 'DOS' is covered by OCMS12.32; DOS = DataHive/LTA cannot be confirmed from the repo. Same fit as OCMS12.20."
+    },
+    {
+      "step": "OCMS identifies the unique company hirer UENs among the notices in the batch",
+      "detail": "combineNotices(records) (NotificationSmsEmailJob.java:191) groups by getRecipientKey: for a company the key is 'B_' + UEN (NotificationSmsEmailHelper.java:2230-2250). But compositeKey = recipientKey + '_' + stage + '_' + paymentDueDate (NotificationSmsEmailHelper.java:2178), so the same UEN with a different due date or stage becomes a separate group and can still get more than one email on the same day. The story asks for one unique recipient per batch. Same fit as OCMS12.20 and OCMS9.8."
+    },
+    {
+      "step": "Only company hirers (ID type B) that have an email are used for the email",
+      "detail": "idType B decides the EMAIL channel (NotificationSmsEmailJob.java:353-354; NotificationSmsEmailHelper.java:443-453). validateContactInfo rejects a company without email (NotificationSmsEmailHelper.java:2259-2275) and companies do not enter the SMS batch (NotificationSmsEmailJob.java:269-277). The email skip applies only to stages DN1, DN2 and DR3 ('no template available', NotificationSmsEmailHelper.java:311-317); RR3 is not included, so the email for a company hirer at RR3 is still processed. Same fit as OCMS12.20."
+    },
+    {
+      "step": "The email lists the outstanding notices combined per company hirer",
+      "detail": "Non-ENA notices of one UEN are combined (combinedNotices joined with '.', amountPayable summed, NotificationSmsEmailHelper.java:2182-2200). prepareTemplateData passes noticeCount and combinedNotices to the template (NotificationSmsEmailHelper.java:410-433); generateMessages picks <STAGE>_EMAIL_COMPANY with suffix _COMBINED when there is more than one notice (NotificationSmsEmailHelper.java:274-301, 459-475), so for RR3: RR3_EMAIL_COMPANY[_COMBINED]. The template content is in ocms_template_store, cannot verify from repo. Same fit as OCMS12.20."
+    },
+    {
+      "step": "The email refers to the 3rd letter reminder/notification",
+      "detail": "The code only picks the template name from the stage: RR3_EMAIL_COMPANY or RR3_EMAIL_COMPANY_COMBINED (NotificationSmsEmailHelper.java:459-475). If the template is missing, the email is skipped with a log line (NotificationSmsEmailJob.java:383-385). No code inserts a reference to the third letter; that depends on the template content in ocms_template_store, which is not in the repo (cannot verify from repo). Same fit as OCMS12.20."
+    },
+    {
+      "step": "OCMS sends the email reminder to the company hirer",
+      "detail": "The job calls notificationHelper.sendEmail (NotificationSmsEmailJob.java:388), which calls EmailService with source ENOTIFICATION (NotificationSmsEmailHelper.java:556-580). But in PROD cron.notification.enabled=false (cron-schedules-prod.properties:236; the scheduler returns right away in NotificationJobsScheduler.java:49-52), email.enableSmtp=false (application-prod.properties:80) and email.smtp.allowedSources does not contain ENOTIFICATION (application-prod.properties:81), so EmailService returns false (EmailService.java:64-72). In UAT ENOTIFICATION is on the allowlist (application-uat.properties:79). Ticket OCMS-DF-2026-180 says 'Awaiting eNotification cron to activate'. The real PROD server values, the email permission for the api App Service (demo_remark) and real email delivery cannot verify from repo. Same fit as OCMS12.20."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult}.ts (NonPayment, InitNonPayment, link to the Notice Number tab). ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, crud/ocmsezdb/eocmsusermessage (the E7/E8/E9 message text is in the DB). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "Status sheet 'Demo paid (50% of 75%)', demo_remark: Internet PII encryption (an environment issue). A vehicle number search with no outstanding fine returns message E9, and a Singpass user with no notice at all gets message E7; the UI shows that message (or the fallback text 'There is no outstanding parking offence as of dd-MMM-yyyy') together with a 'check or pay' link to the Notice Number tab. Gap: a Singpass user who has only paid notices does not see the message but the 'paid' tab (PaymentSearch.ts:504-517); a notice number search for an already paid notice returns E8 because the query drops FP notices; a server error or exception is shown as the same 'no outstanding' message (ParkingFinesServiceImplement.java:235-238 and 100-103, PaymentSearch.ts:535-538). The E7/E8/E9 text sits in table eocms_user_message and there is no seed in the repo: cannot verify from repo. Ticket: OCMS-DF-2026-011 (AXS showed a court message although there was no outstanding notice on a vehicle number search; Closed, Prod deployed) concerns the AXS channel and the eService API, not this portal UI, so it does not change the verdict.",
+  "recommendation": "Limited claim: the 'no outstanding' message and the link to the notice search exist. A Singpass user whose notices are all paid, and a paid notice on the notice number search, do not show that message",
+  "steps": [
+    {
+      "step": "Search by a vehicle number with no outstanding fine: the API returns a 'no outstanding' message",
+      "detail": "Query findAllByVehicleNoIn only takes notices with crs_reason_of_suspension IS NULL and an_flag not Y (lines 46-61). When the result is empty, handleVehicleNoSearch calls buildFormattedErrorResponse('E9') (line 401). The E9 text is read from the DB (eocms_user_message) through getMessage; the text itself: cannot verify from repo. When a notice exists but is not payable (e.g. court), the result is a list with a per-notice message, not the 'no outstanding' message."
+    },
+    {
+      "step": "A Singpass user with no outstanding fine gets a 'no outstanding' message",
+      "detail": "Only when the user has no notice at all does the API return message E7 (line 316). When the user has notices but all are paid, the API returns empty data with totalPaid > 0 and the UI opens the 'paid' tab (PaymentSearch.ts:504-515) instead of the 'no outstanding' message; InitNonPayment is called only when totalPaid = 0 (line 517). The E7 text in the DB: cannot verify from repo."
+    },
+    {
+      "step": "The page displays a message that there is no outstanding fee/fine",
+      "detail": "NonPayment renders an info box with the API message (apiMessage) or the fallback 'There is no outstanding parking offence as of dd-MMM-yyyy. Please try again later.' (lines 671-679). Note: the catch block in PaymentSearch.ts:535-538 also calls InitNonPayment, so a failed API call is shown as the same message."
+    },
+    {
+      "step": "The page offers to repeat the search under a particular notice number",
+      "detail": "The 'check or pay' link ('You may wish to check or pay for another Notice Number.') calls resetNoticeInputs, sets currentTab = 3 (Notice Number tab) and stepper.show(1) back to the search form (lines 662-666). A logged-in Singpass user then using this tab: session behaviour cannot verify from repo."
+    },
+    {
+      "step": "The notice number search shows the notice status more accurately",
+      "detail": "handleNoticeNoSearch uses query findAllByNoticeNoIn (lines 62-79), which returns only annulled notices (an_flag = Y) or notices still outstanding (crs_reason_of_suspension IS NULL). A paid (FP) notice is not returned, so the empty result gives message E8 (line 250) rather than a 'paid' status. For notices that remain, the per-notice message (E1-E5 etc.) is built in ParkingFinesServiceImplement.java:272-315. The E8 text in the DB: cannot verify from repo."
+    }
+  ]
+}

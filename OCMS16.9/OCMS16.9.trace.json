@@ -1,0 +1,37 @@
+{
+  "story": "OCMS16.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionController (response mapping), ReductionServiceImpl, helpers/ReductionPersistenceService, helpers/ReductionAuditService}, crud/ocmsizdb/OcmsReduction/OcmsReducedOffenceAmount. ocmsadminui: tidak ada layar/prompt reduction. Lainnya: tidak ada code reduction",
+  "note": "Status story: Requirement given - Gen flow (1 point). Sisi backend ada: reduction ditulis transaksional ke VON (TS-RED, amount_payable), suspended_notice, reduced_offence_amount, dan VON internet, lalu API membalas 'Reduction Success' (200) atau pesan error spesifik (400/404/409/500/503). Prompt hanya sampai ke pemanggil (PLUS); tidak ada layar OCMS yang menampilkannya, dan layar PLUS: cannot verify from repo. Langkah penyimpanan diturunkan ke Sebagian karena ticket OCMS-DF-2026-184 (Pending UAT Verification) menyangkut due_date_of_revival yang ditulis pada langkah yang sama; OCMS-DF-2026-072 (Closed, Prod deployed) sudah menyimpan amount_payable sebelum reduction di tabel reduction.",
+  "recommendation": "Klaim hanya sebagian: respons sukses/gagal ada di API, tetapi prompt ke officer bergantung pada PLUS (tidak ada di repo). Perlu konfirmasi URA/tim dan UAT OCMS-DF-2026-184 sebelum diklaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah officer konfirmasi, reduction tersimpan di OCMS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:56-74; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:101-112; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:127-140; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:156-173; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:205-210",
+      "fit": "Sebagian",
+      "detail": "applyReduction berjalan dalam satu transaksi (rollbackFor Exception, ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:56-74): update VON jadi TS-RED dengan amount_payable baru dan due_date_of_revival (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:101-112), insert suspended_notice (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:127-140), insert ocms_reduced_offence_amount dengan amount_payable pra-reduction (OCMS-DF-2026-072, Closed, Prod deployed; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:156-173), lalu sinkron ke VON internet (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:205-210; kalau record internet tidak ada hanya warning, ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:214-218). Diturunkan ke Sebagian karena OCMS-DF-2026-184 (Pending UAT Verification) menyangkut due_date_of_revival yang ditulis di sini (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:104-106). Isi data di environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi prompt bahwa reduction berhasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:122; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:166; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-183",
+      "fit": "Sebagian",
+      "detail": "API membalas \"Reduction Success\" dengan HTTP 200 (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:122, :166) ke pemanggil (PLUS). Request ulang untuk notice yang sudah TS-RED juga dibalas sukses (idempotent) tanpa menulis ulang (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-183). Tidak ada prompt di layar staff portal OCMS karena tidak ada layar reduction; apakah PLUS menampilkan pesan ini ke officer: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer tahu jika reduction tidak berhasil diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:131-160; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:164-184; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:126-151",
+      "fit": "Sebagian",
+      "detail": "Kegagalan dibedakan di API: Invalid format/Missing data (400), Notice not found (404), Notice has been paid / Notice is not eligible (409), Reduction fail (500), System unavailable (503) (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionController.java:131-160, :164-184). Konflik concurrent update (OptimisticLockingFailure) dan error database dikembalikan sebagai TechnicalError (ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:126-151). Seperti langkah sukses, balasan ini ke PLUS, bukan prompt di layar OCMS; tampilan ke officer: cannot verify from repo."
+    }
+  ]
+}

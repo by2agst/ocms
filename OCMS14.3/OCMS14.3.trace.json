@@ -1,0 +1,64 @@
+{
+  "story": "OCMS14.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/repccs/notice_creation/core/helpers/{SpecialVehUtils,NoticeProcessingHelper} (D/I dan stage awal), agencies/lta/download/helpers (Diplomat ke RD1), agencies/toppan/upload/{models/ToppanStage,jobs/ToppanUploadJob,helpers/ToppanUploadHelper}, schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, crud/ocmsizdb/OcmsValidOffenceNotice (query stage). Repo lain: tidak ada code untuk story ini.",
+  "note": "Pipeline notice kendaraan khusus sampai reminder ke-2 ada: I masuk RD1 langsung, D masuk RD1 setelah LTA, lalu Toppan RD1 menuju RD2 dengan jeda 14 hari (ToppanStage.java:19-20). Tetapi pengiriman reminder ke pemilik kendaraan tidak jalan otomatis: generate letter hanya lewat trigger manual, cron memanggilnya dikomentari, dan upload ke Toppan diblok di prod.properties (sftp.upload.disabledServers=toppan), sementara stage tetap maju (OCMS-DF-2026-192, status Ready to UAT, belum final). Kondisi identifikasi bersumber properties, bukan parameter table (lihat OCMS14.1 dan 14.2). Surat nyata ke owner/embassy dan nilai server cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Perpindahan stage sampai RD2 ada, tetapi reminder tidak terkirim otomatis dan upload Toppan diblok di properties prod. Nyatakan dependensi pada trigger manual dan pembukaan blok Toppan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice atas kendaraan dengan nomor atau suffix khusus sudah teridentifikasi dan bertipe D atau I",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/SpecialVehUtils.java:114-131; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:714",
+      "fit": "Sebagian",
+      "detail": "Identifikasi D dan I terjadi saat notice dibuat dan disimpan ke vehicle_registration_type (SpecialVehUtils.java:114-131; CreateNoticeServiceImpl.java:714). Kondisinya dari properties, bukan parameter table seperti teks story; fit sama dengan OCMS14.1 step DIP/MID dan OCMS14.2 step suffix."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice militer (MID) masuk ke tahap Reminder 1 langsung saat dibuat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:609-615; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:727-765; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:812-813",
+      "fit": "Sesuai",
+      "detail": "processMilitaryVehicle mengisi last stage NPA dan next stage RD1 dengan next date hari ini (NoticeProcessingHelper.java:609-615; dipanggil CreateNoticeServiceImpl.java:812-813), pemilik MINDEF dan alamat diisi otomatis (NoticeProcessingHelper.java:727-765). Fakta yang sama dengan OCMS14.1 step MID, fit sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice diplomat (DIP) masuk ke tahap Reminder 1 setelah hasil LTA diterima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeProcessingHelper.java:438-441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:418-425; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:254-258; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:511-552; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sebagian",
+      "detail": "Notice D mulai dari NPA menuju ROV (NoticeProcessingHelper.java:438-441), lalu cron LTA download (enabled=true, cron-schedules-prod.properties:148-149) men-set RD1 hanya jika diplomaticFlag dari file LTA bernilai Y (LtaDownloadHelper.java:418-425; LtaBatchCode0Processor.java:254-258; LtaProcessingStageManager.java:511-552). Fakta yang sama dengan OCMS14.1 step DIP routing, fit sama. OCMS-DF-2026-052 (Closed): bug RD1 untuk Diplomat sudah diperbaiki."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat Reminder 1 dibuat dan dikirim ke pemilik kendaraan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62; ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:419-429",
+      "fit": "Sebagian",
+      "detail": "Stage RD1 diambil oleh query notice yang next stage-nya RD1, due hari ini, tidak sedang suspended (OcmsValidOffenceNoticeRepository.java:608-611) dan masuk generator letter (ToppanStage.java:19). Generate letter Toppan hanya jalan lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34): panggilan toppanLettersGeneratorService.executeJob() di ToppanUploadJobsScheduler.executeDayEndJobs dikomentari (ToppanUploadJobsScheduler.java:118) walau jadwal 00:15 enabled=true (cron-schedules-prod.properties:61-62). Upload ke Toppan diblok: sftp.upload.disabledServers=toppan (application-prod.properties:86), delivery gate dilewati sehingga stage tetap maju tanpa bukti kirim (ToppanUploadJob.java:419-429, OCMS-DF-2026-192). Nilai server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah 14 hari notice masuk Reminder 2 dan suratnya dibuat dan dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-20; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:419-429",
+      "fit": "Sebagian",
+      "detail": "RD1 menyetel next stage RD2 dengan durasi 14 hari dan RD2 berikutnya RR3 (ToppanStage.java:19-20); query stage yang sama memilih notice RD2 yang due (OcmsValidOffenceNoticeRepository.java:608-611). Perpindahan stage dilakukan setelah gate delivery; gate dilewati selama upload Toppan diblok sehingga stage maju tanpa bukti kirim (ToppanUploadJob.java:419-429, OCMS-DF-2026-192). Trigger manual dan blok upload sama dengan step Reminder 1. Nilai server nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemrosesan notice khusus berhenti setelah Reminder 2 dan tidak lanjut ke tahap berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1974-2018; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1990-2003; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sebagian",
+      "detail": "Saat stage RR3 atau DR3 diproses, notice bertipe I atau D dikeluarkan dari daftar surat dan tidak dibuat surat RR3 (ToppanUploadHelper.java:1974-2018, filter di :1990-2003), lalu diberi PS-MID atau PS-DIP (lihat OCMS14.5). Batas berhenti di RD2 memang ada, tetapi hanya dijalankan di dalam proses generate letter yang bergantung trigger manual (ToppanUnifiedController.java:34; jadwal executeJob dikomentari ToppanUploadJobsScheduler.java:118)."
+    }
+  ]
+}

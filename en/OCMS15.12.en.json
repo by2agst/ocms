@@ -1,0 +1,25 @@
+{
+  "story": "OCMS15.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingController.plusChangeProcessingStage (POST /v1/plus-change-processing-stage), dto/PlusChangeStageRequest, ChangeOfProcessingService.processPlusChangeStage, crud/exception/GlobalExceptionHandler, auth/filter/JwtFilter. thirdpartyapi, ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui: no code for PLUS stage change requests",
+  "note": "Story status: Requirement given - Gen flow (no OCMS flow deck). Demo remark: 'Check if PLUS Original can submit stage change request'. The endpoint accepts a batch of notices from PLUS and validates the mandatory fields, but nothing tells 'PLUS Original' apart from any other caller: the source field only has to be non-empty, its value is not checked, and JwtFilter lets every plus-* path through, so protection depends on APIM, which is not visible in the repo. The 'check whether the notice is applicable' part is deliberately Sebagian because the rules are thin (see OCMS15.13). No maintenance ticket directly targets this endpoint.",
+  "recommendation": "Claim the request reception and field validation. Do not claim the 'PLUS Original' distinction or a full applicability check; confirm with the team how APIM restricts callers and whether source=005 is mandatory",
+  "steps": [
+    {
+      "step": "PLUS sends a stage change request (notice list, last stage, next stage, offence type, source) to OCMS",
+      "detail": "POST /v1/plus-change-processing-stage accepts PlusChangeStageRequest with noticeNo (batch list), lastStageName, nextStageName, offenceType, source and hands it to processPlusChangeStage (ChangeOfProcessingController.java:496-505; PlusChangeStageRequest.java:21-58). There is no PLUS client in the repo; the PLUS side: cannot verify from repo."
+    },
+    {
+      "step": "OCMS validates the request format and mandatory fields; incomplete requests are rejected",
+      "detail": "@Valid on the body and @NotNull/@NotEmpty on all five fields (PlusChangeStageRequest.java:25-57; ChangeOfProcessingController.java:498). Violations become HTTP 400 'Invalid request parameters' through GlobalExceptionHandler.handleValidationException (GlobalExceptionHandler.java:36-41). Presence/non-empty check only, no content check."
+    },
+    {
+      "step": "Only PLUS (PLUS Original) can submit this request",
+      "detail": "JwtFilter lets every path starting with plus- through without JWT (JwtFilter.java:179; SystemConstant.java:269 PLUS_PREFIX), so the endpoint has no application-level authentication; protection depends on APIM, which cannot verify from repo. The source field is not checked against a PLUS value: the Javadoc example says \"004\" (the OCMS code) while PLUS_CODE = \"005\" (SystemConstant.java:22), and any value is accepted. No 'PLUS Original' distinction exists in the code."
+    },
+    {
+      "step": "OCMS checks whether each requested notice is applicable for the stage change",
+      "detail": "The loop processes each notice (ChangeOfProcessingService.java:1357-1387), but the check is only: reject CFC when source = 005 (:1302-1306), skip when offenceType U to DN1/DN2/DR3/CPC (:1312-1317), notice must exist and not be duplicated in the request (:1360-1366, :1470-1476). Stage map validation was deliberately removed (:1319-1321) and EligibilityService is not called from the PLUS path. Detail is judged in OCMS15.13 (2 of 5 steps Sesuai)."
+    }
+  ]
+}

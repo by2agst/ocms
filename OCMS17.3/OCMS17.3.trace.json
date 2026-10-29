@@ -1,0 +1,55 @@
+{
+  "story": "OCMS17.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm,page/upload/{Upload,UploadResult,UploadErrorList},context/NoticeSearchUploadContext,list/NoticeValidList}, components/{SheetUpload,form/FileInput}, context/SheetContext, utils/validation/Format/ValidFile, utils/data/SheetData, utils/validation/NoticeSearch/ValidNoticeSearchUpload; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice (POST /validoffencenoticelist). Repo lain tidak relevan",
+  "note": "Status stories.json: Fully paid, 5 points. Fitur upload ada dan menampilkan notice hasil upload di layar, tetapi formatnya XLSX, bukan CSV seperti di story: daftar format yang diterima hanya .xlsx (ValidFile.ts:154, CSV dikomentari) dan FileInput menolak file lain; ticket OCMS-DF-2026-116 juga menggambarkan upload XLSX di production. Template punya 4 kolom (Notice No., Summon No., Vehicle No., ID No.); kolom Summon No. divalidasi tapi tidak ikut query. Ada satu hal yang perlu diwaspadai: baris yang hanya berisi Summon No. menghasilkan query tanpa filter notice/vehicle/ID, sehingga server berpotensi mengembalikan semua notice offender (batas 999); ini belum dijalankan di runtime. Teks bantuan menyebut maksimal 10 MB, sedangkan nilai di code 2 MB.",
+  "recommendation": "Klaim dengan catatan: fungsi upload ada tetapi format XLSX, bukan CSV. Minta URA konfirmasi apakah XLSX diterima sebagai pengganti CSV; periksa juga baris yang hanya berisi Summon No.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa membuka halaman upload daftar notice sebagai alternatif dari pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:180-183; ocmsadminui/src/App.tsx:107-118; ocmsadminui/src/pages/NoticeSearch/page/upload/Upload.tsx:59-68",
+      "fit": "Sesuai",
+      "detail": "Tombol 'XLSX File Upload' di kartu Search Notices (NoticeSearchForm.tsx:180-183) membuka route .../upload (App.tsx:107-118) yang merender SheetUpload (Upload.tsx:59-68). Tersedia di mode All dan Outstanding, masing-masing dengan template sendiri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar notice number diupload dalam format file CSV",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/validation/Format/ValidFile.ts:154; ocmsadminui/src/components/SheetUpload.tsx:206; ocmsadminui/src/components/form/FileInput.tsx:148-154; ocmsadminui/src/context/SheetContext.tsx:183-193",
+      "fit": "Beda dari flow",
+      "detail": "Format yang diterima hanya xlsx: FileTypeFormat.Sheet = [FileExt.xlsx] dengan CSV dan xls dikomentari (ValidFile.ts:154), teks bantuan menyebut 'only .xlsx' (SheetUpload.tsx:206), dan FileInput memfilter file menurut daftar itu (FileInput.tsx:148-154). Kode pembaca CSV masih ada di SheetContext.tsx:183-193 tetapi tidak bisa dicapai karena file .csv ditolak lebih dulu. Ticket OCMS-DF-2026-116 (Closed, Prod deployed) memang menyebut upload via XLSX di production. Beda dari story yang menyebut CSV."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membaca file dan mengecek template dan isinya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/context/SheetContext.tsx:196-247; ocmsadminui/src/utils/data/SheetData.ts:531-536; ocmsadminui/src/utils/validation/Format/ValidFile.ts:167-170",
+      "fit": "Sesuai",
+      "detail": "Setelah file dipilih, SheetContext membaca baris, membandingkan jumlah kolom dan label header dengan template (Notice No., Summon No., Vehicle No., ID No.; SheetData.ts:531-536), menolak file tanpa baris data, lalu menyimpan baris yang tidak kosong (SheetContext.tsx:196-247). Batas ukuran 2 MB (ValidFile.ts:167-170) berbeda dari teks bantuan '10 MB' (SheetUpload.tsx:206)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap notice number di file dicari di data notice",
+      "repo": "ocmsadminui; ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:88-93; ocmsadminui/src/pages/NoticeSearch/context/NoticeSearchUploadContext.tsx:106-121; ocmsadminui/src/utils/validation/NoticeSearch/ValidNoticeSearchUpload.ts:8-13; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:55-76",
+      "fit": "Sesuai",
+      "detail": "Tiap baris divalidasi (format noticeNo, summon_no, idNo; ValidNoticeSearchUpload.ts:8-13, dipanggil di NoticeSearchUploadContext.tsx:88-93) lalu dikirim ke POST validoffencenoticelist dengan noticeNo/vehicleNo/idNo dan offenderIndicator=Y (NoticeSearchUploadContext.tsx:106-121; controller OcmsValidOffenceNoticeController.java:55-76). Baris yang tidak ketemu diberi error 'Record is not found' (:134-135). Ada satu hal yang perlu diwaspadai: summon_no divalidasi tapi tidak masuk query (:106-112); baris yang hanya berisi Summon No. mengirim query dengan hanya offenderIndicator=Y dan $limit 999 (constant.ts:305), yang berpotensi mengembalikan banyak notice. Belum diuji di runtime. Jalur Outstanding memakai query yang sama tanpa filter outstanding."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan notice hasil upload di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/page/upload/Upload.tsx:64-67; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-76; ocmsadminui/src/pages/NoticeSearch/list/NoticeValidList.tsx:23-70",
+      "fit": "Sesuai",
+      "detail": "Setelah onSearch selesai, Upload.tsx:64-67 pindah ke halaman result; UploadResult.tsx:64-76 merender NoticeValidList (kolom notice, stage, kendaraan, suspension, payment, dll; NoticeValidList.tsx:23-70) untuk baris yang ketemu dan UploadErrorList untuk yang tidak."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS14.24",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi agencies/lta/download/helpers/{LtaProcessingOrchestrator,LtaDownloadHelper,LtaBatchCode0Processor}, autorevival/{jobs/AutoRevivalJob,helpers/AutoRevivalHelper}, agencies/toppan/upload/{models/ToppanStage,helpers/ToppanUploadHelper,jobs/ToppanUploadJob}, schedulers/ToppanUploadJobsScheduler, notification_sms_email/helpers/NotificationSmsEmailHelper, OcmsValidOffenceNoticeRepository, cron-schedules-prod.properties, application-prod.properties. ocmsadminapi notice_creation/core/helpers/SuspensionBaseHelper (aturan CLV hanya RR3/DR3). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk step ini",
+  "note": "Status 'Requirement given - Gen flow'. Rantai pemrosesan notice tipe V ada di ocmsadminprivateapi: hasil LTA menaikkan notice V langsung ke RD1 (LtaProcessingOrchestrator.java:119-127), Auto Revival harian me-revive suspension yang jatuh tempo dan mengabaikan notice yang sudah dibayar (AutoRevivalJob.java:103-163, AutoRevivalHelper.java:828), lalu reminder RD1, RD2, RR3 dibuat lewat Toppan upload. Dua masalah besar pada reminder: pembuatan letter oleh scheduler day-end dikomentari (ToppanUploadJobsScheduler.java:118) sehingga hanya lewat trigger manual POST /toppan/generate-letters, dan sftp.upload.disabledServers=toppan di application-prod.properties:86 memblokir upload ke Toppan; delivery gate di-bypass dan stage tetap maju tanpa pengiriman (OCMS-DF-2026-192, status Ready to UAT). SMS/email tidak dikirim untuk tipe V (NotificationSmsEmailHelper.java:1061, 1151), jadi reminder hanya berupa letter. Setelah RR3, TS-CLV dipasang dan terus di-loop selama notice belum dibayar (AutoRevivalHelper.java:798-851, 1041-1146), sehingga notice berhenti di RR3 dan tidak pernah maju ke DN1/court; tindak lanjut setelah TS berakhir praktis manual oleh OIC. Kriteria TS-CLV awal di Toppan upload memakai nomor kendaraan berawalan V (ToppanUploadHelper.java:706), sedangkan looping memakai tipe V (AutoRevivalHelper.java:1111): dua kriteria berbeda. Repo tidak mendefinisikan 'pre-court processing stage'; saya membacanya sebagai berhenti setelah reminder ke-3, dan itu perlu dikonfirmasi URA. Durasi antar stage dibaca dari stage map di database (ToppanUploadHelper.java:1366-1370), enum ToppanStage hanya default 14 hari, nilai sebenarnya cannot verify from repo. Tiket: OCMS-DF-2026-052 (jalur VIP ke RD1 tidak terdampak bug Diplomat), OCMS-DF-2026-032 (perbaikan simpan revival data saat re-apply TS-CLV, sudah deployed), OCMS-DF-2026-192 (terbuka).",
+  "recommendation": "Klaim sebagian: jalur V ke RD1, revival harian dan penahanan di RR3 lewat TS-CLV ada. Jangan klaim 'reminder terkirim' selama letter generation hanya manual dan upload Toppan diblokir di properties prod. Minta URA mengonfirmasi arti 'pre-court processing stage' dan apakah notice V memang harus berhenti di RR3 dengan loop TS-CLV.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil LTA menaikkan notice classified vehicle (tipe V) ke tahap reminder RD1",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:119-127; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:428; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchCode0Processor.java:161-163; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:148-149",
+      "fit": "Sesuai",
+      "detail": "LtaDownloadHelper memanggil processVipVehicle bila vehicle_registration_type = 'V' (LtaDownloadHelper.java:428, jalur batch LtaBatchCode0Processor.java:161-163); processVipVehicle mengisi data owner lalu updateProcessingStageToRD1 (LtaProcessingOrchestrator.java:119-127), tanpa lewat ENA. Tiket OCMS-DF-2026-052 menyatakan jalur VIP tidak terkena bug cache Diplomat. Cron LTA download enabled=true di prod (cron-schedules-prod.properties:148-149); file hasil LTA dari SFTP cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah temporary suspension berakhir, notice outstanding direvive setiap hari",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:103; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:158; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:828-831; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1111-1112; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sesuai",
+      "detail": "AutoRevivalJob mengambil suspension yang jatuh tempo (queryNoticesForRevival, baris 103), me-revive (baris 135), lalu processClvPostRevival melewati notice yang sudah dibayar dengan isPaidNotice (AutoRevivalHelper.java:828-831) dan looping melewati payment_status FP (baris 1112). Job ini dijalankan sebagai job 2 di Toppan Upload day-end 00:15 (ToppanUploadJobsScheduler.java:119, cron-schedules-prod.properties:61-62 enabled=true). Tiket OCMS-DF-2026-032 (perbaikan data revival tidak tersimpan saat re-apply TS) sudah deployed. Nilai cron di server cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice maju melalui 3 reminder (RD1, RD2, RR3) secara berurutan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-21; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1366-1370; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sebagian",
+      "detail": "Rantai stage RD1, RD2, RR3 dengan default 14 hari ada (ToppanStage.java:19-21), dan query stage memilih notice yang suspension_type-nya kosong dan next_processing_date sudah jatuh tempo (OcmsValidOffenceNoticeRepository.java:608-614); setelah letter dibuat, next stage dan tanggal berikutnya ditulis (ToppanUploadHelper.java:1366-1370, nilai dari stage map di database). Tetapi pemanggilan toppanLettersGeneratorService.executeJob() di scheduler day-end dikomentari (ToppanUploadJobsScheduler.java:118), jadi pembuatan letter hanya berjalan lewat trigger manual POST /toppan/generate-letters, bukan otomatis tiap hari. Durasi sebenarnya di database cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder dikirim ke pemilik kendaraan untuk memberi tahu parking offence yang outstanding",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:419-426; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1061; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1151",
+      "fit": "Sebagian",
+      "detail": "sftp.upload.disabledServers=toppan di application-prod.properties:86 memblokir upload ke Toppan; ToppanUploadJob membypass delivery gate dan stage tetap maju tanpa pengiriman (ToppanUploadJob.java:419-426, tiket OCMS-DF-2026-192 yang masih terbuka). SMS dan email dikecualikan untuk tipe I, D, V (NotificationSmsEmailHelper.java:1061, 1151) sehingga satu-satunya jalur adalah letter. Nilai properties di server sebenarnya dan penerimaan oleh pemilik cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah reminder ke-3 notice berhenti di tahap pre-court dan tidak diproses lebih jauh",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:332-334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:706; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:178; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:1041-1112; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:834-838; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:72-73",
+      "fit": "Sebagian",
+      "detail": "Setelah RR3/DR3 diunggah, applyClvSuspensionForVipVehicles memasang TS-CLV (ToppanUploadHelper.java:332-334, 691-706) dan AutoRevivalJob terus me-loop TS-CLV untuk notice tipe V di RR3/DR3 yang belum FP (ARJ:178, AutoRevivalHelper.java:1041-1112) serta memasangnya lagi segera setelah revival (baris 834-838); TS-CLV hanya boleh di RR3/DR3 (ocmsadminapi SuspensionBaseHelper.java:72-73). Query stage mengecualikan notice yang suspended (OcmsValidOffenceNoticeRepository.java:610), jadi notice tidak maju ke DN1/court. Gap: kriteria awal memakai nomor kendaraan berawalan V (ToppanUploadHelper.java:706), looping memakai tipe V (baris 1111); dan karena TS selalu dipasang ulang, tidak ada tindak lanjut otomatis setelah TS berakhir. Repo tidak mendefinisikan 'pre-court processing stage', jadi kecocokan RR3 dengan istilah itu perlu konfirmasi URA."
+    }
+  ]
+}

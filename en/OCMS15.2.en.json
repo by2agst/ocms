@@ -1,0 +1,33 @@
+{
+  "story": "OCMS15.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices (filters paid, NPA, stages outside ELIGIBLE_STAGES, active PS), EligibilityService.checkEligibility (used by validate/submit), dto/SearchChangeProcessingStageResponse}, crud/ocmsizdb/suspendednotice/SuspendedNoticeRepository.findNoticeNosWithActivePs. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "The story asks OCMS to check and return only notices whose stage may be changed. searchNotices does filter: paid (amount_paid > 0), NPA, stages outside ROV/ENA/RD1/RD2/RR3/DN1/DN2/DR3/CPC/CFC (including court) and notices with an active PS. Two gaps: (1) the PS filter in search drops ALL active PS, while EligibilityService.checkEligibility allows PS with codes DIP/FOR/MID/RIP/RP2, so those notices never show in search although they may be changed at validate/submit; (2) the role and target-stage rules (Driver vs Owner/Hirer/Director, offence type O/E, RD2 requirement, CFC needs UEN + entity BP/LP) only run at validate and submit, not in search, so a listed notice can be rejected later. An active TS blocks nothing (constant TS_BLOCKED is only declared, not used in checkEligibility). Maintenance tickets: none touches this search filter. Real data cannot be verified from the repo.",
+  "recommendation": "Claim partially: the paid, NPA, stage and PS filters exist, but PS with exception codes is filtered out as well and the role/target-stage rules are not checked at search. Fix or explain to URA before a full claim",
+  "steps": [
+    {
+      "step": "Candidate notices are loaded from VON (or from ONOD first when searched by ID No)",
+      "detail": "searchNotices picks the path: ID No via ONOD (offender_indicator='Y') then VON (Service:575-599), other criteria go straight to VON (608-644). Results are de-duplicated per noticeNo (361-369) and then AND-filtered (372)."
+    },
+    {
+      "step": "Paid notices are removed from the result",
+      "detail": "A notice with amountPaid > 0 is counted as paidCount and left out of the eligible list (Service:380-386). The check is on amount_paid only; other ways of marking a notice as settled are not checked here."
+    },
+    {
+      "step": "NPA notices and notices outside the changeable stages (including court stages) are removed",
+      "detail": "NPA is dropped first (Service:392-398). Then only stages in ELIGIBLE_STAGES (ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC; lines 64-66) pass; null or any other stage, including court, is counted as courtStageCount and dropped (404-410)."
+    },
+    {
+      "step": "Notices with an active permanent suspension (PS) are removed",
+      "detail": "The query findNoticeNosWithActivePs takes every notice with suspensionType='PS' and dateOfRevival NULL (SuspendedNoticeRepository:154-158); all of them are dropped from search (Service:423-429). Yet checkEligibility allows PS with codes DIP, FOR, MID, RIP, RP2 (EligibilityService:57-59, 91-98). So PS-DIP/FOR/MID/RIP/RP2 notices never appear in search although they may be changed at validate/submit."
+    },
+    {
+      "step": "Role and target-stage rules (Driver vs Owner/Hirer, offence type, RD2 requirement, CFC) are also checked when retrieving applicable notices",
+      "detail": "These rules only live in EligibilityService.checkEligibility, called from validateNotices (Service:232) and the submit process (975), not from searchNotices. The search list therefore does not yet drop notices that are rejected later for role/offence type/RD2 reasons (EligibilityService:49-56, 100-151). An active TS does not block either: TS_BLOCKED is only declared (EligibilityService:42) and not used in checkEligibility."
+    },
+    {
+      "step": "Only notices that pass are returned, with a summary of eligible and ineligible counts",
+      "detail": "eligibleVonList is sorted, paginated and built into the response; the summary holds total, eligible and ineligible (paid + NPA + stage + PS) over all results, not only the current page (Service:431-441, 505-561)."
+    }
+  ]
+}

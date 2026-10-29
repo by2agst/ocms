@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.44",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/{context/NoticeContext, hook/useODH, form/HirerForm}, utils/mapping/Notice/NoticeOld. ocmsadminapi: the offencenoticeownerdriverlist CRUD endpoint is used by the UI; ManualFurnishController GET .../check-existing + ManualFurnishValidationService.checkExistingParticulars exist but no UI calls them and they are not in the authorization mapping",
+  "note": "The Staff Portal does not use the check-existing endpoint. When the notice page opens, NoticeContext loads all owner_driver rows of that notice (offencenoticeownerdriverlist) and splits them per role O/H/D. The Furnish Hirer/Driver button then checks whether the role being furnished already has data; if so, an overwrite confirmation dialog appears. The check is for the same role only (furnishing a Driver does not warn about an existing Hirer). The backend endpoint ManualFurnishController GET /furnish/officer/manual/notice/{noticeNo}/check-existing returns all roles, but no UI calls it, it is not in api-authorization.properties (the interceptor answers 403 for that path, WebConfig.java:80-90), and its address filter uses addrType 'registered_mail' while the type_of_address column holds lta_reg/lta_mail/mha_reg/furnished_mail, so the address is always null. Ticket OCMS-DF-2026-024 (Closed) mentions addresses are queried by notice_no + owner_driver_indicator.",
+  "recommendation": "Claim partially. Detection of existing particulars and the overwrite prompt work in the UI; detection is per role only, and the dedicated backend endpoint is not connected.",
+  "steps": [
+    {
+      "step": "OCMS retrieves the stored owner/hirer/driver particulars of the notice",
+      "detail": "NoticeContext calls offencenoticeownerdriverlist with noticeNo and stores the rows with indicator O, H, D and the current offender in state (NoticeContext.tsx:362-392). This endpoint is in the OCMS_NOTICE_EDIT and OCMS_NOTICE_DETAIL mappings (api-authorization.properties:34-55)."
+    },
+    {
+      "step": "OCMS checks whether particulars already exist for the role being furnished",
+      "detail": "existing = data.OWNER / DRIVER / HIRER by form type, hasParticulars = Boolean(existing) (useODH.tsx:74-79, 470-471). Only the role being opened is checked; whether a Hirer exists does not affect furnishing a Driver. The backend check-existing endpoint that returns all roles is not used by the UI (ManualFurnishController.java:72-95)."
+    },
+    {
+      "step": "OCMS prompts when particulars already exist",
+      "detail": "After the furnishable check passes, if the mode is CREATE and existing is present, setShowOverride(true) opens the ModalConfirm 'Existing {role} details will be overwritten. Do you want to proceed to furnish for notice no. ...?' with Yes/No buttons (useODH.tsx:143-148, 533-545)."
+    },
+    {
+      "step": "The existing particulars are displayed on screen",
+      "detail": "The loaded data is mapped to form fields (hirer_name, hirer_identity_no in NoticeOld.ts:392-394) and shown on the Owner/Hirer/Driver tab (HirerForm.tsx:288-330) before the button is pressed. The prompt dialog itself does not list the particulars; only a generic text and the notice number."
+    }
+  ]
+}

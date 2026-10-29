@@ -1,0 +1,41 @@
+{
+  "story": "OCMS6.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm, hook/useSearchParams}, utils/validation/NoticeSearch/{Valid, ValidNoticeSearchAll}, utils/validation/Format/{ValidPerson, ValidFormat}, components/form/FormErrorList, i18n/en/translation.json. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/dto/NoticeQueryRequest (comparison only). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Search validation alerts exist and appear on screen as a modal. Verified in code: empty form, a single broad criterion, notice number format, ID No. (NRIC/FIN/UEN), summons number, and date ranges (future, reversed From/To, >6 months). Gap: the vehicle number format check is inactive (Valid.ts:44-45 always true); only a mismatch with the registration type is checked, and only when exactly one type is selected. All validation is in the UI; the server sends no validation message to the user for unsafe query parameters. Related Closed (Prod deployed) tickets: OCMS-DF-2026-098 (FIN M..J) and OCMS-DF-2026-137 (UEN accepted NRIC); their fixes are visible in the repo, but the version running on PRO: cannot verify from repo. The story does not list which values count as invalid, so coverage is judged from the fields on the form.",
+  "recommendation": "Claim alerts for empty form, notice number, ID No., summons and date ranges. Vehicle number is claimed partially: local vehicle format is not validated",
+  "steps": [
+    {
+      "step": "Apply with no criteria entered shows an alert",
+      "detail": "onApply (NoticeSearchForm.tsx:52-70) calls checkSearch. If no field is filled, useSearchParams.tsx:100 throws {empty: 'Please enter at least 1 field to complete search.'} (message at line 38) and the catch in NoticeSearchForm.tsx:61-69 shows an error modal."
+    },
+    {
+      "step": "A single criterion that is too broad (for example one drop-down or one date) shows an 'enter another field' alert",
+      "detail": "checkSearch holds a must_multiple list (vehicle_type, rule_code, notice_type, offender_type, suspension_type, ts/ps code, processing_stage, payment_status, pp_code, id_type, ntac_no and the date pairs) at lines 47-64. If only one field from that list (or one date pair) is filled, line 101 throws {another: 'Please enter another field to complete search.'} (message at line 39). Notice number, vehicle number, ID No. and name are not in the list, so each may be used alone."
+    },
+    {
+      "step": "A notice number with the wrong format shows 'Invalid notice no.'",
+      "detail": "ValidNoticeSearchAll.ts:25 attaches NoticeNo; Valid.ts:18-32 calls Format('NOTICE', value) and on failure gives error.notice_no.format = 'Invalid notice no.' (translation.json:988-991). The field is also limited to 10 characters and uppercase in NoticeSearchAllForm.tsx:76. The message appears in the modal from NoticeSearchForm.tsx:61-69 through FormErrorList."
+    },
+    {
+      "step": "A vehicle number that does not match the chosen registration type shows an alert",
+      "detail": "Valid.ts:48-85 shows 'Number does not match selected registration type.' only when exactly one Vehicle Registration Type is selected (Diplomat, Military, etc.). The local vehicle format check at lines 35-46 is actually inactive: the test always returns true and Format('VEHICLE') is commented out (lines 44-45). So a nonsense vehicle number with no type selected raises no alert (the result is simply empty)."
+    },
+    {
+      "step": "An ID No. that does not match NRIC/FIN/UEN format or the chosen ID type shows an alert",
+      "detail": "Valid.ts:106-158 rejects an ID No. with 'Number does not match NRIC/FIN/UEN format' (except when type Passport or more than one type is selected) and 'Number does not match selected ID type.' when type N/F/B is selected. The M-prefix FIN checksum table is at ValidPerson.ts:72 and UEN rejects the NRIC shape at line 141 (fixes from OCMS-DF-2026-098 and OCMS-DF-2026-137, both Closed, Prod deployed; the version actually running on PRO: cannot verify from repo)."
+    },
+    {
+      "step": "A summons number with the wrong format shows 'Invalid summon no.'",
+      "detail": "ValidNoticeSearchAll.ts:31 attaches SummonNo; Valid.ts:179-192 calls Format('SUMMON', value) and gives error.summon_no.format = 'Invalid summon no.' (translation.json:993-996). The validation alert exists; the summons search itself has no server side (see OCMS6.2)."
+    },
+    {
+      "step": "An invalid date range (future date, From after To, or longer than 6 months) shows an alert",
+      "detail": "NoticeSearchDateStart/End (Valid.ts:205-280) give messages '... cannot be later than today's date', '... cannot be later than/earlier than ...' and 'The Duration between the ... must not exceed 6 months.'. ValidNoticeSearchAll.ts:39-125 attaches them to Suspension, Court Mention, Court Trial and Offence Date (future dates are allowed only for Court Mention/Trial, lines 69, 80, 91, 102). useSearchParams.tsx:104-161 re-checks the 6-month limit on Apply and throws a message per range."
+    },
+    {
+      "step": "Alert messages appear on screen in a modal listing the errors",
+      "detail": "All validation errors (Yup through validate() and throws from checkSearch/getParams) are caught in NoticeSearchForm.tsx:61-69 and shown as an error modal 'Please check your form -' with the list of messages (FormErrorList.tsx:57-65). An oversized result (>1000 notices from the lookups) also raises 'The result set is too large...' (useSearchParams.tsx:541-547). Note: validation is UI-side only; the server's NoticeQueryRequest (NoticeQueryRequest.java:37-61) drops unsafe keys and truncates values over 500 characters silently, with no message to the user."
+    }
+  ]
+}

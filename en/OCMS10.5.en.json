@@ -1,0 +1,29 @@
+{
+  "story": "OCMS10.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/download/helpers/{LtaBatchCode0Processor,LtaSnowflakeProcessor,LtaIdTypeUtil}, framework/services/datahive/contact/DataHiveContactServiceImpl, framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAdvisoryNoticeLetters), cron-schedules-prod.properties. A generic mechanism (same for NOPO) with the AN_SMS/AN_EMAIL templates. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Status 'Demo paid (50% of 75%)'. After the LTA owner data arrives, LTA Download maps the ID type, skips the contact lookup for passports, calls DataHive for NRIC/FIN/UEN, writes the mobile number and email to ocms_offence_notice_owner_driver, then routes the notice to ENA (contact found) or RD1 (no contact). An AN notice at stage ENA with an_flag Y is picked up by the eNotification job, which uses the AN_SMS/AN_EMAIL templates and then applies PS-ANS after sending. Main gap: the eNotification scheduler is switched off in the PROD properties (cron.notification.enabled=false, comment 'Disabled in PROD to prevent sending SMS/Email notifications'), so the electronic AN notification does not run automatically in PROD. The detailed Epic OCMS9 rules are not traced in this chunk; the DataHive contact data, the SMS/email gateway, and any per-environment override cannot verify from repo. The demo remark (Vault) cannot verify from repo. No maintenance ticket used. The stale cronservice/ folder is not used.",
+  "recommendation": "Claim with a caveat. ID type identification, the contact lookup, the mobile/email update and the ENA/RD1 routing exist. The electronic AN notification is off in the PROD properties and the Epic OCMS9 rules are not verified.",
+  "steps": [
+    {
+      "step": "OCMS identifies the vehicle owner's ID type from the LTA data",
+      "detail": "Same as OCMS10.4: LtaIdTypeUtil.mapLtaOwnerIdTypeToOcms maps the LTA code to N, F, P or B (LtaIdTypeUtil.java:42-57) and the result is saved as the owner id_type (LtaBatchCode0Processor.java:456-458; an unknown code becomes '-' at 1449-1465). The classification is used again by the contact lookup (ContactIdTypeClassifier) and by the notification channel choice (UEN to email, others to SMS). The actual LTA codes cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the owner's mobile number and email through DataHive (passports are skipped)",
+      "detail": "For a passport owner the lookup is skipped and the notice goes to RD1 (LtaBatchCode0Processor.java:693-698). For other types dataHiveContactService.lookupContact is called (706-709): input validation, ID type classification (NRIC/FIN via Singpass, UEN via Corppass), query build, execution with retry, result parsing (DataHiveContactServiceImpl.java:59-100). A preparation error is logged and the notice stops; a query error is logged (TS-SYS is commented out, not applied). The DataHive data and the connection access cannot verify from repo; the Epic OCMS9 rules are not traced here."
+    },
+    {
+      "step": "OCMS updates the owner's mobile number and email on the notice data",
+      "detail": "When the lookup finds a mobile or email, planContactUpdate strips the number to digits, writes offenderTelNo with the Singapore country code, and emailAddr to ocms_offence_notice_owner_driver (LtaBatchCode0Processor.java:755-759, 772-798); when both are empty there is no update. The older path LtaSnowflakeProcessor.updateContactInfoFromResult (160-178) is the same; the 'only for Singpass' comment there is not enforced by the if condition. No format validation of the number/email beyond the digit cleanup was found."
+    },
+    {
+      "step": "The notice is routed to the electronic notification path when a contact exists, or to the letter path when none exists",
+      "detail": "When the lookup result has a contact, the stage is changed to ENA (planStageToENA, LtaBatchCode0Processor.java:760); otherwise to RD1 (762). An AN notice with an_flag Y and next stage RD1 is then picked by findAdvisoryNoticeLetters for the AN letter (OcmsValidOffenceNoticeRepository.java:690-707), while one at ENA enters the eNotification query (NotificationSmsEmailHelper.java:1000-1030). This branching is generic, with no AN-specific distinction in LTA."
+    },
+    {
+      "step": "The electronic AN notification (SMS or email) can be sent to the owner",
+      "detail": "The eNotification job selects notices at stage ENA (NotificationSmsEmailHelper.java:1000-1030), uses the AN_SMS (individual) or AN_EMAIL (company) template when an_flag is Y (NotificationSmsEmailHelper.java:277-282, 352-380), and applies PS-ANS after sending (NotificationSmsEmailJob.java:398-407). But cron-schedules-prod.properties:236 has cron.notification.enabled=false with the comment 'Disabled in PROD to prevent sending SMS/Email notifications' (231-235), so the automatic sending does not run in PROD. The sending itself (stories OCMS10.6 and OCMS10.7) and the SMS/email gateway cannot verify from repo."
+    }
+  ]
+}

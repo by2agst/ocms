@@ -1,0 +1,37 @@
+{
+  "story": "OCMS14.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{upload/helpers/LtaUploadHelper,download/helpers/LtaProcessingOrchestrator} (enquiry LTA terjadwal untuk notice stage ROV, menyimpan owner dan lta_deregistration_date), cron-schedules-prod.properties; ocmsadminapi workflows/reports/system/rip/RipReportServiceImpl (tidak memanggil LTA/DOS, tidak membandingkan owner). Tidak ada perbandingan ownership lama vs baru di enam repo",
+  "note": "Story minta OCMS langsung mengambil data kepemilikan kendaraan terbaru dari DOS untuk kendaraan yang sudah diidentifikasi, supaya report bisa menunjukkan perubahan pemilik. Code hanya punya enquiry LTA generik (LTA Upload/Download) yang jalan terjadwal untuk notice stage ROV; tidak dipicu dari daftar kendaraan RIP, tidak real-time, dan tidak membandingkan pemilik lama dengan baru. DOS = DataHive/LTA cannot be confirmed from the repo. Tiket: OCMS-DF-2026-160 (Pending Closure) melaporkan notice kehilangan ownership retrieval di LTA ROV Enquiry, jadi jalur generik ini juga punya defect terbuka",
+  "recommendation": "Jangan klaim penuh. Hanya enquiry LTA generik yang ada; pemicu dari daftar RIP, 'immediately', dan indikator perubahan pemilik belum ada",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar nomor kendaraan yang sudah diidentifikasi diteruskan untuk enquiry kepemilikan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:51-54; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:94-95",
+      "fit": "Tidak ada code",
+      "detail": "The RIP report only reads the database and returns the result to the screen (RipReportServiceImpl.java:51-54, :94-95). The vehicle list is not forwarded to LTA/DOS or to an enquiry cron."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS langsung mengambil data kepemilikan kendaraan terbaru dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:88; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:211-213; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-137",
+      "fit": "Sebagian",
+      "detail": "The LTA enquiry mechanism exists but is generic: LtaUploadHelper selects stage-ROV notices of type O/E (LtaUploadHelper.java:88, :211-213) and the cron.ltaupload job is enabled=true, running at 03:00 and 19:00 (cron-schedules-prod.properties:134-137), sending a file to LTA over SFTP (partner and real server values cannot be verified from the repo). So it is not 'immediately', not for vehicles from the RIP report, and a notice already under PS-RIP/RP2 is not picked up through this path. OCMS-DF-2026-160 (Pending Closure): notices lose ownership retrieval. DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report menunjukkan apakah ada perubahan kepemilikan kendaraan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportServiceImpl.java:472-499; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:323-338",
+      "fit": "Tidak ada code",
+      "detail": "The RipReportRecord built in RipReportServiceImpl.java:472-499 has no old/new owner field or change indicator. LtaProcessingOrchestrator.java:323-338 only stores lta_deregistration_date from LTA; grep for ownership change, ownerChanged and change owner in the six repos finds no owner comparison."
+    }
+  ]
+}

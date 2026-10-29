@@ -1,0 +1,46 @@
+{
+  "story": "OCMS11.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/repccs/notice_creation/core/{CreateNoticeServiceImpl,helpers/NoticeRecordHelper}, framework/workflows/agencies/lta/download/helpers/{LtaDownloadHelper,LtaProcessingOrchestrator,LtaSnowflakeProcessor}, framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (query ENA/reminder). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada pengecekan sumber NOPO untuk tindak lanjut",
+  "note": "Status story 'Fully paid'. Appendix C Annex 1A tidak ada di repo, jadi daftar special vehicle/ID type cannot verify from repo. Yang ada: kendaraan Diplomat (D) dan VIP (V) langsung dikirim ke RD1 setelah update owner, Military (I) ditangani saat notice dibuat, dan query eNotification mengecualikan I/D/V. Sumber notice disimpan di subsystem_label dan hanya dibaca saat pembuatan notice (rentang 030-999 dianggap EHT/Certis untuk menentukan AN flag). Tidak ada code di tahap LTA download atau eNotification yang membaca sumber itu untuk memilih jalur tindak lanjut: semua notice, baik dari frontend maupun backend, lewat jalur yang sama. Cabang khusus untuk NOPO backend (manual, PLUS/TDS/EPS) tidak ditemukan. Stale copy ocmsadminprivateapi/cronservice/ tidak dipakai sebagai bukti.",
+  "recommendation": "Jangan klaim penuh. Yang bisa diklaim hanya pengecualian special vehicle dan penyimpanan sumber notice; pembedaan jalur tindak lanjut frontend vs backend belum ada. Minta URA konfirmasi apakah satu jalur untuk semua sumber memang yang diinginkan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memastikan ID/kendaraan pemilik bukan special vehicle/ID type (Diplomat, VIP, Military, dan sejenisnya) sebelum tindak lanjut otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:423-430; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:100-122; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:813; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1061; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1151",
+      "fit": "Sebagian",
+      "detail": "Diplomat dan VIP dideteksi di LtaDownloadHelper (baris 423-430) lalu dikirim langsung ke RD1; Military (I) ditangani saat notice dibuat (CreateNoticeServiceImpl.java:813); query eNotification ENA dan reminder mengecualikan vehicle_registration_type I, D, V (NotificationSmsEmailHelper.java:1061 dan 1151). Appendix C Annex 1A tidak ada di repo, jadi kelengkapan daftar cannot verify from repo; special ID type lain (misalnya passport) ditangani terpisah di job lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi apakah NOPO berasal dari frontend enforcement system (EHT, REPCCS) atau dibuat di backend (manual, PLUS/TDS/EPS)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:721-735; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeRecordHelper.java:756",
+      "fit": "Sebagian",
+      "detail": "Sumber notice disimpan di kolom subsystem_label (NoticeRecordHelper.java:756) dan CreateNoticeServiceImpl menganggap kode 030-999 sebagai EHT/Certis (baris 728-735) untuk membaca an_flag dari payload. Pengecekan ini hanya dipakai saat pembuatan notice (keputusan AN), bukan untuk memilih tindak lanjut NOPO. Grep subsystemLabel di ocmsadminprivateapi tidak menemukan pembacaan di LTA download maupun eNotification. Pembuatan notice manual dan PLUS/TDS/EPS ada di ocmsadminapi/jalur lain dan tidak dinilai sebagai pengecekan sumber."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NOPO dari frontend enforcement system lanjut ke alur otomatis: owner dicek lalu stage diarahkan ke ENA (ada kontak) atau RD1 (tidak ada kontak)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:434; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingOrchestrator.java:134-166; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:143-150",
+      "fit": "Sebagian",
+      "detail": "processStandardVehicle mengecek exclusion list dan passport lalu memanggil processSnowflakeFunction, yang menaikkan stage ke ENA kalau mobile/email ditemukan atau RD1 kalau tidak (LtaSnowflakeProcessor.java:143-150). Alur ini berjalan untuk semua notice tanpa melihat sumber, jadi NOPO frontend ikut terproses tapi tidak ada pembedaan. eNotification cron yang melanjutkan dari ENA enabled=false di dev/UAT/prod (cron-schedules-prod.properties:236)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NOPO yang dibuat di backend (manual, atau dari PLUS/TDS/EPS) mendapat tindak lanjut yang berbeda sesuai automated processing workflow",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaDownloadHelper.java:434; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:992-1076",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ditemukan cabang khusus untuk NOPO backend: query LTA upload (OcmsValidOffenceNoticeRepository.java:70-74) dan query eNotification (NotificationSmsEmailHelper.java:992-1076) tidak memfilter subsystem_label, dan code di ocmsadminprivateapi tidak membaca sumber notice setelah pembuatan. Dicoba sinonim subsystemLabel, subsystem_label, REPCCS, EHT, PLUS di dua tier tanpa hasil untuk routing ini."
+    }
+  ]
+}

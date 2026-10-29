@@ -1,0 +1,25 @@
+{
+  "story": "OCMS17.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/{TSForm.tsx,TSSummary.tsx}, pages/TS/page/TS.tsx, utils/mapping/TS/TS.ts; ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-apply-suspension), api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status Fully paid, 1 point. The 'Procced to TS' button validates the form and then opens a confirmation dialog 'Do you want to proceed to Temporary Suspend the notice(s)?'; OK sends POST staff-apply-suspension in batches of 20 notices. A Summary tab (TSSummary) exists in the form and shows the code, number of days and remark, but it is passive: the confirmation dialog does not show the summary content, and the officer has to open the Summary tab on their own. That is why the summary-for-confirmation step is Sebagian. The apply result is shown by an alert and the /notices/ts/view page; ticket OCMS-DF-2026-116 (failed-TS notice link goes to a blank page) is Closed and Prod deployed, so it does not lower the verdict. Server-side eligibility (stage check, active PS) belongs to other stories.",
+  "recommendation": "Can be claimed with a note: the summary exists as a tab, not inside the confirmation dialog",
+  "steps": [
+    {
+      "step": "Officer clicks Proceed to TS and the form is validated first",
+      "detail": "The 'Procced to TS' button calls onConfirmation which runs validate(); on failure it shows the alert 'Failed to TS the notice(s). Please check your form.' and focuses the error field (TSForm.tsx:65-80, 266-273)."
+    },
+    {
+      "step": "OCMS displays a summary (code, days, remark, selected notices) for the officer's confirmation",
+      "detail": "A Summary tab holds a readonly TSList and TSSummary (code - description, Number of Days, Remark) (TSForm.tsx:341-352; TSSummary.tsx:60-79). But the confirmation dialog shown after the button is only the text 'Do you want to proceed to Temporary Suspend the notice(s)?' without summary content (TSForm.tsx:83-88); the officer has to open the Summary tab on their own before pressing the button."
+    },
+    {
+      "step": "After the officer agrees, the suspension is sent to the server in groups of 20 notices",
+      "detail": "OK in the dialog calls onSubmit then onAPI (TSForm.tsx:231-234); notices are split by BATCH_SIZE=20 and POSTed to staff-apply-suspension with suspensionType TS, reasonOfSuspension, dueDateOfRevival, suspensionRemarks, officerAuthorisingSuspension (TSForm.tsx:97-107; TS.ts:22-29). Server: SuspensionProcessingController.java:213-238, route allowed for function OCMS_APPLY_TS (api-authorization.properties:58-59)."
+    },
+    {
+      "step": "OCMS shows the success/failure result per notice after the suspension is applied",
+      "detail": "An alert summarises the success/failure count (TSForm.tsx:175-197), the result is stored in batch and, after the alert is closed, navigates to /notices/ts/view (TSForm.tsx:152-163, 224-229). Ticket OCMS-DF-2026-116 (failed-TS notice link to a blank page) is Closed, Prod deployed."
+    }
+  ]
+}

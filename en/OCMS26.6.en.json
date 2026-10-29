@@ -1,0 +1,33 @@
+{
+  "story": "OCMS26.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem} (the only court-update entry point from CAS), crud/ocmsizdb/OcmsCourtCase (3 columns), api-authorization.properties; ocmsadminui utils/models/{Icourtmention,Icourtoutcomeapproval}.d.ts, NoticeSearch/hook/useSearch.ts, Notice/form/History.tsx. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no adjudication code",
+  "note": "Requirement status is not given in stories.json (blank); the story is traced normally. The story asks OCMS to receive a guilty-plea adjudication update and fill the notice with processing stage, mention outcome, default sentence, court fine and instalment plan so staff can browse them. The code has no such feature. The only court-related entry is the REST casUpdateCourtNotices: CAS pushes per notice and overwrites suspension_type, last/prev/next processing stage, amount_payable, payment_acceptance_allowed, epr_reason_of_suspension and atoms_flag on VON/eVON (CasIntegrationServiceImpl.java:103-117). There is no column or field for plea, mention outcome, default sentence, court fine or instalment; entity ocms_court_case only has notice_no, court_payment_due_date, reason. In the UI there are only the TypeScript types Icourtmention/Icourtoutcomeapproval and a History grid whose tab is commented out; the UI calls resource courtmention but ocmsadminapi has no controller/entity for it. Only the step 'update processing stage' is really done by the code (Sebagian, because the values come as-is from CAS with no link to an adjudication). Relevant maintenance tickets: OCMS-SR-2026-164 (36 WWP notices closed in CAS but still outstanding in OCMS, patched by hand) and OCMS-SR-2026-179 (NRO/CSD/CSR stages from CAS leave payment_acceptance_allowed blank, On Hold) hint that the court sync from CAS to OCMS is not complete; hints, not proof. Behaviour of the endpoint behind APIM/prod: cannot verify from repo.",
+  "recommendation": "Do not claim as complete. Only the processing-stage update through casUpdateCourtNotices can be named as a partial foundation. Ask URA/the team in which repo receiving State Courts adjudication and storing mention outcome/default sentence/court fine/instalment is built, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "OCMS receives a case adjudication update for a guilty-plea case",
+      "detail": "There is no receiver for an adjudication update from State Courts. The nearest entry is the REST casUpdateCourtNotices (CasIntegrationController.java:101-102), which takes a per-notice push from CAS with noticeNo, suspensionType, stage, dates, amountPayable, paymentAcceptanceAllowed, eprReason, atomsFlag (CasUpdateNoticeItem.java:26-74); there is no plea/guilty, outcome or sentence field, so it is not credited. Synonyms tried across the six repos (UI and API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Zero hits in the backend; only TypeScript types in the UI. The adjudication data source (State Courts/CAS) and APIM: cannot verify from repo."
+    },
+    {
+      "step": "The notice processing stage is updated according to the outcome",
+      "detail": "casUpdateCourtNotices overwrites last/prev/next_processing_stage and their dates on VON and eVON with the values CAS sends, falling back to the old value when a field is null (CasIntegrationServiceImpl.java:103-117, 430-459). So the stage can change through the court path, but OCMS does not derive the stage from an adjudication/plea, it only copies what CAS sends; a notice already FULL_PAYMENT is rejected with 'Notice already Paid' (CasIntegrationServiceImpl.java:336-343). Ticket OCMS-SR-2026-179 (On Hold): NRO/CSD/CSR stages from CAS do not yet trigger payment_acceptance_allowed. The endpoint skips JwtFilter (plus-*/webhook) and protection depends on APIM: cannot verify from repo."
+    },
+    {
+      "step": "The mention outcome is recorded on the notice",
+      "detail": "The backend stores no mention outcome. Icourtmention.d.ts:1-33 (mention_outcome, off_def_sen_dur, woc_number) is only a TypeScript type in the UI; the UI calls resource courtmention (useSearch.ts:99-111) and api-authorization.properties:23 only lists the path /v1/courtmention for a role, but ocmsadminapi has no courtmention controller, entity or repository (crud/ocmsizdb only has OcmsCourtCase). The call has no backend target; routing behind APIM: cannot verify from repo."
+    },
+    {
+      "step": "Default sentence and the court fine imposed are recorded",
+      "detail": "Entity ocms_court_case only has notice_no, court_payment_due_date and reason (OcmsCourtCase.java:24-31); there is no default-sentence or court-fine amount column. default_sentence/court_settlement_amount exist only as a TypeScript type in the UI (Icourtoutcomeapproval.d.ts:1-42) with no backend. amount_payable on VON can be overwritten by CAS (CasIntegrationServiceImpl.java:103-117) but that is the payable amount, not a recorded adjudication court fine; not credited."
+    },
+    {
+      "step": "Instalment plan details (if any) are recorded",
+      "detail": "There is no instalment-plan entity, table, repository or controller in ocmsadminapi or ocmsadminprivateapi. The only per-notice court data is court_payment_due_date and reason (OcmsCourtCase.java:24-31). The UI only has the menu label 'Court Installment Plans' in Meta/System.ts:159-162 and the i18n key 'court_fine_installment' with no list/form page (pages/System/list has only 5 other pages). Synonyms tried across the six repos (UI and API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Zero hits in the backend; only TypeScript types in the UI."
+    },
+    {
+      "step": "The officer can browse these details in OCMS",
+      "detail": "The 'Court Application History' grid (Court Outcome, Status) exists in History.tsx:71-100 but its tab is commented out (History.tsx:170-172), and courtmention data has no backend, so no screen shows mention outcome, sentence, fine or instalment. Notice Search by court mention date (useSearchParams.tsx:234-241) calls resource courtmention which has no controller."
+    }
+  ]
+}

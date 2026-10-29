@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Furnish/{list/FurnishSummaryList,form/SearchForm}, pages/Dashboard/Dashboard, App.tsx, utils/data/LinkData. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication (entity, controller), workflows/furnish/dashboard/FurnishDashboardController (not called by the UI). ocmsadminprivateapi workflows/furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper}, cron-schedules-prod.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status in stories.json: Demo paid (50% of 75%); the requirement is given. The pending queue exists as the Furnished Hirer/Driver page with a default Pending status filter, a Status column, and a job that puts submissions that fail auto-approval into Pending. What does not exist: a personal officer dashboard. The staff Dashboard page is empty (Dashboard.tsx:21-30), the ocms_furnish_application entity has no officer assignment field, so all officers share one list. FurnishDashboardController (/furnish/officer/list, /detail) exists in the backend and cites OCMS 41.9-41.14 in comments, but the UI does not call it and the endpoint is not in api-authorization.properties; the UI uses /v1/furnishapplicationlist. OCMS-DF-2026-073 (Closed, Prod deployed): the LPS ROV + NPS ROV pair was wrongly treated as not furnishable and sent to manual review; fixed per the ticket, I did not verify the fix in code. The real server value of the sync job cannot be verified from the repo.",
+  "recommendation": "Claim: the separate pending list and the status distinction are proven. A personal per-officer dashboard does not exist; mark it as a gap or ask for confirmation that the furnished-list page counts as the 'dashboard'",
+  "steps": [
+    {
+      "step": "Officer membuka halaman Furnished Hirer/Driver dari menu",
+      "detail": "The menu link 'Furnished Hirer/Driver' points to /furnished-list (LinkData.tsx:326) and the furnished-list route renders FurnishSummaryList (App.tsx:192-194). Same fact as step 1 of OCMS41.11."
+    },
+    {
+      "step": "Notice dengan furnished particulars yang menunggu review ditampilkan di daftar terpisah",
+      "detail": "The furnished-list page has its own list from ocms_furnish_application (resource furnishapplicationlist, FurnishSummaryList.tsx:72), separate from Notice Search. The default filter is status[$in]=['P'] (FurnishSummaryList.tsx:58-61) and the search form preselects Pending, also after Reset (SearchForm.tsx:34-39, 174-183). Result: only Pending submissions show first. 'P' = Pending is read from FurnishApprovalHelper (STATUS_PENDING); the dropdown labels come from the FURNISH_STATUS standard code in the database (OptionsContext.tsx:217), whose rows cannot be verified from the repo."
+    },
+    {
+      "step": "Pending dapat dibedakan dari yang sudah approved/rejected",
+      "detail": "Each row has a Status column formatted from FURNISH_STATUS (FurnishSummaryList.tsx:120-126) and the officer can change the Status filter to see Approved/Rejected (SearchForm.tsx:155-167). On the detail screen, Approved/Rejected submissions hide the Update Decision tab (Form.tsx:92-95) and skip the furnishability re-check (UpdateForm.tsx:98-104), so a decided submission cannot be decided again."
+    },
+    {
+      "step": "Submission yang gagal pengecekan auto-approval di-route ke officer sebagai Pending",
+      "detail": "The Furnish Processing job runs six checks: active permanent suspension, HST ID, FIN/Passport, furnishable stage, existing hirer/driver, prior submission (FurnishApprovalHelper.java:183-224). If one fails, executeManualReview sets status Pending plus reason_for_review/remarks (FurnishApprovalHelper.java:505-535; called from FurnishProcessingService.java:174), and the status is saved to the intranet and Internet sides (FurnishProcessingService.java:134-197). The job runs every 10 minutes with enabled=true (cron-schedules-prod.properties:305-306); the real server value cannot be verified from the repo. OCMS-DF-2026-073 (Closed) fixed an ROV/ROV case wrongly sent to manual review."
+    },
+    {
+      "step": "Notice pending muncul di dashboard officer sendiri",
+      "detail": "The staff Dashboard page only holds an empty div with no data (Dashboard.tsx:21-30). The OcmsFurnishApplication entity has no officer assignment field (OcmsFurnishApplication.java:24-130), so there is no per-officer routing; every officer with access sees the same list at furnished-list. FurnishDashboardController (/furnish/officer/list, FurnishDashboardController.java:18-32) offers a list + workingDaysPending but the UI does not call it and it is not in api-authorization.properties. The shared list is what is counted as Sebagian."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS18.12",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}, crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl; ocmsadminprivateapi utilities/suspension_helpers/PermanentSuspensionHelper (cron/private path); ocmsadminui pages/PS/form/PSForm.tsx. The word 'Cumulus' does not appear in the six repos",
+  "note": "Story status 'No requirement' (requirement not given). OCMS creates an ocms_refund_notice row (id RE{YYYYMMDD}{NNN}) when PS-APP/CAN/CFA/VST is applied to a paid notice; that is the part of the 'refund advice' that is proven. No interface to Cumulus was found: grep for cumulus/refund advice/refund_advice across the six repos = 0 hits; the only consumer of refund rows is the Daily/Monthly Payment Exception report (ocmsadminprivateapi paymentReport), a report for staff, not a system interface. Cumulus and Epic OCMS46 cannot be verified from the repo. Refund creation is non-blocking: if amountPaid is empty/0 or an exception occurs, the suspension still returns 'PS Success' without a refund (log only). Related tickets: OCMS-DF-2026-075 (Closed, fix is in main), OCMS-DF-2026-152 (Ready to DEV / In SIT, PLUS response refundNoticeId), OCMS-DF-2026-070 (Closed).",
+  "recommendation": "Claim only the refund record creation; the Cumulus interface is not claimed. Ask URA/the team in which repo or system the Cumulus interface (Epic OCMS46) is built.",
+  "steps": [
+    {
+      "step": "PS on a paid notice is accepted only for refund codes (APP/CAN/CFA/VST)",
+      "detail": "A notice counts as paid when crs_reason_of_suspension is not null; non-refund codes are rejected with 'Paid/partially paid notices only allow APP, CAN, CFA, or VST' (PermanentSuspensionHelper.java:180-192, called at :113-117). The refund code list is read from ocms_standard_code reference PS_REFUND_CODES (SuspensionBaseHelper.java:123-126); the contents of that table cannot be verified from the repo. The staff UI is narrower than the server: for notices already PS-FP/PRA, PSForm only allows APP/CFA/VST so CAN is rejected in the UI (PSForm.tsx:104-110) although the server message names CAN."
+    },
+    {
+      "step": "After the suspension is saved, OCMS creates a refund record (refund advice) for the notice",
+      "detail": "processPS calls createRefundRecord after updateDatabase succeeds (PermanentSuspensionHelper.java:146-147). createIfNotExists INSERTs an ocms_refund_notice row with refund_notice_id RE{YYYYMMDD}{NNN}, idempotent per receipt_no + notice_no (OcmsRefundNoticeServiceImpl.java:42-82); the id is returned in the response as refundNoticeId/refundCreDate (PermanentSuspensionHelper.java:152-156). OCMS-DF-2026-075 (Closed): re-applying PS-APP on a paid notice still creates a refund, code at PermanentSuspensionHelper.java:82-95. OCMS-DF-2026-152 (Ready to DEV / In SIT): the PLUS response held the receipt no instead of the refund id; the code in main already returns the String id from createIfNotExists, deployment cannot be verified. The private-API path (ocmsadminprivateapi) builds the refund row by hand, without createIfNotExists and without returning the id (private PermanentSuspensionHelper.java:539-600)."
+    },
+    {
+      "step": "The refund record carries the amount paid, the original receipt, and the refund reason",
+      "detail": "refund_amount = amount_paid from VON (PermanentSuspensionHelper.java:332, 361-362); receipt_no comes from the first ocms_web_transaction_detail row, or 'MIG-'+noticeNo for migrated notices (:338-347); refund_reason = the PS code for PLUS and 'PSR' for OCMS staff/cron (:349-354); the original CRS reason is stored (:365, OcmsRefundNoticeServiceImpl.java:74-75). But when amountPaid is null/<=0 the refund is skipped with only a warn log (:333-336) and exceptions are swallowed (:372-376), so the suspension still returns 'PS Success' without a refund and the officer is not told. The receipt uses txns.get(0) (:346); for a batch payment it may be the wrong receipt [Low confidence]."
+    },
+    {
+      "step": "The refund advice is interfaced to Cumulus (per Epic OCMS46) so the refund is processed",
+      "detail": "grep 'cumulus' (case-insensitive), 'refund advice', 'refund_advice' across the six repos = 0 hits; there is no client, SFTP/file export, or outbound endpoint that reads ocms_refund_notice. Refund rows appear only in the Daily/Monthly Payment Exception report for staff (ocmsadminprivateapi paymentReport/helpers/PaymentExceptionReportHelper.java). The interface to Cumulus and Epic OCMS46 cannot be verified from the repo."
+    }
+  ]
+}

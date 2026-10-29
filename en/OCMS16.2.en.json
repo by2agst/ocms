@@ -1,0 +1,29 @@
+{
+  "story": "OCMS16.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/{Valid,ValidNoticeSearchOutstanding,ValidNoticeSearchAll}, pages/NoticeSearch/list/NoticeSearchOutstandingList, components/datagrid/table/TableBody. ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,helpers/ReductionValidator}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findNoticeValidationStatus). Other repos: no related code",
+  "note": "Status in stories.json: 'Requirement given - Gen flow' (no flow deck). The error messages the story asks for are split across two places: format validation in the staff portal search forms, and per-notice rejection in the PLUS endpoint /v1/plus-apply-reduction (404 'Notice not found', 409 'Notice has been paid' / 'Notice is not eligible'). There is no error message at the search step for paid or cancelled notices; the list is just empty ('No records to display'). Highest risk: the PS/cancelled check in ReductionValidator is never called, so a PS notice (including code CAN) at an eligible stage is not rejected by the apply endpoint. Conditions inside PLUS: cannot verify from repo.",
+  "recommendation": "Claim partially. The not found / paid / not eligible messages live in the apply endpoint, not at the search; the cancelled message is missing. Do not claim it as 'error on the search screen' without confirmation that PLUS passes the endpoint message on to the officer.",
+  "steps": [
+    {
+      "step": "A search value with a wrong format is rejected with an error message",
+      "detail": "The Outstanding form validates ID (message 'Number does not match NRIC/FIN/UEN format', Valid.ts:117), vehicle no. (Valid.ts:38) and name (ValidNoticeSearchOutstanding.ts:15-19). Notice number format is validated only in the All Notices form (ValidNoticeSearchAll.ts:25, message error.notice_no.format in Valid.ts:24). This is format validation only: a well-formed notice number that does not exist produces no error at this stage."
+    },
+    {
+      "step": "OCMS shows an error when the notice is already paid",
+      "detail": "The paid rejection lives in the apply endpoint: the findNoticeValidationStatus query flags PAID when crs_reason_of_suspension = 'FP' or epr_reason_of_suspension = 'PRA' (OcmsValidOffenceNoticeRepository.java:53-54), ReductionServiceImpl.java:184-189 returns NOTICE_PAID, and the controller maps it to 409 'Notice has been paid' (ReductionController.java:149). The staff portal search step has no paid message: the Outstanding list only applies a default filter (NoticeSearchOutstandingList.tsx:105-124). The 409 reaches the officer only if PLUS shows it: cannot verify from repo."
+    },
+    {
+      "step": "OCMS shows an error when the notice is cancelled",
+      "detail": "There is no cancelled message. The word 'cancel' does not appear in the payment_reduction folder or the staff portal search. PS code 'CAN' exists as a constant (SystemConstant.java:39) but the reduction path does not reference it. The eligibility query only looks at rule code and last_processing_stage (OcmsValidOffenceNoticeRepository.java:49-72). ReductionValidator.validateNotPermanentlySuspended (ReductionValidator.java:73-94), which rejects PS except DIP/FOR/MID/RIP/RP2, is only called from validateAll (ReductionValidator.java:312-316) and nobody calls validateAll, so a PS-CAN notice at an eligible stage is not rejected by the apply endpoint. The Outstanding list hides PS notices (NoticeSearchOutstandingList.tsx:114-122) but silently, with no message."
+    },
+    {
+      "step": "OCMS shows an error when the notice is not found or not eligible",
+      "detail": "The apply endpoint returns 404 'Notice not found' when the notice does not exist (ReductionServiceImpl.java:60-67, ReductionController.java:148) and 409 'Notice is not eligible' (ReductionServiceImpl.java:190-195, ReductionController.java:150). Eligible = rule code 30305/31302/30302/21300 at stages NPA..CWT, or any other rule code only at RR3/DR3/court stages (OcmsValidOffenceNoticeRepository.java:55-68, SystemConstant.java:108-118). These messages come at apply time through PLUS, not at the search step; reaching the officer: cannot verify from repo."
+    },
+    {
+      "step": "OCMS shows a message when no applicable notice is found",
+      "detail": "When the search finds no rows, the Datagrid only shows the default text 'No records to display' (TableBody.tsx:19, rendered at TableBody.tsx:73). That is a generic message without a reason (wrong value / nothing to reduce) as the story asks."
+    }
+  ]
+}

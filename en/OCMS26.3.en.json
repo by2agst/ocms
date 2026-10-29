@@ -1,0 +1,21 @@
+{
+  "story": "OCMS26.3",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "NotificationSmsEmailJob/Helper (ocmsadminprivateapi): refreshContactInfo uses DataHive for ENA/RD*/DN* notices, not court notices. No mention date check.",
+  "note": "Story asks for a check 'payment not made X days before the court mention date', then the updated mobile/email check (Epic OCMS9) and sending electronic reminders. Status blank, demo_remark 'No vault'. Synonyms tried: state court, adjudicat, court mention, mention_date, hearing, court_case, courtreminder; in all six repos. No check based on court mention date and no 'X days before mention' parameter exists. The existing eNotification mechanism (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java) selects notices at stages ENA/RD1/RD2/RR3/DN1/DN2/DR3 using the ENOTEDAYS parameter per stage (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1108-1114), not court notices by court mention date; it is switched off in prod (cron.notification.enabled=false, ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236); the real server value cannot be verified from the repo.",
+  "recommendation": "Evidence 17%. Do not claim the State Courts/court reminder feature; only the generic eNotification mechanism exists.",
+  "steps": [
+    {
+      "step": "The system checks court notices unpaid X days before the court mention date (X from a parameter)",
+      "detail": "No court mention date check. The selection query (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1114) uses last_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3) and the ENOTEDAYS parameter per stage (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1108-1110); there is no mention date column/field (AxsNopoServiceImpl.java:797 says court_mention_date is not in the DB). A similar 'parameter days' mechanism exists but is not the one the story names."
+    },
+    {
+      "step": "The system refreshes the defendant mobile number/email before sending (per Epic OCMS9)",
+      "detail": "NotificationSmsEmailJob calls refreshContactInfo for each record before sending (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:186-188) and the Helper reads DataHive (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461). The mechanism exists but is only fed ENA/RD*/DN* notices, not court notices; the job is switched off in prod (ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236); the real server value cannot be verified from the repo."
+    },
+    {
+      "step": "The system sends electronic reminders to defendants about court summonses due soon",
+      "detail": "No court reminder sending. Existing SMS/email sending (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:289, :378) uses templates per ENA/RD*/DN* stage (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:459-468) and does not carry court summons data; DB template content cannot be verified from the repo."
+    }
+  ]
+}

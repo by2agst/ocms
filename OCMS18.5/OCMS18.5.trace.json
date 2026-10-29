@@ -1,0 +1,73 @@
+{
+  "story": "OCMS18.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/{NoticeSearchSlot,NoticeSearchUploadSlot},list/NoticeSearchAllList,hook/{ApplyOperationAction,useBatchOperation}}, pages/PS/{page/{PS,PSView},form/{PSForm,PSDetails},list/PSList}, utils/{constant,option,mapping/PS/PS}.ts. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-apply-suspension, staff-revive-suspension),helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}}, api-authorization.properties (OCMS_APPLY_PS), config/WebConfig (OcmsAuthorizationInterceptor)",
+  "note": "Status 'Fully paid'. Bulk permanent suspension dibangun end-to-end: pilih notice (checkbox / select all sampai 1000) -> Apply Operation 'Apply PS' -> eligibility check -> form kode PS + remarks -> konfirmasi -> POST staff-apply-suspension per daftar notice -> PS Success tercatat di valid_offence_notice, eVON dan suspended_notice. Dua kekurangan: (1) eligibility check hanya mengecek processing stage dan satu kegagalan membatalkan seluruh pilihan (sama dengan OCMS18.3); (2) PSForm.onAPI tidak mengecek res.error, sehingga timeout/error pada batch besar menghasilkan hasil kosong dan pesan sukses 'Applied Successfully to 0 Notices' (PSForm.tsx:149-160,213-219). Pola yang sama sudah diperbaiki untuk TS di TSForm.tsx:109-116 setelah OCMS-SR-2026-022 (Closed); fix itu tidak ada di PSForm. Atomicity batch (satu transaksi @Transactional di controller) tidak diuji. Tiket lain: OCMS-DF-2026-114 dan OCMS-DF-2026-075 (perbaikan PS-CAN/PS-APP, Closed), OCMS-DF-2026-097/173 (payment flag PS-ANS, Closed). Hak akses OCMS_APPLY_PS dari ACM dan nilai per-environment cannot verify from repo.",
+  "recommendation": "Diklaim sebagian (lihat langkah Sebagian/Beda dari flow)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Petugas memilih notice hasil pencarian/upload (baris atau semua)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:40-63; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:122-129; ocmsadminui/src/pages/NoticeSearch/page/upload/UploadResult.tsx:64-69; ocmsadminui/src/utils/constant.ts:96",
+      "fit": "Sesuai",
+      "detail": "Datagrid pencarian dan hasil upload punya checkbox per baris dan select-all (NoticeSearchAllList.tsx:122-129; UploadResult.tsx:64-69). Select-all pada pencarian memuat ulang seluruh hasil lewat validoffencenoticelist, dan ditolak jika total di atas NOTICE_SEARCH_LIMIT = 1000 (NoticeSearchAllList.tsx:40-63; constant.ts:96)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Petugas memilih operasi 'Apply PS' lalu menekan Select",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:281-302; ocmsadminui/src/utils/option.tsx:314-319; ocmsadminui/src/utils/constant.ts:275-281; ocmsadminapi/src/main/resources/api-authorization.properties:61-63; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:73-91",
+      "fit": "Sesuai",
+      "detail": "Dropdown Apply Operation berisi Apply PS (option.tsx:314-319), disaring dengan hasFunction(OCMS_APPLY_PS) (constant.ts:275-281; NoticeSearchSlot.tsx:285-292) dan tombol Select aktif bila ada baris dan operasi terpilih (:298-302); slot yang sama dipakai di hasil upload (NoticeSearchUploadSlot.tsx:126-145). Di server, OCMS_APPLY_PS memetakan staff-apply-suspension dan staff-revive-suspension (api-authorization.properties:61-63) lewat OcmsAuthorizationInterceptor (WebConfig.java:73-91). Siapa yang memegang functionId itu cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kelayakan notice terpilih sebelum membuka form permanent suspension",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:160-182; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:275-295; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:277-315",
+      "fit": "Sebagian",
+      "detail": "handlePS memanggil staff-check-suspension-eligibility (SuspensionProcessingController.java:277-315). Untuk PS backend hanya mengecek lastProcessingStage (SuspensionProcessingHelper.java:283-295); jika ada yang gagal, modal error muncul dan form PS tidak dibuka sama sekali untuk notice yang lolos (ApplyOperationAction.tsx:160-173); jika semua lolos, setBatch menyimpan notice lalu navigate ke /notices/ps (:175-181). Fakta yang sama dengan OCMS18.3 langkah 5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Petugas mengisi PS reason code dan remarks lalu mengonfirmasi permanent suspension",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSDetails.tsx:47-51; ocmsadminui/src/pages/PS/form/PSDetails.tsx:62-92; ocmsadminui/src/pages/PS/form/PSForm.tsx:67-91; ocmsadminui/src/utils/constant.ts:114-115",
+      "fit": "Sesuai",
+      "detail": "PSDetails memuat pilihan kode PS dari suspensionreasonlist yang dibatasi APPLY_PS_ALLOWED dan source OCMS (PSDetails.tsx:47-51; constant.ts:114-115), field wajib suspension_code dan remarks maks 200 karakter (PSDetails.tsx:62-92). 'Procced to PS' memvalidasi form lalu menampilkan modal 'Do you want to proceed to Permanently Suspend the notice(s)?' (PSForm.tsx:67-91)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Satu permintaan menerapkan permanent suspension ke semua notice terpilih (bulk)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:140-160; ocmsadminui/src/utils/mapping/PS/PS.ts:21-27; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:213-243; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:978-1017",
+      "fit": "Sesuai",
+      "detail": "PSForm.onAPI memetakan seluruh daftar noticeNo, suspensionType=PS, reasonOfSuspension, suspensionRemarks dan officerAuthorisingSuspension (PS.ts:21-27) dan memanggil POST staff-apply-suspension sekali (PSForm.tsx:140-149). Controller memproses tiap notice berurutan dengan processNoticeList dan srNo dari sequence SUSPENDED_NOTICE_SEQ, memaksa source OCMS (SuspensionProcessingController.java:213-243,978-1017). Notice PS lama tanpa pembayaran di-revive dulu lewat staff-revive-suspension (PSForm.tsx:116-138)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Permanent suspension tercatat pada setiap notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:56-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:440-466; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:474-492",
+      "fit": "Sesuai",
+      "detail": "processPS memvalidasi field wajib, notice, source, stage dan notice paid (hanya APP/CAN/CFA/VST untuk notice paid), lalu updateDatabase mengisi suspensionType=PS, eprReasonOfSuspension, eprDateOfSuspension dan dueDateOfRevival=null di VON dan eVON serta menyisipkan baris suspended_notice dengan officer, remarks dan processIndicator 'Manual' (PermanentSuspensionHelper.java:56-158; SuspensionBaseHelper.java:340-366,440-492). Kode PS tertentu juga mematikan payment_acceptance_allowed (SuspensionBaseHelper.java:350-356). Refund otomatis dibuat untuk notice paid dengan kode refund (PermanentSuspensionHelper.java:147)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menampilkan hasil bulk: jumlah berhasil, daftar gagal dengan alasannya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:149-160; ocmsadminui/src/pages/PS/form/PSForm.tsx:203-237; ocmsadminui/src/pages/TS/form/TSForm.tsx:109-116; ocmsadminui/src/pages/PS/page/PSView.tsx:20-46",
+      "fit": "Sebagian",
+      "detail": "Setelah submit, hasil per notice dipisah ke success dan failed; modal menampilkan '{n} out of {total} Notices Failed ...' atau 'Permanent Suspension Applied Successfully to {n} Notices', lalu PSView menampilkan notice berhasil dan daftar gagal (PSForm.tsx:149-160,203-237; PSView.tsx:20-46). Tetapi onAPI tidak mengecek res.error sebelum membaca res.result?.data.results ?? [] (PSForm.tsx:149-151): bila request time out atau error pada batch besar, hasil kosong dan modal tetap berkata sukses untuk 0 notice (PSForm.tsx:213-219). Bug yang sama dilaporkan untuk TS pada OCMS-SR-2026-022 (Closed) dan sudah diperbaiki di TSForm.tsx:109-116, tetapi tidak di PSForm. Tidak diuji apakah transaksi controller membatalkan seluruh batch saat gagal."
+    }
+  ]
+}

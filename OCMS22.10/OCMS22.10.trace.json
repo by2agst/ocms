@@ -1,0 +1,46 @@
+{
+  "story": "OCMS22.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/agencies/mha/report/{jobs/MhaReportJob,helpers/MhaReportHelper,services} (report Excel Summary/Success/Error dari hasil MHA), resources/application-prod.properties. ocmsadminui: pages/Report/index.tsx + action/ActionReport.tsx (menu Court Application Vault/Submit Reports tanpa path, MHA Reports path mha_report). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code report court",
+  "note": "Story minta report daftar notice yang berhasil diproses dan di-update dengan particulars terbaru untuk court application. Menu 'Court Application Vault Reports' dan 'Court Application Submit Reports' ada di UI tetapi path kosong dan resource-nya di-comment (Report/index.tsx:62-67, ActionReport.tsx:36-42), jadi tidak ada report court. Yang ada adalah report MHA harian (MhaReportJob/MhaReportHelper): Excel dengan sheet Summary, Success, Error dari hasil download MHA (MhaReportHelper.java:283, 441, 523), disimpan ke Azure Blob (MhaReportJob.java:159-165) lalu dikirim email. Itu cakupan MHA OCMS8 per stage letter, bukan notice di court application batch, jadi Sebagian. Di prod email.enableSmtp=false (application-prod.properties:80), sehingga pengiriman email report mati di config prod; nilai server asli cannot verify from repo. Tiket OCMS-DF-2026-178 (MHA daily summary report menunjukkan hitungan nol dan dibuat dua kali per run) masih Ready to UAT, belum closed. Tidak ada jadwal cron khusus untuk MhaReportJob di cron-schedules-prod.properties; pemicu yang ditemukan adalah POST /v1/cron/mha-report-daily/trigger (CronProxyController.java:121-125).",
+  "recommendation": "Klaim sebagian saja. Report court application tidak ada (menu kosong); yang ada report MHA harian untuk notice stage letter, dengan defect OCMS-DF-2026-178 yang belum selesai dan email report mati di config prod. Konfirmasi dengan URA apakah report MHA diterima untuk story ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Menu report court application (daftar notice berhasil diproses) tersedia untuk officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:61-63; ocmsadminui/src/pages/Report/index.tsx:65-67; ocmsadminui/src/pages/Report/action/ActionReport.tsx:36-42",
+      "fit": "Tidak ada code",
+      "detail": "Menu Court Application Vault Reports dan Court Application Submit Reports terdaftar tetapi path-nya string kosong (Report/index.tsx:61-67) dan resource courtcasesummary di ActionReport.tsx:36-42 di-comment, jadi tidak ada report yang bisa dibuka. Tidak ada mapping otorisasi report court di ocmsadminapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat daftar notice yang berhasil diproses dan di-update dengan particulars terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/report/helpers/MhaReportHelper.java:441; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/report/helpers/MhaReportHelper.java:523",
+      "fit": "Sebagian",
+      "detail": "MhaReportHelper membuat Excel dengan sheet Summary, Success dan Error dari hasil download MHA (MhaReportHelper.java:283, 441, 523); sheet Success berisi notice_no, id_no, stage dan waktu proses. Isinya semua notice yang diproses cron MHA (stage letter RD1-DR3), bukan hanya notice di court application batch, jadi Sebagian. Defect OCMS-DF-2026-178 (hitungan nol dan report dibuat dua kali) masih Ready to UAT."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menghasilkan report sehingga officer bisa merujuk ke daftar notice tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/report/jobs/MhaReportJob.java:159-165; ocmsadminprivateapi/src/main/resources/application-prod.properties:80; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:121-125",
+      "fit": "Sebagian",
+      "detail": "MhaReportJob menyimpan Excel ke Azure Blob (MhaReportJob.java:159-165) lalu mengirim email dengan penerima dari email.report.recipients. Di prod email.enableSmtp=false (application-prod.properties:80), jadi pengiriman email mati di config prod; file di blob tetap dibuat. Nilai server asli dan akses officer ke blob: cannot verify from repo. Tidak ada jadwal cron khusus report ini di cron-schedules-prod.properties; pemicu yang ditemukan adalah POST /v1/cron/mha-report-daily/trigger di ocmsadminapi (CronProxyController.java:121-125) lewat MhaReportServiceImpl."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer dapat melihat report dari portal staf",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/index.tsx:57-59; ocmsadminui/src/pages/Report/hook/useSearch.ts:467; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/agency/mha/MhaReportController.java:19-31; ocmsadminapi/src/main/resources/api-authorization.properties:134-136",
+      "fit": "Sebagian",
+      "detail": "Menu MHA Reports ada (Report/index.tsx:57-59), UI memanggil mha-report/search (Report/hook/useSearch.ts:467) yang dilayani MhaReportController (:19-31) dan diotorisasi lewat OCMS_REPORT_MHA (api-authorization.properties:134-136, termasuk /v1/download/blob). Jadi officer bisa melihat report MHA umum. Menu court-nya kosong, sehingga tampilan khusus court application tidak ada; Sebagian. Isi data report di server asli: cannot verify from repo."
+    }
+  ]
+}

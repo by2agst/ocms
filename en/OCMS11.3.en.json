@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/services/datahive/contact/DataHiveContactServiceImpl, framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor (lookup during LTA download), framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper (refreshContactInfo, flag cron.enareminder.datahive), crud/ocmsizdb/OcmsOffenceNoticeOwnerDriver, cron-schedules-*.properties. ocmsadminui: no contact-source display. Other repos: no code",
+  "note": "Story status 'Demo paid (50% of 75%)', demo_remark 'Notice details - show source name'. The story says DOS; the code fetches contacts from DataHive (Singpass view for individuals, CorpPass view for companies); whether DOS equals DataHive cannot verify from repo. The lookup runs during LTA download (LtaSnowflakeProcessor) and the result is written to owner/driver. A second refresh right before sending (NotificationSmsEmailHelper.refreshContactInfo) is switched off by cron.enareminder.datahive=false in dev, UAT and prod, so the contact used at send time is the stored data. There is no restriction to frontend NOPOs only, and no contact-source column or display (the demo_remark request). DataHive views and their content cannot verify from repo. The stale copy ocmsadminprivateapi/cronservice/ is not used as evidence.",
+  "recommendation": "Claim partially: the mobile/email lookup during LTA download exists, but the refresh before sending is switched off, there is no frontend restriction, and the 'show source name' request does not exist.",
+  "steps": [
+    {
+      "step": "The contact check applies to NOPOs issued by a frontend enforcement system",
+      "detail": "The contact lookup runs for all standard notices that pass the exclusion list and are not passport (LtaProcessingOrchestrator.processStandardVehicle), without reading the notice source; frontend NOPOs are included but not limited to frontend. Same fact as OCMS11.2 step 3."
+    },
+    {
+      "step": "OCMS sends the individual owner's NRIC/FIN to the contact source, receives the latest mobile number and saves it",
+      "detail": "DataHiveContactServiceImpl.lookupContact classifies the ID type, builds a query to the Singpass view, runs it with retry, then parses the result. LtaSnowflakeProcessor writes offenderTelNo and offenderTelCode to ocms_offence_notice_owner_driver (lines 169-173). The source is DataHive; whether that is DOS cannot verify from repo, and neither can the view content or the returned numbers."
+    },
+    {
+      "step": "OCMS sends the company UEN to the contact source, receives the latest email address and saves it",
+      "detail": "For company ID types, lookupContact uses the CorpPass view and the returned emailAddr is written to ocms_offence_notice_owner_driver (LtaSnowflakeProcessor.java:177-179). If no contact is found, the notice goes to RD1 (line 150). The accuracy of CorpPass data cannot verify from repo."
+    },
+    {
+      "step": "Before the notification is sent, OCMS refreshes the mobile/email again so the one used is truly the latest",
+      "detail": "The eNotification job calls batchPreloadContactInfo and refreshContactInfo (NotificationSmsEmailJob.java:185-189), but both stop unless cron.enareminder.datahive is 'true' (NotificationSmsEmailHelper.java:2329 and 2468). The value is false in dev, UAT and prod (cron-schedules-prod.properties:48), so the contact used at send time is the data stored from LTA download, not a refreshed one."
+    },
+    {
+      "step": "Notice details show the source name of the mobile/email contact (demo request)",
+      "detail": "The owner/driver entity only has email_addr, offender_tel_code and offender_tel_no (OcmsOffenceNoticeOwnerDriver.java:44-66), with no contact-source column. A grep for contact source / mobile source / tel source in ocmsadminui/src and ocmsadminapi/src/main finds no contact-source display; there is only a DataHive owner data view in notice details, which is not the mobile/email source. No maintenance ticket changes this."
+    }
+  ]
+}

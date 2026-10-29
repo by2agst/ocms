@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.40",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/datahiveuenfin/services/DataHiveUenFinService and services/datahive/nricFinUenDataRetrieval (receiving board data); workflows/furnish_processing/helpers/FurnishApprovalHelper (only knows RD1 for hirer and DN1 for driver, no RD2); agencies/toppan/upload/{models/ToppanStage,helpers/ToppanUploadHelper,jobs/ToppanUploadJob} and crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (generic RD2 letter); application-prod.properties. Other repos: no NOPO revert code for an Owner/Partner",
+  "note": "The story (2 points) asks that once the individual Owner/Partner particulars are received, OCMS reverts the NOPO to the 2nd reminder (RD2) with the Owner/Partner as hirer. No code does this: neither offender nor stage changes after the UEN sync (see OCMS11.38), and the only stage-reset mechanism (FurnishApprovalHelper.changeProcessingStage) writes only RD1 or DN1, never RD2. Generic RD2 letter generation to Toppan exists, but the SFTP upload to Toppan is blocked in application-prod.properties:86 (OCMS-DF-2026-192, Ready to UAT). Fits are kept equal to sibling OCMS11.20 and to story OCMS11.39 for the same facts. Sheet status: Demo paid (50% of 75%); demo_remark mentions Vault and Code Split.",
+  "recommendation": "Do not claim as done. No code reverts the NOPO to RD2 for an Owner/Partner from ACRA data; only the generic RD2 letter exists. Ask URA to confirm where this feature was built or mark it as a gap.",
+  "steps": [
+    {
+      "step": "The individual Owner/Partner particulars are received from the data source (ID, position, appointment and withdrawn dates)",
+      "detail": "The board response is parsed into BoardInfo with personIdNo, positionHeldCode, positionAppointmentDate, positionWithdrawnDate and referencePeriod (DataHiveUENBatchService.java:483-502, UENDataResult.java:88-101). There is no person name or address, and no Owner/Partner is selected by appointment period. The job is off in prod (cron-schedules-prod.properties:52). Same fit as OCMS11.38 langkah 2 dan OCMS11.39 langkah 1 (sibling)."
+    },
+    {
+      "step": "The NOPO is reverted to the 2nd reminder (RD2) with the Owner/Partner as hirer",
+      "detail": "After the UEN sync there is no change to next_processing_stage or the offender (DataHiveUenFinService.java:1479-1485; only noticeNo is written to ocms_nro_temp). changeProcessingStage in FurnishApprovalHelper.java:644-651 only sets RD1 (hirer) or DN1 (driver); no path sets RD2 from Owner/Partner data. Same as OCMS11.20 step 2."
+    },
+    {
+      "step": "The Owner/Partner is recorded as the hirer together with the mailing address",
+      "detail": "Nothing writes the Owner/Partner as offender/hirer in ocms_offence_notice_owner_driver or writes the mailing address from the UEN flow: board data is not written to the DB (DataHiveUenFinService.java:1470-1477) and only shareholders are stored (:1440-1447). Inserting an ONOD_ADDR for a new person exists only in the furnish flow (FurnishApprovalHelper.java:622-637, triggered by a furnish approval from eService/staff, not by ACRA data). Same as OCMS11.20 step 3."
+    },
+    {
+      "step": "The 2nd reminder (RD2) is produced and sent to the Owner/Partner",
+      "detail": "The generic RD2 letter generation exists: findToppanNoticesForStage selects notices with next_processing_stage = 'RD2' for offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:584-611; ToppanUploadHelper.java:1887) and ToppanStage RD2 (ToppanStage.java:20), so the letter is addressed to the recorded offender; because the Owner/Partner is never recorded as offender (previous step), they would not receive the letter. Also sftp.upload.disabledServers=toppan in application-prod.properties:86 and the delivery gate is bypassed (ToppanUploadJob.java:420-430, OCMS-DF-2026-192, status Ready to UAT), so the letter does not reach Toppan in the repo configuration."
+    }
+  ]
+}

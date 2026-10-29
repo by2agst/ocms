@@ -1,0 +1,21 @@
+{
+  "story": "OCMS18.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST /plus-apply-suspension), helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}. No code in ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi for this story",
+  "note": "Status in stories.json: Fully paid. For an unpaid notice, POST /plus-apply-suspension applies the PS and returns a synchronous response success:true, message 'PS Success', appCode OCMS-2000 (or 'Success Notice already PS', OCMS-2001, when the same PS code is already active). Two points to note: PLUS must send daysToRevive even though PS does not use it (HTTP 400 if empty), and every failure is returned with appCode OCMS-4000 because createErrorResponse does not put an appCode. PLUS authentication (JwtFilter skips plus-*, relies on APIM), the content of ocms_standard_code, and the display in PLUS: cannot verify from repo. No ticket changes the verdict.",
+  "recommendation": "Can be claimed. What the repo cannot prove: PLUS authentication and the display in PLUS.",
+  "steps": [
+    {
+      "step": "PLUS sends a permanent suspension request for an unpaid notice and OCMS validates it",
+      "detail": "plusApplySuspension reads noticeNo (list), suspensionType, reasonOfSuspension, daysToRevive, suspensionRemarks, officerAuthorisingSuspension (SuspensionProcessingController.java:493-501). An empty mandatory field gives HTTP 400 OCMS-4000 (:503-528); daysToRevive is also mandatory although PS does not use it (:519-523). suspensionSource is forced to PLUS and any other value is rejected (:530-543). PLUS authentication: cannot verify from repo."
+    },
+    {
+      "step": "OCMS applies the permanent suspension to the unpaid notice",
+      "detail": "processPS validates fields (PermanentSuspensionHelper.java:64-69), finds the notice (:72-76), checks code permission for the PLUS source (:99-104) and the stage (:107-111), then updateDatabase (:139-144): updateVON sets suspension_type=PS, epr_reason, epr_date (SuspensionBaseHelper.java:345-348), updateEVON copies to eVON (:399-401), insertSuspendedNotice adds a history row (:443-467). An unpaid notice (crs reason null) passes validatePaidNotice (:181) and creates no refund (:324-326). A DB failure returns OCMS-4007 (SuspensionBaseHelper.java:493-496). The content of ocms_suspension_reason/standard_code that decides which codes PLUS may use: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends PLUS a message that the permanent suspension succeeded",
+      "detail": "Success: {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150; SuspensionBaseHelper.java:541-548) plus appCode OCMS-2000 from the controller (SuspensionProcessingController.java:1186-1198), HTTP 200 with a per-notice list (:555). A PS code that is already active: 'Success Notice already PS' appCode OCMS-2001 (PermanentSuspensionHelper.java:91). Failure: success=false; createErrorResponse does not put an appCode (SuspensionBaseHelper.java:528-535), so the controller gives OCMS-4000 for every failure (SuspensionProcessingController.java:1191-1194). This step is the same as the success message step in OCMS18.22. The display in PLUS cannot be verified from the repo."
+    }
+  ]
+}

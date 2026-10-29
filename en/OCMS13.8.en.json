@@ -1,0 +1,25 @@
+{
+  "story": "OCMS13.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, resources/cron-schedules-{prod,uat,dev}.properties. No UPL-specific code; generic eNotification/reminder mechanism. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Demo paid (50% of 75%)'. Demo remark: Vault must run because the notice needs vehicle/owner information, and Vault permission is granted to the api App Service. The check for the latest mobile number is done by the eNotification cron (NotificationSmsEmailJob), which reads the DataHive view V_DH_SNDGO_SINGPASSCONTACT_MASTER; the code never mentions DOS, so 'DOS = DataHive' cannot be confirmed from repo. Notice selection for the reminder stages (including DN1) is generic and does not filter on type U; type X is not excluded (only I, D, V). Every step is Sebagian because its execution is switched off by config: cron.notification.enabled=false (cron-schedules-prod.properties:236) and cron.enareminder.datahive=false (cron-schedules-prod.properties:48, also in uat and dev), so even when the job is switched on the number is not refreshed from DataHive. Ticket: OCMS-DF-2026-180 (Closed, remark 'Awaiting eNotification cron to activate'; says reminder stages RD1..DR3 stay unchanged). The real server values, Vault permission and the ENOTEDAYS/POS/PDD parameter values: cannot verify from repo.",
+  "recommendation": "Claim as Sebagian only. The logic exists but cron.notification.enabled=false and the DataHive flag is false in every properties file of the repo. Confirm with URA/the team the real server values, the Vault permission, and whether 'DOS' = DataHive",
+  "steps": [
+    {
+      "step": "After the 1st letter (DN1) is sent, the notice becomes a candidate for an electronic reminder before the due date",
+      "detail": "queryRecordsForReminder selects last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) (NotificationSmsEmailHelper.java:1114) with due date = last_processing_date + POS + PDD <= today + ENOTEDAYS (:1088-1090,1115-1118), suspension NULL or TS-HST (:1120), and the ID not in the exclusion list (:1133). vehicle_registration_type only excludes I, D, V (:1151), so UPL (X) is included. There is no offence type U filter; the mechanism is generic, not UPL-specific. It is called from NotificationSmsEmailJob.java:162, but cron.notification.enabled=false in cron-schedules-prod.properties:236 (OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'). The POS/PDD/ENOTEDAYS values in the DB: cannot verify from repo."
+    },
+    {
+      "step": "OCMS checks the offender's latest mobile number (as per Epic OCMS9)",
+      "detail": "The job calls batchPreloadContactInfo and then refreshContactInfo for all records (NotificationSmsEmailJob.java:185-188). refreshContactInfo queries DataHive only when cron.enareminder.datahive=true; its value is false in cron-schedules-prod.properties:48 (also uat and dev), so the existing offender_tel_no is used without a re-check (NotificationSmsEmailHelper.java:2468-2476). When true, the query is SELECT CONTACT FROM V_DH_SNDGO_SINGPASSCONTACT_MASTER WHERE UIN = <NRIC/FIN> (:1448). The code never mentions DOS, so whether DOS equals DataHive, the Vault connection/permission (demo remark) and the view content: cannot verify from repo. Same fit as OCMS9.4."
+    },
+    {
+      "step": "The latest mobile number is saved to the offender record",
+      "detail": "After DataHive returns CONTACT (at least 8 characters), phoneNo and normalizedPhone are set (NotificationSmsEmailHelper.java:2756-2763) and updateOcmsContactInfo PATCHes ocms_offence_notice_owner_driver (offenderTelNo, emailAddr) filtered by noticeNo + idNo (:2800-2823). This path runs only when cron.enareminder.datahive=true (false in prod, cron-schedules-prod.properties:48) and the job is enabled (false, :236). Same fit as step 2."
+    },
+    {
+      "step": "If the number is missing or invalid, no electronic reminder is sent",
+      "detail": "validateContactInfo rejects a record with a contactError or without phoneNo (NotificationSmsEmailHelper.java:2259-2296). For non-ENA stages the job only skips the record without changing the stage (NotificationSmsEmailJob.java:254-266); the move to RD1 is for ENA only. The number format is not validated as a Singapore mobile number: normalizeMobile only strips non-digits and prepends country code 65 (:2041-2077), and the DataHive check is only length >= 8. It runs only when the job is enabled (cron.notification.enabled=false in prod)."
+    }
+  ]
+}

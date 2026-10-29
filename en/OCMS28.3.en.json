@@ -1,0 +1,29 @@
+{
+  "story": "OCMS28.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi workflows/agencies/mha/{upload/helpers/MhaNricDataHelper,upload/jobs/MhaNricUploadJob,download/helpers/MhaNricDownloadHelper}, workflows/datahiveuenfin/services/DataHiveUenFinService (adhoc FIN, pass info), framework/schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties; ocmsadminapi unclaimed/UnclaimedServiceImpl (ocms_adhoc_nro_temp queue). No ICA/DOS integration that can be confirmed.",
+  "note": "The story asks OCMS to send NRIC/FIN/foreign passport number to ICA/DOS, receive and update the registered address, pass type and validity. Existing code: NRIC (id_type N) from ocms_adhoc_nro_temp is sent to MHA by MhaNricUploadJob (MhaNricDataHelper.java:442-450; MhaNricUploadJob.java:160) and the result is stored in ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3123-3141). FIN (id_type F) goes through the DataHive job, which is off in prod (cron-schedules-prod.properties:52). Pass type and expiry are fetched by DataHive for notices in reminder stages (DataHiveUenFinService.java:2463-2470), but the adhoc path stores only the address (DataHiveUenFinService.java:602-640) and the expired-pass action is only a PLACEHOLDER log (DataHiveUenFinService.java:3042-3046). Foreign passport numbers are not in the queries (id_type only N, F, B). ICA/DOS does not exist as an integration; ICA/DOS = MHA/DataHive cannot be confirmed from the repo. All of this is triggered by Unclaimed Reminders, not by a court summons. Tickets OCMS-DF-2026-126 (FIN recorded as Type N in adhoc NRO temp, Closed, Prod deployed) and OCMS-DF-2026-130 (old mha_reg not cleared, Closed, Prod deployed) touch this path; both are Closed so they do not lower the verdict. Status blank; traced normally.",
+  "recommendation": "Partial claim. The NRIC address check through MHA is on but triggered by reminder letters; FIN through DataHive is off in prod; foreign passports, pass validity and notice address updates from a court summons do not exist. ICA/DOS needs URA confirmation.",
+  "steps": [
+    {
+      "step": "OCMS recognises the returned record belongs to an individual",
+      "detail": "id_no and id_type come from the RDP/DN data, default N (UnclaimedServiceImpl.java:222-223, 267-268) and are queued in ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:753-762). The source is a reminder letter, not a court summons. OCMS-DF-2026-126 (Closed) records that FIN was once stored as Type N."
+    },
+    {
+      "step": "OCMS sends the NRIC to ICA/DOS",
+      "detail": "MhaNricUploadJob reads id_type N from ocms_adhoc_nro_temp (MhaNricDataHelper.java:442-450; MhaNricUploadJob.java:160) and sends it to MHA. The upload cron has enabled=true in prod (cron-schedules-prod.properties:105-106). ICA/DOS is not in the code; ICA/DOS = MHA cannot be confirmed from the repo. The SFTP channel to MHA: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends the FIN or foreign passport number to ICA/DOS",
+      "detail": "FIN (id_type F) is sent to DataHive by the DH UEN and FIN job (DataHiveUenFinService.java:324-328, 1130-1142). The job is off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; skipped in MhaDownloadJobsScheduler.java:103-106); the real server value cannot be verified from the repo. Foreign passport numbers are not in the queries (id_type only N, F, B)."
+    },
+    {
+      "step": "OCMS receives and updates the latest registered address",
+      "detail": "MHA results for adhoc queries are stored in ocms_temp_unc_hst_addr (MhaNricDownloadHelper.java:3123-3141; DataHiveUenFinService.java:602-640 for FIN). The address does not overwrite the notice address; staff read it in the Unclaimed report (UnclaimedReportHelper.java:336-339). Updating the notice address on the normal (non-adhoc) path is not triggered by a return. OCMS-DF-2026-130 (Closed) touches clearing of the old mha_reg."
+    },
+    {
+      "step": "OCMS receives the pass type and validity for foreigners",
+      "detail": "For notices in stages RD1-DR3 (not adhoc), pass type, expiry and principal are stored (DataHiveUenFinService.java:2463-2470) and expiry is checked (isPassExpired, DataHiveUenFinService.java:3021). The adhoc path stores only the address (DataHiveUenFinService.java:602-640). The action on an expired pass is only a PLACEHOLDER log (DataHiveUenFinService.java:3042-3046). The job is off in prod (cron-schedules-prod.properties:52)."
+    }
+  ]
+}

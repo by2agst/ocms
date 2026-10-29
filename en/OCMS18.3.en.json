@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/validation/NoticeSearch/{Valid,ValidNoticeSearchAll,ValidNoticeSearchUpload}, pages/NoticeSearch/{form/NoticeSearchForm,context/NoticeSearchUploadContext,page/upload/UploadErrorList,hook/useSearchParams,hook/ApplyOperationAction,hook/useBatchOperation}, components/datagrid/table/TableBody.tsx, pages/PS/{list/PSList,form/PSForm}. ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (staff-check-suspension-eligibility),helpers/{SuspensionProcessingHelper,PermanentSuspensionHelper}}, crud/beans/SystemConstant",
+  "note": "Status 'Fully paid'. Notice number format validation and upload row errors exist. The 'no notices' message is only the empty grid text 'No records to display' on search; on upload there is a per-row 'Record Not Found' box. Biggest difference: the story asks for an error when the notice is already permanently suspended, but the code deliberately does not reject it. A notice that is already PS still appears, is highlighted yellow on the PS page (PSList.tsx:66-90), then the old PS is revived and the new PS applied (PSForm.tsx:116-138; PermanentSuspensionHelper.java:121-130); the same PS code gets a success reply 'Success Notice already PS' (PermanentSuspensionHelper.java:78-92). Only paid notices (FP/PRA) are rejected (PSForm.tsx:103-110). The backend eligibility check for PS only checks the processing stage (SuspensionProcessingHelper.java:283-295) and one failing notice cancels the whole selection (ApplyOperationAction.tsx:160-173). Maintenance tickets touching this path: OCMS-DF-2026-114 (PS-CAN on an AN notice), OCMS-DF-2026-116 (notice link after a failed TS opens a blank page; the PS equivalent was not checked).",
+  "recommendation": "Claim partially (see Sebagian/Beda dari flow steps)",
+  "steps": [
+    {
+      "step": "An invalid notice number is rejected on the search form",
+      "detail": "The NoticeNo validator runs Format('NOTICE', val) and returns the message 'Invalid notice no.' (Valid.ts:18-31; translation.json:988-991) for the notice_no field (ValidNoticeSearchAll.ts:25; NoticeSearchAllForm.tsx:64-78). onApply shows the error in a modal and does not send the query (NoticeSearchForm.tsx:52-70). An empty form is rejected with 'Please enter at least 1 field to complete search.' (useSearchParams.tsx:100)."
+    },
+    {
+      "step": "An invalid value in an uploaded file row is flagged as an error",
+      "detail": "Each row is validated with yup (noticeNo, summon_no, idNo) and the error message is stored on the row (NoticeSearchUploadContext.tsx:87-101; ValidNoticeSearchUpload.ts:8-14). Failed rows are not sent to the backend and show in a red 'Record Not Found (n)' box with an Error column and a Download Record button (UploadErrorList.tsx:47-53). Vehicle number validation is commented out (ValidNoticeSearchUpload.ts:15)."
+    },
+    {
+      "step": "OCMS shows a message when no applicable notice is found",
+      "detail": "Upload: a row that finds no notice gets the error 'Record is not found' (NoticeSearchUploadContext.tsx:134-135) and shows in the 'Record Not Found' box (UploadErrorList.tsx:47-53). Search: an empty result only shows the default grid text 'No records to display' (TableBody.tsx:19), not an error prompt, and it does not say that no notice can be permanently suspended."
+    },
+    {
+      "step": "A notice that is already permanently suspended gives an error message",
+      "detail": "There is no rejection for a notice that is already PS. The PS eligibility check does not look at suspensionType (SuspensionProcessingHelper.java:283-295). On the PS page, a PS notice is only highlighted yellow with the info 'existing Permanent Suspension (PS)' (PSList.tsx:66-90). PSForm.onAPI calls staff-revive-suspension for the existing PS and then applies the new PS (PSForm.tsx:116-138); the backend revives the old PS before the new one (PermanentSuspensionHelper.java:121-130) and the same PS code gets a success reply 'Success Notice already PS' (:78-92). The only PS-related error is a paid notice (FP/PRA) given a code other than APP/CAN/CFA/VST: 'Not allowed to apply new PS code to paid Notice(s).' (PSForm.tsx:103-110). Overwriting PS looks deliberate (test plan comments OCMS 18.17-18.22 in PermanentSuspensionHelper.java:253-255), but it does not match the story text."
+    },
+    {
+      "step": "A notice not applicable for PS (ineligible stage) is rejected with an error message",
+      "detail": "validatePS calls POST staff-check-suspension-eligibility; the backend only checks that lastProcessingStage is one of NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC and otherwise answers 'Unable to PS the following Notice(s) at this Last Processing Stage.' (SuspensionProcessingHelper.java:103-106,283-295; SystemConstant.java:295). The UI shows the unique messages in a modal without naming which notice numbers failed, and if even one fails the whole selection is cancelled (ApplyOperationAction.tsx:160-173); if the call errors, the catch empties success and failed so the result is silent (useBatchOperation.ts:211-214)."
+    }
+  ]
+}

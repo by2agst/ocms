@@ -1,0 +1,29 @@
+{
+ "story": "OCMS46.8",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "The Payment Exception Report (PaymentExceptionReportJob/Helper, ocmsadminprivateapi) lists refunds created per day. There is no closed/cancelled status, no refund reminder letter, and no UI download.",
+ "note": "Status Removed. Not claimed. A similar daily report exists (Payment Exception Report, 08:00 via cron.dailyreport, plus the Monthly Exception Report on the 1st), but it only contains refunds created on the report date (cre_date) with no closed/cancelled status and no letter reminders. Officer download through the UI was not found; the report is sent as an email attachment. Tickets: OCMS-SR-2026-112 (Closed, Refund ID and refund flagging logic), OCMS-SR-2026-157 (Closed, merged), OCMS-SR-2026-190 (Ready to PRD, refund ID scenario PS-FP over PS-APP).",
+ "recommendation": "Not claimed (Removed)",
+ "steps": [
+  {
+   "step": "A daily report is generated",
+   "detail": "A scheduled daily report exists: cron.dailyreport.schedule=0 0 8 * * ? and enabled=true (cron-schedules-prod.properties:255-256), first job Payment Exception Report (line 262). It is an exception/refund report, not a report dedicated to refund advice status."
+  },
+  {
+   "step": "Report shows refund advices created",
+   "detail": "Created refund records exist: query on ocms_refund_notice with WHERE CAST(rn.cre_date AS DATE) = ? (lines 123-141), tagged REFUND at line 167. There is no filter or column for closed or cancelled refunds; the entity has no status column (OcmsRefundNotices.java:28-58)."
+  },
+  {
+   "step": "Report shows refund advices closed or cancelled",
+   "detail": "No code for closed or cancelled refund advices in the report. The refund query only filters cre_date; there is no close/cancel column in OcmsRefundNotices.java and ocmsadminapi/.../OcmsRefundNotice.java. Grep for cancel/close/status in PaymentExceptionReportHelper only finds workbook.close() (line 575)."
+  },
+  {
+   "step": "Report shows reminder letters sent",
+   "detail": "No refund reminder letters in the report. The report header (lines 527-529) has no reminder column, and grep for reminder in the paymentReport/ folder gives zero hits. The reminder code in the repo (UnclaimedReminders page under ocmsadminui/src/pages) is for unclaimed notices, not refunds; it is not tied to this story."
+  },
+  {
+   "step": "Officer can download the report",
+   "detail": "The report cannot be downloaded by officers through the UI; it is sent as an Excel email attachment (PaymentExceptionReportJob.java:207-216) to the recipients in application-prod.properties:78. In prod email.enableSmtp=false (line 80) but PAYMENT_EXCEPTION_REPORT is in allowedSources (line 81); the value on the real server cannot be verified from the repo. PaymentExceptionReportController exists for manual trigger (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/PaymentExceptionReportController.java:26), not a UI download page."
+  }
+ ]
+}

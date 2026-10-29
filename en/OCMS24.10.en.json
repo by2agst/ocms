@@ -1,0 +1,33 @@
+{
+  "story": "OCMS24.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui utils/models/{Ibatchsummoncsmemo,Itemplatecourtmemo,Icsdbatch}.d.ts (types only), pages/ManageTemplate (email subject/body templates). ocmsadminprivateapi framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl (court payment cutoff, not batch selection), framework/workflows/agencies/toppan/upload (Toppan letter generator for reminders, not court), framework/schedulers/ToppanUploadJobsScheduler, application-prod.properties (sftp.upload.disabledServers=toppan). ocmsadminapi crud/ocmsizdb/OcmsCourtCase. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Sheet status is blank and the demo remark is empty; the story is traced normally. The story asks OCMS to exclude settled notices (paid/cancelled), create a court memo, merge it with court summonses and charge sheets into one viewable and downloadable PDF, and interface it to the vendor for printing and postage. Not found: court batch selection, a summons generator, charge sheet or court memo (only the TypeScript types Ibatchsummoncsmemo/Itemplatecourtmemo/Icsdbatch), PDF merge code (no PDFMergerUtility or merge-PDF call in the six repos), or a court PDF view/download page. The Toppan vendor interface exists but for reminder letters from the Toppan generator, with no court path; the automatic letter generator also does not run from cron (ToppanUploadJobsScheduler.java:118 is commented out, only via POST /toppan/generate-letters) and Toppan upload is disabled in prod (sftp.upload.disabledServers=toppan, application-prod.properties:86; real server value cannot verify from repo). Searched with synonyms court memo, charge sheet, summon_pdf, cs_pdf, memo_pdf, merge pdf, batch. No relevant maintenance ticket. Vendor printing/postage: cannot verify from repo.",
+  "recommendation": "Do not claim as done. There is no code for court notice selection, memo/summons/charge sheet creation, PDF merge, or a court-specific vendor interface. Ask URA/the team to confirm where the code lives or mark as a gap.",
+  "steps": [
+    {
+      "step": "OCMS excludes settled notices (paid/cancelled) from the court batch",
+      "detail": "There is no court batch selection for summonses. PaymentAcceptanceCutoffServiceImpl only picks ocms_court_case rows past the payment due date (findNoticeNosDue, line 55) to close payment acceptance; that is not a paid/cancelled filter for summons printing and is not tied to a batch."
+    },
+    {
+      "step": "OCMS generates the court memo",
+      "detail": "Itemplatecourtmemo and Ibatchsummoncsmemo (memo_pdf, court_memo_desc) are only TypeScript types; there is no backend entity, generator or endpoint. The ManageTemplate page edits subject/body templates (ManageTemplateMap.ts), not court memos."
+    },
+    {
+      "step": "Court summonses are available to merge",
+      "detail": "No court summons generator exists in the backend (the summon_pdf field is only in a TypeScript type; there is no summon entity in ocmsadminapi/ocmsadminprivateapi)."
+    },
+    {
+      "step": "Charge sheets are available to merge",
+      "detail": "No charge-sheet generator exists (cs_pdf is only in a TypeScript type; Icsdbatch is also only a declaration)."
+    },
+    {
+      "step": "Memo, summonses and charge sheets are merged into one viewable and downloadable PDF file",
+      "detail": "There is no court PDF-merge code (no PDFMergerUtility or merge-PDF call in the six repos) and no court PDF view page. The generic blob download exists, but no merged file is created or stored."
+    },
+    {
+      "step": "The merged PDF is interfaced to the vendor for printing and postage",
+      "detail": "The Toppan vendor interface only handles reminder letters from ToppanLettersGeneratorServiceImpl, not court PDFs. The generator call in the scheduler is commented out (ToppanUploadJobsScheduler.java:118; only via POST /toppan/generate-letters) and application-prod.properties:86 sets sftp.upload.disabledServers=toppan (real server value cannot verify from repo). There is no path from a court PDF to the vendor."
+    }
+  ]
+}

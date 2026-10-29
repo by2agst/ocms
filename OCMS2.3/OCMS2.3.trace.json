@@ -1,0 +1,64 @@
+{
+  "story": "OCMS2.3",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui src/context/OptionsContext (VEHICLE_CATEGORY via standardcodelist, PP_CODE via carpark), pages/Notice/mode/create/CreateFrom, pages/Notice/form/{VehicleForm,NoticeOForm,NoticeEForm,NoticeUForm}, pages/Notice/component/PPCodeInput, pages/Auth/SelectUserInput (stub). ocmsadminapi crud/ocmsizdb/standardcode/StandardCodeController, crud/cascomizdb/Icarpark/{IcarparkController,Icarpark}, crud/config/MultiDataSourceConfig (datasource repccs), workflows/notice_creation/core/helpers/ProcessREPCCSHelper (OperatorID per notice). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada sinkronisasi kode dari REPCCS",
+  "note": "Status sheet 'Built - Has gap'. Drop-down kategori kendaraan dan car park ada di form Create Notice, tetapi tidak ada satu pun kode yang 'diambil dari REPCCS' sebagai interface: kategori kendaraan memakai standard code OCMS (sesuai remark demo bahwa REPCCS tidak punya data ini dan MGG menyimpannya di OCMS), car park dibaca langsung dari database bersama (datasource 'repccs'), dan daftar ID operator MEV/EHT tidak ada sama sekali (SelectUserInput stub, EHTFields di-comment). Ini gap yang disebut di sheet. Kepemilikan data database car park dan isi standard code: cannot verify from repo. Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Klaim hanya bagian drop-down kategori kendaraan dan car park di form Create Notice. Pengambilan data dari REPCCS dan drop-down ID operator MEV/EHT belum ada; jangan diklaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kode vehicle category (car, motorcycle, heavy vehicle) diambil dari REPCCS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/context/OptionsContext.tsx:348; ocmsadminui/src/context/OptionsContext.tsx:356; ocmsadminui/src/context/OptionsContext.tsx:374-376; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:85",
+      "fit": "Beda dari flow",
+      "detail": "Admin UI memanggil POST standardcodelist dengan referenceCode VEHICLE_CATEGORY dan codeStatus A (OptionsContext.tsx:348,356,374-376; StandardCodeController.java:85), yaitu membaca standard code milik OCMS sendiri. Tidak ada interface, job, atau panggilan ke REPCCS untuk kode kategori kendaraan di enam repo (dicari: VEHICLE_CATEGORY, vehicleCategory, sync, repccs di workflow standardcode dan cron; yang ada hanya validasi payload webhook). Demo remark di sheet menyebut REPCCS tidak punya data ini dan MGG menyimpannya di OCMS, sesuai temuan kode. Isi baris standard code di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kode dan nama car park diambil dari REPCCS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/context/OptionsContext.tsx:514-531; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/cascomizdb/Icarpark/IcarparkController.java:38; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/cascomizdb/Icarpark/Icarpark.java:23; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/config/MultiDataSourceConfig.java:228-234; ocmsadminapi/src/main/resources/application-prod.properties:7",
+      "fit": "Sebagian",
+      "detail": "Admin UI memanggil POST carpark dengan filter version A dan status Implemented (OptionsContext.tsx:514-531); API membaca tabel CARPARK (Icarpark.java:23) dari datasource bernama 'repccs' (MultiDataSourceConfig.java:228-234, prod: SQLCONNSTR_intranetocmscascomizconndb, application-prod.properties:7). Jadi data dibaca langsung dari database lain, bukan lewat interface atau pull dari REPCCS. Apakah database tersebut berisi data milik REPCCS dan bagaimana isinya diperbarui: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "ID operator MEV/EHT diambil dari REPCCS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/ProcessREPCCSHelper.java:305-308; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/dto/RepWebHookPayloadDto.java:32-33; ocmsadminui/src/pages/Auth/SelectUserInput.tsx:9-10",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada endpoint, job, atau tabel yang menarik atau menyimpan daftar ID operator MEV/EHT dari REPCCS (dicari: operator, OperatorID, mev, eht, casuser, officer di keenam repo). Yang ada hanya OperatorID per notice dari webhook REPCCS yang disimpan ke repOperatorId (ProcessREPCCSHelper.java:305-308, RepWebHookPayloadDto.java:32-33): satu nilai per notice, bukan daftar untuk drop-down. Di UI, SelectUserInput hanya stub (return null, SelectUserInput.tsx:9-10)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat membuat notice manual, vehicle category dipilih dari drop-down",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/mode/create/CreateFrom.tsx:47; ocmsadminui/src/pages/Notice/form/VehicleForm.tsx:200-206; ocmsadminui/src/pages/Notice/form/NoticeOForm.tsx:361; ocmsadminui/src/context/OptionsContext.tsx:374-376",
+      "fit": "Sesuai",
+      "detail": "Halaman Create Notice memuat opsi VEHICLE_CATEGORY saat dibuka (CreateFrom.tsx:47) lalu VehicleForm menampilkan DropdownInput wajib isi dengan opsi itu (VehicleForm.tsx:200-206); form O memakai VehicleForm (NoticeOForm.tsx:361). Label berisi code + description dari standard code (OptionsContext.tsx:362-366). Drop-down jenis kendaraan (VEHICLE_REG_TYPE) juga ada (VehicleForm.tsx:172-176). Isi pilihan tergantung data DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat membuat notice manual, kode dan nama car park dipilih dari drop-down",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/mode/create/CreateFrom.tsx:50; ocmsadminui/src/pages/Notice/component/PPCodeInput.tsx:40-57; ocmsadminui/src/pages/Notice/component/PPCodeInput.tsx:170-176; ocmsadminui/src/pages/Notice/form/NoticeOForm.tsx:100; ocmsadminui/src/pages/Notice/form/NoticeEForm.tsx:84",
+      "fit": "Sesuai",
+      "detail": "Create Notice memuat opsi PP_CODE (CreateFrom.tsx:50); PPCodeInput menyediakan dropdown kode car park dan dropdown nama car park dari opsi itu, ditambah pilihan 'Other' untuk input manual (PPCodeInput.tsx:40-57,170-176), dipakai di form O dan E (NoticeOForm.tsx:100, NoticeEForm.tsx:84) dan U (NoticeUForm.tsx:94). Daftar car park hanya yang version A dan status Implemented (OptionsContext.tsx:519-520)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat membuat notice manual, ID operator MEV/EHT dipilih dari drop-down",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/form/NoticeUForm.tsx:705; ocmsadminui/src/pages/Notice/form/NoticeUForm.tsx:911; ocmsadminui/src/pages/Auth/SelectUserInput.tsx:9-10",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya komponen mirip drop-down operator adalah SelectUserInput untuk 'Created By' / 'Updated By' di EHTFields (NoticeUForm.tsx:705,722), tetapi komponen itu stub yang return null (SelectUserInput.tsx:9-10) dan EHTFields sendiri di-comment (NoticeUForm.tsx:911). Form O/E tidak punya field ID operator (NoticeOForm.tsx, NoticeEForm.tsx). Jadi tidak ada drop-down ID operator MEV/EHT."
+    }
+  ]
+}

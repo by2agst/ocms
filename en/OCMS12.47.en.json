@@ -1,0 +1,33 @@
+{
+  "story": "OCMS12.47",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, combineNotices, getRecipientKey, loadAllExcludedIds, generateMessages, determineTemplateName, prepareTemplateData, sendBatchSms)}, framework/schedulers/NotificationJobsScheduler, utilities/smsutility/SmsUtil, properties cron-schedules-prod and application-prod/uat (cron.notification.enabled, sms.enable, sms.allowedSources). Other repos: no related code",
+  "note": "Status 'Demo paid (50% of 75%)'; the demo_remark mentions a Vault & SMS code split and 'may need to check if SMS permission needs to be granted' (cannot verify from repo). No flow deck. Driver version of OCMS12.19: the same eNotification cron sends SMS reminders for stage DR3: notices are selected by the due-date window, individuals are merged per ID, the template is chosen from the stage (DR3_SMS_INDIVIDUAL or DR3_SMS_INDIVIDUAL_COMBINED). Not proven: the sentence that refers to the 3rd letter (it is in the DB template, not in the repo) and real delivery, because in PROD cron.notification.enabled=false (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87) and sms.allowedSources is not set in application-prod.properties. Fetching the number from DOS is covered by OCMS12.46 and not repeated here. 'DOS' = DataHive cannot be confirmed from the repo. Ticket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'.",
+  "recommendation": "Claim partially. Selection, merging and the per-stage DR3 template exist; the 3rd-letter reference depends only on the DB template, and SMS sending in prod is locked by cron.notification.enabled=false and sms.enable=false. Evidence from UAT/the real server is needed that the cron and SMS are on",
+  "steps": [
+    {
+      "step": "OCMS collects the individual driver notices at stage DR3 that are still outstanding for the day's batch",
+      "detail": "The job calls queryRecordsForReminder() (NJ:162) and tags the stage from last_processing_stage (NJ:174-180). The query selects last_processing_stage IN (..., 'DR3'), offender_indicator = 'Y', a due date (last_processing_date + POS + PDD) inside the ENOTEDAYS window from today, suspension_type IS NULL (or TS-HST), an ID that is not in ocms_enotification_exclusion_list (NH:1112-1131), and no SMS/email record yet at the same stage (NH:1135-1160). Paid notices normally carry a PS-FP suspension so they drop out; that comes from the suspension status, not a direct amount_paid check. Matches the story wording 'fines that will be due soon'. The ENOTEDAYS/POS/PDD values live in the DB, cannot verify from repo."
+    },
+    {
+      "step": "OCMS identifies the unique individual drivers among the notices in the batch",
+      "detail": "combineNotices(records) (NJ:191) groups by getRecipientKey: for individuals the key is 'I_' + ID number (NH:2230-2248). But compositeKey = recipientKey + '_' + stage + '_' + dueDate (NH:2178), so the same driver with a different due date becomes a separate group and can receive more than one SMS on the same day. The story asks for one unique recipient per batch; same fit as OCMS12.19."
+    },
+    {
+      "step": "Only individual drivers receive the SMS; IDs on the exclusion list, passports and companies are skipped",
+      "detail": "Before the SMS batch is prepared, IDs on ocms_enotification_exclusion_list are skipped (NJ:226) and ID type P/PASSPORT is skipped (NJ:237). Company records (idType B) do not enter the SMS batch (NJ:274-276) and sendBatchSms also rejects companies (NH:1527-1545). The SMS channel is chosen for everything except idType B (NH:443-451). Edge case: loadAllExcludedIds returns an empty set when the query fails (fail-open, NH:1207-1215); the SQL layer in queryRecordsForReminder (NOT IN exclusion list, NH:1131-1134) still filters, so the impact is limited. Matches 'individual drivers'."
+    },
+    {
+      "step": "The SMS lists the outstanding notices merged per recipient",
+      "detail": "Non-ENA notices with the same key are merged: combinedNotices is joined with '.', amountPayable is summed (NH:2182-2200). prepareTemplateData passes noticeCount, combinedNotices, amountPayable, paymentDueDate, vehicleNo to the template (NH:410-433). generateMessages picks the template <STAGE>_SMS_INDIVIDUAL and adds _COMBINED when there is more than one notice (NH:284-301, 459-475), so for DR3: DR3_SMS_INDIVIDUAL[_COMBINED]. The template text lives in ocms_template_store, not in the repo (cannot verify from repo). Same fit as OCMS12.19."
+    },
+    {
+      "step": "The SMS refers to the 3rd letter reminder/notification",
+      "detail": "The code only picks the template name from the stage: for DR3 notices this becomes DR3_SMS_INDIVIDUAL or DR3_SMS_INDIVIDUAL_COMBINED (NH:459-475). No code inserts a letter reference (number/date of the 3rd letter); whether the text mentions the third letter depends only on the DB template. The template is not in the repo (no seed file contains the DR3_SMS name), cannot verify from repo. If the DR3 template is missing the SMS is skipped (log 'template not found', NH:1565). Same fit as OCMS12.19."
+    },
+    {
+      "step": "OCMS sends the SMS reminder through a batch SMS",
+      "detail": "The job calls sendBatchSms (NJ:289-291) which calls smsUtil.sendBatchSmsSimple with source ENOTIFICATION (NH:1611-1612), then sendBatchSms(csvFile, source) (SmsUtil.java:601). But in PROD: cron.notification.enabled=false (cron-schedules-prod.properties:236, the scheduler returns at NotificationJobsScheduler.java:49-52), sms.enable=false (application-prod.properties:87) and sms.allowedSources is not set in application-prod.properties, so SmsUtil returns status 'disabled' (SmsUtil.java:401-409). In dev and uat sms.enable is also false but sms.allowedSources=ENOTIFICATION (application-uat.properties:82), so UAT can send when the cron is started manually. Ticket OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'. The values on the real server cannot be verified from repo; the SMS gateway and permission (demo_remark) also cannot be verified from repo."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS50.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts, utils/validation/Payment/ValidPayment.ts, utils/validation/Format/ValidNOPO.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, workflows/urapg/controller/UraPaymentController. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "Input of up to 5 Notice Numbers exists and works (5 fields, the next field becomes active once the previous one is valid, duplicate check, one request carries all notices, the backend loads them all with one IN query, results can be selected several at a time). The limit of 5 is enforced only in the UI (slice(0,5)); the backend does not cap the count. The 'payment reference number' part has no code (see OCMS50.2). Combined payment: the UI sends all selected notices in one APIPostGenerateTransaction, but the payment gateway cannot verify from repo. Ticket OCMS-DF-2026-017 (fields reset to 1 after going back to search, Closed, Prod deployed) is a hint; the current code resets to 5 fields (PaymentSearch.ts:327-333).",
+  "recommendation": "Claim the input of up to 5 Notice Numbers and the combined payment up to transaction creation. Do not claim payment reference numbers. Note that the limit of 5 is UI-only.",
+  "steps": [
+    {
+      "step": "The Notice Number tab shows 5 input fields, the next field becomes active once the previous one holds a valid value",
+      "detail": "formData.notices is initialised with 5 empty strings; MultipleInput builds 'Notice Number 1..5' (length 10), fields with index>0 are disabled until the previous field is valid (validateAndEnableNext). resetNoticeInputs restores 5 fields (ticket OCMS-DF-2026-017, Closed, Prod deployed)."
+    },
+    {
+      "step": "Each number is checked for format and duplicates before the search is sent",
+      "detail": "Format('NOTICE') uses ValidNotice (9 digits + weighted check letter); the first field is required; a repeated number is flagged 'Duplicate Notice Number entered.' and the Search Fines button is disabled while any error exists (updateSearchButtonState)."
+    },
+    {
+      "step": "The offender can enter a Payment Reference Number in the same fields",
+      "detail": "The fields only accept the notice format. ValidTransaction (letters + 10 digits) exists in ValidNOPO.ts:53-56 but is not used by ValidPayment. The notice_reference_no error text is not referenced anywhere. Same as the Payment Reference Number step in OCMS50.2."
+    },
+    {
+      "step": "All numbers entered (at most 5) are sent together in one search",
+      "detail": "APIPostSearchFines drops empty numbers, cuts with .slice(0, 5), and sends {noticeNo:[...]}; the controller accepts the list through parseNoticeNumbers. The limit of 5 is UI-only: the backend does not check the count, so a direct API caller can send more than 5."
+    },
+    {
+      "step": "The backend loads all searched notices at once and returns them together",
+      "detail": "checkNoticesList runs one findAllByNoticeNoIn query for the whole list, loads the latest transactions in a batch, then handleNoticeNoSearch returns all notices with allPayableNotices. Notices that do not pass the query filter are not returned (see OCMS50.4)."
+    },
+    {
+      "step": "The offender can select several searched notices and pay them together",
+      "detail": "The table uses checkboxes and keeps the choice in unpaidSelected; PayButton sends all selected notices in one APIPostGenerateTransaction to /egeneratetransaction. The repo side exists. The payment gateway (eNETS/PayNow), the callback and the real payment result cannot verify from repo. Notices that cannot be paid (paymentAcceptanceAllowed=N) have no checkbox."
+    }
+  ]
+}

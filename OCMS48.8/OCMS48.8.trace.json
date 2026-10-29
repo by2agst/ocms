@@ -1,0 +1,46 @@
+{
+  "story": "OCMS48.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Tidak ada work item atau dashboard supervisor untuk court notice. ocmsadminui hanya punya menu Work Items yang berisi HST (utils/data/LinkData.tsx) dan alur UPL Decision Request/Endorsement per notice (pages/NoticeUPL; useEndorsement.tsx) yang memanggil resource workitem/workflow yang tidak punya controller di ocmsadminapi. Pembuatan work item di ocmsadminprivateapi (DataHiveUenFinService) adalah PLACEHOLDER. API CAS/PLUS (ocmsadminapi workflows/cas_integration) menerapkan nilai tanpa endorsement.",
+  "note": "Story Removed (status_with_ura). Tidak ada code yang membuat work item untuk bulk decision court notice. Grep supervisor di ocmsadminapi, ocmsadminprivateapi, ocmsadminui: 0 hasil, jadi tidak ada konsep dashboard supervisor. Menu Work Items di staff portal hanya berisi HST (LinkData.tsx:170-180). Alur terdekat adalah UPL Decision Request/Endorsement (route /upl/decision-request dan /upl/endorsement, App.tsx:84-85): UI memanggil POST workitem, workflow (UPL_APPROVAL, CHANGE_STAGE), dan approvalinbox (useEndorsement.tsx:52-56, 121, 157, 216), tetapi tiket OCMS-SR-2026-155 menyatakan tidak ada backend controller yang mengimplementasi /v1/workflow, dan grep approvalinbox/workitem/UPL_APPROVAL di ocmsadminapi dan ocmsadminprivateapi tidak menemukan controller. Pembuatan work item di cron DataHive (createWorkItemForPRSC dkk) adalah PLACEHOLDER yang hanya log (DataHiveUenFinService.java:2920-2922). Sementara itu /casUpdateCourtNotices dan /plus-payment-activation menerapkan flag dan amount langsung tanpa gerbang endorsement. Verdict tetap Removed; tidak diklaim.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah bulk decision diterapkan, OCMS membuat work item untuk endorsement",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2920-2922; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:119-121",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada pembuatan work item untuk bulk decision court notice. Pembuatan work item di cron DataHive adalah PLACEHOLDER yang hanya log 'feature not ready' (DataHiveUenFinService.java:2920-2922). UI UPL memanggil POST workitem (useEndorsement.tsx:119-121), tetapi tidak ada controller workitem di ocmsadminapi atau ocmsadminprivateapi (grep workitem, ApprovalInbox, ocms_work_item), dan itu untuk notice UPL, bukan court notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item diarahkan ke dashboard supervisor officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:170-180",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada dashboard supervisor atau routing ke supervisor. Grep supervisor di ocmsadminapi, ocmsadminprivateapi, ocmsadminui: 0 hasil. Menu Work Items hanya berisi HST (LinkData.tsx:170-180); tidak ada list work item per supervisor."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Supervisor dapat meng-endorse keputusan yang dibuat pada notice",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:85; ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:157; ocmsadminui/src/pages/NoticeUPL/List/EndorseList.tsx:55-68",
+      "fit": "Sebagian",
+      "detail": "Layar endorse ada tetapi untuk notice UPL, satu notice per aksi: route /upl/endorsement (App.tsx:85), list filter offenceNoticeType U dan lastProcessingStage NPA (EndorseList.tsx:55-68), submit lewat POST workflow UPL_APPROVAL (useEndorsement.tsx:157). Bukan court notice dan bukan bulk. Backend /v1/workflow tidak ada (tiket OCMS-SR-2026-155: 'no backend controller implements this'; grep di ocmsadminapi tanpa hasil), jadi persist endorsement tidak terbukti di repo. Role supervisor tidak dicek (grep supervisor 0 hasil). Sebagian hanya karena ada pola UI endorse, mirip tapi bukan fitur yang disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Keputusan baru berlaku setelah supervisor meng-endorse",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:220; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:801",
+      "fit": "Beda dari flow",
+      "detail": "Code berlaku sebaliknya: /casUpdateCourtNotices dan /plus-payment-activation menulis amount_payable dan payment_acceptance_allowed langsung ke VON/eVON tanpa status pending endorsement (CasIntegrationController.java:101, 220; CasIntegrationServiceImpl.java:801). Tidak ada gerbang endorsement di jalur court notice. Cron cutoff juga mengubah flag langsung (PaymentAcceptanceCutoffServiceImpl.java:77-83, scheduler di-comment di ToppanUploadJobsScheduler.java:123)."
+    }
+  ]
+}

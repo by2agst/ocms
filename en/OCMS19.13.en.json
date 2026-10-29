@@ -1,0 +1,29 @@
+{
+  "story": "OCMS19.13",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/PermanentRevivalHelper (processRefundForRevival), crud/ocmsizdb/OcmsRefundNotice/{OcmsRefundNotice,OcmsRefundNoticeServiceImpl,OcmsRefundNoticeId}, crud/beans/SystemConstant. ocmsadminprivateapi workflows/paymentReport/helpers/PaymentExceptionReportHelper, cron-schedules-prod.properties, application-prod.properties. Cumulus interface: no code in the six repos",
+  "note": "Sheet status: No requirement (5 points); no flow deck. When a PS-FP or PS-PRA is revived, OCMS creates one row in ocms_refund_notice (ID RE{YYYYMMDD}{NNN}, receipt, amount_paid as refund_amount, reason = revival code). That row is not sent anywhere: the word 'cumulus' does not appear in the six repos and no outbound file, SFTP or API carries refund data. The only readers of refund rows are the daily and monthly Payment Exception Report (email to URA OICs), the PS report, and a read endpoint for PLUS. The refund table has no status column, so refund completion is not tracked in OCMS. There are three gaps on the record-creation side. First, a creation failure is only logged and the revival is still 'PS Revival Success'. Second, notices without crs_reason_of_suspension are skipped; for a PS-PRA without crs_reason this means no refund [Medium confidence: data dependent, cannot verify from repo]. Third, a notice without a web transaction gets the synthetic receipt 'MIG-<noticeNo>' and the first receipt is picked without ordering. The Cumulus interface may be built outside the six repos or in epic OCMS46; cannot verify from repo. Tickets used: OCMS-SR-2026-112 (refund columns and scenario in the Exception Report, Closed, Prod deployed); OCMS-SR-2026-190 (PS-FP over PS-APP refund in Manual Payment, Ready to PRD) is not the revive path.",
+  "recommendation": "Claim only the refund record creation on PS-FP/PS-PRA revival and the exception report as internal follow-up. Do not claim the refund advice interface to Cumulus: no code. Ask URA/the team to confirm whether the Cumulus interface (OCMS46) is built outside these repos.",
+  "steps": [
+    {
+      "step": "The officer revives a paid notice (PS-FP or PS-PRA suspension) through the staff portal",
+      "detail": "POST staff-revive-suspension with suspensionType PS is routed to PermanentRevivalHelper.revivePS (SuspensionProcessingController.java:622-664; PermanentRevivalHelper.java:111-148), which closes the suspension and clears VON/eVON (197-204). Only codes PS-FP and PS-PRA are treated as paid notices with a refund (SystemConstant.java:54); a TS revive creates no refund."
+    },
+    {
+      "step": "The system confirms the notice was paid and looks up the original payment receipt",
+      "detail": "Refund is only processed when the PS code is in {FP, PRA} (PermanentRevivalHelper.java:284-287) and crs_reason_of_suspension before the revive is not null (293-297); 'paid' is judged from that field, not from a payment table. The receipt is taken from the first row of ocms_web_txn_detail without ordering (302-309); when empty a synthetic receipt 'MIG-<noticeNo>' is used (304-307), which is not a real receipt. For a PS-PRA with an empty crs_reason the refund is skipped; whether PRA data in production always has crs_reason cannot be verified from the repo."
+    },
+    {
+      "step": "The system creates the refund advice (refund record) with receipt, notice, refund amount and reason",
+      "detail": "processRefundForRevival calls refundNoticeService.createIfNotExists (PermanentRevivalHelper.java:319-326). The ocms_refund_notice row is created with ID RE{YYYYMMDD}{NNN}, receipt_no, notice_no, refund_amount = amount_paid, refund_reason = revival code, plus pp_code, suspension_type, epr/crs reason from VON (OcmsRefundNoticeServiceImpl.java:54-76, OcmsRefundNoticeId.java:23-30); idempotent per receipt + notice (47-52). However the whole block sits in a 'Non-fatal' try/catch that only logs (PermanentRevivalHelper.java:339-344), so the revival is still 'PS Revival Success' and the officer does not know the refund was not created. The entity has no status or destination column (OcmsRefundNotice.java:27-58). The refund is always the full amount_paid."
+    },
+    {
+      "step": "The refund advice is interfaced to Cumulus",
+      "detail": "A case-insensitive search for 'cumulus' in java, properties, ts, tsx, sql and yml across the six repos gives 0 hits. There is no job, outbound file, SFTP, API client or webhook that reads ocms_refund_notice and sends it to another system; thirdpartyapi has no refund code. The only readers of that table are the Payment Exception Report (PaymentExceptionReportHelper.java:123-141), the PS report and the PLUS read endpoint (PlusDataRetrievalController.java:70). Whether the Cumulus interface exists outside the repos or in epic OCMS46 cannot be verified from the repo."
+    },
+    {
+      "step": "The follow-up to refund the offender is carried out based on the refund advice",
+      "detail": "The only follow-up in code is the Payment Exception Report: the dailyreport cron (08:00, enabled=true, cron-schedules-prod.properties:255-262) and monthlyreport (276-282) read the ocms_refund_notice rows created that day/month (PaymentExceptionReportHelper.java:123-141, 366-384) and send them to the URA OIC list (application-prod.properties:78). email.enableSmtp=false in prod (80) but PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources (81); whether the email is really delivered on the server cannot be verified from the repo. This is only a notification to the OIC; refund execution and its completion status are not in OCMS (no status column in ocms_refund_notice). Ticket OCMS-SR-2026-112 (Closed, Prod deployed) added refund columns to this report."
+    }
+  ]
+}

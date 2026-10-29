@@ -1,0 +1,25 @@
+{
+  "story": "OCMS19.19",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-revive-suspension execute, processRevivalList) and helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}. Other repos: no code.",
+  "note": "Story status is 'No requirement' (requirement not given); traced normally. The confirmation from PLUS has no endpoint or message type of its own: the confirmation is the same POST /plus-revive-suspension call with checking=false (default), and OCMS keeps no proof that a dry-run or a details view happened earlier (stateless). Execute re-validates the fields, code, notice and suspension type and then revives. Gap: srNo is optional in the PLUS payload (SuspensionProcessingController.java:707); when srNo is not sent, the helper revives ALL active suspensions of that notice, TS and PS together (TemporaryRevivalHelper.java:157-168, PermanentRevivalHelper.java:168-179), so a TS revive request can also close a PS. Each notice in the batch is processed one by one and the results are returned to PLUS as a list (:782). Endpoint protection is the same as OCMS19.16 (APIM cannot verify from repo). No relevant maintenance ticket.",
+  "recommendation": "Can be claimed for receiving the confirmation and reviving. Record that a revive without srNo closes all active suspensions (TS and PS) and that there is no mandatory link to the earlier validation step.",
+  "steps": [
+    {
+      "step": "OCMS receives the revival confirmation from PLUS",
+      "detail": "Confirmation = POST /plus-revive-suspension with checking=false (default :689-694); the execute path calls processRevivalList with the srNo from the payload. There is no token or proof of an earlier dry-run; PLUS can call execute directly."
+    },
+    {
+      "step": "OCMS re-validates the request before reviving",
+      "detail": "Execute checks mandatory fields, remarks length, the revival code for PLUS plus the code list in ocms_suspension_reason (RevivalBaseHelper.java:159-186), notice exists and suspension type matches. PermanentRevivalHelper.java:118-148 does the same for PS."
+    },
+    {
+      "step": "OCMS revives the requested suspension",
+      "detail": "With srNo only that active suspension is revived (findActiveBySrNo, :143-155). srNo is optional (SuspensionProcessingController.java:707); without srNo the helper revives all active TS and PS suspensions (:157-168; PermanentRevivalHelper.java:168-179)."
+    },
+    {
+      "step": "OCMS returns the revival result per notice to PLUS",
+      "detail": "The response is a per-notice list {noticeNo, success, appCode, message}; success is 'TS Revival Success' / 'PS Revival Success' (TemporaryRevivalHelper.java:186-190; RevivalBaseHelper.java:807-815)."
+    }
+  ]
+}

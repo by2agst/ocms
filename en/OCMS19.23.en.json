@@ -1,0 +1,21 @@
+{
+  "story": "OCMS19.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (plus-apply-suspension, addAppCodeToResults),helpers/PermanentSuspensionHelper}. ocmsadminprivateapi: copy of plus-apply-suspension (framework/workflows/plus). The PLUS side is not in the repo",
+  "note": "Sheet status: No requirement (requirement not given). The flow is simple and present in code: PLUS calls plus-apply-suspension, OCMS applies the PS on the unpaid notice, then returns 'PS Success' per notice. The message is a synchronous API response, not a notification pushed to PLUS. The demo remark (PLUS API not pulling data, suspected dropped DB connection) is an environment issue; cannot verify from repo. No relevant maintenance ticket; APIM/auth and the PLUS side: cannot verify from repo.",
+  "recommendation": "Can be claimed for the OCMS side: the PS success response to PLUS is proven in code. Confirm in the environment that the PLUS connection problem in the demo remark is resolved",
+  "steps": [
+    {
+      "step": "PLUS requests permanent suspension of unpaid notices",
+      "detail": "POST /plus-apply-suspension accepts a noticeNo list, suspensionType PS, reasonOfSuspension, officerAuthorisingSuspension; mandatory fields are checked and suspensionSource is forced to PLUS (SuspensionProcessingController.java:485-546). Each notice runs through processNoticeList (lines 548-551). Access protection via APIM is not visible in the repo (JwtFilter skips plus-*), cannot verify from repo."
+    },
+    {
+      "step": "OCMS applies the PS to the unpaid notice",
+      "detail": "processPS validates source permission and stage (PermanentSuspensionHelper.java:100-111); for a notice with no crs_reason_of_suspension validatePaidNotice does not restrict the code (lines 180-193); then updateDatabase writes suspended_notice and VON/eVON (lines 139-144). Because the notice is unpaid, createRefundRecord returns null straight away (lines 324-326): no refund."
+    },
+    {
+      "step": "OCMS sends PLUS the successful-suspension message",
+      "detail": "Per-notice response {noticeNo, srNo, success: true, message \"PS Success\"} (PermanentSuspensionHelper.java:150), plus appCode OCMS-2000 (SuspensionProcessingController.java:1186-1199), returned as HTTP 200 (lines 553-555). This is a synchronous response to the caller. The demo remark says the PLUS API is not pulling data and suspects a dropped DB connection: that is an environment condition, cannot verify from repo; no maintenance ticket changes this step."
+    }
+  ]
+}

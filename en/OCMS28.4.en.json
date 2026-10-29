@@ -1,0 +1,29 @@
+{
+  "story": "OCMS28.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi workflows/agencies/lta/{upload/helpers/LtaUploadHelper,download/helpers/LtaBatchCode0Processor}, workflows/datahiveuenfin/services/DataHiveUenFinService (isPassExpired, work item placeholder), cron-schedules-prod.properties. No trigger from a court summons and no comparison of registered vs mailing address.",
+  "note": "The story asks: when the address did not change or the pass is invalid (foreign owners), OCMS sends the vehicle number, receives the vehicle owner particulars and LTA alternative mailing address from DOS, then checks whether the registered address and LTA mailing address differ. Only the normal LTA flow exists: notices in stage ROV are sent to LTA (LtaUploadHelper.java:88) and the result writes lta_reg and lta_mail addresses (LtaBatchCode0Processor.java:497-518, 591-601); upload/download crons are enabled=true in prod (cron-schedules-prod.properties:134-135, 148-149). That happens at notice creation, not as a follow-up to a returned summons. No code compares lta_reg with lta_mail; there is only the letter_address priority lta_reg then lta_mail (LtaBatchCode0Processor.java:495-497). The trigger condition 'no address change' does not exist; an expired-pass check exists (DataHiveUenFinService.java:3021) but its action is only a PLACEHOLDER log (DataHiveUenFinService.java:3042-3046). DOS = LTA/DataHive cannot be confirmed from the repo; the LTA SFTP channel cannot be verified from the repo. Status blank; traced normally.",
+  "recommendation": "Partial claim for the owner-data and LTA address retrieval that already exists in the ROV flow. The trigger from a returned summons and the address comparison do not exist.",
+  "steps": [
+    {
+      "step": "OCMS triggers this step when the address did not change",
+      "detail": "No code concludes 'no registered address change' and then starts a vehicle query. The LTA upload picks notices only by stage ROV and date (LtaUploadHelper.java:88). Searched: same/compare/differ/unchanged in the LTA upload, LtaBatchCode0Processor and DataHiveUenFinService; nothing found."
+    },
+    {
+      "step": "OCMS triggers this step when a foreign owner's pass is invalid",
+      "detail": "isPassExpired checks Date of Expiry <= today (DataHiveUenFinService.java:3021-3030) and the expired flow is called (DataHiveUenFinService.java:2995-3010), but createWorkItemForLTVPExpired only logs a PLACEHOLDER (DataHiveUenFinService.java:3042-3046) and does not start a vehicle query. The job is off in prod (cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "OCMS sends the vehicle number to DOS",
+      "detail": "The LTA upload streams ROV-stage notices of type O/E and sends an enquiry file to LTA (LtaUploadHelper.java:88). The cron is enabled=true in prod (cron-schedules-prod.properties:134-135). The trigger is stage ROV at notice creation, not a returned summons. DOS = LTA cannot be confirmed from the repo; the SFTP channel cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS receives the vehicle owner particulars and LTA alternative mailing address",
+      "detail": "LtaBatchCode0Processor writes the owner data, registration address (lta_reg) and mailing address (lta_mail) to ONOD and ONOD_addr (LtaBatchCode0Processor.java:497-518, planMailingAddressWrite at lines 591-601). It is run by the LTA download cron (cron-schedules-prod.properties:148-149, enabled=true). It happens in the normal ROV flow."
+    },
+    {
+      "step": "OCMS identifies whether the registered address and LTA mailing address differ",
+      "detail": "No comparison exists. The code only picks one address as letter_address (priority lta_reg then lta_mail, LtaBatchCode0Processor.java:495-497; LtaProcessingOrchestrator.java:534-556). No 'different' flag or result is stored."
+    }
+  ]
+}

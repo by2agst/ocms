@@ -1,0 +1,37 @@
+{
+  "story": "OCMS15.14",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingService.processPlusChangeStage/processPlusNoticeWithStageNewFlow/updateVonStage/syncCpsFieldsToInternetDb, ChangeOfProcessingController.plusChangeProcessingStage (respons SUCCESS). Repo lain: tidak ada code",
+  "note": "Status story: Requirement given - Gen flow (tidak ada flow deck OCMS). Jalur PLUS mengubah stage VON dengan pola yang sama dengan staff portal, menghitung ulang amount, sync ke eVON, menulis audit (reason PLS), lalu membalas 200 SUCCESS. Dua celah: (1) jalur PLUS tidak menyimpan kolom surcharge VON untuk stage court seperti jalur staff (OCMS-SR-2026-107), (2) SUCCESS juga dibalas ketika tidak ada yang diubah (kasus offenceType U) dan respons hanya berisi jumlah notice, tanpa status per notice. Tiket: OCMS-DF-2026-170 dan OCMS-DF-2026-097 sudah tercermin di jalur PLUS; OCMS-DF-2026-173 (flag payment) Closed; OCMS-SR-2026-107 hanya terlihat di jalur staff.",
+  "recommendation": "Klaim update stage VON dari PLUS. Pesan sukses ke PLUS Sebagian karena juga dikirim saat tidak ada perubahan; surcharge court stage belum ditulis di jalur PLUS",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengubah stage notice di VON ke stage yang diminta PLUS (prev, last, next stage dan tanggal)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1482-1501; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1104-1115",
+      "fit": "Sesuai",
+      "detail": "processPlusNoticeWithStageNewFlow memanggil updateVonStage(von, nextStageName, true) lalu vonService.save (ChangeOfProcessingService.java:1498-1501): prev = last lama, last = nextStageName dari PLUS, next stage = nextStageName, next date = sekarang (:1104-1115). Parameter NEXT_STAGE_* dan STAGEDAYS divalidasi di :1324-1346 tetapi tidak dipakai pada cabang manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Amount payable, admin fee, payment flag, sync ke Internet DB (eVON), dan audit trail ikut diperbarui",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1484-1491; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1510; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1519-1530; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1015-1024",
+      "fit": "Sebagian",
+      "detail": "Amount via calculateAmountPayable, admin fee via applyAdministrationFeeForStage (OCMS-DF-2026-170), payment_acceptance_allowed = Y kecuali an_flag = Y (OCMS-DF-2026-097) (ChangeOfProcessingService.java:1484-1491); eVON disync (:1510, soft failure di :1219); audit ocms_change_of_processing reason PLS, officer = nilai source, creUserId SYSTEM (:1519-1530). Namun surcharge VON untuk CPC/CSD/CSR/COS/COM hanya disimpan di jalur staff (:1015-1024), tidak di jalur PLUS (OCMS-SR-2026-107), meski jumlah amount sudah termasuk surcharge lewat calculateAmountPayable."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim status sukses ke PLUS setelah perubahan stage berhasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:505-515; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1311-1317; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1389-1392",
+      "fit": "Sebagian",
+      "detail": "Bila semua notice lolos, controller membalas 200 {status:SUCCESS, message, noticeCount} (ChangeOfProcessingController.java:505-515). Tetapi balasan yang sama juga keluar saat processPlusChangeStage return lebih awal untuk offenceType U (ChangeOfProcessingService.java:1311-1317) padahal tidak ada notice yang diubah, dan respons tidak memuat status per notice. Bila ada satu notice gagal, seluruh request dibalas FAILED (:1389-1392) walau notice lain sudah tersimpan."
+    }
+  ]
+}

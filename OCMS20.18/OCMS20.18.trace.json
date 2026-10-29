@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.18",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/HST/suspension/{HSTSuspension,form/SearchIDForm,form/HSTSuspensionForm,list/OutstandingNoticesList}, pages/HST/hooks/useHST.tsx, App.tsx, utils/data/LinkData.tsx; ocmsadminapi workflows/notice_management/suspension/{HstManagementController,HstManagementServiceImpl,HstApplyDto}, workflows/notice_creation/core/helpers/TemporarySuspensionHelper, api-authorization.properties (OCMS_HST_SUSPENSION). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk langkah manual ini",
+  "note": "'Special indicator' di code = HST (House Tenant): record di tabel ocms_hst plus TS-HST pada notice. Officer memakai menu HST > Manual HST Suspension: cari ID, lihat notice outstanding, isi nama dan alamat, Apply. POST /v1/apply-hst membuat record HST (id_no unik, duplikat ditolak) lalu memanggil processTS untuk tiap notice dengan offender_indicator='Y' dan melewati notice yang punya PS aktif (OCMS-DF-2026-094 sudah diperbaiki di code). Notice yang sudah dibayar ditolak oleh processTS. OCMS-DF-2026-091: ID tanpa notice sekarang boleh di-apply. Dua catatan: layar menulis 'selected notice(s)' padahal request tidak membawa nomor notice, jadi server selalu menerapkan ke semua notice; dan kegagalan per notice hanya masuk log sehingga officer tetap melihat sukses. Keputusan 'tidak resend' (prasyarat story) tidak dicatat sebagai data di mana pun, sama dengan story 20.16.",
+  "recommendation": "Klaim inti (HST record + TS-HST ke semua notice outstanding) dapat didukung code. Dua gap kecil: keputusan tidak-resend tidak tercatat, dan kegagalan per notice tidak sampai ke officer.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer sudah memutuskan tidak resend dan membuka Manual HST Suspension",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:196-200; ocmsadminui/src/utils/data/LinkData.tsx:183-200; ocmsadminui/src/utils/data/LinkData.tsx:388; ocmsadminapi/src/main/resources/api-authorization.properties:96-97",
+      "fit": "Sebagian",
+      "detail": "Menu HST > Manual HST Suspension dan route /hst/suspension ada (App.tsx:196-200, LinkData.tsx:183-200,388); API dibatasi mapping OCMS_HST_SUSPENSION (api-authorization.properties:96-97). Keputusan 'tidak resend' tidak menjadi data atau work item; officer langsung membuka halaman. Fakta yang sama dengan langkah 4 story 20.16 (Sebagian)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mencari ID dan OCMS memeriksa ID belum ada di daftar HST serta menampilkan notice outstanding",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/suspension/form/SearchIDForm.tsx:45-64; ocmsadminui/src/pages/HST/suspension/form/SearchIDForm.tsx:106-121; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:80-108; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:126-135",
+      "fit": "Sesuai",
+      "detail": "SearchIDForm memanggil check-hst dengan checkType 'create' (SearchIDForm.tsx:45); kalau hst=true layar menolak 'ID ... is already suspended under HST' (59-64). Server mengembalikan nama dan alamat mha_reg terbaru dari ONOD bila belum HST (HstManagementServiceImpl.java:126-135, 201-227). Notice ditarik lewat offencenoticeownerdriverlist (SearchIDForm.tsx:106-121) dan ditampilkan sebagai 'Outstanding Notices (Will be suspended under TS-HST)'. ID tanpa notice tetap boleh lanjut (OCMS-DF-2026-091)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat special indicator (record HST berisi nama dan alamat) untuk ID tersebut",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:117-135; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:299-322; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstApplyDto.java:18-52; ocmsadminui/src/pages/HST/suspension/form/HSTSuspensionForm.tsx:137-153",
+      "fit": "Sesuai",
+      "detail": "POST /v1/apply-hst (HstManagementController.java:117) memvalidasi HstApplyDto (idNo, idType N/F/B/P, name wajib; HstApplyDto.java:18-28), menolak duplikat (HstManagementServiceImpl.java:303-305, controller 128-131) lalu menyimpan record ocms_hst dengan nama dan alamat (308-322). Form mengirim field dari HSTSuspensionForm.tsx:137-153."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Indicator dipasang ke semua notice outstanding di bawah ID (TS-HST)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:326-347; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:487-510; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:562-566; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:86-90; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:120-137; ocmsadminui/src/pages/HST/suspension/form/HSTSuspensionForm.tsx:97-99",
+      "fit": "Sesuai",
+      "detail": "applyHstSuspension mengambil semua ONOD dengan id_no itu dan offender_indicator='Y' (HstManagementServiceImpl.java:326-331), melewati notice dengan PS aktif (338-341, 562-566; perbaikan OCMS-DF-2026-094), lalu applyHstToNotice memanggil tsHelper.processTS dengan reason HST (487-510). processTS menolak notice yang sudah dibayar (TemporarySuspensionHelper.java:86-90) dan menulis VON, eVON, dan suspended_notice (120-137). Catatan: layar menulis 'selected notice(s)' (HSTSuspensionForm.tsx:97-99) tetapi request tidak membawa nomor notice (141, di-comment), jadi server selalu menerapkan ke semua notice milik offender. Notice di mana ID itu bukan offender tidak ikut."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memberi tahu officer hasil penerapan indicator",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:336-349; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:117-124; ocmsadminui/src/pages/HST/suspension/form/HSTSuspensionForm.tsx:160-172",
+      "fit": "Sebagian",
+      "detail": "Kegagalan processTS per notice hanya di-log lalu loop lanjut (HstManagementServiceImpl.java:336-347), method mengembalikan hanya idNo (349) dan controller membalas SAVE_SUCCESS (HstManagementController.java:117-124). Layar menampilkan 'HST suspension applied successfully' (HSTSuspensionForm.tsx:160-164) walaupun sebagian atau semua notice gagal, dan record HST tetap tersimpan. Officer tidak tahu notice mana yang belum ter-suspend."
+    }
+  ]
+}

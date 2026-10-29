@@ -1,0 +1,46 @@
+{
+  "story": "OCMS13.12",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, framework/controllers/CombinedSchedulerTriggerController, resources/cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan untuk story ini",
+  "note": "Status di stories.json: Demo paid (50% of 75%), 1 point. Job eNotification yang sama menangani ENA dan reminder setelah surat (RD1-DR3), jadi reminder setelah surat ke-2 notice UPL (stage DN2) lewat jalur yang sama dengan stage lain; query reminder tidak membuang vehicle type X (NotificationSmsEmailHelper.java:1151). Tiga hal menurunkan klaim: (1) job dimatikan (cron.notification.enabled=false, cron-schedules-prod.properties:236) sehingga hanya jalan lewat trigger manual; (2) pengecekan nomor terbaru lewat DataHive dimatikan (cron.enareminder.datahive=false, cron-schedules-prod.properties:48) sehingga nomor tersimpan yang dipakai; (3) konvensi evidence: langkah yang eksekusinya dimatikan di properties prod dinilai Sebagian, bukan Sesuai. Demo remark menyebut Vault dan 'permission Vault ke app service api': cannot verify from repo. Kata DOS tidak ada di code; DOS = DataHive/LTA cannot be confirmed from the repo. Nilai property di server nyata: cannot verify from repo.",
+  "recommendation": "Klaim sebagian: logika pengecekan nomor, validasi, dan exclusion sudah ada, tetapi job eNotification dan lookup DataHive mati di properties prod. Konfirmasi dulu status aktif cron ke tim sebelum klaim penuh",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah surat ke-2 (DN2) diproses, OCMS memilih notice UPL yang perlu electronic reminder yang merujuk surat itu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:174-179; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1162; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/CombinedSchedulerTriggerController.java:105-108",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih notice dengan last_processing_stage IN ('RD1','RD2','RR3','DN1','DN2','DR3') (NotificationSmsEmailHelper.java:1114) yang tanggal jatuh temponya (last_processing_date + POS + PDD) masuk jendela ENOTEDAYS, belum punya record kirim di stage itu, offender_indicator 'Y', vehicle_registration_type bukan I/D/V (jadi UPL type X ikut, :1151), dan tanpa revival di antara dua tanggal proses; dipanggil dari NotificationSmsEmailJob.java:161-162 dan stage template diambil dari last_processing_stage (NotificationSmsEmailJob.java:174-179). Notice yang baru lewat DN2 punya last stage DN2 sehingga masuk. Sebagian karena job eNotification dimatikan: cron.notification.enabled=false di cron-schedules-prod.properties:236, jadi hanya jalan lewat trigger manual POST /notification-main/trigger (CombinedSchedulerTriggerController.java:105-108). Nilai di server nyata: cannot verify from repo. Tiket OCMS-DF-2026-180 (Closed) menyebut 'Awaiting eNotification cron to activate'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa nomor mobile terbaru offender dari sumber data (Epic OCMS9, DOS) dan memperbarui particulars",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2325-2333; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2476; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2730; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2800-2806; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo lalu refreshContactInfo per notice (NotificationSmsEmailJob.java:185-188). Kalau diaktifkan, individu dicari di DataHive Singpass (NotificationSmsEmailHelper.java:2710-2730) dan nomor baru ditulis lewat updateOcmsContactInfo (NotificationSmsEmailHelper.java:2800-2806). Tetapi preload dan refreshContactInfo langsung return memakai nomor tersimpan kalau cron.enareminder.datahive bukan 'true' (NotificationSmsEmailHelper.java:2325-2333, 2461-2476), dan property itu false di prod (cron-schedules-prod.properties:48). Jadi pengecekan nomor terbaru tidak berjalan di prod; job memakai nomor yang sudah ada di owner_driver. Kata 'DOS' tidak ada di code; DOS = DataHive/LTA cannot be confirmed from the repo. Vault (demo remark): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang offender-nya tidak punya nomor mobile valid dilewati dan tidak dikirimi SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-266; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "validateContactInfo menolak record dengan contactError dan individu tanpa phoneNo (NotificationSmsEmailHelper.java:2259-2290); di job, record yang gagal dilewati dengan log (NotificationSmsEmailJob.java:254-266). Hanya ENA yang dialihkan ke RD1; notice stage DN2 tidak diubah. Logika sesuai story, tetapi berjalan di job eNotification yang off di prod (cron-schedules-prod.properties:236), jadi Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender yang opt out dari electronic reminder (exclusion list) atau ber-passport dikecualikan dari SMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1131-1135; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-241; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1207-1213; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Query reminder membuang id_no yang ada di ocms_enotification_exclusion_list (NotificationSmsEmailHelper.java:1131-1135); job memuat seluruh exclusion list sekali (loadAllExcludedIds, NotificationSmsEmailHelper.java:1207-1213) lalu melewati record yang di-exclude atau ber-id_type P/PASSPORT sebelum SMS batch disiapkan (NotificationSmsEmailJob.java:226-241). Logikanya benar, tetapi dieksekusi di dalam job eNotification yang off di prod (cron-schedules-prod.properties:236), jadi Sebagian. Ada satu hal yang perlu diperhatikan: loadAllExcludedIds mengembalikan set kosong kalau pembacaan gagal (fail-open, NotificationSmsEmailHelper.java:1207-1213), tetapi filter di query reminder tetap menyaring lebih dulu. Isi exclusion list adalah data DB: cannot verify from repo."
+    }
+  ]
+}

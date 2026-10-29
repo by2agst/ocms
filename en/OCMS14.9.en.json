@@ -1,0 +1,21 @@
+{
+  "story": "OCMS14.9",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Cron/list/CronList (manual trigger list); ocmsadminapi workflows/operational/cronproxy/{CronProxyController,CronProxyService}; ocmsadminprivateapi framework/controllers/ToppanUnifiedController (POST /toppan/generate-letters), schedulers/{ToppanUploadJobsScheduler,MhaDownloadJobsScheduler}, resources/{cron-schedules-prod,application-prod}.properties. No manual trigger for DIP/MID entity reminder letters or the quarterly report.",
+  "note": "The story asks that the officer can run letter and report generation manually at any time when the automated jobs fail. A manual trigger mechanism does exist on the Cron page, but only for other jobs: the generic Toppan per-notice letters (Sebagian, upload blocked in prod and the day-end cron does not call it) and other reports. No automated or manual job exists for the DIP/MID entity reminder letters (OCMS14.8) or the quarterly report (OCMS14.7), so there is nothing to run manually. Ticket: OCMS-DF-2026-192 (Ready to UAT), the manual Toppan letter trigger failed in production. Story status: Requirement given - Gen flow.",
+  "recommendation": "Claim only a small part, carefully: the generic manual trigger mechanism exists, but the outputs named by the story (entity reminder letters and the DIP/MID quarterly report) do not. Depends on OCMS14.7 and 14.8.",
+  "steps": [
+    {
+      "step": "The officer can generate the reminder letters manually at any time",
+      "detail": "There is a manual 'Toppan Generate Letters' button on the staff portal Cron page (CronList.tsx:45) that calls POST cron/toppan-enquiry/trigger (CronProxyController.java:165-169), forwarded to /toppan/generate-letters (CronProxyService.java:226-228, ToppanUnifiedController.java:34-41) and runs executeJob without checking the schedule enabled flag. But this is the generic Toppan letter generator for all stages per notice, not DIP/MID entity reminder letters (see OCMS14.8). The day-end cron does not call it (ToppanUploadJobsScheduler.java:118 is commented out), so manual is the only path. Toppan upload is blocked in prod (sftp.upload.disabledServers=toppan, application-prod.properties:86; real server value: cannot verify from repo). OCMS-DF-2026-192 (Ready to UAT): the manual trigger in production failed because of that block."
+    },
+    {
+      "step": "The officer can generate the quarterly report manually at any time",
+      "detail": "The manual trigger list on the Cron page (CronList.tsx:40-69) and in CronProxyController has no entry for a quarterly or DIP/MID report. The report triggers that exist are RIP Hirer/Driver (CronProxyController.java:275-279), HST monthly (:310-315), payment reports, LTA/MHA/vHub and others. The quarterly report itself does not exist (see OCMS14.7)."
+    },
+    {
+      "step": "A manual option is available as a fallback when the automated job fails",
+      "detail": "For Toppan letters, the manual endpoint stands alone and does not depend on the flag cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62), so it can be used when the job fails (ToppanUnifiedController.java:34-41); other manual jobs follow the same pattern (for example MhaDownloadJobsScheduler.executeMhaDownloadJobs, which calls job 1 directly without checking the enabled flag, MhaDownloadJobsScheduler.java:101-102). But this fallback only exists for the generic Toppan letters; for DIP/MID reminder letters and the quarterly report there is no automated or manual job to act as a fallback."
+    }
+  ]
+}

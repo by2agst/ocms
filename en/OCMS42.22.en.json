@@ -1,0 +1,33 @@
+{
+  "story": "OCMS42.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "Validation in ocmseserviceui: pages/Furnish/Form/Particulars.ts (Proceed to review button), utils/validation/Furnish/{ValidParticulars,ValidHirerDriver}.ts, utils/validation/Format/ValidPerson.ts (NRIC/FIN checksum), utils/function/FuncValid.ts, pages/Furnish/Form/Documents.ts. Re-validation in ocmseserviceapi: workflows/furnish/{FurnishRequestValidator,FurnishSubmissionController}.java, utilities/SingaporeIdValidator.java. Other repos are not involved.",
+  "note": "Requirement is given and status is Fully paid. When the user presses Proceed to review, ValidateALL runs the yup rules for NRIC/FIN (format + check digit) and all mandatory fields, then errors show on the field and focus goes to the first error; the page does not move on while errors exist. Mandatory documents (FIN/Passport) are checked too. Gap: the backend re-validates and replies 400 with a message, but the UI does not show that message; every submit failure becomes a generic failure page, and Confirmation has no validation rules of its own (this.validation = {}). The server also does not check the postal-code format (only required). Ticket OCMS-DF-2026-137 (NRIC accepted as UEN, Closed) is reflected in ValidUEN; OCMS-DF-2026-098 (FIN M...J) the e-service table is already correct. Tickets OCMS-DF-2026-110/143/175 (generic submit error, Closed): root cause cannot verify from repo.",
+  "recommendation": "Claimable for the in-browser validation before review. Validation messages from the server do not reach the user (generic failure page); note this as a small gap.",
+  "steps": [
+    {
+      "step": "The NRIC/FIN typed is checked for format and check digit, and the user gets a prompt when it is not valid",
+      "detail": "The yup rule for hdID calls Format(NRIC|FIN|UEN) according to the ID type chosen (ValidParticulars.ts:74-92). ValidNRIC checks the S/T + 7 digits + letter pattern and computes the check digit with weights 2,7,6,5,4,3,2 (ValidPerson.ts:3-35); ValidFIN does the same for F/G/M with a separate suffix table (ValidPerson.ts:37-76; M uses 'J' at index 8, line 52, so the OCMS-DF-2026-098 case does not occur in the e-service). ValidUEN rejects NRIC/FIN-shaped strings (ValidPerson.ts:117-121), in line with the OCMS-DF-2026-137 fix. Passport is only checked for length 6-20 (ValidParticulars.ts:68-72, 79), no checksum."
+    },
+    {
+      "step": "An error message shows on the wrong field and focus moves to the first error",
+      "detail": "The message 'Please enter a valid NRIC/FIN/UEN number.' is created at ValidParticulars.ts:90. onSubmitValidate clears old errors, sets the message on each field's setError and calls focus() for the first error (FuncValid.ts:77-110), called from Particulars.ts:119. Fields are also validated on blur (TextInput.ts:314-316)."
+    },
+    {
+      "step": "An empty mandatory field raises a prompt, for individuals and companies alike",
+      "detail": "Required rules exist for Full Name (ValidParticulars.ts:46-51), ID type and ID (53-94), Postal Code (123-129), Street and Block (131-137), Floor and Unit unless the 'no floor/unit' box is ticked (139-145), country code and contact number (162-179), email and email confirmation (194-215), Relationship (ValidHirerDriver.ts:167), and verification question Q1 (ValidHirerDriver.ts:186-190). Rental date/time is required when relationship = H (ValidHirerDriver.ts:73-161). Building is optional. Particulars uses ValidHirerDriver for both individual and company mode (Particulars.ts:86, 89). The server repeats the mandatory-field checks (FurnishRequestValidator.java:69-105)."
+    },
+    {
+      "step": "Mandatory supporting documents (FIN/Passport) that are not attached also raise a prompt",
+      "detail": "For ID types FIN and Passport, the mandatory document options are marked '*' (Documents.ts:393-402). validateDoc checks that each mandatory document is present and shows the matching DL/EP/P/RA message (Documents.ts:446-483); with no file at all a confirmation modal appears (Documents.ts:484-488). It is called from the Proceed to review button (Particulars.ts:146)."
+    },
+    {
+      "step": "While errors remain, the page does not move on to the review step",
+      "detail": "The Proceed to review button runs ValidateALL and returns right away when there is a validation error or the 'Others' input is invalid (Particulars.ts:128). stepper.show(3) is only called when validateDoc passes (Particulars.ts:146-150). A self-furnish check against the backend also runs before moving on (Particulars.ts:130-144), outside this story's text."
+    },
+    {
+      "step": "The backend re-validates NRIC/FIN and mandatory fields, and its error message reaches the user",
+      "detail": "The backend does re-validate: validateAll (FurnishRequestValidator.java:33-64) runs the mandatory fields and the checksum via SingaporeIdValidator.getValidationError (FurnishRequestValidator.java:133-148, SingaporeIdValidator.java:258-293), and the controller replies 400 with a message (FurnishSubmissionController.java:99-104). But in the UI a submit failure is caught by a catch that only opens a generic failure page (Confirmation.ts:193-199), so the user never reads the server message; Confirmation.validation is empty (Confirmation.ts:58), so ValidateALL on Submit (Confirmation.ts:120-125) validates nothing. The server also only checks the postal code is 'not empty' (FurnishRequestValidator.java:85-87), not its format. Tickets OCMS-DF-2026-110, -143, -175 (generic submit error): root cause cannot verify from repo; DF-2026-175 was closed with no code change."
+    }
+  ]
+}

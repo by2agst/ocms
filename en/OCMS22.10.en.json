@@ -1,0 +1,25 @@
+{
+  "story": "OCMS22.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/agencies/mha/report/{jobs/MhaReportJob,helpers/MhaReportHelper,services} (Excel report Summary/Success/Error from MHA results), resources/application-prod.properties. ocmsadminui: pages/Report/index.tsx + action/ActionReport.tsx (Court Application Vault/Submit Reports menus without a path, MHA Reports path mha_report). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no court report code",
+  "note": "The story wants a report listing the notices successfully processed and updated with the latest particulars for court application. The menus 'Court Application Vault Reports' and 'Court Application Submit Reports' exist in the UI but have an empty path and their resource is commented out (Report/index.tsx:62-67, ActionReport.tsx:36-42), so there is no court report. What exists is the daily MHA report (MhaReportJob/MhaReportHelper): an Excel with Summary, Success and Error sheets from the MHA download result (MhaReportHelper.java:283, 441, 523), saved to Azure Blob (MhaReportJob.java:159-165) and then emailed. That is the MHA OCMS8 scope per letter stage, not notices in a court application batch, so Sebagian. In prod email.enableSmtp=false (application-prod.properties:80), so email delivery of the report is switched off in the prod config; the real server value cannot be verified from the repo. Ticket OCMS-DF-2026-178 (MHA daily summary report shows zero counts and is generated twice per run) is still Ready to UAT, not closed. There is no dedicated cron schedule for MhaReportJob in cron-schedules-prod.properties; the trigger found is POST /v1/cron/mha-report-daily/trigger (CronProxyController.java:121-125).",
+  "recommendation": "Claim only partly. A court application report does not exist (empty menu); what exists is the daily MHA report for letter-stage notices, with an unresolved defect OCMS-DF-2026-178 and report email switched off in the prod config. Confirm with URA whether the MHA report is accepted for this story",
+  "steps": [
+    {
+      "step": "A court application report menu (list of successfully processed notices) is available to the officer",
+      "detail": "The Court Application Vault Reports and Court Application Submit Reports menus are registered but their path is an empty string (Report/index.tsx:61-67) and the courtcasesummary resource in ActionReport.tsx:36-42 is commented out, so no report can be opened. There is no court report authorization mapping in ocmsadminapi."
+    },
+    {
+      "step": "The report lists the notices successfully processed and updated with the latest particulars",
+      "detail": "MhaReportHelper builds an Excel with Summary, Success and Error sheets from the MHA download result (MhaReportHelper.java:283, 441, 523); the Success sheet has notice_no, id_no, stage and processing time. It covers all notices processed by the MHA cron (letter stages RD1-DR3), not only notices in a court application batch, so Sebagian. Defect OCMS-DF-2026-178 (zero counts and report generated twice) is still Ready to UAT."
+    },
+    {
+      "step": "OCMS generates the report so the officer can refer to the list of such notices",
+      "detail": "MhaReportJob saves the Excel to Azure Blob (MhaReportJob.java:159-165) and then emails it to the recipients in email.report.recipients. In prod email.enableSmtp=false (application-prod.properties:80), so email delivery is switched off in the prod config; the blob file is still created. The real server value and officer access to the blob: cannot verify from repo. There is no dedicated cron schedule for this report in cron-schedules-prod.properties; the trigger found is POST /v1/cron/mha-report-daily/trigger in ocmsadminapi (CronProxyController.java:121-125) via MhaReportServiceImpl."
+    },
+    {
+      "step": "The officer can view the report from the staff portal",
+      "detail": "The MHA Reports menu exists (Report/index.tsx:57-59), the UI calls mha-report/search (Report/hook/useSearch.ts:467) served by MhaReportController (:19-31) and authorized through OCMS_REPORT_MHA (api-authorization.properties:134-136, including /v1/download/blob). So the officer can view the general MHA report. The court menus are empty, so a court application specific view does not exist; Sebagian. Report data on the real server: cannot verify from repo."
+    }
+  ]
+}

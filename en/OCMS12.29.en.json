@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.29",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, utilities/emailutility/EmailService, resources/{cron-schedules-prod.properties, application-prod.properties}. Other repos: not used. The old copy ocmsadminprivateapi/cronservice/ is ignored (stale)",
+  "note": "Status in stories.json: Demo paid (50% of 75%); demo_remark: Vault & email Code Split, email permission for the App Service may need to be checked (cannot verify from repo). There is no flow deck. This is the hirer version of OCMS12.10, but stage DN2 differs from RD2: NotificationSmsEmailHelper.generateMessages deliberately builds no email content for stages DN1, DN2 and DR3 ('no template available'), and the job then logs 'Skipping email ... template not found' without sending. So the reminder email to a company hirer that refers to the 2nd letter (DN2) is never sent by this code. The surrounding pieces exist (email refresh from DataHive CorpPass by UEN, combining per UEN, EmailService) but are switched off: cron.notification.enabled=false, cron.enareminder.datahive=false, email.enableSmtp=false in prod and ENOTIFICATION is not in prod email.smtp.allowedSources (application-prod.properties:80-81). The real server values, the email permission for the App Service and the template in the DB cannot be verified from repo. DOS = DataHive/LTA cannot be confirmed from the repo. Ticket: OCMS-DF-2026-180 (Closed; reminder stages RD1-DR3 follow the dates in the letters).",
+  "recommendation": "Do not claim the email steps. For stage DN2 the code deliberately builds and sends no email to a company hirer; only the refresh and combining exist, and those are off in prod. Ask URA whether a DN2 email to a company hirer is wanted, then the template and sending need to be built and switched on",
+  "steps": [
+    {
+      "step": "OCMS uses the latest email of the company hirer from DOS (DataHive CorpPass by UEN)",
+      "detail": "The job calls refreshContactInfo per record (NotificationSmsEmailJob.java:185-188); for id_type B refreshCompanyContactInfo uses DataHive CorpPass by UEN (NotificationSmsEmailHelper.java:2496 and 2461-2485). But every refresh only runs when cron.enareminder.datahive = 'true' (NotificationSmsEmailHelper.java:92-93) and the value is false in cron-schedules-prod.properties:48 (also dev and UAT), so the email stored in owner_driver is used. DOS = DataHive/LTA cannot be confirmed from the repo; the content of the CorpPass view cannot be verified from repo."
+    },
+    {
+      "step": "OCMS identifies the unique company hirers in each batch job so one company gets one email",
+      "detail": "combineNotices merges notices per key B_<UEN> + stage + due date (NotificationSmsEmailHelper.java:2151-2227; getRecipientKey :2230-2247; called from NotificationSmsEmailJob.java:191), so DN2 notices of one company with the same due date become one email record. Sebagian because the key contains the due date (different due dates -> more than one email), and because this combined record never becomes an email at stage DN2 (see the next steps)."
+    },
+    {
+      "step": "The email lists the outstanding notice(s) and refers to the 2nd letter reminder/notification",
+      "detail": "For the EMAIL channel at stages DN1, DN2 and DR3, generateMessages loads no template and builds no subject/body; the branch is empty with the comment 'Skip driver notice stages - company email templates not available' (NotificationSmsEmailHelper.java:311-318). determineTemplateName would build the name DN2_EMAIL_COMPANY (:301 and 456-476), but that name is not used for DN2 and there is no DN2 email template in the repo. So an email body listing the notices and referring to the 2nd letter is not produced at all."
+    },
+    {
+      "step": "OCMS sends the email reminder/notification to the company hirer in the batch job",
+      "detail": "In NotificationSmsEmailJob the email is sent one by one only when emailContent is not empty (NotificationSmsEmailJob.java:378-384); because the content for DN2 is empty (previous step), the job logs 'Skipping email for notice ... template not found, no content generated' and does not call sendEmail (NotificationSmsEmailHelper.java:556-575). In addition cron.notification.enabled=false in cron-schedules-prod.properties:236 (the scheduler skips execution, NotificationJobsScheduler.java:30-31 and 49-52), and in prod email.enableSmtp=false (application-prod.properties:80) with an email.smtp.allowedSources list that does not contain ENOTIFICATION (application-prod.properties:81), so EmailService refuses (EmailService.java:65-72). So at stage DN2 a company hirer gets no email, which differs from the story. The email permission for the App Service and the real server values cannot be verified from repo."
+    }
+  ]
+}

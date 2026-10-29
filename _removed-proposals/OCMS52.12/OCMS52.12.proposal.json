@@ -1,0 +1,74 @@
+{
+  "id": "OCMS52.12",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "steps": [
+    {
+      "step": {
+        "en": "On the 1st of every month at 08:30 the job runs for the previous month",
+        "id": "Setiap tanggal 1 jam 08:30 job berjalan untuk bulan sebelumnya"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276",
+      "detail": {
+        "en": "cron.monthlyreport.schedule=0 30 8 1 * ? and cron.monthlyreport.enabled=true in the prod properties. MonthlyReportJobsScheduler (@Scheduled at line 54, @SchedulerLock) runs the combined monthly jobs when enabled; the first job is monthlyExceptionReportService.executeJob() (MonthlyReportJobsScheduler.java:74), which takes LocalDate.now().minusMonths(1) as the report period (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/MonthlyExceptionReportServiceImpl.java:43). The same scheduler also runs the Monthly Paid Report and the HST monthly query; each job is wrapped in its own try/catch (line 79-90). The time zone of the real server and whether the deployed value equals the repo cannot be verified from the repo.",
+        "id": "cron.monthlyreport.schedule=0 30 8 1 * ? dan cron.monthlyreport.enabled=true di prod properties. MonthlyReportJobsScheduler (@Scheduled di baris 54, @SchedulerLock) menjalankan job bulanan gabungan kalau enabled; job pertama adalah monthlyExceptionReportService.executeJob() (MonthlyReportJobsScheduler.java:74) yang memakai LocalDate.now().minusMonths(1) sebagai periode report (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/services/MonthlyExceptionReportServiceImpl.java:43). Scheduler yang sama juga menjalankan Monthly Paid Report dan HST monthly query; tiap job dibungkus try/catch sendiri (baris 79-90). Time zone server asli dan apakah nilai yang ter-deploy sama dengan repo cannot verify from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "The job builds the exception records of the previous month: PS-PRA, TS-PAM and refund records",
+        "id": "Job membuat record exception bulan sebelumnya: PS-PRA, TS-PAM dan record refund"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/PaymentExceptionReportHelper.java:288-440",
+      "detail": {
+        "en": "fetchMonthlyExceptionRecords runs one SQL for notices with suspension_type PS and epr_reason_of_suspension PRA, or TS and PAM, with epr_date_of_suspension inside the month (line 300-325), keeps the first transaction per notice, then a second SQL on ocms_refund_notice by cre_date inside the month (line 366-384). Refund rows are marked REFUND and skipped when the same receipt is already shown as PS-PRA/TS-PAM. The columns CRS reason, EPR reason and refund fields come from tickets OCMS-SR-2026-112 (Closed) and -157 (merged into -112). Whether the data is correct for the real month depends on the production database and cannot be verified from the repo.",
+        "id": "fetchMonthlyExceptionRecords menjalankan satu SQL untuk notice dengan suspension_type PS dan epr_reason_of_suspension PRA, atau TS dan PAM, dengan epr_date_of_suspension dalam bulan itu (baris 300-325), mengambil transaksi pertama per notice, lalu SQL kedua pada ocms_refund_notice berdasarkan cre_date dalam bulan itu (baris 366-384). Row refund diberi tipe REFUND dan dilewati kalau receipt yang sama sudah tampil sebagai PS-PRA/TS-PAM. Kolom CRS reason, EPR reason dan refund berasal dari ticket OCMS-SR-2026-112 (Closed) dan -157 (digabung ke -112). Apakah data benar untuk bulan sebenarnya bergantung pada database production dan cannot verify from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "An Excel workbook named Monthly_Payment_Exception_Report_<yyyyMM>.xlsx is attached to an e-mail sent to the exception report recipient list",
+        "id": "Workbook Excel bernama Monthly_Payment_Exception_Report_<yyyyMM>.xlsx dilampirkan pada e-mail ke daftar penerima exception report"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:330-352",
+      "detail": {
+        "en": "executeMonthly(String) generates the workbook with reportHelper.generateExcelReport (line 282), builds the file name 'Monthly_Payment_Exception_Report_' + period without '-' + '.xlsx' (line 333), attaches it and sends the e-mail to oicRecipients with source PAYMENT_EXCEPTION_REPORT (line 337-352). oicRecipients is email.report.paymentreport.exception.recipients (line 55; application-prod.properties:78, nine ura.gov.sg addresses). In prod email.enableSmtp=false (application-prod.properties:80), but EmailService.sendEmail (EmailService.java:65-72) still sends when the source is in email.smtp.allowedSources, and PAYMENT_EXCEPTION_REPORT is in that list (application-prod.properties:81). So this step is not switched off by the prod config. The real SMTP server, the real recipient list and actual delivery cannot be verified from the repo. If the e-mail template is missing in the database, a fallback subject/body '(Template Not Found)' is sent instead (line 327-329).",
+        "id": "executeMonthly(String) membuat workbook dengan reportHelper.generateExcelReport (baris 282), membentuk nama file 'Monthly_Payment_Exception_Report_' + periode tanpa '-' + '.xlsx' (baris 333), melampirkannya dan mengirim e-mail ke oicRecipients dengan source PAYMENT_EXCEPTION_REPORT (baris 337-352). oicRecipients adalah email.report.paymentreport.exception.recipients (baris 55; application-prod.properties:78, sembilan alamat ura.gov.sg). Di prod email.enableSmtp=false (application-prod.properties:80), tetapi EmailService.sendEmail (EmailService.java:65-72) tetap mengirim kalau source ada di email.smtp.allowedSources, dan PAYMENT_EXCEPTION_REPORT ada di daftar itu (application-prod.properties:81). Jadi step ini tidak dimatikan oleh config prod. SMTP server asli, daftar penerima asli dan pengiriman nyata cannot verify from repo. Kalau template e-mail tidak ada di database, yang terkirim adalah subject/body fallback '(Template Not Found)' (baris 327-329)."
+      }
+    },
+    {
+      "step": {
+        "en": "If there is no data or sending fails, a failure e-mail is raised",
+        "id": "Kalau tidak ada data atau pengiriman gagal, e-mail failure dikirim"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/jobs/PaymentExceptionReportJob.java:264-290",
+      "detail": {
+        "en": "Sending failure is covered: if emailService.sendEmail returns false, or any exception occurs, sendMonthlyFailureEmail runs (line 352-358, 371-374, 452-489). The same happens when the database read fails (fetchMonthlyExceptionRecords returns an empty map on exception, helper line 446-448, then line 266-271), when the Excel is empty, or when no recipients are configured. But 'no data' is not a failure case: with zero exception rows fetchMonthlyExceptionRecords still returns a non-empty map (totalCount 0, empty records), so the job generates the workbook and sends the normal report e-mail (subject without the '(n exceptions found)' suffix, line 313); no failure e-mail is raised. The failure e-mail goes to the same exception recipient list, not to a separate support list, and it uses the same EmailService, so if the cause is SMTP itself the failure e-mail may fail too (cannot verify from repo).",
+        "id": "Kegagalan kirim tercakup: kalau emailService.sendEmail mengembalikan false, atau terjadi exception apa pun, sendMonthlyFailureEmail dijalankan (baris 352-358, 371-374, 452-489). Hal yang sama terjadi saat pembacaan database gagal (fetchMonthlyExceptionRecords mengembalikan empty map saat exception, helper baris 446-448, lalu baris 266-271), saat Excel kosong, atau saat penerima tidak dikonfigurasi. Tetapi 'tidak ada data' bukan kasus failure: dengan nol row exception fetchMonthlyExceptionRecords tetap mengembalikan map yang tidak kosong (totalCount 0, records kosong), jadi job membuat workbook dan mengirim e-mail report biasa (subject tanpa suffix '(n exceptions found)', baris 313); e-mail failure tidak dikirim. E-mail failure dikirim ke daftar penerima exception yang sama, bukan ke daftar support terpisah, dan memakai EmailService yang sama, jadi kalau penyebabnya SMTP sendiri, e-mail failure bisa ikut gagal (cannot verify from repo)."
+      }
+    },
+    {
+      "step": {
+        "en": "A staff user can trigger the monthly run by hand from the Cron page (Monthly Exception Report Email)",
+        "id": "Staff bisa memicu run bulanan secara manual dari halaman Cron (Monthly Exception Report Email)"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:56",
+      "detail": {
+        "en": "The Cron page lists 'Monthly Exception Report Email' with endpoint cron/payment-report/monthly-exception/trigger (CronList.tsx:56). In ocmsadminapi CronProxyController.triggerMonthlyExceptionReport (CronProxyController.java:264) calls CronProxyService, which proxies to the private API /payment/monthly-exception-report/execute (CronProxyService.java:267). MonthlyExceptionReportController.execute (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/MonthlyExceptionReportController.java:39) starts the same executeJob() asynchronously (fire-and-forget) for the previous month; the run cannot choose a month from this button. The manual run sends a real e-mail to the full recipient list. The /v1/cron path is mapped to function OCMS_CRON (ocmsadminapi/src/main/resources/api-authorization.properties:187); which roles hold it is configured outside the repo.",
+        "id": "Halaman Cron menampilkan 'Monthly Exception Report Email' dengan endpoint cron/payment-report/monthly-exception/trigger (CronList.tsx:56). Di ocmsadminapi CronProxyController.triggerMonthlyExceptionReport (CronProxyController.java:264) memanggil CronProxyService, yang mem-proxy ke private API /payment/monthly-exception-report/execute (CronProxyService.java:267). MonthlyExceptionReportController.execute (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/MonthlyExceptionReportController.java:39) menjalankan executeJob() yang sama secara asynchronous (fire-and-forget) untuk bulan sebelumnya; tombol ini tidak bisa memilih bulan. Run manual mengirim e-mail asli ke seluruh daftar penerima. Path /v1/cron dipetakan ke function OCMS_CRON (ocmsadminapi/src/main/resources/api-authorization.properties:187); role mana yang memilikinya diatur di luar repo."
+      }
+    }
+  ],
+  "note": {
+    "en": "Four of five steps are proven in code; the 'no data' branch of the failure e-mail is not. Not provable from the repo: the real prod values (schedule, SMTP, recipients), time zone of the server, e-mail template content in the database, delivery to mailboxes, and which roles may use the Cron page. The report is the monthly twin of the Daily Payment Exception Report (OCMS45.4); URA may see it as the same report with a different period. Orphan #233 in meta.json already lists this report; do not count it twice.",
+    "id": "Empat dari lima step terbukti di code; cabang 'tidak ada data' pada e-mail failure tidak. Tidak bisa dibuktikan dari repo: nilai prod yang asli (schedule, SMTP, penerima), time zone server, isi template e-mail di database, pengiriman ke mailbox, dan role mana yang boleh memakai halaman Cron. Report ini adalah kembaran bulanan Daily Payment Exception Report (OCMS45.4); URA bisa menganggapnya report yang sama dengan periode berbeda. Orphan #233 di meta.json sudah mencantumkan report ini; jangan dihitung dua kali."
+  },
+  "corrections": [
+    "Acceptance 3: 'If there is no data ... a failure e-mail is raised' is wrong. With zero exception rows the normal report e-mail is sent (no failure e-mail). A failure e-mail is raised only on a database read error, Excel generation failure, missing recipients or an e-mail send failure. Suggest: 'If the data cannot be read, the workbook cannot be built, no recipient is set or sending fails, a failure e-mail is sent to the same recipient list.'",
+    "Acceptance 2: add that recipients are the exception recipient list (email.report.paymentreport.exception.recipients) and that prod depends on the email.smtp.allowedSources allowlist because email.enableSmtp=false in prod."
+  ]
+}

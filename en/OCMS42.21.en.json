@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.21",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "Driver/hirer postal-code auto-populate lives in ocmseserviceui: components/form/Address.ts (calls OneMap straight from the browser, address dropdown, fills block/street/building), used by pages/Furnish/Form/HDParticulars.ts for individuals and companies. No code for this address lookup in ocmseserviceapi, ocmsadminapi, ocmsadminprivateapi, ocmsadminui or thirdpartyapi.",
+  "note": "Requirement is given and status is Fully paid. The code looks up the address in OneMap once 6 postal-code digits are typed, shows a dropdown, then fills block, street name and building after the user picks one address. The auto-populate is not fully automatic: the user must pick from the list, and the field hint itself says 'retrieve address from drop-down list' (Address.ts:299). The OneMap responses and availability (third-party service), and OneMap URL values per environment beyond the envConfig files: cannot verify from repo.",
+  "recommendation": "Claimable with a note: auto-populate works after the user picks an address from the dropdown (it does not fill itself). OneMap cannot be verified from the repo.",
+  "steps": [
+    {
+      "step": "The Driver's / Hirer's Particulars section provides a Postal Code field (6 digits) plus Block, Street Name, Building, Floor/Unit",
+      "detail": "HDParticulars renders the <address-fields> component (HDParticulars.ts:361) with keys hdPostal, hdBlock, hdStreet, hdBuilding, hdFloor, hdUnit (HDParticulars.ts:104-115). InitPostal gives the postal field a 6-digit length and the hint 'Enter 6-digit postal code to retrieve address from drop-down list' (Address.ts:299, 308)."
+    },
+    {
+      "step": "Once 6 postal-code digits are typed, the page calls the OneMap address service",
+      "detail": "handlePostalInput only searches once the input has 6 characters (Address.ts:140), with a 600 ms debounce (Address.ts:309). APIGetONEMAP sends a GET to the ONEMAP domain with searchVal = postal code (Address.ts:23-49). Domain and path come from env: VITE_DOMAIN_ONEMAP=https://www.onemap.gov.sg/ and VITE_ONEMAP_SEARCH=api/common/elastic/search (.env.prod:14, 45). The call goes from the browser straight to OneMap, not through the OCMS backend. The real OneMap response and its availability: cannot verify from repo."
+    },
+    {
+      "step": "The page shows the addresses that match the postal code, then the user picks one address",
+      "detail": "Results are shown as a dropdown (Address.ts:416-452); the address is only filled after the user clicks, or presses Enter on, one option (Address.ts:267, mousedown handler at line 444). handlePostalSearch only fills the results list (Address.ts:167); there is no auto-select even when there is a single result. The story asks the page to auto-populate; in code it is semi-automatic and the field hint itself says 'drop-down list' (Address.ts:299). When OneMap returns nothing, the dropdown writes 'Data not found' (Address.ts:450) and the user types manually."
+    },
+    {
+      "step": "Block number and street name (and building) are filled automatically from the chosen address",
+      "detail": "selectAddress fills Street Name with ROAD_NAME, Block with BLK_NO and Building with BUILDING (except 'NIL') through setValue (Address.ts:276-283), cuts the values to the field limits 32/10/65 with CharLimit (Address.ts:281-283), then clears the field errors (Address.ts:285-287). setValue writes to formData and sessionStorage (TextInput.ts:141-142), so the values travel on as furnishMailBlkNo/StreetName/BldgName/PostalCode (MapFurnish.ts:29-34). Edge case: a street name longer than 32 characters is cut without a warning (Address.ts:281). After selecting, a modal 'Please enter the Floor & Unit Number' appears because floor/unit is not auto-filled (Address.ts:289-291)."
+    },
+    {
+      "step": "The address auto-populate works the same for individual and company vehicle owners",
+      "detail": "Particulars.render always renders <hirer-driver-particulars> under owner-particulars (individual) or company-particulars (CorpPass) with no isCP condition (Particulars.ts:206-210), so the address-fields component in HDParticulars (HDParticulars.ts:361) is the same for both. Note: address-fields for owner/company data is in fact commented out (OParticulars.ts:215, CompanyParticulars.ts:233), not relevant because the story is only about the driver postal code."
+    }
+  ]
+}

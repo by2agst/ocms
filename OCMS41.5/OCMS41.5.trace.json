@@ -1,0 +1,91 @@
+{
+  "story": "OCMS41.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishApprovalHelper, helpers/FurnishSyncHelper, helpers/ValidationContext}, crud/beans/SystemConstant (FurnishStage); ocmsadminui pages/Furnish/list/FurnishSummaryList; ocmsadminapi workflows/furnish/helpers/FurnishabilityChecker (pembanding cek manual). ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Status Demo paid (50% of 75%). Story ini adalah pengecekan auto-approval di cron Furnish Processing: enam cek berurutan (PS aktif, HST ID, FIN/Passport, pasangan stage, offender saat ini + role + ID lain, submission sebelumnya); lolos semua berarti auto-approve, gagal satu berarti status P dengan reason dan TS-PDP, lalu tampil di daftar Furnished Hirer/Driver status P. Semua enam cek ada di code. Hal yang perlu diperhatikan: (a) daftar pasangan stage cron (SystemConstant.java:237-244) berbeda dari daftar stage cek manual staff (NPA sampai CPC) dan dari daftar eService, spesifikasi matrix aslinya tidak ada di repo; (b) cek 5a lolos bila tidak ada offender dengan indikator Y (fail-open); (c) exception di tengah satu submission membuat submission tetap P tanpa reason dan tidak dievaluasi ulang. Tiket dipakai: OCMS-DF-2026-073 (ROV/ROV ditambahkan sebagai pasangan furnishable, Closed, Prod deployed), OCMS-DF-2026-092 dan -093 (HST pada hirer/driver; keduanya Closed, tidak mengubah verdict). Nilai property cron di server asli: cannot verify from repo.",
+  "recommendation": "Klaim. Keenam cek dan dua hasil (approve atau status P) ada di code. Minta URA konfirmasi daftar pasangan stage terhadap auto-approval matrix asli, dan perlakuan kasus tanpa offender saat ini",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cron mengambil submission yang baru diterima dan menyiapkan data pengecekan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:59; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:99-134; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-306",
+      "fit": "Sesuai",
+      "detail": "processAllSubmissions menjalankan fase sync lalu fase approval (FurnishProcessingService.java:54,59). buildValidationContext mengambil sekaligus notice, suspension PS, HST, offender dan submission sebelumnya untuk semua record (FurnishApprovalHelper.java:99-134). Cron jalan tiap 10 menit di prod, enabled=true (cron-schedules-prod.properties:305-306); nilai di server asli cannot verify from repo. Hanya record yang baru di-sync pada run itu yang dinilai."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 1: notice tidak boleh punya Permanent Suspension (PS) yang masih aktif",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:198-200; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:250-258",
+      "fit": "Sesuai",
+      "detail": "evaluateActivePermanentSuspension memeriksa suspension tipe PS dengan dateOfRevival null; bila ada, hasilnya pending 'Notice is permanently suspended' (FurnishApprovalHelper.java:250-258; dipanggil di :198-200)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 2: ID yang di-furnish tidak boleh terdaftar sebagai HST",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:202-204; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:283-290",
+      "fit": "Sesuai",
+      "detail": "evaluateHstId memeriksa apakah furnishIdNo ada di tabel HST dari ValidationContext; bila ya, hasilnya pending 'HST ID' (FurnishApprovalHelper.java:283-290; dipanggil di :202-204)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 3: tipe ID yang di-furnish tidak boleh FIN atau Passport",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:206-208; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:296-313",
+      "fit": "Sesuai",
+      "detail": "checkFinPassportIdType mengembalikan pending 'FIN' untuk id_type F dan 'Passport' untuk id_type P; hanya NRIC dan UEN yang lolos (FurnishApprovalHelper.java:296-313; dipanggil di :206-208)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 4: notice masih berada di pasangan processing stage yang furnishable",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:210-212; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:319-335; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:237-244",
+      "fit": "Sesuai",
+      "detail": "checkFurnishableStage membentuk pasangan 'LPS|NPS' dan membandingkannya dengan FURNISHABLE_STAGE_PAIRS (FurnishApprovalHelper.java:319-335; SystemConstant.java:237-244); di luar daftar hasilnya pending 'Notice is no longer at furnishable stage'. OCMS-DF-2026-073: ROV|ROV dulu tidak ada di daftar sehingga submission wajar masuk manual; sekarang ada (tiket Closed, Prod deployed). Daftar ini berbeda dari stage cek manual staff (FurnishabilityChecker.java:51-61) dan daftar eService; matrix asli dari spesifikasi cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 5: pengaju masih offender saat ini, belum ada hirer/driver dengan role sama, dan ID tidak terdaftar sebagai offender lain",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:214-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:362-405; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:374-380",
+      "fit": "Sesuai",
+      "detail": "evaluateExistingOffender menjalankan tiga sub-cek: 5a offender dengan indikator 'Y' harus sama dengan ID pengaju (pending 'Owner/Hirer (submitter) no longer current offender'), 5b role yang sama sudah ada (pending 'Existing Hirer/Driver already exists'), 5c ID yang di-furnish sudah terdaftar di notice (pending 'Furnished ID is already listed as another offender') (FurnishApprovalHelper.java:362-405). Catatan: bila tidak ada offender 'Y' sama sekali, 5a dilewati (fail-open)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek 6: tidak boleh ada submission lain sebelumnya pada notice yang sama",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:218-220; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:426-441",
+      "fit": "Sesuai",
+      "detail": "evaluatePriorSubmission menghitung submission lain dengan notice_no sama dan txn_no berbeda; bila ada, hasilnya pending 'Prior submission under notice' (FurnishApprovalHelper.java:426-441; dipanggil di :218-220)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila semua cek lolos, submission di-auto-approve",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:167-170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:445-463; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:546; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:649-652; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:686; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:703; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:488; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:212-216",
+      "fit": "Sesuai",
+      "detail": "Jika isApproved, executeApproval (FurnishApprovalHelper.java:445-463) menambah hirer/driver sebagai offender baru dan menonaktifkan yang lama (:546), memindah stage ke RD1/DN1 (:649-652; simpan Intranet :686, sinkron eVON :703), mengisi status 'A' dan remarks 'Auto Approved by SYSTEM', menerapkan TS-HST bila ID termasuk HST; status A ditulis ke Intranet dan Internet (FurnishProcessingService.java:167-170,212-216). Auto-approve tidak mengirim SMS/email ke pihak yang di-furnish (pemanggilan sendFurnishApprovalSms dikomentari, FurnishApprovalHelper.java:488)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila ada cek gagal, dibuat item untuk manual approval/rejection di dashboard officer",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:143-147; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:172-175; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:505-531; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:754-763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:189-199; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:60",
+      "fit": "Sesuai",
+      "detail": "Jika cek gagal, executeManualReview (FurnishApprovalHelper.java:505-531) mencoba TS-PDP (:754-763; bila gagal hanya warning dan tetap lanjut), mengisi status 'P', reasonForReview dan remarks; status disimpan per grup reason (FurnishProcessingService.java:172-175,189-199). Daftar officer Furnished Hirer/Driver memfilter status P secara default (FurnishSummaryList.tsx:60). Tidak ada entitas 'work item' terpisah: work item = baris ocms_furnish_application berstatus P. Bila proses satu record melempar exception, record itu tidak masuk daftar update (FurnishProcessingService.java:143-147), tetap P tanpa reason, dan tidak dinilai ulang karena is_sync Internet sudah 'Y' (pembacaan code)."
+    }
+  ]
+}

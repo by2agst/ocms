@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.33",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/{manualreview/services/ManualReviewService (rejectSubmission), helpers/FurnishSyncHelper, rejection/{FurnishRejectionController,FurnishRejectionServiceImpl}}. ocmseserviceapi workflows/furnish/{FurnishValidationServiceImpl,FurnishSubmissionServiceImpl}, crud/ocmspii/eocmsoffencenoticeownerdriver. ocmsadminui hooks/useFurnishAPI.ts",
+  "note": "Tidak ada langkah 'kirim ulang notice ke portal'. Satu-satunya method bernama resendNoticeToPortal (FurnishRejectionServiceImpl.java:149-158) adalah stub TODO yang selalu return true, dan controllernya (POST /furnish/officer/reject) tidak dipanggil oleh staff portal; UI memakai manual-review/reject, yang tidak punya langkah resend. Hasilnya tetap tercapai lewat mekanisme lain: status R disinkronkan ke PII DB, dan validasi eService hanya memblokir notice yang punya aplikasi berstatus P, jadi notice yang ditolak bisa di-furnish lagi dan setiap submission membuat txnNo baru plus dokumen baru. Ada satu catch: sinkronisasi ke PII DB gagal-diam (hanya log error), jadi kalau gagal, portal masih melihat status P dan tetap memblokir furnish ulang sampai dibereskan. Perilaku di portal produksi tidak dijalankan.",
+  "recommendation": "Jangan klaim sebagai 'resend ke portal'. Yang benar: owner bisa furnish ulang karena portal tidak memblokir status R. Sinkron status ke PII DB gagal-diam dan resend eksplisit hanya stub. Klaim sebagian",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reject berhasil: status request tersimpan sebagai Rejected",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:453-471; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/controllers/ManualReviewController.java:257-277",
+      "fit": "Sesuai",
+      "detail": "ManualReviewService.rejectSubmission menyimpan status 'R' dan remarks lewat furnishService.update (ManualReviewService.java:466-470). Fakta yang sama dengan OCMS41.32 langkah 1, fit sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Rejected disinkronkan ke database yang dibaca portal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:471; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/helpers/FurnishSyncHelper.java:217-236",
+      "fit": "Sebagian",
+      "detail": "Setelah update, syncFurnishApplicationToPii menyimpan record ke eocms_furnish_application di PII DB (FurnishSyncHelper.java:217-226). Kalau gagal, hanya log error dan tidak melempar exception (:231-236), jadi reject tetap sukses sementara portal masih melihat status P. Sebagian karena kegagalan diam."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS secara eksplisit mengirim ulang notice ke Online Customer Portal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/rejection/FurnishRejectionServiceImpl.java:82-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/rejection/FurnishRejectionServiceImpl.java:149-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/rejection/FurnishRejectionController.java:38-43",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada pengiriman ulang di jalur yang dipakai UI (ManualReviewService.rejectSubmission). resendNoticeToPortal di FurnishRejectionServiceImpl.java:149-158 berisi TODO dan selalu return true, bahkan hasilnya dilaporkan sebagai noticeResentToPortal=true (:83, FurnishRejectionController.java:51). Controller itu (POST /furnish/officer/reject) tidak dipanggil oleh ocmsadminui. Mekanisme berbeda dari yang diminta: notice tidak 'dikirim ulang', portal hanya berhenti memblokirnya (step berikut)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner/hirer bisa furnish ulang notice yang ditolak di portal",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:260-273; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:327-333; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishValidationServiceImpl.java:396-401; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsoffencenoticeownerdriver/EocmsOffenceNoticeOwnerDriverRepository.java:66-80",
+      "fit": "Sesuai",
+      "detail": "Validasi furnish eService hanya memblokir notice yang sudah punya aplikasi berstatus P (excludeStatuses = List.of('P'), FurnishValidationServiceImpl.java:266-273; versi batch :327-333, :396-401). Status R tidak memblokir. Notice tetap masuk daftar bila ID pengirim masih offender dan bukan Driver (EocmsOffenceNoticeOwnerDriverRepository.java:66-80). Syarat tambahan lain (stage furnishable, PS) tetap berlaku. Bergantung pada sinkronisasi di step 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner mengirim particulars baru beserta informasi/bukti dokumen tambahan",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:50-55; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:98-101; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:136-139",
+      "fit": "Sesuai",
+      "detail": "Setiap submission membuat txnNo baru per notice (FurnishSubmissionServiceImpl.java:50-55, generateTxnNo :136-139), dan dokumen yang diunggah ditautkan ke txnNo itu (:98-101). Record R lama tidak diubah. Jadi resubmission dengan dokumen tambahan didukung."
+    }
+  ]
+}

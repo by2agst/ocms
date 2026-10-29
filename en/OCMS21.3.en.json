@@ -1,0 +1,29 @@
+{
+  "story": "OCMS21.3",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{NoticeValidationHelper (existing FP/PRA notice counts as duplicate), NoticeRecordHelper (PS-DBB without refund), PermanentSuspensionHelper.createRefundRecord (refund in manual route only), SuspensionBaseHelper.getPsRefundCodes}; ocmsadminprivateapi notification_sms_email/helpers/NotificationSmsEmailHelper (generic sender) + prod properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code.",
+  "note": "Sheet status: 'Requirement given - Gen flow'. No code sends an SMS/email saying 'notice cancelled and refund will be processed' after PS-DBB. In the code, the 'paid duplicate' scenario means the existing notice is already paid (FP/PRA), so the NEW notice is suspended as PS-DBB; the paid notice is neither suspended nor refunded by DBB. A refund record is only created in the manual suspension route for codes in PS_REFUND_CODES (DB data, cannot verify from repo). A generic SMS/email sender exists but is not triggered and is switched off in the prod properties. No relevant maintenance ticket.",
+  "recommendation": "Do not claim as done. Ask URA which notice is refunded in the paid-duplicate scenario, then build the refund trigger and its notification",
+  "steps": [
+    {
+      "step": "The paid duplicate notice is permanently suspended by OCMS",
+      "detail": "When the existing notice is already paid (PS with crs reason FP/PRA), the NEW notice gets PS-DBB. The paid notice itself is not suspended by DBB. A manual PS on a paid notice is only allowed for codes in PS_REFUND_CODES (SuspensionBaseHelper.java:121-124); whether DBB is in that list cannot verify from repo (ocms_standard_code data)."
+    },
+    {
+      "step": "OCMS checks whether an SMS/email notification was already sent on the same day",
+      "detail": "Same as OCMS21.2 step 2: no code links PS-DBB to same-day ocms_sms_notification_records."
+    },
+    {
+      "step": "A refund is processed for that paid notice",
+      "detail": "Refund record creation (ocms_refund_notice) exists in the manual suspension route PermanentSuspensionHelper.createRefundRecord, only for PS codes in PS_REFUND_CODES (DB data, cannot verify whether DBB is included). The automatic PS-DBB path at notice creation (NoticeRecordHelper.java:497-503) never calls refund."
+    },
+    {
+      "step": "The SMS/email text states that the notice is cancelled and a refund will be processed",
+      "detail": "No template or cancellation + refund text exists in the six repos (grep cancel/refund only finds payment reports and the refund record). Template in the DB cannot verify from repo."
+    },
+    {
+      "step": "The SMS/email is delivered to the vehicle owner",
+      "detail": "Same as OCMS21.2 step 5: the generic sender exists but is not triggered by the DBB suspension; prod: sms.enable=false (application-prod.properties:87), email.enableSmtp=false (80), cron.notification.enabled=false (cron-schedules-prod.properties:236); real server values cannot verify from repo."
+    }
+  ]
+}

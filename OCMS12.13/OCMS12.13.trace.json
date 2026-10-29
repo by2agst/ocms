@@ -1,0 +1,64 @@
+{
+  "story": "OCMS12.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: workflows/datahiveuenfin (DataHiveUenFinService.storeUenDataResult, updateShareholderInfo), services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService, cron-schedules-prod.properties. ocmsadminui pages/Vault/Datahive (Directors Details dengan data kosong). ocmsadminapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code khusus story ini",
+  "note": "Story 3 point, status 'Requirement given - Gen flow' (tidak diverifikasi). Yang ada hanya penerimaan data ACRA dari DataHive (board dan shareholder) lewat DataHiveUenFinJob; board tidak disimpan (OCMS-DEV-2026-231), tidak ada filter date of offence / appointment period, dan tidak ada code yang memutuskan revert ke RD1 (Director/Partner) atau RD2 (Owner/Partner). Job UEN mati di prod (cron.mhadownload.uenfin.enabled=false). Nama 'DOS' tidak ada di code: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penerimaan data yang ada (sebagian); filter tanggal dan keputusan revert belum dibangun. Konfirmasi dengan URA aturan keputusannya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima particulars owner/partner/director dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:196-210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS12.12 langkah 4: hasil DataHive memuat shareholderData dan boardData (BATCH:196-210). Shareholder disimpan (SVC:1442-1448) tanpa tanggal penunjukan; board hanya dilog dan tidak ditulis ke DB (OCMS-DEV-2026-231, SVC:1468-1478). Job UEN mati di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52). Nama 'DOS' tidak ada di code: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars yang diterima disimpan di OCMS agar bisa dipakai keputusan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478; ocmsadminui/src/pages/Vault/Datahive/DatahiveHirerDetail.tsx:57-59; ocmsadminui/src/pages/Vault/Datahive/DirectorDetail.tsx:19-28",
+      "fit": "Sebagian",
+      "detail": "Shareholder ditulis ke ocms_dh_acra_shareholder_info (person id, share allotted, category) tanpa nama atau tanggal penunjukan; board TIDAK ditulis (SVC:1468-1478, OCMS-DEV-2026-231). Staff portal punya tab 'Directors Details' tetapi dipanggil dengan data={{}} (DatahiveHirerDetail.tsx:57-59, DirectorDetail.tsx:19-28), jadi petugas tidak melihat director dari DB."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilihan particulars berdasarkan tanggal pelanggaran (date of offence)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:436-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246",
+      "fit": "Tidak ada code",
+      "detail": "Query board hanya WHERE ENTITY_UEN IN (...) (BATCH:436-442) dan query notice (SVC:221-246) tidak membawa tanggal pelanggaran untuk UEN; tidak ada code yang membandingkan tanggal pelanggaran dengan data ACRA. Percobaan grep: offence date, appointment, director, partner, position di ocmsadminprivateapi, ocmsadminapi, thirdpartyapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilihan particulars berdasarkan periode penunjukan (appointment period)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:196-210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1468-1478",
+      "fit": "Tidak ada code",
+      "detail": "position_appointment_date dan position_withdrawn_date dibawa di BoardInfo (BATCH:196-210) tetapi tidak pernah dibandingkan dengan tanggal apa pun; board malah tidak ditulis ke DB (SVC:1468-1478). Tidak ada pengecekan periode penunjukan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan revert notice ke reminder pertama untuk Director/Partner individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1480",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang mengubah next_processing_stage berdasarkan hasil lookup UEN: DataHiveUenFinService hanya menulis nama perusahaan, alamat, shareholder dan menerapkan suspension TS-ACR (de-registered, UEN not found, data wajib kosong) (SVC:1346-1480); next_processing_stage hanya dibaca (SVC:226, 310). Tidak ada cabang keputusan Director/Partner. Alternatif manual: petugas dapat furnish hirer lewat staff portal (di luar alur otomatis story ini)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan revert notice ke reminder kedua untuk Owner/Partner individu",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1480",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang mengubah next_processing_stage berdasarkan hasil lookup UEN: DataHiveUenFinService hanya menulis nama perusahaan, alamat, shareholder dan menerapkan suspension TS-ACR (de-registered, UEN not found, data wajib kosong) (SVC:1346-1480); next_processing_stage hanya dibaca (SVC:226, 310). Tidak ada cabang keputusan Owner/Partner."
+    }
+  ]
+}

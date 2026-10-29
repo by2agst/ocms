@@ -1,0 +1,25 @@
+{
+  "story": "OCMS16.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{list/NoticeSearchOutstandingList,hook/useBatchOperation,hook/ApplyOperationAction}, App.tsx (route fr commented out), utils/Meta/NoticeOperation.ts, i18n/en/translation.json (batch.form.fr). ocmsadminapi workflows/payment_reduction/reduction/{ReductionController,ReductionServiceImpl,dto/ReductionRequest,helpers/ReductionPersistenceService}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no apply-reduction code",
+  "note": "Status in stories.json: 'Requirement given - Gen flow' (no flow deck). What exists: a select checkbox in the Outstanding list (used for TS/PS/revival/CPS, no FR action) and the PLUS endpoint POST /v1/plus-apply-reduction, which applies a reduction to ONE notice per request in a transaction (new amount_payable, TS-RED, an ocms_reduced_offence_amount row, eVON sync). What is missing: a Fine Reduction action in the staff portal (route fr and Epic16 import are commented out) and a bulk endpoint. Worth noting: the field that changes is amount_payable; the reduction path does not touch composition_amount. Whether PLUS calls the endpoint repeatedly for the selected notices: cannot verify from repo. plus-* endpoints skip JwtFilter (JwtFilter.java:179); their protection depends on APIM, cannot verify from repo. Tickets: OCMS-DF-2026-072 (the amount_payable stored in ocms_reduced_offence_amount became the pre-reduction value, ReductionPersistenceService.java:160-166) and OCMS-DF-2026-028 (TS-RED revival reads that value).",
+  "recommendation": "Claim partially (50%). Only the per-notice reduction apply in the backend is solid. The Fine Reduction action and bulk in the staff portal do not exist; ask URA whether bulk is done by PLUS (loop per notice).",
+  "steps": [
+    {
+      "step": "Officer selects one or more notices from the search results",
+      "detail": "The Outstanding list has a per-row select checkbox and select all (NoticeSearchOutstandingList.tsx:145-151), but the selection is only passed to the TS/PS/REVIVAL/CPS/PAY/PAY_ACT/REFUND/BATCH_FURNISH batch operations (useBatchOperation.ts:19-27), not to reduction."
+    },
+    {
+      "step": "Officer chooses the Fine Reduction action for the selected notices",
+      "detail": "There is no Fine Reduction action. Routes fr, fr/view, fr/verification sit in a comment block (App.tsx:171-173). The constant PathNoticeOperationFR is defined (NoticeOperation.ts:17) but is not in the INDEX/VIEW maps (NoticeOperation.ts:25-34). The batch action config has no FR (ApplyOperationAction.tsx:27-60). Only the i18n strings 'Fine Reduction' and 'Fine Reduction Notice Record' remain (translation.json:737,746). Searched ocmsadminui for reduction, reduce, FR, Epic16; no other hit."
+    },
+    {
+      "step": "OCMS applies the reduction to all selected notices at once (bulk)",
+      "detail": "The backend applies reduction per notice: ReductionRequest has a single noticeNo (ReductionRequest.java:30), the POST /v1/plus-apply-reduction controller handles one request (ReductionController.java:29-69) and ReductionServiceImpl.handleReductionRequest works on one notice (ReductionServiceImpl.java:43-57). There is no bulk endpoint or loop in ocmsadminapi/ocmsadminprivateapi. Bulk is only possible if PLUS calls the endpoint repeatedly: cannot verify from repo."
+    },
+    {
+      "step": "The reduction is recorded on every reduced notice",
+      "detail": "Before saving, the notice is checked: exists, not paid, eligible, amount and dates consistent (OcmsValidOffenceNoticeRepository.java:49-72; ReductionServiceImpl.java:82-96). Then applyReduction (ReductionServiceImpl.java:113) runs in one transaction: the VON gets a TS-RED suspension with the new amount_payable and the furthest due_date_of_revival (ReductionPersistenceService.java:101-109), plus an ocms_suspended_notice row (ReductionPersistenceService.java:123-140) and an ocms_reduced_offence_amount row holding the pre-reduction amount (ReductionPersistenceService.java:156-171, OCMS-DF-2026-072), then eVON is synced (ReductionPersistenceService.java:205-210). Note: the field that changes is amount_payable, not composition_amount."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS18.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (POST /plus-apply-suspension), helpers/PermanentSuspensionHelper, helpers/SuspensionBaseHelper}, crud/ocmsizdb/OcmsRefundNotice/{OcmsRefundNoticeServiceImpl, OcmsRefundNotice}, crud/ocmsizdb/OcmsWebTransactionDetail, workflows/furnish/plusintegration/controllers/PlusDataRetrievalController (/plus-refund-notice-list, /plus-web-txn-detail-list). Tidak ada code di ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi untuk pesan ke PLUS",
+  "note": "Status di stories.json: No requirement (requirement tidak diberikan), story ditrace normal dari teks. 'Pesan ke PLUS' di code adalah response sinkron dari POST /plus-apply-suspension: success, message 'PS Success', appCode, dan bila refund dibuat juga refundNoticeId dan refundCreDate. Refund mode (credit card, PayNow) tidak ikut di response; payment_mode hanya ada di ocms_web_txn_detail yang bisa diambil PLUS lewat endpoint terpisah. Tiket OCMS-DF-2026-152 (refundNoticeId berisi receipt number, status Ready to DEV / In SIT) masih terbuka; code di main sudah mengembalikan RE id asli, tetapi status deploy prod cannot verify from repo. Tampilan dan penggunaan pesan di PLUS cannot verify from repo.",
+  "recommendation": "Klaim sebagian: pesan sukses PS dan ID refund dikirim ke PLUS; refund mode tidak ada di pesan. Tunggu tiket OCMS-DF-2026-152 ditutup sebelum menaikkan langkah ID refund ke Sesuai.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim pesan ke PLUS bahwa permanent suspension notice berbayar berhasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:150-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:541-548; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1198",
+      "fit": "Sesuai",
+      "detail": "processPS mengembalikan map {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150; SuspensionBaseHelper.java:541-548). Controller menambah appCode OCMS-2000 untuk hasil sukses (SuspensionProcessingController.java:1186-1198) dan mengembalikan list hasil per notice dengan HTTP 200 (:546-555). Mekanismenya response sinkron ke pemanggil, bukan push. Tampilan di PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan memberi tahu PLUS bahwa refund advice sudah dibuat (ID dan waktu refund)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:146-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:324-336; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:356-366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:372-376; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNoticeServiceImpl.java:42-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:729; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:757",
+      "fit": "Sebagian",
+      "detail": "Bila refund dibuat, response ditambah refundNoticeId dan refundCreDate (PermanentSuspensionHelper.java:152-156). Di main, createIfNotExists mengembalikan refund_notice_id asli RE... (OcmsRefundNoticeServiceImpl.java:42-83; dipakai :356-366), jadi bug OCMS-DF-2026-152 (field berisi receipt number) tampak sudah diperbaiki di code; tiket itu masih Ready to DEV / In SIT, status deploy prod cannot verify from repo, sehingga fit diturunkan ke Sebagian. Bila refund dilewati (amountPaid kosong) atau gagal, response tetap 'PS Success' tanpa field refund dan tanpa tanda gagal (:324-336, :372-376), jadi PLUS tidak bisa membedakan 'tidak ada refund' dari 'refund gagal'. SuspensionProcessingHelper.processSuspension masih menaruh receipt number sebagai refundNoticeId bila amountPaid <= 0 (SuspensionProcessingHelper.java:729, :757) tetapi tidak dipanggil dari controller PLUS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan memuat refund mode (credit card, PayNow) agar officer bisa menyesuaikan balasan ke offender",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:150-156; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsRefundNotice/OcmsRefundNotice.java:28-58; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsWebTransactionDetail/OcmsWebTransactionDetail.java:48; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusDataRetrievalController.java:70; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusDataRetrievalController.java:132",
+      "fit": "Sebagian",
+      "detail": "Response PS hanya berisi noticeNo, srNo, success, message, appCode, refundNoticeId, refundCreDate (PermanentSuspensionHelper.java:150-156); tidak ada field mode. OcmsRefundNotice tidak punya kolom mode (OcmsRefundNotice.java:28-58). payment_mode ada di OcmsWebTransactionDetail.java:48 dan PLUS bisa mengambilnya lewat POST /plus-refund-notice-list (receiptNo, PlusDataRetrievalController.java:70) lalu POST /plus-web-txn-detail-list (:132), yaitu dua call tambahan dan yang didapat adalah mode pembayaran asli, bukan mode refund. Apakah PLUS memakai jalur itu cannot verify from repo."
+    }
+  ]
+}

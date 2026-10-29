@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.58",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController (plus-furnish, plus-redirect), workflows/furnish/stafffurnish/services/StaffFurnishService (staffFurnish, staffRedirect, createOrUpdateFurnishedMailAddress, updateAuditUser, StaffFurnishRequest.updatedBy), workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus (plus-update-offence-notice-owner-driver). ocmsadminprivateapi, ocmsadminui, ocmseserviceapi, thirdpartyapi: tidak relevan untuk update dari PLUS",
+  "note": "Status story: Requirement given - Gen flow. Demo remark sheet: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (klaim sheet). Penerimaan dan update particulars dari PLUS ada dan memakai logika yang sama dengan staff portal (StaffFurnishService). Username pemohon disimpan lewat field updatedBy (alias updUserId) ke creUserId/updUserId untuk notice, offender dan address furnished_mail. Dua catatan: (1) tidak ada pengecekan bahwa PLUS sudah mengonfirmasi overwrite; (2) endpoint /plus-update-offence-notice-owner-driver tidak menyimpan username dan tidak mengubah stage. Isi Appendix B Annex 1A tidak ada di repo (cannot verify from repo); langkah follow-up dinilai dari perubahan stage RD1/DN1 yang dijalankan code. Key validation PLUS mati di semua profile (ocms.plus.key.validation.enabled=false) dan JwtFilter melewatkan path plus-*; proteksi bergantung pada APIM, tidak terlihat di repo.",
+  "recommendation": "Klaim sebagian besar: update particulars, username pemohon dan perpindahan stage dari PLUS berjalan. Catatan untuk URA: tidak ada gerbang konfirmasi overwrite, dan isi Appendix B Annex 1A tidak bisa diverifikasi dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima request furnish/redirect dari PLUS berisi particulars hirer/driver (POST /plus-furnish, /plus-redirect)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-168; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:185-217; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:226-260",
+      "fit": "Sesuai",
+      "detail": "plusFurnish menerima StaffFurnishRequest dan memvalidasi noticeNo, ownerDriverIndicator, name, idType, idNo wajib (validateFurnishRequest, baris 242-259); address bersifat opsional (baris 258). plusRedirect hanya mewajibkan noticeNo, ownerDriverIndicator, idNo (baris 226-236). Gagal validasi mengembalikan 400, kegagalan bisnis 422, error 500 (baris 144, 159, 164-166). Autentikasi PLUS: JwtFilter melewatkan path plus-* (JwtFilter.java:179) dan ocms.plus.key.validation.enabled=false (application-prod.properties:61); proteksi lewat APIM: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS hanya melanjutkan overwrite setelah PLUS mengonfirmasi particulars lama boleh ditimpa",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/plusintegration/controllers/PlusIntegrationController.java:136-148; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1165-1228",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada field atau pengecekan konfirmasi di request PLUS (StaffFurnishRequest, StaffFurnishService.java:1165-1228). plusFurnish langsung memanggil staffFurnish (PlusIntegrationController.java:148), yang menurunkan offender lama dan menimpa record tanpa menanyakan apa pun. Jalur manual punya overwriteExisting (ManualFurnishServiceImpl.java:85-91) tetapi tidak dipakai PLUS. Konfirmasi pada sisi PLUS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update particulars hirer/driver (offender, kontak, address furnished_mail) untuk notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:200-236; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:373-400",
+      "fit": "Sesuai",
+      "detail": "Furnish: offender lama diturunkan ke indicator N (baris 201), record baru dibuat dengan nama, ID, tel, email dan offenderIndicator=Y (baris 214-223), disimpan dan disinkron ke PII DB (baris 231-232), lalu address furnished_mail dibuat/diupdate dan dijadikan letter address (baris 236). Redirect: target offender dengan ID yang cocok dijadikan Y dan field yang dikirim diupdate (baris 373-400). Catatan: address lama untuk role itu dihapus lebih dulu (baris 206, OCMS-DF-2026-024) dan record role yang sama ditimpa (lihat OCMS41.56)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyimpan username pemohon dari PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:225-228; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:264-270; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1224-1228; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus.java:111-160",
+      "fit": "Sebagian",
+      "detail": "StaffFurnishRequest menerima JSON updatedBy sebagai alias updUserId (StaffFurnishService.java:1227-1228). Pada furnish, nilainya dipasang ke creUserId offender baru (baris 225-228) dan di-stamp ke notice, offender dan address furnished_mail lewat updateAuditUser (baris 264-270); pada redirect lewat baris 428-434. Jalur /plus-update-offence-notice-owner-driver (OwnerDriverServiceImplPlus.java:111-160) tidak membaca updatedBy/updUserId (grep kosong) sehingga edit lewat endpoint itu tidak membawa username. updatedBy tidak diwajibkan (validateFurnishRequest tidak memeriksanya, PlusIntegrationController.java:242-259), jadi request tanpa username tetap diproses. Sebagian karena hanya satu dari dua jalur update PLUS yang menyimpan username dan field-nya opsional."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menindaklanjuti hirer/driver terbaru lewat automated processing workflow (stage, amount, next processing date)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:238-262; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:272-283; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:924-934",
+      "fit": "Sesuai",
+      "detail": "Setelah update, stage diubah ke RD1 (owner/hirer) atau DN1 (driver) dan divalidasi ke ocms_stage_map (baris 240-241, 924-934), amount payable dihitung ulang ke composition (baris 245-247), administration fee di-nol-kan (OCMS-DF-2026-170, baris 251), next_processing_date = max(tanggal notice + 7 hari, besok 00:00) (baris 254-260 dan 144-157), VON disinkron ke internet DB (baris 262), HST diterapkan/direvive (baris 272-283, OCMS-DF-2026-093). Dengan begitu cron berikutnya memproses orang baru sebagai current offender. Isi Appendix B Annex 1A tidak ada di repo (cannot verify from repo); penilaian memakai teks story."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Furnish,API,NoticesTable/Notices,NoticesTable/FurnishableNotices,NoticesTable/SelectedNotices,Form/Particulars}.ts + components/Table.ts; ocmseserviceapi workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,FurnishSubmissionController,FurnishSubmissionServiceImpl}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this story",
+  "note": "Story status 'Fully paid'. The whole notice-selection flow exists in the Furnish e-Service: list of eligible notices, checkboxes, Proceed to furnish button, then the selected notices appear in the particulars step and are used by the backend. Main gap: the table uses serverSide paging and setData() clears the selection, so a selection does not carry across pages. Tickets OCMS-DF-2026-067 and OCMS-DF-2026-077 (Closed, Prod deployed) fixed an empty list caused by VON is_sync; the code read shows no remaining defect, but the eVON content in PRD cannot be verified from the repo.",
+  "recommendation": "Can be claimed, with a note: notice selection only works per page. Confirm with URA whether cross-page selection is required",
+  "steps": [
+    {
+      "step": "After login, the portal shows the furnishable notices in a table with checkboxes",
+      "detail": "Notices.ts:84 calls APIGetFurnishNotices() to POST v1/furnishapplicationlist. The ID comes from the JWT session (Controller:81-83: UEN for CorpPass, NRIC/FIN for SingPass), not from the FE. The controller returns only notices with status 'Eligible' (:123-126), meaning notices in the furnishable set AND passing getIneligibilityReason (ServiceImpl:146-148): crs_reason_of_suspension empty, not PS with EPR DIP/MID/FOR/RIP/RP2, not type U, stage ROV/ENA/RD1/RD2 (FurnishValidationServiceImpl:186-216, SystemConstant:112). The table is rendered with checkboxes (FurnishableNotices.ts:142). Tickets OCMS-DF-2026-067 / OCMS-DF-2026-077 (Closed, Prod deployed): the list was once empty because the LTA cron did not set VON is_sync=N; the fix lives in another tier and does not change the verdict. eVON content in PRD: cannot verify from repo."
+    },
+    {
+      "step": "User selects one or more notices with checkboxes (select all, clear selection)",
+      "detail": "Per-row checkbox, select all and a Clear button exist (FurnishableNotices.ts:142, 156-160, 181-189); the Proceed button is enabled only when something is selected (:150-155). But the table is set to serverSide=true (:149) and every page change calls onFetchNotices (:161-170), which ends in Table.setData(); for serverSide, setData() empties selected (Table.ts:150-153). So a selection does not carry across pages: a user with more notices than one page can only pick those on one page per submission. The 'Items per page' dropdown is shown on desktop only (Table.ts:497-510); its option values were not verified. The story does not mention paging, so Sebagian rather than Beda."
+    },
+    {
+      "step": "Clicking 'Proceed to furnish' opens the Furnish Particulars step and shows the selected notices",
+      "detail": "furnishBtn.onClick calls stepper.show(2), stores the selected data in formData.notices and then onSelected (FurnishableNotices.ts:195-201). Furnish.ts:432-438 saves the selection to the cache and fills the 'Notice Details' table in the particulars step (SelectedNotices.ts:44-54, Particulars.ts:204) and in the review step. The next step (fill in particulars) uses this selection."
+    },
+    {
+      "step": "The particulars apply to all selected notices and each notice is re-validated",
+      "detail": "POST v1/furnishapplication receives noticeNos (Controller:71-76), rejects duplicates (:88-96), then validateAllNoticesForSubmission checks every notice: exists in eVON, eligible, user is the offender, not the driver, no application with status P yet (ValidationServiceImpl:356-402). One failing notice rejects the whole submission (Controller:145-163). If all pass, one txnNo is created per notice and the same data (owner, driver/hirer, documents) is copied to each notice (SubmissionServiceImpl:78-95). So the selection in the UI really decides which notices are processed."
+    }
+  ]
+}

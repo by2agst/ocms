@@ -1,0 +1,234 @@
+{
+ "cluster": "D",
+ "candidates": [
+  {
+   "id": "cron-manual-trigger-screen",
+   "title": "Cron screen: manually trigger and watch back-office jobs from the Staff Portal",
+   "kind": "new",
+   "related_story": null,
+   "related_note": null,
+   "user_story": "As an OCMS support/operations officer, I want a Cron screen in the Staff Portal where I can start a back-office job (LTA, MHA, Toppan, eNotification, reports, DataHive, sync, vHub, auto revival) on demand and see whether it is running, completed or failed, so that I can re-run a job that did not run or failed without asking a developer.",
+   "acceptance": [
+     "The menu has a 'Cron' entry that opens the /cron page.",
+     "The page lists the jobs (LTA VRLS Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement, ENA Reminder and Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, Daily/Monthly Paid and Exception report e-mails, RIP report, Furnish Sync, HST monthly, Auto Revival, REP/CES upload and download, Unclaimed Report, vHub end-day/download/report), each with a trigger button.",
+     "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService).",
+     "For jobs that have a status key, the page polls POST cron/job-status?key=<key> and shows Running with elapsed time, Completed or Failed, with a dismiss button.",
+     "Several jobs can run at the same time; each has its own status tag."
+   ],
+   "evidence": [
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Cron/list/CronList.tsx:41-67", "what": "Static list of 27 jobs with their trigger endpoints."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Cron/list/CronList.tsx:86-99", "what": "Map of trigger endpoint to cron/job-status?key=... for status polling."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Cron/list/CronList.tsx:216", "what": "POST to the status endpoint."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Cron/list/CronList.tsx:268", "what": "POST to the trigger endpoint."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/App.tsx:319", "what": "Route /cron renders Cron.CronList."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/data/LinkData.tsx:391", "what": "menu.push(LinkCron): the Cron menu entry (LinkCron defined at LinkData.tsx:64)."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:33", "what": "First of the /v1/cron/*/trigger endpoints (lta-enquiry); same pattern for the rest."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:337", "what": "POST /job-status endpoint, forwarded to the cron tier."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java:461", "what": "Builds the cron tier URL /cron/job-status?key=..."},
+     {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/CronJobStatusController.java:144", "what": "Cron tier job-status endpoint with an allowlist of keys that maps to ocms_batch_job."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:187", "what": "Permission group OCMS_CRON gives access to /v1/cron and /v1/cron/sftp."}
+   ],
+   "works": "partly",
+   "works_basis": "UI route, menu entry, proxy endpoints and status endpoint all exist and are wired end to end in code. Ticket OCMS-DF-2026-061 (closed, Prod deployed) shows users actually use the Cron List and found a timer bug. Partly because what a job actually does depends on prod flags: application-prod.properties of ocmsadminprivateapi has sms.enable=false (line 87) and email.enableSmtp=false (line 80), and sftp.upload.disabledServers=toppan (line 85), so a triggered eNotification SMS, e-mail or Toppan upload may not really send in prod. Real prod server values cannot be verified from the repo. Only some jobs have a status key (about 14 of 27), the others show 'triggered only'.",
+   "ura_requested": "ticket: OCMS-DF-2026-061 (URA user reported a bug on the Cron List screen, so the screen is in use; this is not proof that URA asked for it as a requirement)",
+   "points": 8,
+   "points_basis": "Estimate only (MGG/URA decide). One page, but it sits on top of about 27 proxy endpoints plus a generic status endpoint with polling and parallel runs. Smaller than Block Parking UPLS13.3 (13); about the size of a mid report-builder screen (8). Not 13 because the jobs themselves are already covered by other stories.",
+   "demo_steps": [
+     "Log in to the Staff Portal in UAT with a user that has the OCMS_CRON permission.",
+     "Open the 'Cron' menu.",
+     "Click 'Job Report' or a report e-mail job and watch the tag change to Running, then Completed or Failed.",
+     "Trigger a second job while the first one is running and check that both tags are independent."
+   ],
+   "risks": [
+     "No user story or URA requirement document asks for this screen; URA may call it an internal support tool, not a business feature.",
+     "The cron trigger endpoints let one click start jobs that send letters or SMS. Check whether the paths skip JwtFilter or are only protected by the OCMS_CRON mapping (cannot verify from repo which); if they are open this is a security exposure.",
+     "Overlap risk: other clusters may also report the Cron List or CronProxy (orphan 54 mentions CronProxy only for eNotification and orphan 178 for vHub). Parent should merge so it is claimed once.",
+     "Some prod flags switch off SMS, SMTP and Toppan upload, so URA may say the triggers do nothing in prod."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "manage-template-create",
+   "title": "Create a new SMS, e-mail or letter template (Manage Template, 'Create Template')",
+   "kind": "extension",
+   "related_story": "OCMS36.1",
+   "related_note": "OCMS36.1 (Demo paid, 21 points) covers browsing and amending existing SMS/e-mail/letter templates. OCMS36.2-36.5 cover edit, test send, QR/PDF and save/schedule. None of them says the officer can create a brand new template. This extension adds the Create Template screen and the server-side naming rules.",
+   "user_story": "As a reminder processing officer who maintains notification templates, I want to create a new SMS, e-mail or letter template with a name that the system accepts, so that a new notification wording can be added without a developer inserting it into the database.",
+   "acceptance": [
+     "On the Manage Template list there is a 'Create Template' button for each type (SMS, EMAIL, LETTER) that opens /enotification/create-template/<type>.",
+     "The form takes Template Name and the template body and saves with POST templatestore.",
+     "Backend rejects a Template Type that is not SMS, EMAIL or LETTER.",
+     "Backend rejects a Template Name that is not uppercase letters, digits and underscores, or does not end with _SMS, _EMAIL or _LETTER matching the type, and returns the reason text to the screen.",
+     "The same validation applies to a direct API call, not only to the screen."
+   ],
+   "evidence": [
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/App.tsx:288-301", "what": "Routes create-template/email, /sms, /letter render CreateTemplateForm."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx:118-120", "what": "onCreate navigates to /enotification/create-template/<type>."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx:139-140", "what": "'Create Template' button."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/ManageTemplate/form/CreateTemplateForm.tsx:93-100", "what": "Template Name input and body text area."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/data/LinkData.tsx:157-161", "what": "Menu entry 'Manage Template' under the eNotifications menu (LinkAdhoc, pushed at line 394)."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:52-76", "what": "POST /templatestore create, calls validateTemplateKeyFields before save."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:99-115", "what": "validateTemplateKeyFields: type pattern, name pattern, name suffix must match type."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:160-163", "what": "Permission mappings OCMS_ENOTIF_CREATE_EMAIL_TEMPLATE and OCMS_ENOTIF_CREATE_SMS_TEMPLATE (/v1/templatestore). A matching entry for the LETTER create screen was not checked."}
+   ],
+   "works": "yes",
+   "works_basis": "Route, button, form and backend create with validation all exist, and the menu entry is live. Ticket OCMS-SR-2026-163 (closed) says a user created test template TESTING_LOWERCASE_SMS in Production through this screen, so it has been used. The validation text carries a ticket reference OCMS-DEV-2026-039 (a pen-test item, ticket OCMS-SR-2026-039). Not switched off by any flag found. Whether a created template is then picked up by a cron job depends on the job asking for that exact template name (comment in the controller says the cron selects by exact name).",
+   "ura_requested": "no (no flow deck exists in repo). Related: ticket OCMS-SR-2026-163 (a URA user created a template through this screen) and OCMS-SR-2026-039 (pen test of staff portal API validation).",
+   "points": 5,
+   "points_basis": "Estimate only. About the size of letter-template edit OCMS36.3 (5) or e-mail edit OCMS36.4 (5): one form in three variants plus backend validation. Smaller than OCMS36.1 (21).",
+   "demo_steps": [
+     "Open eNotifications > Manage Template in UAT and choose the SMS tab.",
+     "Click 'Create Template' and save with name TEST_DEMO_SMS and a short body; it should appear in the list.",
+     "Try the name test_demo and the name TEST_DEMO_EMAIL under the SMS type; both should be refused with a message.",
+     "Do not run this in Production; there is no delete feature in any layer, so a test row stays until a DB patch (see OCMS-SR-2026-163)."
+   ],
+   "risks": [
+     "URA may say 'create template' is part of 'manage template' in OCMS36.1, which is already Demo paid. The story text says 'browse and be able to amend', so create is outside the words, but the argument is open.",
+     "No delete function, so wrongly created templates need a DB patch.",
+     "Creating a template that no cron job reads has no business effect."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "hst-manual-update",
+   "title": "Manual HST Update: change name and address of an HST ID and carry the name to all its notices",
+   "kind": "extension",
+   "related_story": "OCMS20.18",
+   "related_note": "OCMS20.18 and OCMS20.28 (already traced in docs/archify) cover applying the special indicator (TS-HST) to the notices of an ID and lifting it manually. They are traced to apply-hst and revive-hst. Nothing covers editing the stored HST record (name, address, address-change date, invalid-address tag) or pushing the corrected name to the offender records. This extension is only that edit.",
+   "user_story": "As a Notice Processing Officer who maintains the list of IDs with a special indicator (HST), I want to look up an HST ID and correct its name and address, so that the HST record and the offender name on all the outstanding notices of that ID stay correct.",
+   "acceptance": [
+     "Menu HST > Manual HST Update opens /hst/update.",
+     "The officer enters an ID; the screen shows the offender, latest address and the outstanding notices of that ID.",
+     "The officer edits name and address fields (postal code, block, street, building, floor, unit, date of address change, invalid address tag), with form validation.",
+     "On save, POST update-hst updates the HST row; if the ID is not in HST the API returns 'HST ID not found in system'.",
+     "The name is also updated on the offender (ONOD) rows of every notice where this ID is the current offender; notice address is not changed."
+   ],
+   "evidence": [
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/App.tsx:199", "what": "Route /hst/update renders HST.HSTUpdate."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/data/LinkData.tsx:193-195", "what": "Menu item 'Manual HST Update' (LinkHST pushed at line 388)."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/HST/update/HSTUpdate.tsx:111-118", "what": "Update form with defaults from search result and ValidHSTUpdateForm."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/HST/hooks/useHST.tsx:101-104", "what": "POST update-hst."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:142-148", "what": "POST /v1/update-hst, 404 when the ID is not in HST."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:354-372", "what": "updateHst sets name, postal code, block, street, floor, unit, building, address-change date, invalid-address tag on ocms_hst."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:400", "what": "onod.setName(...) for the ID's current-offender rows."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/resources/api-authorization.properties:99-100", "what": "Permission group OCMS_HST_UPDATE (/v1/check-hst, /v1/update-hst)."}
+   ],
+   "works": "yes",
+   "works_basis": "Menu, route, form, endpoint and DB update all traced in code. Not switched off. Weak point: the update uses a fixed system user id as the updater (comment GAP-011 in the service), and a failure on one notice is logged and skipped, so the screen can report success while some notices keep the old name.",
+   "ura_requested": "no (no flow deck exists in repo). Related manual HST tickets exist (OCMS-DF-2026-091, -092, -093, -094) but they are about applying HST, not about this edit screen.",
+   "points": 3,
+   "points_basis": "Estimate only. Same size as other single-screen maintenance stories such as OCMS15.7 / OCMS15.8 style forms (3 to 5); one search form, one edit form, one endpoint, two table updates. Taken as 3.",
+   "demo_steps": [
+     "In UAT open HST > Manual HST Update and search an ID that is already in the HST table.",
+     "Change the name and the postal code and save.",
+     "Check the HST row, and open one outstanding notice of that ID: the offender name should show the new name, the address should be unchanged."
+   ],
+   "risks": [
+     "Could be read as part of OCMS20.18/20.28 manual HST handling. The story texts do not mention editing the HST record.",
+     "Per-notice errors are swallowed (logged only), so a partial update is possible.",
+     "Updater is stored as a system user, not the officer, which weakens the audit trail."
+   ],
+   "confidence": "Medium"
+  },
+  {
+   "id": "notice-create-eht-rep-tabs",
+   "title": "Create Notice form: EHT coupon details and REP details tabs",
+   "kind": "extension",
+   "related_story": "OCMS5.1",
+   "related_note": "OCMS5.1 (Fully paid, 3 points) covers keying in the general offence information of one manual notice (vehicle number, car park, date and time, rule code and so on). OCMS5.2 to 5.6 cover drop-downs, validation, CSV upload, summary and notice creation. The story texts do not mention coupon (EHT) or REP data. This extension is the two extra tabs, their field checks and the 'save the tab first' rule.",
+   "user_story": "As a Notice Processing Officer who creates a parking offence notice by hand, I want to record the EHT coupon details (invalid and last-valid coupon) and the REP details (capture, parking entry/exit/start times and related fields) together with the notice, so that the notice carries the full evidence that the enforcement system would normally supply.",
+   "acceptance": [
+     "In create and upload mode the notice form shows two extra tabs, 'EHT Details' and 'REP Details'.",
+     "EHT Details has Invalid Coupon and Last Coupon sub-tabs with Clear, Edit and Save buttons.",
+     "REP Details has fields such as capture date/time, created date/time, parking entry, exit and start date/time, with Clear, Edit and Save buttons.",
+     "Submitting is blocked with a message asking to save the EHT or REP details first when one of them is unsaved.",
+     "The saved values are sent in the staff-create-notice payload and stored on the notice detail (coupon denomination and condition columns, REP parking entry and start time, REP violation code)."
+   ],
+   "evidence": [
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/form/Form.tsx:251-277", "what": "TabItem eht_details and rep_details, only for isCreate or isUpload."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/form/EHTForm.tsx:131-135", "what": "Invalid coupon and last coupon sub-tabs (the expired coupon tab is commented out at line 140)."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/form/REPForm.tsx:191-285", "what": "REP date and time fields."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/hook/ActionNotice.tsx:143-160", "what": "ValidREPEHTSave blocks submit if EHT or REP is not saved."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/utils/mapping/Notice/Notice.ts:269-271", "what": "MapAPINoticeCreate adds REP and EHT coupon mapping to the payload."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:34-38", "what": "POST /staff-create-notice."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:798-814", "what": "Coupon condition and denomination columns are written (some CreasedTab/Subtype lines are commented out)."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:839-843", "what": "REP parking entry and start time and REP violation code are written."}
+   ],
+   "works": "partly",
+   "works_basis": "UI tabs, validation and payload mapping are active code. The backend writes the coupon and REP columns, but part of the coupon columns (CreasedTab and Subtype) are commented out, and the expired-coupon tab is commented out in the UI. NoticeRecordHelper is shared with the CES/REPCCS notice creation, so I could not prove from the repo that a staff-created notice stores every REP and EHT field end to end; that needs a UAT check. No test or ticket confirms use.",
+   "ura_requested": "no (no flow deck exists in repo). No maintenance ticket mentions these tabs.",
+   "points": 5,
+   "points_basis": "Estimate only. Two tab forms with save/edit/clear state, cross-tab validation and payload mapping. Comparable to OCMS5.4 CSV upload (3) plus OCMS5.3 validation (2) in the same epic, so 5.",
+   "demo_steps": [
+     "In UAT open Notices > Create Notice (type O) and fill the offence tab.",
+     "Open 'EHT Details', fill an invalid coupon and Save; open 'REP Details', fill the capture and parking entry fields and Save.",
+     "Try submitting with EHT details edited but not saved and check the 'please ensure the EHT Details are saved first' message.",
+     "Submit, open the new notice and check whether the coupon and REP values are shown."
+   ],
+   "risks": [
+     "Weakest candidate on proof: URA may say these fields are part of 'offence information' in OCMS5.1, which is Fully paid.",
+     "The meaning of EHT and REP for staff-created notices is not explained in any story; URA may say officers never enter them (the data normally comes from enforcement systems).",
+     "Partly commented-out columns and tab suggest unfinished work; do not claim the expired coupon part."
+   ],
+   "confidence": "Low"
+  },
+  {
+   "id": "cps-letter-address-choice",
+   "title": "Change Processing Stage: choose the letter address and set it on the offender address",
+   "kind": "extension",
+   "related_story": "OCMS15.7",
+   "related_note": "OCMS15.6 and OCMS15.7 (Demo paid) say the screen shows fields such as new processing stage, reason and remarks. OCMS15.8 to 15.11 validate, show a summary and save the stage change. The word 'e.g.' leaves room, but letter address is not named in any story text. Note: the existing traces (OCMS15.6, 15.7, 15.9, 15.10) already mention letterAddress as part of the request, so the UI field is seen there; the backend flag update at save is not part of any story text.",
+   "user_story": "As a Notice Processing Officer who changes the processing stage of notices, I want to choose which address (MHA registered, LTA registered, LTA mailing or furnished mailing) the next letter goes to, so that the letter for the new stage is sent to the right address.",
+   "acceptance": [
+     "In the Change Processing Stage form each notice row has a 'Letter Address' drop-down limited to the address types that exist for that notice.",
+     "A default letter address is preselected for each notice.",
+     "The choice is sent with the validate and save requests (letterAddress).",
+     "On save, the system clears the existing letter_address='Y' flag on the current offender's address rows and sets 'Y' on the chosen address type (mha_reg, lta_reg, lta_mail, furnished_mail).",
+     "A failure in this step is logged and does not stop the stage change."
+   ],
+   "evidence": [
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/CPS/list/CPSList.tsx:328-361", "what": "Letter Address drop-down per notice row in FORM mode, default via getDefaultLetterAddress (line 52)."},
+     {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/App.tsx:168-170", "what": "Routes cps/search, cps/*, cps/view."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1043-1046", "what": "Step 6: calls updateOnodLetterAddress when letterAddress is present."},
+     {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1238-1286", "what": "updateOnodLetterAddress: clears old Y flag, sets Y on the chosen address type; errors are only logged."}
+   ],
+   "works": "yes",
+   "works_basis": "UI and service code are active and the CPS routes exist. The Toppan letter job later reads letter_address (see existing orphan 216 about letter address priority), so the flag has an effect. No UAT or ticket evidence confirms it; the 'Y' flag logic can be changed later by the MHA result job (orphan 216), so the choice may be overwritten.",
+   "ura_requested": "no (no flow deck exists in repo). No maintenance ticket names letter address on the CPS screen.",
+   "points": 2,
+   "points_basis": "Estimate only. One drop-down, one service method. Same size as OCMS15.9 summary page (2) or OCMS5.2 drop-down story (2).",
+   "demo_steps": [
+     "In UAT open Change Processing Stage, search and select a notice that has two or more address types.",
+     "Pick a letter address different from the default, continue to the summary and confirm.",
+     "Check ONOD address rows of that notice: the chosen type has letter_address='Y' and the others are empty."
+   ],
+   "risks": [
+     "Small and close to OCMS15.7; URA can say the field is already part of the 'relevant fields' of OCMS15.6/15.7.",
+     "Existing traces already list letterAddress in the 15.x request mapping, so a double-claim argument is easy.",
+     "Backend failure is swallowed, so the screen can say success while the flag was not set."
+   ],
+   "confidence": "Low"
+  }
+ ],
+ "not_claimable": [
+  {"item": "eNotification Exclusion List page (seed 1)", "source": "ocmsadminui/src/App.tsx:302", "reason": "other: already inside OCMS9.3 (Demo paid), 'create/edit/delete IDs from the exclusion list'. Not a candidate."},
+  {"item": "Bulk create notice by XLSX upload with template download", "source": "ocmsadminui/src/pages/Notice/hook/useNoticeUploadSubmit.ts:93-147", "reason": "other: OCMS5.4 (Fully paid) already covers uploading many offences to create notices; CSV versus XLSX is a format difference only. Ticket OCMS-DF-2026-188 (template cannot be downloaded) is a bug on this path."},
+  {"item": "Notice type E, U, A, T forms and upload templates", "source": "ocmsadminui/src/pages/Notice/form/NoticeEForm.tsx; NoticeUForm.tsx; App.tsx:129-130", "reason": "not reachable: create routes for E/U are commented out and the notice type drop-down only offers O (NoticeBasicForm.tsx:118)."},
+  {"item": "UEN Detail / Shareholder Detail views in Vault (Datahive)", "source": "ocmsadminui/src/pages/Vault/Datahive/UENDetail.tsx:33-54", "reason": "switched off: the board fields in the UI are commented out and the DB write of board data is disabled in DataHiveUenFinService.java (OCMS-DEV-2026-231, around line 1470). Also a read-only view of data covered by OCMS20.6/20.7."},
+  {"item": "Adhoc eNotifications: Compose Email, Compose SMS, Message Sent", "source": "ocmsadminui/src/App.tsx:258-269; ocmsadminui/src/utils/data/LinkData.tsx:142-153", "reason": "not reachable: routes and menu entries are commented out. (The Manage Template and Exclusion parts are handled elsewhere in this file or in OCMS9.3/OCMS36.1; the CronProxy eNotification triggers are inside the Cron screen candidate.)"},
+  {"item": "UPL DOR Questions (create/edit question pages) and DOR survey", "source": "ocmsadminui/src/App.tsx:86-95; pages/NoticeUPL/List/DORQuestList.tsx:34", "reason": "not reachable: no backend resource dorquestion found in any of the four backend repos (grep empty), and the UPL menu is not pushed (ocmsadminui/src/utils/data/LinkData.tsx:396-397, '//! UNCONFIRMED // menu.push(LinkUPL)')."},
+  {"item": "UPL notice form with company UEN/person ID and UPL Offender tab", "source": "ocmsadminui/src/pages/Notice/form/NoticeUForm.tsx:226; NoticeUPL/Form/UPLOffender.tsx:27-74", "reason": "not reachable: create route and tab are commented out; old development leftover."},
+  {"item": "Special Notice view/edit routes and draft routes", "source": "ocmsadminui/src/App.tsx:203-216", "reason": "not reachable: the list entry and the Embassy menu are commented out, so the screens open only through a typed URL. Also close to the removed special-use area."},
+  {"item": "DOS Reports (vehicle ownership query list)", "source": "ocmsadminui/src/pages/Report/lists/ReportListDOS.tsx:82-94", "reason": "dead: calls resource dosvaultrecords which has no controller in the backend repos and no OCMS_REPORT_DOS authorization mapping."},
+  {"item": "Notice Search export: Download All / Download Selected / Open Selected (seeds 'ekspor Excel' x3)", "source": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:171-230", "reason": "other: OCMS6.2 ('browse/view/download the information') and OCMS6.6 ('download/print reports ... based on the searched results') are Fully paid and already cover downloading search results. Open Selected is a convenience of the same grid."},
+  {"item": "Apply Operation (PS, Revival, CPS, Batch Furnish) from search/upload results", "source": "ocmsadminui/src/pages/NoticeSearch/hook/ApplyOperationAction.tsx:117-133", "reason": "other: selecting notices from search/upload for PS, revival and stage change is already in OCMS18.x, OCMS19.6 and OCMS15.6; the dropdown is the same selection mechanism."},
+  {"item": "Revival result page with 'Edit Failed Notices' and single-notice Revival from the notice detail page", "source": "ocmsadminui/src/pages/Revival/page/RevivalView.tsx:90-112; ocmsadminui/src/pages/Notice/hook/useOperation.tsx:159-189", "reason": "other: same staff-revive-suspension call as OCMS19.8-19.11 (paid); the failed-notice retry is part of OCMS19.11 'prompt me if the revival is successful' behaviour. Too small and too close to claim separately."},
+  {"item": "Search Outstanding Notices page with batch operations", "source": "ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:105-152", "reason": "other: searching outstanding notices by ID, vehicle and name is OCMS44.1/44.2 (Fully paid); the batch operations are the same ones covered by the suspension, revival and furnish stories."},
+  {"item": "Court Batch Limit and Court Batch Duration parameters (System Admin menu)", "source": "ocmsadminui/src/utils/Meta/System.ts:147-154", "reason": "other: generic parameter entries; no code reads them for court batches. Not a feature."},
+  {"item": "court-process/process-cpc call from UPL endorsement", "source": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:220-226", "reason": "dead: no receiving controller in ocmsadminapi, ocmsadminprivateapi or thirdpartyapi."},
+  {"item": "Warrant Settle Date menu entry (two seeds)", "source": "ocmsadminui/src/utils/Meta/System.ts:22,163-166", "reason": "dead: only a path/title constant, no route or page."},
+  {"item": "Notice Search by Warrant No., Court Trial date, Court Case, Court Mention date (five seeds)", "source": "ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:68-142", "reason": "bug or gap: UI calls warrantofarrest, courttrial, courtcase and courtmention, but no controller exists in the backend repos (only the path in api-authorization.properties:23). Cannot work as built."},
+  {"item": "Workorder Reports tab", "source": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:147-201", "reason": "dead: tab is commented out and no backend endpoint exists."}
+ ],
+ "notes": "31 seeds were reduced to 5 candidates (1 new, 4 extension); most seeds were duplicates of each other or already inside paid stories. All seeds were re-checked against the stories in stories.json; the Cron List screen (CronList.tsx) is not in the seed list and was found while checking the CronProxy seed, so other clusters may report it too (please merge). Seed 'Pilihan Letter Address' and 'Create Template' were kept as extensions but are weak. Menu visibility depends on the user's allowed URLs (LinkData(allowedUrls)), so which roles see each menu cannot be verified from the repo. No ura_requested document exists for OCMS; only maintenance tickets were used. Real prod values for sms.enable, SMTP and cron enabled cannot be verified from the repo (application-uat.properties:80 and application-prod.properties:87 have sms.enable=false in ocmsadminprivateapi; email.enableSmtp=false is at application-prod.properties:80)."
+}

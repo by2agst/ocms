@@ -1,0 +1,73 @@
+{
+  "story": "OCMS35.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/{mha/upload/jobs/MhaNricUploadJob,lta/upload/jobs/LtaUploadJob}, resources/{cron-schedules-prod.properties,datahive/datahive-common.properties}. ocmsadminapi workflows/notice_management/{retrieval/getnotice/GetNoticeController,ownerdriver/ownerdriver/OwnerDriverControllerPlus,filedownload/downloadfile/FileDownloadController}, workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}. ocmsadminui models/Fvault.d.ts. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code penyediaan dataset",
+  "note": "Requirement tidak diberikan di sheet (status 'No requirement'), jadi langkah diambil dari teks story. Story minta OCMS menyediakan sekitar lima dataset ke MHA, Vault, dan LTA untuk analisis dan policy planning. Di repo, jalur ke MHA dan LTA adalah enquiry (OCMS bertanya ke agensi), bukan penyediaan data; 'Vault' hanya muncul sebagai Azure Key Vault dan DataHive yang arahnya masuk. Yang mirip isi dataset adalah tiga API on-demand untuk PLUS (notice, owner/driver, court) dengan akses tarik per permintaan, bukan ekspor untuk MHA/Vault/LTA, jadi tiap langkah paling tinggi Sebagian. Tidak ada ekspor terjadwal lima dataset. Siapa penerima dataset dan format yang diminta agensi: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Yang ada hanya enquiry ke MHA/LTA dan tiga API on-demand untuk PLUS. Minta URA/tim menetapkan daftar dataset, penerima, dan jadwal, lalu bangun ekspor khusus. Story berstatus No requirement; konfirmasi dulu apakah tetap dalam scope.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS terhubung ke MHA untuk menyediakan dataset offence bagi kebutuhan analisis MHA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/jobs/MhaNricUploadJob.java:20-36; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-107",
+      "fit": "Beda dari flow",
+      "detail": "Channel ke MHA ada (SFTP server 'mha', MhaNricUploadJob.java:42; cron.mhaupload 0 0 9,14,21 ? * MON-SAT enabled=true, cron-schedules-prod.properties:105-107), tetapi isinya enquiry: job mengambil data NRIC valid, membuat file NRO, mengirimnya ke MHA lalu membaca hasil alamat (MhaNricUploadJob.java:20-36). Tiket OCMS-DF-2026-125 menyebutnya 'MHA enquiry file'. Arahnya OCMS bertanya ke MHA, bukan OCMS menyediakan dataset parking offence, pemilik/hirer/driver, atau court untuk analisis MHA. Tidak ada job lain ke MHA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS terhubung ke LTA untuk menyediakan dataset offence bagi kebutuhan analisis LTA",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/jobs/LtaUploadJob.java:22-37; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-136",
+      "fit": "Beda dari flow",
+      "detail": "Channel ke LTA ada (cron.ltaupload 0 0 3,19 * * ? enabled=true, deskripsi 'LTA Upload (ROV files)', cron-schedules-prod.properties:134-136). LtaUploadJob mengambil valid offence notice, membuat file permintaan, mengirimnya lewat COMCRYPT dan SFTP (LtaUploadJob.java:22-37). Tiket OCMS-DF-2026-118 menyebutnya 'LTA enquiry'. Sama seperti MHA: OCMS bertanya ke LTA, bukan menyediakan dataset untuk analisis LTA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS terhubung ke GovTech Vault untuk menyediakan dataset",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/datahive/datahive-common.properties:11-14; ocmsadminui/src/utils/models/Fvault.d.ts:1-30",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada interface bernama Vault. Kata 'vault' di repo hanya Azure Key Vault (penyimpan secret). Interface terdekat adalah DataHive, tetapi arahnya masuk: OCMS mengirim daftar ID per query dan membaca data (datahive.batchSize=1000, datahive-common.properties:11-14; Fvault.d.ts hanya tipe data yang dibaca dari DataHive, baris 1-30). Tidak ada export dataset ke Vault. Apakah Vault sama dengan DataHive: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dataset 1: detail parking offence notice tersedia untuk agensi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeController.java:34-39",
+      "fit": "Sebagian",
+      "detail": "plus-offence-notice mengembalikan record valid offence notice dengan filter dan pagination (GetNoticeController.java:34-39). Ini API on-demand untuk PLUS (nama dan komentar 'PLUS Interface'), bukan dataset terjadwal atau bulk untuk MHA, Vault, atau LTA. Apakah PLUS termasuk 'agensi lain' dan proteksi akses (JwtFilter melewatkan endpoint plus-*, bergantung pada APIM): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dataset 2: detail owner, hirer, dan driver tersedia untuk agensi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverControllerPlus.java:27-31",
+      "fit": "Sebagian",
+      "detail": "plus-offence-notice-owner-driver mengembalikan data owner/driver per noticeNo dan/atau idNo (OwnerDriverControllerPlus.java:21-31); tiket OCMS-SR-2026-053 (Closed) menambah effective date untuk tampilan PLUS. Sama seperti dataset 1: lookup on-demand untuk PLUS, bukan dataset untuk MHA, Vault, atau LTA. Endpoint yang sama juga punya jalur update (baris 39), yang berarti PLUS menulis, bukan hanya membaca."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dataset 3: detail court (kasus pengadilan) tersedia untuk agensi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:167-171; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:637-680",
+      "fit": "Sebagian",
+      "detail": "plus-get-court-case-info menerima maksimal 500 notice dan mengembalikan noticeNo, courtPaymentDueDate, dan reason dari ocms_court_case (CasIntegrationController.java:167-171; CasIntegrationServiceImpl.java:637-680). Hanya tiga field, lewat pull oleh PLUS; bukan dataset court untuk MHA, Vault, atau LTA."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "About 5 dataset diserahkan ke agensi (terjadwal atau ekspor) untuk data analysis dan policy planning",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:62-351; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:89-99",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada job atau endpoint ekspor yang membentuk sekitar lima dataset untuk agensi. Cron prod (cron-schedules-prod.properties:62-351) hanya Toppan, MHA, LTA, vHub, CES, report, dan sync. Sumber download di staff portal hanya report dan file hasil (TOPPAN, LTA, MHA, DATAHIVE, ENOTIF, UNCLAIMED, TEMPLATE, UEN, FIN, VHUB; FileDownloadController.java:89-99). Daftar lima dataset dan penerimanya tidak ada di repo."
+    }
+  ]
+}

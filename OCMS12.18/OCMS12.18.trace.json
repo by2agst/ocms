@@ -1,0 +1,55 @@
+{
+  "story": "OCMS12.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob, helpers/NotificationSmsEmailHelper (queryRecordsForReminder, refreshContactInfo, refreshIndividualContactInfo, refreshCompanyContactInfo, updateOcmsContactInfo, validateContactInfo)}, framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor + framework/services/datahive/contact/DataHiveContactServiceImpl (lookup saat notice dibuat), properties cron-schedules-prod (cron.enareminder.datahive=false). Repo lain: tidak ada code terkait",
+  "note": "Status 'Demo paid (50% of 75%)'; demo_remark menyebut Vault dan Code Split (cannot verify from repo). Tidak ada flow deck. Pengecekan mobile/email terbaru dari DataHive (Singpass/CorpPass) sebelum reminder ke-3 ada di cron eNotification, tapi dikunci cron.enareminder.datahive=false di dev, uat, dan prod, sehingga hanya data yang sudah ada di notice yang dipakai. Cron eNotification sendiri juga cron.notification.enabled=false (cron-schedules-prod.properties:236); tiket OCMS-DF-2026-180 menulis 'Awaiting eNotification cron to activate'. Satu-satunya lookup kontak DataHive yang aktif di PROD adalah saat LTA download (notice dibuat). Fit langkah cek kontak sama dengan OCMS9.6. 'DOS' dibaca sebagai DataHive.",
+  "recommendation": "Klaim sebagian. Kode cek kontak DataHive untuk reminder ada, tapi flag cron.enareminder.datahive dan cron.notification.enabled mati di semua environment. Aktifkan keduanya di UAT dan tunjukkan satu notice RR3 yang nomor/emailnya ter-update dari DataHive sebelum reminder",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah 3rd letter terkirim, notice di stage RR3 menjadi kandidat reminder elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:161-162; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:170-180; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1109-1114; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1296-1306",
+      "fit": "Sesuai",
+      "detail": "Surat RR3 dari Toppan menggeser last_processing_stage ke RR3 (updateProcessingStage, TH:1296-1306). Job eNotification lalu mengambil notice dengan last_processing_stage = RR3 yang due date-nya masuk jendela ENOTEDAYS (NH:1109-1114) dan menandai stage-nya (NJ:170-180). Alur 'surat dulu, baru reminder elektronik yang merujuk surat' sesuai urutan story. Catatan: stage RR3 bisa maju walau file tidak sampai ke Toppan (lihat OCMS12.17)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek nomor mobile terbaru pemilik individu dari DOS (Singpass via DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:92-93; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2481; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2710-2735; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaSnowflakeProcessor.java:81",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo dan refreshContactInfo untuk semua record (NJ:185-187). refreshContactInfo hanya query DataHive bila cron.enareminder.datahive=true (NH:92-93, 2468); nilainya false di dev, uat, dan prod (cron-schedules-prod.properties:48), sehingga yang terjadi hanya memakai phoneNo yang sudah ada di record (NH:2468-2477). Jalur live-nya ada: getContactInfoFromSingpass mengambil CONTACT dan memvalidasi minimal 8 karakter (NH:2710-2735). Satu-satunya pengecekan DataHive yang aktif di PROD adalah saat LTA download (lookupContact, LTA:81), yaitu waktu notice dibuat, bukan setelah 3rd letter. Konsisten dengan fit OCMS9.6. Isi view dan koneksi DataHive cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek email terbaru company dari DOS (CorpPass via DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2496-2530; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2542-2560; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2481; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/contact/DataHiveContactServiceImpl.java:149-152",
+      "fit": "Sebagian",
+      "detail": "refreshCompanyContactInfo mengambil CP_ACCOUNT_EMAIL dari view CorpPass berdasarkan UEN dan hanya menerima akun ACCOUNT_TYPE A01 dengan status ACTIVE (NH:2496-2530, 2542-2560). Tapi sama seperti langkah individu, pemanggilannya terkunci cron.enareminder.datahive=false (NH:2468-2477; cron-schedules-prod.properties:48), jadi email yang dipakai adalah yang sudah ada di record. Lookup CorpPass di LTA download aktif (DCS:149-152) tapi terjadi saat notice dibuat. Fit sama dengan OCMS9.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile / email terbaru disimpan ke data owner di notice",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2594; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2676-2698; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2764; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2800-2820",
+      "fit": "Sebagian",
+      "detail": "Bila jalur DataHive aktif, updateOcmsContactInfo mem-patch offenderTelNo dan emailAddr di ocms_offence_notice_owner_driver per noticeNo + idNo (NH:2764, 2800-2820) dan updateOcmsCompanyContactInfo mem-patch emailAddr company (NH:2594, 2676-2698). Karena flag datahive false (langkah 2-3), update ini tidak jalan di PROD untuk jalur eNotification. Fit sama dengan penyimpanan email di OCMS9.6."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder elektronik hanya disiapkan bila ada kontak yang valid (SMS individu, email company)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:255-277; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:448-457",
+      "fit": "Sesuai",
+      "detail": "validateContactInfo menolak record dengan contactError, company tanpa email, atau individu tanpa nomor telepon (NH:2259-2290). Di job, record non-ENA yang tidak valid dilewati (NJ:255-266) dan company tidak masuk batch SMS (NJ:274-276). Channel ditentukan idType: B -> EMAIL, selain itu SMS (NH:448-457). Jadi reminder hanya disiapkan untuk kontak yang ada, sesuai tujuan 'so that an electronic reminder can be sent'."
+    }
+  ]
+}

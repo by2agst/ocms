@@ -1,0 +1,55 @@
+{
+  "story": "OCMS44.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateServiceImpl,PaymentValidator} (set PS-FP di VON dan eVON, buat suspended_notice). ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (query cron yang melewati PS). Tidak ada code penerima receipt Cumulus.",
+  "note": "Status 'Fully paid' di sheet. Story bilang suspend dilakukan setelah receipt dari Cumulus diterima; di code suspend jalan di request yang sama dengan penyimpanan pembayaran, tanpa Cumulus. Hasil akhirnya benar untuk pembayaran penuh atau berlebih: VON jadi PS dengan crs_reason FP, payment_status FP, payment_acceptance_allowed N, lalu eVON ikut diubah dan baris suspended_notice dibuat. Hal yang perlu diwaspadai: (1) pembayaran sebagian juga membuat notice PS (epr PRA, crs FP, payment_status FP) sehingga tidak eskalasi walau saldo belum lunas, dan pembayaran susulan dihitung double payment lalu di-refund (PaymentValidator.java:109-113); (2) pembayaran 0.00 masuk jalur sebagian (lihat OCMS44.3); (3) pembayaran atas notice PS-APP tidak di-PS-FP tetapi menjadi refund (OCMS-SR-2026-190); (4) update eVON dilewati diam-diam jika baris eVON tidak ada (PaymentUpdateServiceImpl.java:410-413) dan atomicity lintas VON/eVON/suspended_notice cannot verify from repo; OCMS-DF-2026-099 melaporkan eVON internet tidak sinkron setelah full payment di jalur cron, bukan jalur ini. Bahwa semua cron stage berhenti untuk PS hanya saya verifikasi pada query ROV (OcmsValidOffenceNoticeRepository.java:73, 134, 146) dan ENA (:166), tidak semua stage.",
+  "recommendation": "Boleh diklaim untuk inti suspend PS-FP setelah pembayaran penuh. Pemicu 'setelah receipt dari Cumulus' tidak ada; pembayaran sebagian yang ikut di-PS perlu dikonfirmasi ke URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Suspend dipicu setelah receipt details dari Cumulus diterima dan diperbarui",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:83-132",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada penerima receipt Cumulus (lihat OCMS44.3 dan OCMS44.4). processPaymentUpdate menyimpan pembayaran, menjalankan validator, dan langsung mengubah status notice dalam satu transaksi (PaymentUpdateServiceImpl.java:83-132), jadi pemicunya aksi Update staff, bukan receipt."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menandai notice permanently suspended sebagai paid (PS-FP)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:295-310; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:373-383; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentValidator.java:63-89; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:98-116",
+      "fit": "Sesuai",
+      "detail": "Untuk pembayaran pas atau lebih, handleFullPayment/updateVONForFullPayment mengisi VON: suspension_type PS, crs_reason_of_suspension FP, crs_date_of_suspension = tanggal pembayaran, payment_status FP, payment_acceptance_allowed N (PaymentUpdateServiceImpl.java:295-310, 373-383; PaymentValidator.java:63-89). Pengecualian: notice yang sudah PS-APP tidak di-PS-FP melainkan dibuat refund (PaymentUpdateServiceImpl.java:98-116, OCMS-SR-2026-190); pembayaran ke notice yang sudah paid dihitung double payment dan di-refund (PaymentValidator.java:50-61)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencatat suspension di suspended_notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:307-309; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:457-473",
+      "fit": "Sesuai",
+      "detail": "createSuspendedNotice menambah baris dengan sr_no dari sequence, type PS, reason FP, source OCMS, remarks 'Full payment received' (PaymentUpdateServiceImpl.java:307-309, 457-473). Untuk overpayment, remarks memuat nilai kelebihan (PaymentUpdateServiceImpl.java:352-354)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status paid juga diteruskan ke eVON agar portal publik tidak menampilkan notice sebagai belum lunas",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:304-305; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:408-425",
+      "fit": "Sesuai",
+      "detail": "updateEVONForFullPayment mengubah eVON: PS, crs FP, payment_status FP, payment_acceptance_allowed N, eservice_message_code E2, is_sync Y (PaymentUpdateServiceImpl.java:304-305, 408-425). Jika baris eVON tidak ada, update dilewati dengan log warn (PaymentUpdateServiceImpl.java:410-413). eVON ada di database lain; atomicity dengan VON cannot verify from repo. OCMS-DF-2026-099 (eVON tidak sinkron setelah full payment) menyangkut jalur cron SuspensionBaseHelper, bukan jalur manual ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak eskalasi ke stage berikutnya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:73; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:134; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:146; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:166; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentValidator.java:109-113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:316-333",
+      "fit": "Sebagian",
+      "detail": "Query cron ROV mengecualikan suspension_type PS (OcmsValidOffenceNoticeRepository.java:73, 134, 146) dan query ENA hanya mengambil suspension_type NULL atau TS-HST (:166), jadi notice PS-FP berhenti di dua stage itu. Stage lain tidak saya verifikasi satu per satu. Catatan: pembayaran sebagian juga menghasilkan PS (epr PRA, crs FP) sehingga notice yang belum lunas ikut berhenti eskalasi (PaymentUpdateServiceImpl.java:316-333; PaymentValidator.java:109-113). Revival oleh cron ada di luar story ini."
+    }
+  ]
+}

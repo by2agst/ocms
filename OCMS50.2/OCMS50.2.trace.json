@@ -1,0 +1,64 @@
+{
+  "story": "OCMS50.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,API,PaymentSearchResult}.ts, utils/validation/Payment/ValidPayment.ts, utils/validation/Format/ValidNOPO.ts, utils/validation/error.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository, auth/filter/JwtFilter. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code terkait",
+  "note": "Pencarian tanpa login ada untuk dua dari empat jalur yang disebut story: Vehicle Number dan Notice Number (tab 2 dan 3 di halaman Check and Pay, endpoint /v1/parkingfines terbuka di JwtFilter). Pencarian dengan ID paspor asing tanpa Singpass tidak ada: tab ID Number hanya berisi tombol Singpass/Corppass dan backend menolak idNo dari client (ID hanya dari JWT session). Payment Reference Number juga tidak ada: validasi hanya menerima format notice 9 digit + check letter, dan teks error notice_reference_no di error.ts:336 tidak dipakai di mana pun. Captcha Turnstile hanya dicek di UI; backend tidak memakai @RequireTurnstile. Tiket OCMS-DF-2026-007 dan OCMS-DF-2026-011 (logika pesan pencarian vehicle number, keduanya Closed, Prod deployed) dipakai sebagai petunjuk; perilaku pesan sekarang dibaca dari code.",
+  "recommendation": "Klaim hanya pencarian Vehicle Number dan Notice Number tanpa login. Jangan klaim pencarian ID paspor asing maupun Payment Reference Number; keduanya belum ada di code. Konfirmasi ke URA apakah kedua opsi itu masih diminta.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman Check and Pay menyediakan pencarian tanpa login Singpass lewat tab Vehicle Number dan Notice Number",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:590-606; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:610-632; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:133",
+      "fit": "Sesuai",
+      "detail": "Tab 2 (Vehicle Number) dan tab 3 (Notice Number) tersedia tanpa token; UI hanya meminta Turnstile captcha. JwtFilter.java:133 membuka /v1/parkingfines tanpa JWT. Perlindungan APIM di depan API cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencari denda berdasarkan Vehicle Number",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:152-153; ocmseserviceui/src/utils/validation/Payment/ValidPayment.ts:12-29; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:113-115; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:385-422; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:47-61; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:106-140",
+      "fit": "Sesuai",
+      "detail": "UI memvalidasi vehicle number (wajib, maks 14 karakter, harus ada huruf dan angka) lalu POST {vehicleNo}. findAllByVehicleNoIn mengambil notice dengan crs_reason_of_suspension IS NULL, an_flag bukan Y, dan PS hanya untuk reason RIP/MID/RP2/DIP/FOR; notice stage court (CPC dst.) diberi pesan E2 dan tidak bisa dibayar (applyVehicleNoConditionLogic). Tiket OCMS-DF-2026-007 (E1 vs E2) dan OCMS-DF-2026-011 (pesan court padahal tidak ada notice) Closed, Prod deployed; kebenaran data di prod cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencari denda berdasarkan ID (paspor asing) tanpa login Singpass",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:561-586; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:46-54; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:279-290",
+      "fit": "Tidak ada code",
+      "detail": "Tab ID Number hanya berisi tombol Singpass dan Corppass, tidak ada input ID atau paspor. Di backend, searchType 'id' wajib Bearer JWT (401 tanpa token) dan payload idNo/idType ditolak oleh ALLOWED_KEYS_ID_SEARCH, jadi jalur ID tanpa Singpass tidak ada. Opsi 'Passport' di option.ts hanya dipakai di form Furnish. Dicari dengan kata passport, foreign, idNo di ocmseserviceui dan ocmseserviceapi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencari denda berdasarkan Notice Number",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/pages/Payment/API.ts:154-158; ocmseserviceui/src/utils/validation/Payment/ValidPayment.ts:31-60; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:111-113; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:243-266; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesServiceImplement.java:69-98; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmsezdb/eocmsvalidoffencenotice/EocmsValidOffenceNoticeRepository.java:63-79",
+      "fit": "Sesuai",
+      "detail": "UI memvalidasi format notice (9 digit + check letter, ValidNotice) lalu POST {noticeNo:[...]}. checkNoticesList mengambil notice lewat findAllByNoticeNoIn dan mengembalikan status bayar dan pesan eService per notice. Detail pesan error dinilai di OCMS50.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender mencari denda berdasarkan Payment Reference Number",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Format/ValidNOPO.ts:4-28; ocmseserviceui/src/utils/validation/error.ts:336-342; ocmseserviceui/src/pages/Payment/PaymentSearch.ts:598-606",
+      "fit": "Tidak ada code",
+      "detail": "Kolom di tab Notice Number hanya menerima 10 karakter format notice (ValidNotice: 9 digit + check letter). Tidak ada tab, label, atau validasi untuk Payment Reference Number. Teks error notice_reference_no ('Please enter Notice Number or Payment Reference Number') ada di error.ts:336 tetapi tidak dirujuk dari file mana pun. Dicari dengan payment ref, paymentRef, reference number di UI dan API."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pencarian tanpa login ditampilkan sebagai daftar denda outstanding yang bisa dilihat",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:519-535; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:1012-1026; ocmseserviceui/src/pages/Payment/Table/Column.ts:220-240",
+      "fit": "Sesuai",
+      "detail": "Untuk tab Vehicle/Notice, onSearch mengisi outstandingData lalu InitPayment() menampilkan tabel (Notice Number, Vehicle Number, Date of Offence, Status, Amount) atau InitNonPayment() bila kosong. Hasil tampil tanpa token."
+    }
+  ]
+}

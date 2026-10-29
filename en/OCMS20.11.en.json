@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl (TS-UNC, adhoc_nro_temp queue); ocmsadminprivateapi MhaNricDataHelper + MhaNricDownloadHelper.storeUncHstResults (MHA only, type_of_address mha_reg), UnclaimedReportServiceImpl, AutoRevivalHelper, ToppanUploadHelper.resetLetterAddressAfterToppan, ToppanUploadJobsScheduler, ToppanUnifiedController, application-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no address comparison / resend code",
+  "note": "Story status: Requirement given - Gen flow. The story asks OCMS to compare the registered address where the returned reminder was sent with the LTA mailing address of the same ID, then resend the reminder to the alternative address through files for the vendor. The code only covers the 'returned reminder' side: TS-UNC is applied and the ID is queued in ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:387-418, 746-763), but the unclaimed enquiry goes only to MHA (NRIC) or DataHive (FIN/UEN); the result is stored as type_of_address 'mha_reg' (MhaNricDownloadHelper.java:3223,3248), there is no LTA query and no comparison with lta_mail. Letter address selection in ToppanUploadHelper.java:466-518 uses the order mha_reg > lta_reg > lta_mail, so lta_mail is used only when the other two addresses are missing, not as an alternative address. A reminder file generator for Toppan exists, but the daily call is commented out (ToppanUploadJobsScheduler.java:118) and it runs only through POST /generate-letters; upload to Toppan is switched off in the prod properties (sftp.upload.disabledServers=toppan). The real server values cannot be verified from the repo.",
+  "recommendation": "Do not claim as done. Only the groundwork can be claimed in part (TS-UNC, enquiry queue, auto revival, Toppan file generator). The comparison of registered address vs LTA mailing address and the decision to resend to that address do not exist; ask URA whether a manual process outside the system is acceptable",
+  "steps": [
+    {
+      "step": "Officer identifies that the registered address where the returned reminder was sent differs from the LTA mailing address of the same offender ID",
+      "detail": "After submit-unclaimed, the current offender ID goes into ocms_adhoc_nro_temp (UnclaimedServiceImpl.java:746-763; PS notices are already excluded through OCMS-DF-2026-133). The MHA enquiry only takes idType 'N' (MhaNricDataHelper.java:442-447) and the result is written to ocms_temp_unc_hst_addr with type_of_address fixed to 'mha_reg' (MhaNricDownloadHelper.java:3223,3248). There is no LTA query on the UNC path and no code that compares that address with lta_mail. checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110), which reads that table, has no caller in the repo, so the UNC address report from that table is not produced automatically; the daily Unclaimed Batch Data Report cron only lists TS-UNC notices (DailyReportJobsScheduler.java:100)."
+    },
+    {
+      "step": "OCMS picks the LTA mailing address as the alternative address for the resent reminder",
+      "detail": "The priority order for the letter address for NRIC/FIN/UEN is mha_reg > lta_reg > lta_mail (ToppanUploadHelper.java:466-518; query order :2318-2321). lta_mail is chosen only when both mha_reg and lta_reg are missing, so a reminder resent to an ID that has mha_reg will use the same address that came back, not the LTA mailing address. The fallback also ignores furnished_mail (see addendum: possible bug)."
+    },
+    {
+      "step": "The suspended notice (TS-UNC) is resumed so that the reminder can be resent",
+      "detail": "Auto Revival picks up every TS whose due_date_of_revival has passed (AutoRevivalHelper.java:113-134), including TS-UNC, and clears the status on VON (:644-650); the job runs in the day-end run (ToppanUploadJobsScheduler.java:119, cron.toppanupload.enabled=true in cron-schedules-prod.properties:62). Revival happens because of the due date (default 30 days from submit, UnclaimedServiceImpl.java:397-398), not because an officer decided to resend to an alternative address. The real schedule value on the server cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS generates the reminder PDF/data file for the print vendor (Toppan)",
+      "detail": "A Toppan letter generator exists (ToppanUploadHelper handles stages RD1/RD2/RR3/DN1/DN2/DR3 and writes the file), but the call toppanLettersGeneratorService.executeJob() in the day-end job is commented out (ToppanUploadJobsScheduler.java:118), so file generation runs only through the manual trigger POST /generate-letters (ToppanUnifiedController.java:34). OCMS-DF-2026-192 (Ready to UAT) reports that this manual trigger failed in production and the stage did not change. The letter is built from the address with letter_address='Y' (step 2), not from an alternative address found by a comparison."
+    },
+    {
+      "step": "The file is delivered to the vendor for printing and postage to the alternative address",
+      "detail": "The prod properties set sftp.upload.disabledServers=toppan (application-prod.properties:86), so upload to the Toppan SFTP is switched off according to the repo; in this state confirmDeliveryAndAdvanceStage bypasses the delivery confirmation gate and the stage still advances without the file being delivered (ToppanUploadJob.java:419-426; OCMS-DF-2026-192). The real server value, and the printing and postage by the vendor, cannot be verified from the repo. The destination is not an alternative address (step 2)."
+    }
+  ]
+}

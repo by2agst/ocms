@@ -1,0 +1,55 @@
+{
+  "story": "OCMS15.13",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi ChangeOfProcessingService.processPlusChangeStage + processPlusNoticeWithStageNewFlow (jalur PLUS), EligibilityService (aturan kelayakan staff, tidak dipanggil dari jalur PLUS), SystemConstant.Subsystem.PLUS_CODE. Repo lain: tidak ada code",
+  "note": "Status story: Requirement given - Gen flow (tidak ada flow deck OCMS). Appendix B Annex 1A tidak ada di repo, jadi 'sesuai Appendix B' tidak bisa dibuktikan. Jalur PLUS hanya punya dua aturan penolakan/skip sendiri (CFC dari source 005, offenceType U) dan cek notice ada. Aturan kelayakan lengkap (court stage, PS, role vs stage, offence type O/E, RD2, CFC wajib UEN) ada di EligibilityService tetapi hanya dipanggil dari jalur staff portal (ChangeOfProcessingService.java:232, :975), tidak dari jalur PLUS. Validasi stage map sengaja dihapus dengan komentar bahwa PLUS boleh maju dan mundur. Kasus offenceType U ke DN1/DN2/DR3/CPC membalas SUCCESS tanpa mengubah apa pun, bertentangan dengan story 15.15. Tiket: tidak ada tiket maintenance yang langsung mengenai pengecekan ini.",
+  "recommendation": "Klaim hanya dua aturan yang ada (CFC dari source 005, notice tidak ditemukan/duplikat). Jangan klaim pengecekan Appendix B; EligibilityService perlu dipanggil dari jalur PLUS atau URA mengonfirmasi bahwa PLUS memang tidak dibatasi",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request dari source PLUS (005) untuk pindah ke stage CFC ditolak sebagai tidak applicable",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1302-1307; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:22",
+      "fit": "Sesuai",
+      "detail": "Bila PLUS_CODE (\"005\") sama dengan source dan nextStageName = CFC, dilempar PlusChangeStageException(\"OCMS-4004\") sebelum notice apa pun disentuh (ChangeOfProcessingService.java:1302-1307; SystemConstant.java:22). Aturan ini nyata dan jalan; apakah ia bagian dari Appendix B cannot verify from repo. Catatan: contoh Javadoc source menulis \"004\", yang melewati aturan ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request offenceType U ke stage DN1, DN2, DR3, atau CPC dianggap tidak applicable",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1311-1317",
+      "fit": "Beda dari flow",
+      "detail": "Kondisi ini tidak menolak; processPlusChangeStage langsung return (:1316) sehingga controller membalas 200 SUCCESS tanpa mengubah VON atau menulis audit (ChangeOfProcessingService.java:1311-1317; ChangeOfProcessingController.java:505-512). Story meminta notice yang tidak applicable ditangani sebagai error ke PLUS (OCMS15.15). Komentar code menyebut 'Skip processing', jadi mungkin disengaja, tetapi perilakunya berbeda dari teks story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah perpindahan stage yang diminta diizinkan menurut aturan stage (Appendix B)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1319-1321",
+      "fit": "Tidak ada code",
+      "detail": "Validasi stage map di jalur PLUS sengaja dihapus: 'STEP 3 SKIPPED: Stage map validation not required for PLUS (allows bidirectional transitions)' (ChangeOfProcessingService.java:1319-1321). lastStageName dari PLUS bahkan tidak dipakai; stage sebelumnya diambil dari VON (:1464-1480, :1484). Tidak ada pengecekan urutan atau kombinasi stage di jalur ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kondisi tiap notice (court stage, permanent suspension, peran offender vs stage, offence type, RD2, entity CFC) sebelum mengubah stage",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:69-154; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:232; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:975; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1476-1500",
+      "fit": "Tidak ada code",
+      "detail": "Aturan ini ada di EligibilityService.checkEligibility (EligibilityService.java:69-154) tetapi hanya dipanggil dari validate dan submit staff portal (ChangeOfProcessingService.java:232, :975). processPlusNoticeWithStageNewFlow langsung menghitung amount dan menulis VON tanpa memanggilnya (:1476-1500), jadi notice di court stage, PS, atau dengan peran yang tidak cocok tetap berubah stage lewat PLUS. Tidak ada tiket yang menyebut ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang diminta harus ada dan tidak boleh dobel dalam satu request; yang gagal dilaporkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1354-1366; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1470-1476; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1389-1392",
+      "fit": "Sesuai",
+      "detail": "Duplikat noticeNo dalam request dicatat sebagai error 'Duplicate noticeNo in request' (ChangeOfProcessingService.java:1360-1366); notice yang tidak ada di VON melempar NOTICE_NOT_FOUND (:1470-1476); semua error dikumpulkan dan dilempar sebagai PROCESSING_FAILED (:1389-1392). Hanya dua cek dasar, bukan Appendix B."
+    }
+  ]
+}

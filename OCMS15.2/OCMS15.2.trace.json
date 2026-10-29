@@ -1,0 +1,64 @@
+{
+  "story": "OCMS15.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices (filter paid, NPA, stage di luar ELIGIBLE_STAGES, PS aktif), EligibilityService.checkEligibility (dipakai validate/submit), dto/SearchChangeProcessingStageResponse}, crud/ocmsizdb/suspendednotice/SuspendedNoticeRepository.findNoticeNosWithActivePs. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Story minta OCMS mengecek dan hanya mengembalikan notice yang boleh diubah stage-nya. searchNotices memang menyaring: paid (amount_paid > 0), NPA, stage di luar ROV/ENA/RD1/RD2/RR3/DN1/DN2/DR3/CPC/CFC (termasuk court), dan notice dengan PS aktif. Dua celah: (1) filter PS di search membuang SEMUA PS aktif, sedangkan EligibilityService.checkEligibility mengizinkan PS dengan kode DIP/FOR/MID/RIP/RP2, jadi notice itu tidak pernah muncul di search padahal boleh diubah di validate/submit; (2) aturan role dan stage tujuan (Driver vs Owner/Hirer/Director, tipe offence O/E, syarat RD2, CFC wajib UEN + entity BP/LP) hanya dijalankan di validate dan submit, bukan di search, sehingga notice yang tampil bisa ditolak kemudian. TS aktif tidak memblokir apa pun (konstanta TS_BLOCKED hanya dideklarasikan, tidak dipakai di checkEligibility). Tiket maintenance: tidak ada yang menyentuh filter search ini. Data asli cannot verify from repo.",
+  "recommendation": "Klaim sebagian: filter paid, NPA, stage, dan PS ada, tetapi PS dengan kode pengecualian ikut tersaring dan aturan role/stage tujuan tidak dicek saat search. Perbaiki atau jelaskan ke URA sebelum klaim penuh",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kandidat diambil dari VON (atau dari ONOD lebih dulu bila dicari lewat ID No)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:351-359; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:575-599; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:608-644",
+      "fit": "Sesuai",
+      "detail": "searchNotices memilih jalur: ID No lewat ONOD (offender_indicator='Y') lalu VON (Service:575-599), kriteria lain langsung ke VON (608-644). Hasil di-dedupe per noticeNo (361-369) lalu difilter AND (372)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah dibayar dikeluarkan dari hasil",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:376-386",
+      "fit": "Sesuai",
+      "detail": "Notice dengan amountPaid > 0 dihitung sebagai paidCount dan tidak masuk daftar eligible (Service:380-386). Pengecekan hanya pada amount_paid; cara lain menandai notice lunas tidak dicek di sini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice NPA dan notice di luar stage yang boleh diubah (termasuk stage court) dikeluarkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:64-66; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:388-410",
+      "fit": "Sesuai",
+      "detail": "NPA dibuang lebih dulu (Service:392-398). Lalu hanya stage dalam ELIGIBLE_STAGES (ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC; baris 64-66) yang lolos; stage null atau stage lain, termasuk court, dihitung courtStageCount dan dibuang (404-410)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dengan suspension permanen (PS) aktif dikeluarkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:412-429; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspendednotice/SuspendedNoticeRepository.java:154-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:57-59; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:90-98",
+      "fit": "Sebagian",
+      "detail": "Query findNoticeNosWithActivePs mengambil semua notice dengan suspensionType='PS' dan dateOfRevival NULL (SuspendedNoticeRepository:154-158); semuanya dibuang dari search (Service:423-429). Padahal checkEligibility mengizinkan PS dengan kode DIP, FOR, MID, RIP, RP2 (EligibilityService:57-59, 91-98). Akibatnya notice PS-DIP/FOR/MID/RIP/RP2 tidak pernah muncul di search walau boleh diubah di validate/submit."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Aturan role dan stage tujuan (Driver vs Owner/Hirer, tipe offence, syarat RD2, CFC) ikut dicek saat mengambil notice yang berlaku",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:49-56; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:100-151; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:232; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:975; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:42",
+      "fit": "Sebagian",
+      "detail": "Aturan ini hanya hidup di EligibilityService.checkEligibility, yang dipanggil dari validateNotices (Service:232) dan proses submit (975), bukan dari searchNotices. Jadi daftar search belum menyaring notice yang nanti ditolak karena role/tipe offence/syarat RD2 (EligibilityService:49-56, 100-151). TS aktif juga tidak memblokir: TS_BLOCKED hanya dideklarasikan (EligibilityService:42), tidak dipakai di checkEligibility."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya notice yang lolos dikembalikan, bersama ringkasan jumlah eligible dan ineligible",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:431-441; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:505-561",
+      "fit": "Sesuai",
+      "detail": "Daftar eligibleVonList diurutkan, dipaginasi dan dibentuk menjadi response; summary berisi total, eligible dan ineligible (paid + NPA + stage + PS) untuk semua hasil, bukan hanya halaman aktif (Service:431-441, 505-561)."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+ "story": "OCMS46.1",
+ "flow_ref": "User story (not in any OCMS flow deck)",
+ "code_summary": "Detection of duplicate/excess payment and creation of ocms_refund_notice records: ocmsadminapi workflows/payment_reduction/payment/PaymentUpdateServiceImpl + crud/ocmsizdb/OcmsRefundNotice; ocmsadminprivateapi framework/workflows/synctxndata/CronSyncTxnData (online payment path). Display: ocmsadminui pages/Notice/detail/PaymentDetails.tsx. The refund work item, Cumulus interface and Epic46 Refund pages do not exist or sit inside a comment block.",
+ "note": "Story status is 'No requirement' in stories.json (the requirement is not given); traced as a normal story. Proven: detection of duplicate payment (DBP), over payment (OVP) and payment after PS-APP (APP) creates an ocms_refund_notice row. Missing: a refund work item (no ocms_work_item entity; the DataHive work item is a PLACEHOLDER), the Cumulus interface (grep cumulus: 0 results in the six repos), offender details and approving officer in the record, and a review dashboard. The officer only sees the refund fields in the Payment tab of notice detail. Tickets: OCMS-SR-2026-112 (Closed, Refund ID/Date columns in the Exception report), OCMS-SR-2026-190 (Ready to PRD, refund for payment over PS-APP; used in step 1), OCMS-DF-2026-075 (Closed, refund for PS-APP on already-paid notices), OCMS-DF-2026-152 (Ready to DEV, refundNoticeId held the receipt number; lowers confidence in step 2). Cumulus and the real server property values: cannot verify from repo.",
+ "recommendation": "Claim only the duplicate payment detection and the refund record. The work item, Cumulus interface and dashboard review do not exist; do not claim as complete.",
+ "steps": [
+  {
+   "step": "OCMS detects a duplicate or excess payment on a parking offence notice",
+   "detail": "Two paths detect duplicate payment. The Update Manual Payment path (ocmsadminapi): the validator returns DOUBLE_PAYMENT (PaymentUpdateServiceImpl.java:250-251) and handleDoublePayment creates a refund with reason DBP (lines 274-288); excess payment is handled by handleOverPayment with reason OVP (lines 339-367). The online payment path (CronSyncTxnData, cron.syncinternetintranet every 10 minutes, enabled=true in cron-schedules-prod.properties:305-306): a notice already FP/PRA that receives another transaction gets a DBP refund (lines 420-431). Another trigger for refunds: payment after PS-APP (reason APP). The real server property values cannot be verified from the repo."
+  },
+  {
+   "step": "OCMS creates a refund advice holding notice, offender details, receipt details and approving officer",
+   "detail": "Each case creates one ocms_refund_notice row through createIfNotExists (OcmsRefundNoticeServiceImpl.java:42-83; idempotent per receipt + notice, id format RE{YYYYMMDD}{NNN}). Columns: refund_notice_id, receipt_no, notice_no, pp_code, amount_paid, amount_payable, suspension_type, EPR/CRS reason, refund_amount, refund_reason (OcmsRefundNotice.java:26-58). Notice and receipt details are present. Offender details (name/ID/address/bank account) and approving officer have no column at all, so the refund advice content the story describes is incomplete. Ticket OCMS-DF-2026-152 (Ready to DEV) reports that refundNoticeId in the PLUS response held the receipt number; current code already returns the RE... id (OcmsRefundNoticeServiceImpl.java:82), but whether the fix is deployed cannot be verified from the repo."
+  },
+  {
+   "step": "OCMS creates a work item for the refund advice",
+   "detail": "No refund work item exists. The OcmsRefundNotice entity (lines 19-62) only stores the refund row, with no status, assignee or link to a work item. A grep for work item, ocms_work_item and workitem across the six repos only finds DataHiveUenFinService (ocmsadminprivateapi) for FIN/work pass cases, where work item creation is a PLACEHOLDER that only writes a log (DataHiveUenFinService.java:2920-2923); there is no ocms_work_item entity. Nothing there relates to refunds."
+  },
+  {
+   "step": "The work item is interfaced to Cumulus in the officer's dashboard",
+   "detail": "There is no Cumulus interface. The word cumulus does not appear in the six repos (UI and API); there is no HTTP/SFTP client, cron or refund export file for Cumulus. The ocmsadminui pages folder also has no Dashboard page for refunds. The ocmsadminprivateapi entity ends at line 62 with no sent-status column."
+  },
+  {
+   "step": "The officer reviews the refund advice work item",
+   "detail": "The officer can only see the refund row in the Payment tab of notice detail: Refund Identified, Refund Reason, Refund Amount, Refund Notice ID (PaymentDetails.tsx:126-144), fetched through POST refundnoticelist (NoticeContext.tsx:1152-1168; /v1/refundnoticelist is in the OCMS_NOTICE_DETAIL mapping, api-authorization.properties:36), plus a Refund Identified Date column in the PS report (ReportListPS.tsx:265). That is a data view, not a work item review. The Epic46 Refund pages (list, create, approval) are at App.tsx:343-358 but inside a comment block (ending at line 371), the pages/epic46 folder does not exist, and the Payment Refund menu link is also commented out (LinkData.tsx:281-285). Same as OCMS46.6 step 4."
+  }
+ ]
+}

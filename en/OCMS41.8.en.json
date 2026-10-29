@@ -1,0 +1,37 @@
+{
+  "story": "OCMS41.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishApprovalHelper, helpers/FurnishSyncHelper}, crud/ocmsizdb/OcmsFurnishApplication, crud/ocmspiiezdb/EocmsFurnishApplication, framework/workflows/furnish_notifications/services/FurnishNotificationServiceImpl, application-prod.properties. ocmsadminapi crud/ocmsizdb/{OcmsFurnishApplication,OcmsFurnishApplicationDoc}/*Controller, api-authorization.properties. ocmsadminui pages/Furnish/list/FurnishSummaryList, utils/data/LinkData, utils/Meta/WorkItem, App.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not involved",
+  "note": "Status 'Requirement given - Gen flow'. The code proves: a submission that fails any auto-approval check is marked status P with reason_for_review in Intranet and Internet, the hirer/driver data and supporting documents are copied to Intranet, and the record appears on the staff Furnished Hirer/Driver screen (default filter status P). Different from the story wording: there is no 'work item' object (the Work Item menu is commented out in LinkData.tsx:398 and there is no route), only a furnish application row with status P plus TS-PDP on the notice (a TS-PDP failure is only logged); and there is no assignment to a specific officer, every user with menu access sees the same list. A daily email job listing pending items to officers exists, but email.enableSmtp=false in application-prod.properties:80 (real server value cannot verify from repo). Tickets used: OCMS-DF-2026-073 (a submission wrongly sent to manual approval because the ROV/ROV stage pair was not furnishable, fixed in code), OCMS-DF-2026-004 (daily officer email template missing in PRD, Closed).",
+  "recommendation": "Claim partially: routing to manual review and complete data exist; a 'work item' object and per-officer assignment do not (a shared list with status P exists). Ask URA whether the Furnished Hirer/Driver list counts as the work item dashboard",
+  "steps": [
+    {
+      "step": "A submission that fails any auto-approval check is identified as not auto-approvable",
+      "detail": "processSingleSubmission calls runValidationChecks; when any check fails the result is pending with a reason (FurnishProcessingService.java:164-176) and executeManualReview is called. The 6 checks are in FurnishApprovalHelper.java:199-220 (active PS, HST ID, FIN/Passport, not furnishable stage, existing offender, prior submission). OCMS-DF-2026-073: the ROV|ROV stage pair used to land in manual wrongly, now in SystemConstant.java:239. Edge case: a record that throws (FurnishProcessingService.java:143-147) gets no reason and is not reprocessed automatically, but it stays status P from the sync."
+    },
+    {
+      "step": "The submission is marked Pending (status P) with the review reason in the Intranet DB",
+      "detail": "batchUpdateStatusPending groups by reason and runs UPDATE ocms_furnish_application SET status='P', reason_for_review=:reason, remarks=:reason (FurnishProcessingService.java:189-198; OcmsFurnishApplicationServiceImpl.java:78-91). A failed SQL is only logged (FurnishProcessingService.java:202-204)."
+    },
+    {
+      "step": "The Pending status and its reason are also written to the Internet DB",
+      "detail": "batchSyncStatusToInternet calls eFurnishService.batchUpdateStatus(txnNos, 'P', reason, ocmsiz_app_conn) per reason group (FurnishProcessingService.java:218-228), UPDATEing eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:158-171)."
+    },
+    {
+      "step": "The furnished hirer/driver particulars are available to staff in the Intranet DB",
+      "detail": "Before the checks, batchSyncApplications copies name, ID, address, contact, role, relationship, questionnaire answers, rental period, owner data and CorpPass staff name from eocms_furnish_application to ocms_furnish_application (FurnishSyncHelper.java:179-246), read by the staff screen through the furnishapplicationlist endpoint (OcmsFurnishApplicationController.java:52-72)."
+    },
+    {
+      "step": "The uploaded supporting documents are also available to staff",
+      "detail": "batchSyncDocuments copies the document metadata (file name without blob path, mime, size, doc_type) to ocms_furnish_application_doc (FurnishSyncHelper.java:89-145, 251-281). The staff screen lists them through furnishapplicationdoclist and downloads through furnish-downloads from Azure Blob (OcmsFurnishApplicationDocController.java:59, 85; useFurnishAttachment.ts:55, 107). The file content in blob storage cannot verify from repo."
+    },
+    {
+      "step": "OCMS creates a work item containing the notice and the furnished particulars",
+      "detail": "There is no 'work item' entity or table. The Work Item menu is commented out (LinkData.tsx:398) and utils/Meta/WorkItem.ts only holds a path, with no route in App.tsx. The equivalent is the ocms_furnish_application row with status P. TS-PDP is also applied to the notice (FurnishApprovalHelper.java:515-521, 754-786), but if rejected it is only logged and the status stays P (lines 517-521)."
+    },
+    {
+      "step": "The work item is routed to the officer's dashboard",
+      "detail": "The 'Furnished Hirer/Driver' screen (route /furnished-list, menu LinkFurnish) loads furnishapplicationlist with a default filter of status P (FurnishSummaryList.tsx:59-62, 71-79; LinkData.tsx:318-327, 386; App.tsx:192-194). That is a shared list; there is no column or logic assigning to a specific officer. A daily email job listing the status P items to officers exists (FurnishNotificationServiceImpl.java:146-157), but email.enableSmtp=false in application-prod.properties:80; the real server value cannot verify from repo. OCMS-DF-2026-004 (daily officer email template missing in PRD) is Closed."
+    }
+  ]
+}

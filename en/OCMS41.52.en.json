@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.52",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/plusintegration/controllers/PlusIntegrationController, workflows/furnish/stafffurnish/services/StaffFurnishService, workflows/furnish/helpers/FurnishabilityChecker, workflows/notice_management/ownerdriver/ownerdriver/{OwnerDriverControllerPlus,OwnerDriverServiceImplPlus}, auth/filter/JwtFilter, config/WebConfig. ocmsadminui, ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code that receives these PLUS requests",
+  "note": "Demo remark in the sheet: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop.' That is an environment/connection problem and cannot be verified from the repo. The code provides three PLUS endpoints: /plus-furnish, /plus-redirect, /plus-furnish-redirect-check (PlusIntegrationController) plus /plus-update-offence-notice-owner-driver (OwnerDriverControllerPlus). All work per single notice. The furnishable stage check exists; a check for 'particulars already exist' on the PLUS path does not exist (scope of stories 41.54 and 41.56-41.58). No maintenance ticket changes the verdict.",
+  "recommendation": "Claim partially: receiving PLUS requests and the furnishable stage check exist, but only per single notice, and the check for already-existing particulars on the PLUS path does not exist. PLUS authentication (APIM) and the DB connection problem in the demo remark cannot be verified from the repo.",
+  "steps": [
+    {
+      "step": "PLUS sends a request to update hirer/driver particulars for selected notices, and OCMS receives it",
+      "detail": "OCMS provides POST /v1/plus-furnish (new hirer/driver becomes current offender; noticeNo, ownerDriverIndicator, name, idType, idNo are required, PlusIntegrationController.java:136-168, 242-260), POST /v1/plus-redirect (switch to an existing offender, 185-217) and POST /v1/plus-update-offence-notice-owner-driver (change fields, OwnerDriverControllerPlus.java:39-43, OwnerDriverServiceImplPlus.java:111-166). All accept ONE noticeNo per call; there is no list endpoint for 'selected notices' at once, so PLUS has to call repeatedly. plus-* endpoints bypass JwtFilter (JwtFilter.java:179) and OcmsAuthorizationInterceptor (WebConfig.java:83). The flag ocms.plus.key.validation.enabled=false in application-prod.properties:61 and no ocmsadminapi code reads that property, so protection depends on APIM outside the repo: cannot verify from repo. The demo remark about the PLUS API not pulling data (DB connection) also cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS checks whether the notice is at a furnishable stage",
+      "detail": "plus-furnish calls staffFurnish, which first runs checkFurnishable (StaffFurnishService.java:181-183; plus-redirect at 326-328). FurnishabilityChecker rejects a notice whose last processing stage is not one of NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC (FurnishabilityChecker.java:51-61, 118-126) and no data is changed. PLUS can also check first through /plus-furnish-redirect-check (PlusIntegrationController.java:65-92). Stage list vs the Appendix: cannot verify from the repo. Note: /plus-update-offence-notice-owner-driver does not run this check (see OCMS41.53)."
+    },
+    {
+      "step": "OCMS checks whether hirer/driver particulars already exist for the notice",
+      "detail": "The PLUS path does not perform this check. staffFurnish only reads the current offender to remember the old ID for the HST logic (StaffFurnishService.java:196-198), then immediately deactivates the old offender (201) and saves the new record (231). The 'particulars already exist' logic does exist elsewhere: FurnishabilityChecker.runAllChecksAndCollectFailures (FurnishabilityChecker.java:248-327) is called from ManualReviewService.java:215 for pending eService submissions, and ManualFurnishValidationService.checkExistingParticulars (ManualFurnishValidationService.java:74) for /furnish/officer/manual. Neither is a plus-* endpoint and neither is called from PlusIntegrationController. Scope of stories 41.54 and 41.56."
+    }
+  ]
+}

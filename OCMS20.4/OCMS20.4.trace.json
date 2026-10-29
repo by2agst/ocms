@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin/services/DataHiveUenFinService (updateCompanyAddressWithNullSupport), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, workflows/agencies/toppan/upload/helpers/ToppanUploadHelper, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code kirim ulang reminder khusus retur",
+  "note": "Status stories.json 'Requirement given - Gen flow'. Tidak ada fitur kirim ulang reminder yang dipicu oleh perubahan alamat pada notice TS-UNC. Yang ada hanya jalur reguler: setelah notice revive dan kembali ke stage reminder dengan suspension_type NULL, job DataHive UEN & FIN menimpa alamat mha_reg di ONOD dan memberi letter_address Y, lalu Toppan upload membuat file data untuk vendor. Jalur reguler itu mengecualikan notice yang masih TS-UNC (DataHiveUenFinService.java:238), tidak membandingkan alamat, dan bergantung pada: cron.mhadownload.uenfin.enabled=false (prod), pembuatan surat Toppan yang hanya lewat trigger manual POST /toppan/generate-letters karena executeJob dikomentari (ToppanUploadJobsScheduler.java:118), dan sftp.upload.disabledServers=toppan (application-prod.properties:86) yang mematikan upload SFTP ke vendor, termasuk bypass gerbang delivery (OCMS-DF-2026-192). Nilai server nyata cannot verify from repo. Bahwa notice yang revive otomatis diterbitkan ulang di stage reminder yang sama tidak dapat dibuktikan dari repo. Langkah 1 berfakta sama dengan OCMS20.3 langkah 3, maka fit-nya sama.",
+  "recommendation": "Jangan klaim sebagai selesai. Tidak ada trigger kirim ulang berbasis perubahan alamat; hanya jalur reguler Toppan yang bisa dipakai ulang dan itu pun dimatikan di prod properties",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengidentifikasi bahwa ada perubahan alamat terdaftar perusahaan tempat reminder dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1633; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:655",
+      "fit": "Tidak ada code",
+      "detail": "Sama dengan OCMS20.3 langkah 3: tidak ada perbandingan alamat lama vs baru. updateCompanyAddress dan updateCompanyAddressWithNullSupport menimpa alamat mha_reg (DataHiveUenFinService.java:1633, 1723) dan upsertToUncHstAddr menimpa baris adhoc (baris 655), tanpa flag 'berubah'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Alamat terdaftar terbaru menjadi alamat surat (letter address) notice agar reminder berikutnya dikirim ke sana",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:235; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:238; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1759; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:219; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Pada jalur reguler, updateCompanyAddressWithNullSupport menulis alamat ACRA ke ONOD_addr type mha_reg dan mengisi letterAddress 'Y' bila belum ada letter address (DataHiveUenFinService.java:1723-1760); job juga mereset letter_address mha_reg sebelum query ulang (DataHiveUenFinJob.java:219). Batasan: query notice hanya untuk suspension_type IS NULL (DataHiveUenFinService.java:238), jadi notice masih TS-UNC tidak diperbarui sampai revive; hasil jalur adhoc tidak ditulis ke notice (hanya ke ocms_temp_unc_hst_addr); dan job mati di prod properties (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat ulang surat reminder untuk notice tersebut sebagai file data/PDF untuk vendor percetakan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:397",
+      "fit": "Sebagian",
+      "detail": "Pembuatan file Toppan ada, tetapi baris toppanLettersGeneratorService.executeJob() di ToppanUploadJobsScheduler.executeDayEndJobs dikomentari (ToppanUploadJobsScheduler.java:118) sehingga jadwal 00:15 tidak membuat surat; surat hanya terbit lewat trigger manual POST /generate-letters (ToppanUnifiedController.java:34). Pemilihan alamat surat mengikuti letter_address (ToppanUploadHelper.java:397: mha_reg lalu fallback lta_reg, lta_mail; furnished_mail tidak masuk fallback). Tidak ada logika 'kirim ulang karena alamat berubah' dan tidak ada output PDF di jalur upload; hanya file data."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File reminder dikirim ke vendor untuk dicetak dan dikirim pos ke alamat terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:330",
+      "fit": "Sebagian",
+      "detail": "Upload SFTP ke vendor dikonfigurasi mati: sftp.upload.disabledServers=toppan di application-prod.properties:86; nilai di server nyata cannot verify from repo. Saat toppan disabled gerbang delivery di ToppanUploadJob.confirmDeliveryAndAdvanceStage dilewati dan stage tetap maju tanpa delivery (OCMS-DF-2026-192). Pencetakan dan pos oleh vendor di luar repo."
+    }
+  ]
+}

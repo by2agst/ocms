@@ -1,0 +1,64 @@
+{
+  "story": "OCMS26.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl,dto/CasUpdateNoticeItem}, workflows/notice_creation/core/helpers/SuspensionBaseHelper (guard stage court untuk TS, bukan matrix), crud/ocmsizdb/OcmsCourtCase; ocmsadminui utils/models/Icourtoutcomeapproval.d.ts. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada matrix suspension court",
+  "note": "Requirement status tidak diberikan di stories.json (blank); story ditrace normal. Story minta OCMS memeriksa court settlement record, warrant of commitment record dan instalment plan record terhadap matrix lalu menerapkan permanent suspension (PS) type/code yang tepat. Code tidak punya matrix atau record itu. OCMS hanya menulis suspension_type dan epr_reason_of_suspension yang dikirim CAS lewat casUpdateCourtNotices (CasIntegrationServiceImpl.java:103-117, 430-459): keputusan tipe PS ada di sisi pengirim, OCMS tidak menurunkannya. Tidak ada entity settlement, warrant of commitment atau instalment (ocms_court_case hanya notice_no, court_payment_due_date, reason). Yang ada di suspension helper adalah guard stage court untuk TS ('Notice is under Court processing', SuspensionBaseHelper.java:201-210), itu aturan lain dan tidak dikreditkan. Tiket OCMS-SR-2026-164 dan OCMS-SR-2026-179 jadi petunjuk bahwa sinkron court CAS ke OCMS belum penuh (petunjuk, bukan bukti). Isi kontrak CAS dan proteksi APIM: cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Hanya penulisan suspension_type yang dikirim CAS yang ada. Minta URA/tim konfirmasi di mana matrix PS court dibangun (OCMS atau CAS), atau tandai sebagai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima case adjudication update untuk court fine yang dibayar ke State Courts",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:101-102; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/dto/CasUpdateNoticeItem.java:26-74",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada penerima adjudication update. REST casUpdateCourtNotices (CasIntegrationController.java:101-102) hanya menerima push stage/suspension per notice dari CAS tanpa field court fine, pembayaran ke State Courts atau outcome (CasUpdateNoticeItem.java:26-74); tidak dikreditkan. Sinonim yang dicoba di enam repo (UI dan API): adjudicat, plea, guilty, mention outcome, default sentence, court fine, installment, warrant of commitment, WOC, state court, court settlement. Di backend nol hasil; hanya type TypeScript di UI."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa court settlement record",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31; ocmsadminui/src/utils/models/Icourtoutcomeapproval.d.ts:1-42",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada record court settlement. ocms_court_case hanya notice_no, court_payment_due_date, reason (OcmsCourtCase.java:24-31); court_settlement_amount hanya TypeScript type di UI (Icourtoutcomeapproval.d.ts:1-42) tanpa backend. Tidak ada kode yang membaca settlement saat memilih suspension."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa warrant of commitment record",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/models/Icourtoutcomeapproval.d.ts:1-42; ocmsadminui/src/utils/models/Icourtmention.d.ts:1-33",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada record warrant of commitment di backend. warrant_commitment_no (Icourtoutcomeapproval.d.ts:1-42) dan woc_number (Icourtmention.d.ts:1-33) hanya TypeScript type di UI; ocmsadminapi tidak punya entity atau controller untuk keduanya (hanya path /v1/warrantofarrest dan /v1/courtmention di api-authorization.properties:23 tanpa controller)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa instalment plan record",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCase.java:24-31; ocmsadminui/src/utils/Meta/System.ts:159-162; ocmsadminui/src/utils/models/Fsystemadmin.d.ts:29",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada record instalment plan di backend (lihat OCMS26.9). Di UI hanya label menu 'Court Installment Plans' (Meta/System.ts:159-162, Fsystemadmin.d.ts:29) tanpa halaman. court_payment_due_date di ocms_court_case dipakai cron Payment Acceptance Cutoff untuk menutup pembayaran (PaymentAcceptanceCutoffServiceImpl.java:52-79), itu bukan instalment plan dan tidak dikreditkan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mencocokkan kondisi tersebut dengan matrix yang sudah ditentukan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:201-210; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:430-459",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada matrix atau tabel aturan yang memetakan settlement/WOC/instalment ke tipe PS. suspension_type di VON hanya disalin dari kiriman CAS (CasIntegrationServiceImpl.java:430-459). SuspensionBaseHelper.java:201-210 hanya menolak TS pada notice di stage court; itu guard stage, bukan matrix PS. Grep: matrix, settlement, commitment, instalment, court suspension di enam repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tipe/kode permanent suspension yang benar diterapkan pada notice court fine",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:103-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:430-459",
+      "fit": "Sebagian",
+      "detail": "casUpdateCourtNotices menulis suspension_type dan epr_reason_of_suspension dari kiriman CAS ke VON dan eVON (CasIntegrationServiceImpl.java:103-117, 430-459; field null berarti nilai lama dipertahankan, flag Provided berarti bisa dikosongkan). Jadi sebuah tipe PS memang bisa terpasang lewat jalur court, tetapi OCMS tidak memeriksa kebenarannya terhadap matrix; notice FULL_PAYMENT ditolak (CasIntegrationServiceImpl.java:336-343). Tiket OCMS-SR-2026-164: 36 notice WWP di CAS tidak terpasang di OCMS dan di-patch manual. Isi kontrak CAS: cannot verify from repo."
+    }
+  ]
+}

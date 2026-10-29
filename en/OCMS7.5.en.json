@@ -1,0 +1,33 @@
+{
+  "story": "OCMS7.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/lta/{download/services/LtaDownloadServiceImpl, download/helpers/LtaDownloadHelper, report/jobs/LtaReportJob, report/helpers/LtaReportHelper}, application-prod.properties (email.report.lta.recipients). ocmsadminui pages/Report/lists/{ReportList,ReportListLTA}.tsx, utils/data/LinkData.tsx. ocmsadminapi workflows/ltareport/LtaReportController, api-authorization.properties. ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "Status in the sheet: 'Fully paid'. The story names DOS (Department of Statistics), but the code and OCMS-DF-2026-194 (which cites the OCMS 7 functional document) use LTA VRLS as the vehicle owner data source. Whether DOS equals LTA cannot be confirmed from the repo (cannot verify from repo); all steps are judged on the code behaviour against LTA VRLS. The Excel report (Summary, Error, Success, TS-ROV Applied) is sent by email and stored in Azure Blob, and can be downloaded from the Report LTA tab in the staff portal. There is no OIC dashboard. Several report defects are still open or awaiting UAT (OCMS-DF-2026-074, 121, 144, 194), hence Sebagian. Tickets used: OCMS-DF-2026-064, 065, 074, 121, 144, 194.",
+  "recommendation": "Claim report generation and the Error sheet. Counts, TS-ROV Applied and download stay partial until the UAT/Open tickets are closed; routing to an OIC dashboard does not exist (email only) and needs a URA decision.",
+  "steps": [
+    {
+      "step": "A daily summary report is generated automatically after the agency results are processed",
+      "detail": "The report is triggered from LtaDownloadServiceImpl after the download job finishes (DLS:50-55, 70-77), so it is made per download run (05:00 and 21:00), not as one daily report. LtaReportJob also skips generating the report when there are no TS-ROV records (RJOB:153-159, 195-201), so a day without TS-ROV has no report. URA states the email rule stays (OCMS-DF-2026-194). OCMS-DF-2026-074 (Ready to UAT): two emails with different counts per run and one about an hour late."
+    },
+    {
+      "step": "The report holds a summary of records sent, returned, per error code, and TS-ROV",
+      "detail": "The Summary sheet writes recordsSubmitted, returnedCode0 to returnedCode4 and returnedTsRov from the batch job metrics (RHELP:386-407). Those numbers come from the batch job log_text, patched asynchronously for encrypted files. OCMS-DF-2026-064 and OCMS-DF-2026-121 (Ready to UAT, regression) report the email showing 0 for all download-side numbers; the submitted count is right but the rest are 0."
+    },
+    {
+      "step": "Exceptions (error code 1-4 records) are listed in the report's Error sheet",
+      "detail": "Every error code 1-4 record is collected as an error row (buildErrorRow: error code, notice, vehicle, deregistered date, offence date/time, car park, TS-ROV status; DLH:539-552) and written to the 'Error' sheet (RHELP:177-180). The row content comes from the response record."
+    },
+    {
+      "step": "Notices with TS-ROV are listed completely in the TS-ROV Applied sheet",
+      "detail": "The 'TS-ROV Applied' sheet is filled from a DB query, then filtered to suspension_type 'TS' and epr_reason 'ROV' (RHELP:141-150, 177-180). OCMS-DF-2026-144 (Ready to UAT): notice 626400031B, which got TS-ROV on 19 Jun 2026, is missing from this tab because only notices without a prior TS were included. OCMS-DF-2026-065 (Closed) already renamed the tab from 'TS-ROV Revived' to 'TS-ROV Applied'."
+    },
+    {
+      "step": "The report is routed to the OIC dashboard",
+      "detail": "The report is sent as an email attachment to the recipient list in properties (email.report.lta.recipients, APPPROD:65; RHELP:61-62) and then uploaded to Azure Blob (RJOB:228-241). No code sends the report to an OIC dashboard or creates a work item; the Work Item menu in ocmsadminui is commented out (LinkData.tsx:396-398). Whether the recipient addresses in properties are the OIC cannot verify from repo."
+    },
+    {
+      "step": "The OIC can download the report from the portal for follow-up",
+      "detail": "The LTA report tab shows when the user has the OCMS_REPORT_LTA function (UIREP:73-77), lists files from daily-report/search and has a Download button per file (UILTA:55-56, 90-94); that function is granted the lta-report, daily-report and download blob endpoints (APIAUTH:129-130). Per-role server annotations were not checked further. OCMS-DF-2026-194 (Open) records that the manual download produces no report when there are no TS-ROV records (error code 0 only), and accepts a single date, not a range."
+    }
+  ]
+}

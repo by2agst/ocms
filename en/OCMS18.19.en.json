@@ -1,0 +1,29 @@
+{
+  "story": "OCMS18.19",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core: SuspensionProcessingController.plusApplySuspension/processNoticeList/processSingleNotice, helpers/PermanentSuspensionHelper.processPS, SuspensionBaseHelper.updateDatabase (updateVON, updateEVON, insertSuspendedNotice). A copy exists in ocmsadminprivateapi utilities/suspension_helpers.",
+  "note": "The main path matches the story: POST /plus-apply-suspension without an old PS runs the validation, updates the VON, copies to the eVON, stores an ocms_suspended_notice row with source PLUS, then replies success with appCode OCMS-2000. Small remarks: (1) updateDatabase swallows exceptions and returns an error map (SuspensionBaseHelper.java:493-496), so the @Transactional transaction does not necessarily roll back and a half-written state may occur (needs a test to verify); (2) an eVON sync failure is only logged (SuspensionBaseHelper.java:431-434), so VON and eVON can differ; (3) refundNoticeId in the PS-refund response is reported wrong in OCMS-DF-2026-152 (status Ready to DEV/In SIT); main code already returns the real refund ID (PermanentSuspensionHelper.java:358-370) but the deployment status cannot be confirmed from the repo. OCMS-DF-2026-027 (duplicate sr_no in a batch, closed) is covered in the batch step. PS code table content per environment and PLUS receipt: cannot verify from repo.",
+  "recommendation": "Can be claimed in full for the OCMS side. Note that receipt at PLUS and the PS code data per environment cannot be proven from the repo; follow OCMS-DF-2026-152 for the refund response.",
+  "steps": [
+    {
+      "step": "OCMS confirms the notice has no existing permanent suspension",
+      "detail": "When suspensionType on the VON is not PERMANENT, validateOverlap returns null at once (PermanentSuspensionHelper.java:198-201) and the revive block does not run (PermanentSuspensionHelper.java:127). A notice with status TS may be upgraded to PS without an error (SuspensionProcessingHelper.java:372-373 for checking)."
+    },
+    {
+      "step": "OCMS validates the request (mandatory fields, PS code allowed for PLUS, stage, payment status)",
+      "detail": "Mandatory fields are checked in the controller (SuspensionProcessingController.java:503-528) and helper (PermanentSuspensionHelper.java:63-69), the notice must exist (PermanentSuspensionHelper.java:72-75), the PS code must be active for source PLUS in ocms_suspension_reason (PermanentSuspensionHelper.java:100-104, SuspensionBaseHelper.java:294-335), the stage is checked (PermanentSuspensionHelper.java:106-111) and a paid notice accepts only refund codes (PermanentSuspensionHelper.java:113-117, 180-192). The content of ocms_suspension_reason and PS_REFUND_CODES per environment: cannot verify from repo."
+    },
+    {
+      "step": "OCMS permanently suspends the notice under the specified suspension code",
+      "detail": "processPS calls updateDatabase (PermanentSuspensionHelper.java:139-141): updateVON sets suspensionType = PS, eprReasonOfSuspension = code, date, dueDateOfRevival null, and disables payment_acceptance_allowed for codes in PS_DISABLE_PAYMENT (SuspensionBaseHelper.java:340-356); updateEVON copies to the eVON (SuspensionBaseHelper.java:383-435); insertSuspendedNotice stores the row with source PLUS, officer, remarks, process_indicator Manual (SuspensionBaseHelper.java:443-467). Risk: an exception in updateDatabase is swallowed (SuspensionBaseHelper.java:493-496) and an eVON failure is only logged (SuspensionBaseHelper.java:431-434)."
+    },
+    {
+      "step": "Several notices in one request are processed one by one, each with its own suspension serial number",
+      "detail": "processNoticeList loops per notice and calls generateBaseSrNo() inside the loop (SuspensionProcessingController.java:997, 1071-1073), so each notice gets its sr_no from sequence SUSPENDED_NOTICE_SEQ. This is the fix of OCMS-DF-2026-027 (duplicate sr_no in a batch, closed, prod deployed); the sequence reseed in the database: cannot verify from repo."
+    },
+    {
+      "step": "OCMS sends a success status message to PLUS",
+      "detail": "The response per notice is {noticeNo, srNo, success:true, message:'PS Success'} (PermanentSuspensionHelper.java:150, SuspensionBaseHelper.java:541-548); addAppCodeToResults adds appCode OCMS-2000 (SuspensionProcessingController.java:1191-1192) and the list is sent as HTTP 200 (SuspensionProcessingController.java:555). For a PS refund, refundNoticeId and refundCreDate are added (PermanentSuspensionHelper.java:153-156); the refundNoticeId value bug in OCMS-DF-2026-152 is not closed in the ticket, while main code returns the real refund ID (PermanentSuspensionHelper.java:358-370). Receipt at PLUS: cannot verify from repo."
+    }
+  ]
+}

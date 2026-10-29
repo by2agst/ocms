@@ -1,0 +1,64 @@
+{
+  "story": "OCMS8.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi: datahiveuenfin/{jobs/DataHiveUenFinJob,helpers/DataHiveUenFinHelper,services/DataHiveUenFinService} (FIN), services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService (view MOM dan MHA), schedulers/MhaDownloadJobsScheduler, cron-schedules-{prod,uat}.properties. Passport: tidak ada code. Repo lain: tidak ada",
+  "note": "Status 'Fully paid'. Hanya pemegang FIN yang punya jalur: FIN dikirim ke DataHive (EP/WP dari MOM, LTVP/STP dari MHA), alamat dan pass status (tipe pass, expiry, flag aktif) disimpan, nama dan DOB di-update. Pemegang foreign passport tidak punya jalur sama sekali (tidak ada query idType P), padahal story menyebutnya. Job DataHive off di PROD (cron-schedules-prod.properties:52, komentar menunggu verifikasi nama view). Pass yang expired/cancelled hanya menghasilkan log; pembuatan work item adalah placeholder (DataHiveUenFinService.java:3043-3045, 3109-3111, 3124-3126). FIN yang tidak ditemukan di dataset mana pun diberi TS-NRO (dicatat di orphans). Tidak ada tiket pemeliharaan yang menyebut jalur FIN ini; OCMS-DF-2026-126 dan -098 (Closed) menyangkut FIN yang masuk file MHA sebagai type N dan validasi format FIN.",
+  "recommendation": "Klaim sebagian. Jalur FIN (alamat dan pass status) sudah dibangun tetapi off di PROD; foreign passport tidak punya jalur. Minta URA konfirmasi apakah passport harus dicek ke ICA/DOS dan kapan job DataHive dinyalakan.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih notice milik pemegang FIN untuk dicek ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:185; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:101-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Query id_type IN ('F','B') offender Y di stage reminder, suspension NULL, bukan HST (DataHiveUenFinService.java:221-246) dipanggil di DataHiveUenFinJob.java:185, tetapi job hanya jalan bila cron.mhadownload.uenfin.enabled=true (MhaDownloadJobsScheduler.java:101-107) dan di PROD false (cron-schedules-prod.properties:52). Fit sama dengan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemegang foreign passport (ID type P) dipilih untuk dicek ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:346; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:237",
+      "fit": "Tidak ada code",
+      "detail": "Hanya idType N (MhaNricDataHelper.java:346) dan F/B (DataHiveUenFinService.java:239) yang dipilih; tidak ada query atau view untuk idType P. Satu-satunya logic P: eNotification dilewati (NotificationSmsEmailJob.java:237). Fit sama dengan OCMS8.1 dan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim nomor FIN ke ICA/DOS (DataHive)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1095-1113; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:46-54; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService.java:370-375; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "batchRetrieveFINData (DataHiveUenFinService.java:1113) mengirim FIN sebagai query IN ke view MHA (FINDEATH, PRGRANT, SCGRANT, LTVP, STP) dan MOM (EPFOREIGNER, WPWORKER, EPWORKPASS, WPWORKPASS) (DataHiveFINBatchService.java:46-54, 370-375). Job off di PROD, nama view PROD belum diverifikasi, koneksi DataHive: cannot verify from repo. Fit sama dengan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan meng-update alamat tempat tinggal terbaru dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1560; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2523-2570; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1508; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1539",
+      "fit": "Sebagian",
+      "detail": "updateAddressForFIN mengambil alamat dari work permit (EP/WP, MOM) atau pass (LTVP/STP, MHA) lalu membuat record mha_reg (DataHiveUenFinService.java:1560, 2523-2570). FIN tanpa work permit/pass tidak mendapat alamat; fallback memakai alamat LTA/furnish yang sudah ada (baris 2566), bukan data ICA. Job off di PROD. Fit sama dengan OCMS8.3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan menyimpan pass status dari ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2363-2400; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2445-2480; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1508; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1539",
+      "fit": "Sesuai",
+      "detail": "updateWorkPermitData menyimpan workPassStatusCd, isActive, expiryDate, cancelledDate, withdrawnDate, passtypeCd (EP/WP) (DataHiveUenFinService.java:2363-2400); updatePassData menyimpan nonWorkPassType, dateOfExpiry, dateOfIssue dan reference period LTVP/STP (baris 2445-2480). Dipanggil dari storeFinDataResult (baris 1508, 1539). Tindakan atas pass expired/cancelled hanya log (work item placeholder), tetapi itu di luar teks story. Job off di PROD (lihat step 1 dan 3)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS meng-update particulars terbaru (nama, tanggal lahir) offender asing",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1512; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1543; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:2416-2430",
+      "fit": "Sebagian",
+      "detail": "Setelah work permit atau pass tersimpan, updateOwnerDriverPersonalInfo menulis name dan date_of_birth (DataHiveUenFinService.java:1512, 1543). SQL-nya WHERE notice_no = ? saja tanpa id_no atau offender_indicator (baris 2425-2428), jadi semua baris owner/driver pada notice ikut tertimpa, termasuk owner yang bukan FIN tersebut. Ada satu hal yang perlu diperhatikan: kasus serupa pada jalur MHA diperbaiki lewat OCMS-DF-2026-177 (Closed), tetapi jalur DataHive belum. Dilewati bila FIN ternyata PR/SC (baris 1512, 1543)."
+    }
+  ]
+}

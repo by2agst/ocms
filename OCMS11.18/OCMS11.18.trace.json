@@ -1,0 +1,55 @@
+{
+  "story": "OCMS11.18",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): services/datahive/nricFinUenDataRetrieval/{service/DataHiveUENBatchService,dto/UENDataResult}; workflows/datahiveuenfin/services/DataHiveUenFinService (storeUenDataResult, updateShareholderInfo, updateBoardInfo yang tidak dipanggil, addRecordsToNroTemp); cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code keputusan RD1/RD2 untuk director/owner.",
+  "note": "Story minta OCMS menerima particulars owner/partner/director berdasarkan tanggal offence dan masa appointment, lalu memutuskan apakah NOPO dikembalikan untuk reminder ke-1 ke Director/Partner atau reminder ke-2 ke Owner/Partner. Yang ada: respons DataHive (company, shareholder, board) diterima dan di-parse. Yang tidak ada: pemilihan orang berdasarkan tanggal offence/appointment dan keputusan RD1 vs RD2; setelah penyimpanan, notice hanya dicatat di ocms_nro_temp (noticeNo saja) dan tidak ada perubahan stage atau offender. Data board sengaja tidak ditulis ke DB (komentar OCMS-DEV-2026-231; updateBoardInfo ada tetapi panggilannya dinonaktifkan di DataHiveUenFinService.java:1470-1477). Job mati di prod (cron-schedules-prod.properties:52). Isi respons DataHive dan vault: cannot verify from repo. Status sheet: Demo paid (50% of 75%). Tidak ada tiket maintenance yang relevan.",
+  "recommendation": "Jangan klaim penuh. Hanya penerimaan respons DataHive yang ada; pemilihan berdasarkan tanggal offence/appointment, penyimpanan data orang, dan keputusan RD1 vs RD2 belum ada. Minta URA konfirmasi apakah dikerjakan di tempat lain atau tandai gap.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima respons untuk UEN company (ditemukan, de-registered, atau tidak ditemukan)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:66-71; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:128-215; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1362; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "batchRetrieveUENData menggabungkan hasil company, shareholder, dan board per pasangan UEN+notice (DataHiveUENBatchService.java:66-71, :128-215); storeUenDataResult menangani error, UEN tidak ditemukan, dan de-registered (DataHiveUenFinService.java:1346-1362). Dikurangi karena job mati di prod (cron-schedules-prod.properties:52) dan isi respons asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars owner/partner/director diterima (ID, jabatan, tanggal appointment dan withdrawn)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:432-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:483-502; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UENDataResult.java:88-101",
+      "fit": "Sebagian",
+      "detail": "Respons board di-parse ke BoardInfo berisi personIdNo, positionHeldCode, positionAppointmentDate, positionWithdrawnDate dan referencePeriod (DataHiveUENBatchService.java:483-502, UENDataResult.java:88-101). Tidak ada nama atau alamat orang, jadi particulars tidak lengkap untuk mengirim surat. Fit sama dengan OCMS11.19 dan OCMS11.20 langkah 1."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya orang yang menjabat pada tanggal offence (masa appointment) yang dipilih",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:432-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UenNoticeData.java:15-27; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UENDataResult.java:94-100",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada filter tanggal. Query board tanpa tanggal (DataHiveUENBatchService.java:432-442), UenNoticeData tanpa tanggal offence (UenNoticeData.java:15-27), dan tanggal appointment/withdrawn hanya disalin ke DTO (UENDataResult.java:94-100) tanpa dibandingkan dengan notice_date_and_time. Grep appointment/director/partner di enam repo hanya menemukan field DTO itu. Sama dengan OCMS11.17 langkah 5."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars orang terpilih disimpan di OCMS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1440-1447; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1470-1477; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1877-1900",
+      "fit": "Sebagian",
+      "detail": "Shareholder disimpan lewat updateShareholderInfo (DataHiveUenFinService.java:1440-1447), tetapi shareholder bukan director/partner menurut masa appointment. Data board hanya di-log; updateBoardInfo ada (:1877-1900) tetapi panggilannya di-comment (:1470-1477, OCMS-DEV-2026-231), jadi board tidak tersimpan. Yang tersimpan hanya sebagian dari yang dibutuhkan story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memutuskan: reminder ke-1 ke Director/Partner atau reminder ke-2 ke Owner/Partner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:916-925; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:955-968; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1479-1485",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada cabang keputusan. Setelah storeUenDataResult selesai, notice hanya dimasukkan ke ocms_nro_temp dengan noticeNo saja (DataHiveUenFinService.java:955-968, addRecordsToNroTemp :916-925) dan fungsi mengembalikan true (:1479-1485) tanpa mengubah next_processing_stage, offender, atau penerima. Tidak ada referensi RD1/RD2 pada alur UEN di luar query pemilihan."
+    }
+  ]
+}

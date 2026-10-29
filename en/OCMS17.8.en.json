@@ -1,0 +1,21 @@
+{
+  "story": "OCMS17.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/TS/form/TSDetails.tsx, utils/{validation,mapping}/TS/TS.ts; ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController (extractDaysToRevive),helpers/TemporarySuspensionHelper}, helpers/SuspensionBaseHelper (insertSuspendedNotice). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status Fully paid, 2 points. The Number of Days field is a plain TextInput (not readonly), so the officer can shorten or extend. The server uses the number from the UI to compute the due date of revival. Gap: the 1-999 range and digit format are only checked in the UI; the server has no upper bound, and a value <=0 or non-numeric is silently replaced by the code default days (not rejected). Also the multiple-TS rule makes VON follow the furthest revival date, so shortening below an existing TS does not change the date on VON; suspended_notice still stores the date of this TS. No maintenance ticket changes the verdict.",
+  "recommendation": "Can be claimed; note that the day-range validation is UI-only",
+  "steps": [
+    {
+      "step": "The days field can be edited by the officer after it was auto-filled",
+      "detail": "Number of Days is a TextInput isNumber with no readonly/disabled (TSDetails.tsx:101-110); auto-populate only sets the initial value (:72-73), so the officer can overwrite it with a smaller or larger value."
+    },
+    {
+      "step": "The amended value is checked (digits, greater than 0, at most 999)",
+      "detail": "yup rules: digit, <=999, >0, required (TS.ts:36-50). UI only. The server extractDaysToRevive has no bound (SuspensionProcessingController.java:1157-1180) and calculateRevivalDate only uses the value when >0, otherwise falls back to the code default or 30 days (TemporarySuspensionHelper.java:182-190), so a direct API request with 0 or text is not rejected."
+    },
+    {
+      "step": "The amended number of days is used to compute the suspension revival date",
+      "detail": "The UI sends day_no as dueDateOfRevival (TS.ts:26); the server reads it (SuspensionProcessingController.java:1157-1167) and calculateRevivalDate uses now + daysToRevive (TemporarySuspensionHelper.java:99, 186-190). suspended_notice stores the date of this TS (:125-133). Multiple-TS rule: VON takes the furthest date (:103-122), so shortening below an existing TS is not visible on VON."
+    }
+  ]
+}

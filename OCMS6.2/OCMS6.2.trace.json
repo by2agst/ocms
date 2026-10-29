@@ -1,0 +1,82 @@
+{
+  "story": "OCMS6.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchForm, form/NoticeSearchAllForm, hook/useSearchParams, hook/useSearch, list/NoticeSearchAllList, list/NoticeSearchOutstandingList, component/NoticeSearchSlot}, context/OptionsContext, utils/config/env, components/datagrid/column. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{OcmsValidOffenceNoticeController, OcmsValidOffenceNoticeServiceImpl}, resources/api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Pencarian notice di staff portal lengkap untuk nomor notice, nomor kendaraan, rentang tanggal, jenis notice, processing stage, payment status, suspension, rule code, tempat offence dan data offender, dengan drop-down dari tabel referensi. Gap utama: pencarian Summon No. dan Warrant No. tidak punya sisi server. UI memanggil /summon dan /warrantofarrest yang tidak ada di ocmsadminapi/ocmsadminprivateapi; summon bahkan hanya aktif di STAGING/LOCAL (env.ts:11). Dari pembacaan code (belum dijalankan), di PRO pencarian dengan summon no saja tidak memasang filter apa pun, sehingga kriteria itu diabaikan secara diam-diam. Pencarian Court Mention/Trial Date juga memanggil /courtmention dan /courttrial yang tidak ada (useSearch.ts:99-131). Unduhan hasil dibatasi 1000 baris. Tiket dipakai: OCMS-SR-2026-048 (Closed, Prod deployed) untuk definisi Outstanding. Yang tidak bisa diverifikasi dari repo: apakah endpoint summon/warrant disediakan layanan lain, dan penugasan function OCMS_NOTICE_SEARCH per user.",
+  "recommendation": "Klaim pencarian notice no., kendaraan, tanggal, jenis, stage, payment status dan drop-down. Jangan klaim pencarian summons/warrant (tidak ada sumber data). Minta URA/tim konfirmasi di mana data summons dan warrant disimpan, atau tandai gap",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff membuka halaman Search Notices dengan mode All Notices atau Outstanding Notices",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:126-141; ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:187-206; ocmsadminapi/src/main/resources/api-authorization.properties:21-24",
+      "fit": "Sesuai",
+      "detail": "NoticeSearchForm.tsx:126-141 menyediakan dropdown All Notices / Outstanding Notices yang berpindah route; 187-206 merender form pencarian masing-masing. Di sisi API, path /v1/validoffencenoticelist dan lookup terkait dibuka lewat function OCMS_NOTICE_SEARCH (api-authorization.properties:21-24). Penugasan function ke user: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Query berdasarkan nomor notice dan nomor kendaraan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:63-119; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:322-325; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:613-660",
+      "fit": "Sesuai",
+      "detail": "Field Notice No. (10 karakter, uppercase) dan Vehicle No. ada di NoticeSearchAllForm.tsx:63-119. useSearchParams.tsx:322 mengirim noticeNo[$in], baris 325 mengirim vehicleNo. OcmsValidOffenceNoticeServiceImpl.java:613-660 menerjemahkan operator ($in, $gte, $lte, $null, $ne) menjadi JPQL atas OcmsValidOffenceNotice yang di-LEFT JOIN ke current offender."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Query berdasarkan rentang tanggal (Offence Date From / To)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:472-530; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:524-527; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:643-650",
+      "fit": "Sesuai",
+      "detail": "Field Offence Date From/To ada di NoticeSearchAllForm.tsx:472-530 (ada juga rentang Suspension, Court Mention dan Court Trial). useSearchParams.tsx:524-527 mengirim noticeDateAndTime[$gte] dan [$lte]; server menerapkannya di OcmsValidOffenceNoticeServiceImpl.java:643-650. Rentang dibatasi 6 bulan oleh validasi UI (lihat OCMS6.3)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Query berdasarkan nomor summons dan nomor warrant",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:439-465; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:206-211; ocmsadminui/src/pages/NoticeSearch/hook/useSearch.ts:56-78; ocmsadminui/src/utils/config/env.ts:11; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1531; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:1567",
+      "fit": "Tidak ada code",
+      "detail": "Field Summon No. dan Warrant No. ada di form (NoticeSearchAllForm.tsx:439, 459), tetapi pencariannya tidak punya sisi server. Lookup memanggil GET /summon (useSearch.ts:56-66) dan GET /warrantofarrest (68-78); tidak ada controller, entity, atau repository untuk keduanya di ocmsadminapi maupun ocmsadminprivateapi (hanya terdaftar sebagai path di api-authorization.properties:23). StaffFurnishService.java:1531 dan 1567 menyebut summonNo 'not yet available in database'. Dari pembacaan code (belum dijalankan): summon hanya dipanggil bila isAPIFound = STAGING atau LOCAL (env.ts:11, useSearchParams.tsx:208), jadi di DEV/UAT/PRO summon no diabaikan dan filter tidak terpasang; warrant selalu dipanggil dan, karena respons kosong, getNotices mengembalikan ['null'] (useSearch.ts:16-22) sehingga hasil kosong. Kolom Summon No. di tabel juga hard-coded kosong (column/index.tsx:133-137). Mungkin ada layanan lain yang menyediakan endpoint ini: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Query berdasarkan jenis notice dan indikator lain (processing stage, payment status, suspension, rule code, tempat, offender)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:177; ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchAllForm.tsx:298-309; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:284-352; ocmsadminui/src/pages/NoticeSearch/hook/useSearchParams.tsx:507-538",
+      "fit": "Sesuai",
+      "detail": "Form punya Notice Type (NoticeSearchAllForm.tsx:177), Processing Stage (298), Payment Status (309), Suspension Type/Reason, Computer Rule Code, Place of Offence, ID No./Type, Offender Name dan Current Offender. useSearchParams.tsx:284-352 menerjemahkan Payment Status ke crsReasonOfSuspension (null = unpaid, FP = fully paid, FP+PRA = partial), dan 507-538 menerjemahkan filter lain (vehicleRegistrationType, lastProcessingStage, idNo, idType, ownerDriverIndicator, name). Mode Outstanding memakai filter bawaan yang mengecualikan PS keras dan notice non-FP sesuai OCMS-SR-2026-048 (Closed, Prod deployed): NoticeSearchOutstandingList.tsx:105-125."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Drop-down berisi nilai yang diambil dari tabel terkait",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:86-111; ocmsadminui/src/context/OptionsContext.tsx:356; ocmsadminui/src/context/OptionsContext.tsx:489; ocmsadminui/src/context/OptionsContext.tsx:526; ocmsadminui/src/context/OptionsContext.tsx:149",
+      "fit": "Sesuai",
+      "detail": "Saat form dibuka, setOptions memuat OFFENCE_TYPE, ID_TYPE, VEHICLE_TYPE, PROCESSING_STAGE, TS/PS reason, RULE_CODE, PP_CODE dan lainnya (NoticeSearchForm.tsx:86-111). OptionsContext.tsx mengambilnya lewat POST standardcodelist (356), offencerulecodelist (489), carpark (526) dan suspensionreasonlist; jadi nilainya berasal dari tabel referensi. Pengecualian kecil: Payment Status adalah daftar statis lokal (OptionsContext.tsx:149), bukan dari tabel."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil query bisa di-browse dan dilihat dalam tabel",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/form/NoticeSearchForm.tsx:52-70; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchAllList.tsx:113-173; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:55-80",
+      "fit": "Sesuai",
+      "detail": "Tombol Apply memanggil onApply (NoticeSearchForm.tsx:52-70): validate, checkSearch, getParams, lalu setAdvanceFilter. Datagrid di NoticeSearchAllList.tsx:113-173 POST validoffencenoticelist dengan filter itu; OcmsValidOffenceNoticeController.java:55-80 mengembalikan halaman data beserta info current offender. Detail kolom dan urutan dibahas di OCMS6.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff mengunduh hasil pencarian",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:171-230; ocmsadminui/src/pages/NoticeSearch/component/NoticeSearchSlot.tsx:262-280; ocmsadminui/src/utils/constant.ts:96",
+      "fit": "Sebagian",
+      "detail": "Tombol Download All dan Download Selected (NoticeSearchSlot.tsx:262-280) mengekspor hasil ke XLSX lewat SheetGenerate (218-224). Jika jumlah baris lebih dari NOTICE_SEARCH_LIMIT = 1000 (constant.ts:96, pengecekan di NoticeSearchSlot.tsx:177-196), unduhan ditolak dengan pesan 'backend service overload'. Download/print sebagai fitur sendiri adalah cakupan OCMS6.6; di sini hanya dicatat bahwa batas 1000 membuat hasil besar tidak bisa diunduh."
+    }
+  ]
+}

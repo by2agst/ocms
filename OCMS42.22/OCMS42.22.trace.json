@@ -1,0 +1,64 @@
+{
+  "story": "OCMS42.22",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "Validasi di ocmseserviceui: pages/Furnish/Form/Particulars.ts (tombol Proceed to review), utils/validation/Furnish/{ValidParticulars,ValidHirerDriver}.ts, utils/validation/Format/ValidPerson.ts (NRIC/FIN checksum), utils/function/FuncValid.ts, pages/Furnish/Form/Documents.ts. Validasi ulang di ocmseserviceapi: workflows/furnish/{FurnishRequestValidator,FurnishSubmissionController}.java, utilities/SingaporeIdValidator.java. Repo lain tidak terlibat.",
+  "note": "Requirement diberikan dan status Fully paid. Saat user menekan Proceed to review, ValidateALL menjalankan aturan yup untuk NRIC/FIN (format + check digit) dan semua mandatory field, lalu error muncul di field dan fokus ke error pertama; page tidak lanjut selama ada error. Dokumen wajib (FIN/Passport) juga dicek. Gap: backend memvalidasi ulang dan membalas 400 dengan pesan, tetapi UI tidak menampilkan pesan itu; semua kegagalan submit jadi halaman gagal generik, dan Confirmation tidak punya aturan validasi sendiri (this.validation = {}). Server juga tidak memeriksa format postal code (hanya required). Tiket OCMS-DF-2026-137 (NRIC lolos sebagai UEN, Closed) sudah tercermin di ValidUEN; OCMS-DF-2026-098 (FIN M...J) tabel e-service sudah benar. Tiket OCMS-DF-2026-110/143/175 (error submit generik, Closed): akar masalah cannot verify from repo.",
+  "recommendation": "Layak diklaim untuk validasi di browser sebelum review. Pesan validasi dari server tidak sampai ke user (halaman gagal generik); catat sebagai gap kecil.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "NRIC/FIN yang diketik dicek format dan check digit-nya, dan user diberi prompt bila tidak valid",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:65-93; ocmseserviceui/src/utils/validation/Format/ValidPerson.ts:3-35; ocmseserviceui/src/utils/validation/Format/ValidPerson.ts:37-76; ocmseserviceui/src/utils/validation/Format/ValidPerson.ts:114-138",
+      "fit": "Sesuai",
+      "detail": "Aturan yup untuk hdID memanggil Format(NRIC|FIN|UEN) sesuai ID type yang dipilih (ValidParticulars.ts:74-92). ValidNRIC mengecek pola S/T + 7 digit + huruf dan menghitung check digit dengan bobot 2,7,6,5,4,3,2 (ValidPerson.ts:3-35); ValidFIN melakukan hal sama untuk F/G/M dengan tabel suffix terpisah (ValidPerson.ts:37-76; M memakai 'J' di indeks 8, baris 52, sehingga kasus OCMS-DF-2026-098 tidak terjadi di e-service). ValidUEN menolak string berpola NRIC/FIN (ValidPerson.ts:117-121), konsisten dengan perbaikan OCMS-DF-2026-137. Passport hanya dicek panjang 6-20 (ValidParticulars.ts:68-72, 79), tidak ada checksum."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pesan error muncul di field yang salah dan fokus pindah ke error pertama",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:89-91; ocmseserviceui/src/utils/function/FuncValid.ts:77-110; ocmseserviceui/src/components/form/TextInput.ts:299-318; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:115-119",
+      "fit": "Sesuai",
+      "detail": "Pesan 'Please enter a valid NRIC/FIN/UEN number.' dibuat di ValidParticulars.ts:90. onSubmitValidate membersihkan error lama, memasang pesan ke setError tiap field dan memanggil focus() untuk error pertama (FuncValid.ts:77-110), dipanggil dari Particulars.ts:119. Field juga divalidasi saat blur (TextInput.ts:314-316)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Field mandatory yang kosong memunculkan prompt, untuk individu maupun company",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:46-51; ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:123-145; ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:162-179; ocmseserviceui/src/utils/validation/Furnish/ValidParticulars.ts:194-215; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:167; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:186-190; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:86-89",
+      "fit": "Sesuai",
+      "detail": "Aturan required untuk Full Name (ValidParticulars.ts:46-51), ID type dan ID (53-94), Postal Code (123-129), Street dan Block (131-137), Floor dan Unit kecuali kotak 'no floor/unit' dicentang (139-145), country code dan contact number (162-179), email dan konfirmasi email (194-215), Relationship (ValidHirerDriver.ts:167), dan pertanyaan verifikasi Q1 (ValidHirerDriver.ts:186-190). Rental date/time wajib bila relationship = H (ValidHirerDriver.ts:73-161). Building opsional. Particulars memakai ValidHirerDriver untuk mode individu dan company (Particulars.ts:86, 89). Server mengulang pengecekan field wajib (FurnishRequestValidator.java:69-105)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Dokumen pendukung wajib (FIN/Passport) yang belum dilampirkan juga memunculkan prompt",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Documents.ts:393-402; ocmseserviceui/src/pages/Furnish/Form/Documents.ts:446-491; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:146-150",
+      "fit": "Sesuai",
+      "detail": "Untuk ID type FIN dan Passport, opsi dokumen wajib ditandai '*' (Documents.ts:393-402). validateDoc mengecek tiap dokumen wajib sudah ada dan menampilkan pesan DL/EP/P/RA yang sesuai (Documents.ts:446-483); bila tidak ada file sama sekali, modal konfirmasi muncul (Documents.ts:484-488). Dipanggil dari tombol Proceed to review (Particulars.ts:146)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Selama masih ada error, page tidak lanjut ke langkah review",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:114-128; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:146-150",
+      "fit": "Sesuai",
+      "detail": "Tombol Proceed to review menjalankan ValidateALL dan langsung return bila ada error validasi atau input 'Others' tidak valid (Particulars.ts:128). stepper.show(3) hanya dipanggil bila validateDoc lolos (Particulars.ts:146-150). Ada juga pengecekan self-furnish ke backend sebelum lanjut (Particulars.ts:130-144), di luar teks story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Backend memvalidasi ulang NRIC/FIN dan field wajib, dan pesan kesalahannya sampai ke user",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:99-104; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:33-64; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:133-148; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/utilities/SingaporeIdValidator.java:258-293; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:85-87; ocmseserviceui/src/pages/Furnish/Confirmation.ts:58; ocmseserviceui/src/pages/Furnish/Confirmation.ts:120-125; ocmseserviceui/src/pages/Furnish/Confirmation.ts:193-199",
+      "fit": "Sebagian",
+      "detail": "Backend memang memvalidasi ulang: validateAll (FurnishRequestValidator.java:33-64) menjalankan field wajib dan checksum lewat SingaporeIdValidator.getValidationError (FurnishRequestValidator.java:133-148, SingaporeIdValidator.java:258-293), dan controller membalas 400 dengan pesan (FurnishSubmissionController.java:99-104). Tetapi di UI, kegagalan submit ditangkap oleh catch yang hanya membuka halaman gagal generik (Confirmation.ts:193-199) sehingga pesan server tidak dibaca user; Confirmation.validation kosong (Confirmation.ts:58), jadi ValidateALL saat Submit (Confirmation.ts:120-125) tidak memvalidasi apa pun. Server juga hanya mengecek postal code 'tidak kosong' (FurnishRequestValidator.java:85-87), bukan formatnya. Tiket OCMS-DF-2026-110, -143, -175 (error submit generik): akar masalah cannot verify from repo; DF-2026-175 ditutup tanpa perubahan code."
+    }
+  ]
+}

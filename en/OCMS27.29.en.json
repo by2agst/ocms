@@ -1,0 +1,25 @@
+{
+  "story": "OCMS27.29",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{form/NoticeSearchAllForm,hook/useSearch,hook/useSearchParams} (search warrant_no), utils/models/Iwarrantofarrest.d.ts (outcome_of_warrant, send_to_sc_flag are types only); ocmsadminapi workflows/cas_integration/CasIntegrationController.casUpdateCourtNotices (inbound from CAS, opposite direction, not outbound to State Courts). No warrant outcome code or sending to State Courts",
+  "note": "The story asks the officer to search a notice, record the warrant outcome (executed, cancelled, issued, DNATA), and then OCMS sends a warrant update request to State Courts. Only the notice search by Warrant No. exists (same as OCMS27.27). There is no outcome form: outcome_of_warrant and send_to_sc_flag are only fields in the Iwarrantofarrest.d.ts type, and DNATA only appears in the edit-notice alert text. Sending to State Courts does not exist (grep for state court/roms returns nothing in all backends); casUpdateCourtNotices in CasIntegrationController is an inbound endpoint from CAS that changes notice stages (CasIntegrationServiceImpl.java:436-439), not an outbound call to State Courts, so it is not credited. The State Courts/SFTP side cannot be verified from the repo. The story status is blank in the data; the requirement is not given. No relevant maintenance ticket.",
+  "recommendation": "Do not claim except the notice search by warrant_no (partial). Recording the outcome and sending the update to State Courts do not exist",
+  "steps": [
+    {
+      "step": "Officer searches for a notice to record the warrant outcome",
+      "detail": "The staff portal has a Warrant No. field in Notice Search (max 22 characters); useSearchParams calls getNoticesByWA, which GETs the warrantofarrest resource filtered by warrant_no[$regex], and uses the result as the notice list. The OCMS_NOTICE_SEARCH authorization lists /v1/warrantofarrest. However there is no warrant of arrest controller/entity/repository in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi or ocmseserviceapi (grep for warrant/WarrantOfArrest in Java src returns nothing), so the server side cannot be verified from the repo. This is a notice search by warrant number, not a dedicated screen for updating warrants. The same generic search is used in OCMS27.21-27.25."
+    },
+    {
+      "step": "Officer picks the outcome: executed, cancelled, issued or DNATA",
+      "detail": "There is no outcome selection. outcome_of_warrant is only a field in the Iwarrantofarrest.d.ts:7 type, translation.json:1354 is only a validation message 'Please select Warrant Status Flag.' that no component uses, and DNATA only appears in the edit-notice alert text (useStagePermissions.tsx:86). No executed/cancelled/issued values exist in the UI or backend."
+    },
+    {
+      "step": "OCMS saves the outcome and notice status",
+      "detail": "There is no POST/PUT/PATCH endpoint for warrant of arrest and no entity/repository for it in the six repos (grep returns nothing); the only link to warrantofarrest is the GET from the search."
+    },
+    {
+      "step": "OCMS sends the warrant update request to State Courts",
+      "detail": "There is no outbound call to State Courts (grep for state court/roms/court SFTP returns nothing in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi). The casUpdateCourtNotices endpoint (CasIntegrationController.java:101-106) receives stage updates from CAS into OCMS, the opposite direction and without warrant data; not credited. send_to_sc_flag is only a field in the UI type. The State Courts side cannot be verified from the repo."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS16.14",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/payment_reduction/reduction/{ReductionServiceImpl, helpers/ReductionPersistenceService.applyReduction (updateIntranetValidOffenceNotice, insertSuspendedNotice, insertReducedOffenceAmount, updateInternetValidOffenceNotice)}; crud/ocmsizdb/OcmsReduction/OcmsReducedOffenceAmount; crud/config/MultiDataSourceConfig. Repo lain: tidak ada code yang menerapkan reduction dari PLUS",
+  "note": "Penerapan reduction ada: setelah validasi lolos, ocms_valid_offence_notice.amount_payable diisi dengan jumlah baru dari PLUS (composition_amount tidak diubah), disertai efek samping di luar teks story: notice diberi TS-RED (due_date_of_revival = tanggal terjauh antara yang sudah ada dan expiry), satu baris ocms_suspended_notice dan satu baris ocms_reduced_offence_amount (menyimpan jumlah sebelum reduction sejak OCMS-DF-2026-072, closed, Prod deployed; migrasi baris lama terkait OCMS-DF-2026-028, closed). Salinan eocms_valid_offence_notice di Internet DB hanya diupdate 4 field dan dilewati diam-diam bila barisnya tidak ada; Intranet dan Internet adalah dua datasource dan @Transactional hanya memakai transaction manager Intranet, jadi atomicity lintas DB cannot verify from repo. Request kedua pada notice yang sudah TS-RED dijawab sukses tanpa menerapkan jumlah baru (lihat OCMS16.12). Risiko lain: reason_of_reduction di entity hanya 3 karakter (OcmsReducedOffenceAmount.java:52) sedangkan request tidak membatasi panjang; alasan lebih panjang kemungkinan gagal di DB dan dijawab 'Reduction fail' (panjang kolom nyata cannot verify from repo). Mekanisme revival TS-RED (mengembalikan jumlah) ada di tier cron dan bukan bagian story ini.",
+  "recommendation": "Klaim sebagian besar. Pengurangan amount_payable di Intranet ada dan transactional; kurangi untuk salinan Internet (dilewati diam-diam, lintas DB) dan kasus notice yang sudah TS-RED.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengurangan hanya dijalankan setelah semua validasi menyatakan jumlah boleh diizinkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:73-113; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:196-199",
+      "fit": "Sesuai",
+      "detail": "Status ELIGIBLE meneruskan proses (ReductionServiceImpl.java:196-199), lalu cek jumlah dan tanggal lolos (ReductionServiceImpl.java:80-96) baru entity dimuat dan persistenceService.applyReduction dipanggil (ReductionServiceImpl.java:98-113)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Amount payable notice di OCMS diubah menjadi jumlah baru hasil pengurangan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:56-82; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:94-112; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:151-173",
+      "fit": "Sesuai",
+      "detail": "updateIntranetValidOffenceNotice mengisi amount_payable dengan amountPayable request, memberi TS-RED, lalu save (ReductionPersistenceService.java:94-112). Baris riwayat ocms_reduced_offence_amount menyimpan jumlah sebelum reduction (:151-173, OCMS-DF-2026-072). Semua dalam satu @Transactional(rollbackFor = Exception.class) pada datasource Intranet (:56-82); gagal berarti rollback dan error ke PLUS. composition_amount tidak diubah."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah baru juga tampil di sisi online (Internet DB) agar pembayaran memakai nilai yang sudah dikurangi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:193-219; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/config/MultiDataSourceConfig.java:126-128; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/config/MultiDataSourceConfig.java:175-178",
+      "fit": "Sebagian",
+      "detail": "updateInternetValidOffenceNotice menyalin 4 field ke eocms_valid_offence_notice (ReductionPersistenceService.java:193-211); bila baris tidak ada hanya log warn dan transaksi lanjut (ReductionPersistenceService.java:214-218). Intranet dan Internet adalah datasource dan transaction manager terpisah (MultiDataSourceConfig.java:126-128,175-178), sedangkan @Transactional memakai manager utama Intranet, jadi bila commit Intranet gagal setelah save Internet, perubahan Internet bisa tertinggal; cannot verify from repo. Story tidak menyebut sisi Internet; dimasukkan karena 'notice di OCMS' mencakup portal pembayaran."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Request pengurangan kedua pada notice yang sudah dikurangi diterapkan sesuai jumlah yang diminta",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:51-52; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-183",
+      "fit": "Sebagian",
+      "detail": "Notice dengan TS + RED dijawab ALREADY_REDUCED dan diperlakukan sukses idempotent tanpa mengubah amount_payable (OcmsValidOffenceNoticeRepository.java:51-52; ReductionServiceImpl.java:176-183). Fakta sama dengan langkah terakhir validasi di OCMS16.12 dan pesan sukses di OCMS16.15. Varian court (/v1/plus-apply-reduction-court) tidak memakai idempotency (ReductionServiceImpl.java:246)."
+    }
+  ]
+}

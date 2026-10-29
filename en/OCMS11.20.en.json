@@ -1,0 +1,25 @@
+{
+  "story": "OCMS11.20",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/datahiveuenfin/services/DataHiveUenFinService and services/datahive/nricFinUenDataRetrieval (receiving board data); workflows/furnish_processing/helpers/FurnishApprovalHelper (knows only RD1 for hirer and DN1 for driver, no RD2); agencies/toppan/upload/{models/ToppanStage,helpers/ToppanUploadHelper,jobs/ToppanUploadJob} (RD2 letter); crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository; application-prod.properties. Other repos: no code specific to this story.",
+  "note": "The story asks that once the individual Owner/Partner particulars are received, OCMS reverts the NOPO to the 2nd reminder (RD2) with the Owner/Partner as the vehicle owner. No code does this: after the UEN sync there is no offender or stage change (see OCMS11.18), and the only stage reset mechanism (FurnishApprovalHelper.changeProcessingStage) writes only RD1 or DN1, never RD2. Toppan RD2 letter generation exists but is generic, and the SFTP upload to Toppan is blocked at application-prod.properties:86 (OCMS-DF-2026-192). Sheet status: Demo paid (50% of 75%); the demo_remark mentions Vault and Code Split. Sibling OCMS11.19 uses the same fit for the same facts.",
+  "recommendation": "Do not claim as done. No code reverts the NOPO to RD2 for an Owner/Partner from ACRA data; only the generic RD2 letter exists. Ask URA where this feature was built or mark a gap.",
+  "steps": [
+    {
+      "step": "Individual Owner/Partner particulars have been received from the data source",
+      "detail": "The board response is parsed into BoardInfo with personIdNo, positionHeldCode, positionAppointmentDate, positionWithdrawnDate and referencePeriod (DataHiveUENBatchService.java:483-502, UENDataResult.java:88-101). There is no person name or address, and no selection of Owner/Partner by appointment period. Same fit as OCMS11.18 step 2 and OCMS11.19 step 1."
+    },
+    {
+      "step": "NOPO is reverted to the 2nd reminder (RD2) with the Owner/Partner as owner",
+      "detail": "After the UEN sync there is no change of next_processing_stage or offender (DataHiveUenFinService.java:1479-1485; only noticeNo is written to ocms_nro_temp). changeProcessingStage in FurnishApprovalHelper.java:644-651 sets only RD1 (hirer) or DN1 (driver); no path sets RD2 from Owner/Partner data."
+    },
+    {
+      "step": "Owner/Partner is recorded as the vehicle owner with a letter address",
+      "detail": "Nothing writes the Owner/Partner as the offender in ocms_offence_notice_owner_driver or their letter address from the UEN flow: board data is not written to DB (DataHiveUenFinService.java:1470-1477) and only shareholders are stored (:1440-1447). Inserting an ONOD_ADDR row for a new person exists only in the furnish flow (FurnishApprovalHelper.java:622-637). Same as OCMS11.19 step 3."
+    },
+    {
+      "step": "2nd reminder (RD2) is built and sent to the Owner/Partner",
+      "detail": "A generic RD2 letter generation exists: ToppanStage RD2 (ToppanStage.java:20) and findToppanNoticesForStage selects notices with next_processing_stage = 'RD2' for offender_indicator 'Y' (OcmsValidOffenceNoticeRepository.java:584-611; ToppanUploadHelper.java:1887), so the letter goes to the recorded offender; the Owner/Partner is never recorded (step 3). sftp.upload.disabledServers=toppan at application-prod.properties:86 and the delivery gate is bypassed (ToppanUploadJob.java:420-430, OCMS-DF-2026-192), so the letter does not reach Toppan in the repo configuration."
+    }
+  ]
+}

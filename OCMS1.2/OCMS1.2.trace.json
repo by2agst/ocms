@@ -1,0 +1,55 @@
+{
+  "story": "OCMS1.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeController,CreateNoticeServiceImpl} dan helpers/NoticeProcessingHelper (webhook /v1/repccsWebhook-create-notice, JwtFilter bypass). ocmsadminprivateapi framework/workflows/repccs/notice_creation/core (endpoint kembar /repccsWebhook + subscription key), crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (query ROV), framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code penerima REPCCS",
+  "note": "Status 'User Story Removed'. Teks story identik dengan OCMS1.1 (hanya points berbeda: 5 vs 3), jadi langkah dan fit sama persis dengan OCMS1.1. verdict tetap Removed, tidak diklaim. Code yang mirip ada: webhook REPCCS menerima transaksi dan membuat notice secara sinkron (ocmsadminapi dan ocmsadminprivateapi), lalu cron LTA Upload memproses notice di stage ROV. Fit ditulis Sebagian karena Appendix A of Annex 1A (flow Pre-Notice) tidak ada di repo dan kata 'Pre-Notice' tidak muncul di code, sehingga kesesuaian dengan flow tidak bisa dibuktikan. Admin fee tidak diterapkan saat transaksi diterima (amount_payable = composition amount, NoticeRecordHelper.java:727). Mana dari dua endpoint yang dipakai REPCCS di production dan apakah kiriman REPCCS benar-benar real-time: cannot verify from repo.",
+  "recommendation": "Tidak diklaim (Removed). Sama dengan OCMS1.1: teks story identik, tidak ada pembeda yang bisa ditelusuri ke code.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima transaksi unpaid parking charge dari REPCCS lewat webhook",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeController.java:46-50",
+      "fit": "Sebagian",
+      "detail": "Ada endpoint POST /v1/repccsWebhook-create-notice yang memanggil processRepccsCreateNotice (CreateNoticeController.java:46-50); JwtFilter.java:181 melewatkan endpoint ini dari login staff. Ada endpoint kembar POST /repccsWebhook di ocmsadminprivateapi (RepccsCreateNoticeController.java:39) yang memvalidasi subscription key APIM (CreateNoticeServiceImpl.java:110-113); flag ocms.repccs.key.validation.enabled=true di application-prod.properties:126 tapi false di application-uat.properties:119. Versi ocmsadminapi tidak punya cek key di code. Endpoint mana yang dipakai REPCCS di production dan apakah REPCCS benar-benar memanggilnya: cannot verify from repo (konfigurasi APIM/REPCCS)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Transaksi diproses real-time saat diterima, tanpa menunggu batch",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:250",
+      "fit": "Sebagian",
+      "detail": "processRepccsCreateNotice langsung memanggil processNoticeWithDtoMapping lalu createNotice di request yang sama (CreateNoticeServiceImpl.java:250), jadi notice dibuat sinkron saat webhook masuk, tanpa antrean batch. Ketepatan waktu kiriman dari sisi REPCCS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Transaksi divalidasi, dicek duplikat, lalu disimpan sebagai notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:195-250",
+      "fit": "Sebagian",
+      "detail": "Request disimpan ke audit dulu (saveAudit, :195), mandatory field divalidasi (validateMandatoryFields, :197), notice no yang sudah ada ditolak dengan IM_USED (:236-246), lalu createNotice menyimpan record (:250). Gagal validasi menghasilkan 400 'Invalid input format or failed validation'. composition amount disalin ke amount_payable (NoticeRecordHelper.java:727), jadi tidak ada admin fee saat notice dibuat. Langkah ini bukan kalimat eksplisit di story, tapi merupakan bagian dari 'menerima transaksi'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice masuk ke alur Pre-Notice otomatis (stage NPA, stage berikutnya ROV)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:924-927",
+      "fit": "Sebagian",
+      "detail": "Untuk offence type O dengan vehicle registration type V/S/D, last_processing_stage di-set NPA dan next_processing_stage ROV (NoticeProcessingHelper.java:924-927). Kata 'Pre-Notice' tidak muncul di enam repo dan Appendix A of Annex 1A tidak ada di repo, jadi kesesuaian dengan flow di Appendix A cannot verify from repo. Kombinasi offence type / vehicle type lain tidak ditelusuri di story ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menindaklanjuti charge yang belum dibayar lewat alur Pre-Notice otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:70-74",
+      "fit": "Sebagian",
+      "detail": "Cron LTA Upload memilih notice dengan next_processing_stage='ROV', tanggal <= hari ini, offence type O/E, bukan PS, dan bukan foreign vehicle (OcmsValidOffenceNoticeRepository.java:70-74). Jadwalnya 2x sehari (cron.ltaupload.schedule=0 0 3,19 * * ? dengan enabled=true, cron-schedules-prod.properties:134-135), jadi follow-up berjalan batch, bukan real-time. Setelah file terkirim stage maju ke RD1 (TS) atau ENA (lainnya) di LtaUploadHelper.java:200-216. Tiket: OCMS-DF-2026-118 (LTA enquiry harus exclude foreign vehicle), OCMS-DF-2026-002 (enquiry sempat ikut notice PS), OCMS-DF-2026-160 (Pending Closure: 894 notice keluar dari loop ROV tanpa ownership) dan OCMS-SR-2026-182 (1.367 notice tersangkut di ENA/RD1 tanpa offender) menunjukkan alur ini punya defect setelah go-live. Detail Appendix A tidak ada di repo."
+    }
+  ]
+}

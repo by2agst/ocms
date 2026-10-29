@@ -1,0 +1,46 @@
+{
+  "story": "OCMS13.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper}, framework/schedulers/NotificationJobsScheduler, resources/cron-schedules-{prod,uat,dev}.properties. Tidak ada code khusus UPL; mekanisme eNotification/reminder generik. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status 'Demo paid (50% of 75%)'. Demo remark: Vault perlu jalan karena notice butuh info kendaraan/owner dan permission Vault diberikan ke App Service api. Cek nomor mobile terbaru dilakukan oleh eNotification cron (NotificationSmsEmailJob) yang membaca view DataHive V_DH_SNDGO_SINGPASSCONTACT_MASTER; code tidak menyebut DOS, jadi 'DOS = DataHive' cannot be confirmed from repo. Pemilihan notice untuk stage reminder (termasuk DN1) bersifat generik dan tidak menyaring tipe U; tipe X tidak dikecualikan (hanya I, D, V). Semua langkah Sebagian karena eksekusinya dimatikan config: cron.notification.enabled=false (cron-schedules-prod.properties:236) dan cron.enareminder.datahive=false (cron-schedules-prod.properties:48, juga di uat dan dev), sehingga bila job dinyalakan pun nomor tidak di-refresh dari DataHive. Tiket: OCMS-DF-2026-180 (Closed, catatan 'Awaiting eNotification cron to activate'; menyebut reminder stage RD1..DR3 tidak berubah). Nilai server asli, permission Vault dan nilai parameter ENOTEDAYS/POS/PDD: cannot verify from repo.",
+  "recommendation": "Klaim Sebagian saja. Logic ada tetapi cron.notification.enabled=false dan flag DataHive false di semua properti repo. Konfirmasi dengan URA/tim nilai di server, permission Vault, dan apakah 'DOS' = DataHive",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah surat ke-1 (DN1) terkirim, notice menjadi kandidat pengingat elektronik menjelang jatuh tempo",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1090; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1109-1120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1151; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:162; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih last_processing_stage IN (RD1, RD2, RR3, DN1, DN2, DR3) (NotificationSmsEmailHelper.java:1114) dengan tanggal jatuh tempo = last_processing_date + POS + PDD <= hari ini + ENOTEDAYS (:1088-1090,1115-1118), suspension NULL atau TS-HST (:1120), ID tidak di exclusion list (:1133). vehicle_registration_type hanya mengecualikan I, D, V (:1151), jadi UPL (X) ikut. Tidak ada filter offence type U; mekanisme generik, bukan khusus UPL. Dipanggil dari NotificationSmsEmailJob.java:162, tetapi cron.notification.enabled=false di cron-schedules-prod.properties:236 (OCMS-DF-2026-180: 'Awaiting eNotification cron to activate'). Nilai POS/PDD/ENOTEDAYS di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengecek nomor mobile terbaru offender (sesuai Epic OCMS9)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:185-188; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2477; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1448; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48",
+      "fit": "Sebagian",
+      "detail": "Job memanggil batchPreloadContactInfo lalu refreshContactInfo untuk semua record (NotificationSmsEmailJob.java:185-188). refreshContactInfo hanya query DataHive bila cron.enareminder.datahive=true; nilainya false di cron-schedules-prod.properties:48 (juga uat dan dev), sehingga yang dipakai adalah offender_tel_no yang sudah ada tanpa cek ulang (NotificationSmsEmailHelper.java:2468-2476). Bila true, query SELECT CONTACT FROM V_DH_SNDGO_SINGPASSCONTACT_MASTER WHERE UIN = <NRIC/FIN> (:1448). Code tidak menyebut DOS, jadi kesetaraan DOS dan DataHive, koneksi/permission Vault (demo remark) dan isi view: cannot verify from repo. Fit sama dengan OCMS9.4."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile terbaru disimpan ke record offender",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2756-2763; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2800-2823",
+      "fit": "Sebagian",
+      "detail": "Setelah DataHive mengembalikan CONTACT (minimal 8 karakter), phoneNo dan normalizedPhone di-set (NotificationSmsEmailHelper.java:2756-2763) lalu updateOcmsContactInfo mem-PATCH ocms_offence_notice_owner_driver (offenderTelNo, emailAddr) dengan filter noticeNo + idNo (:2800-2823). Jalur ini hanya jalan bila cron.enareminder.datahive=true (false di prod, cron-schedules-prod.properties:48) dan job aktif (false, :236). Fit sama dengan langkah 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila nomor tidak ada atau tidak valid, pengingat elektronik tidak dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2296; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:254-266; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2041-2077",
+      "fit": "Sebagian",
+      "detail": "validateContactInfo menolak record dengan contactError atau tanpa phoneNo (NotificationSmsEmailHelper.java:2259-2296). Untuk stage non-ENA, job hanya melewati record tanpa mengubah stage (NotificationSmsEmailJob.java:254-266); pengalihan ke RD1 hanya untuk ENA. Format nomor tidak divalidasi sebagai nomor mobile Singapore: normalizeMobile cuma membuang karakter non-digit dan menambah kode negara 65 (:2041-2077), dan cek DataHive hanya panjang >= 8. Berjalan hanya bila job aktif (cron.notification.enabled=false di prod)."
+    }
+  ]
+}

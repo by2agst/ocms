@@ -1,0 +1,73 @@
+{
+  "story": "OCMS16.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{TemporarySuspensionHelper,RevivalBaseHelper,TsDueDateRule}, workflows/payment_reduction/reduction/{ReductionServiceImpl,helpers/ReductionPersistenceService}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository. ocmsadminprivateapi OcmsValidOffenceNoticeRepository (findToppanNoticesForStage, findNoticesForMhaNricUpload), Toppan upload helper/job/scheduler, AutoRevivalHelper, NotificationSmsEmailHelper, MhaNricDataHelper, DataHiveUenFinService, cron-schedules-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Story tidak ada di flow deck; 'Sesuai' berarti code melakukan apa yang tertulis di story. Status story: Demo paid (50% of 75%), requirement tertulis ada. Pengecekan 'ada TS atau tidak' direalisasikan sebagai filter von.suspension_type IS NULL di query letter Toppan, MHA, dan DataHive, sehingga TS dengan reason apa pun (dan PS) menahan notice. Reduction sendiri adalah TS-RED, jadi story 16.16 dan 16.17 memakai mekanisme yang sama. Tapi ada catch: VON.suspension_type hanya satu kolom (suspension terbaru), jadi kebenarannya bergantung pada VON diisi ulang dari suspension yang tersisa saat salah satu di-revive; kedua jalur revival (auto dan manual) melakukannya. Pengecualian di code: SMS/email eNotification tetap memproses TS-HST (dan jalur MHA tertentu TS-HST/TS-UNC), sehingga untuk reason itu 'tidak ada reminder selama TS' tidak berlaku. Sama seperti 16.16: letter Toppan hanya jalan manual (ToppanUploadJobsScheduler.java:118) dan job SMS/email off di prod (cron.notification.enabled=false). Tiket terkait: OCMS-DF-2026-028, OCMS-DF-2026-072, OCMS-DF-2026-078 (Closed). Nilai property server asli cannot verify from repo.",
+  "recommendation": "Klaim sebagian besar: filter suspension_type IS NULL menahan notice selama TS atau reduction apa pun, dan kedua jalur revival menjaga status bila suspension lain masih aktif. Catat pengecualian TS-HST di jalur notifikasi, letter Toppan yang hanya manual, dan job SMS/email off di prod.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Temporary suspension lain (bukan reduction) bisa dikenakan pada notice yang masih dalam masa reduction",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:92-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124-127; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:159-176",
+      "fit": "Sesuai",
+      "detail": "Validasi TS hanya menolak TS di atas PS yang reason-nya tidak mengizinkan TS (validateOverlap, TemporarySuspensionHelper.java:159-176); TS di atas TS-RED tidak diblok. updateVON menyetel suspension_type='TS' dengan reason TS terbaru (TemporarySuspensionHelper.java:124) dan eVON ikut diperbarui (:127); baris ocms_suspended_notice TS yang baru punya due date sendiri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reduction bisa diterapkan pada notice yang sudah memiliki TS lain, dan notice tetap suspended",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:51-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:101-106; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/ReductionServiceImpl.java:176-182",
+      "fit": "Sesuai",
+      "detail": "Query validasi reduction hanya menolak status ALREADY_REDUCED (VON sudah TS-RED), PAID, atau stage/rule code tidak eligible (OcmsValidOffenceNoticeRepository.java:51-68 di ocmsadminapi); notice dengan TS lain lolos. Persist menyetel suspension_type='TS' dan due date VON = tanggal terjauh antara TS yang ada dan expiry reduction (ReductionPersistenceService.java:101-106). Catatan: bila VON sudah TS-RED, request reduction kedua dianggap idempotent dan tidak memperpanjang expiry (ReductionServiceImpl.java:176-182)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Job reminder/demand letter (RD1 sampai DR3) mengecek suspension di notice dan melewati notice dengan TS apa pun",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1514-1530; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sesuai",
+      "detail": "findToppanNoticesForStage hanya memilih notice dengan next_processing_stage = :stage, next_processing_date <= hari ini, dan von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611). Notice yang punya suspension apa pun (TS atau PS) tidak masuk daftar letter, dan stage/next_processing_date baru ditulis ulang hanya untuk notice dalam daftar itu (ToppanUploadHelper.java:1887, bulk UPDATE :1514-1530). Catatan: job letter hanya jalan lewat POST /toppan/generate-letters (ToppanUnifiedController.java:34); pemanggilan di day-end scheduler di-comment (ToppanUploadJobsScheduler.java:118), jadi 'tiap hari otomatis' tidak benar, tetapi aturan pemilihan notice yang diminta story sudah benar. Ada satu hal yang perlu diwaspadai: bulk UPDATE tidak mengecek ulang suspension, jadi notice yang di-suspend setelah daftar letter terbentuk dalam run yang sama tetap ikut maju; seberapa sering ini terjadi cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Persiapan data stage berikutnya (MHA NRIC upload dan DataHive UEN/FIN) juga melewati notice yang sedang suspended",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:567; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:81; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:196-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:236-238",
+      "fit": "Sesuai",
+      "detail": "Query MHA NRIC upload (findNoticesForMhaNricUpload, dipanggil MhaNricDataHelper.java:81) dan query DataHive UEN/FIN (DataHiveUenFinService.java:236-238) sama-sama mensyaratkan von.suspension_type IS NULL untuk stage RD1-DR3 (OcmsValidOffenceNoticeRepository.java:567). Jadi persiapan data untuk stage berikutnya ikut berhenti selama TS-RED atau TS lain aktif. Satu jalur lain di MhaNricDataHelper (queryValidOffenceNoticesBasic, :196-216) hanya mengecualikan TS-HST dan TS-UNC, bukan TS-RED."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Reminder lewat SMS/email (eNotification) tidak dikirim selama temporary suspension berlaku",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1034-1035; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1120-1121; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:234-236",
+      "fit": "Sebagian",
+      "detail": "Query eNotification untuk ENA dan reminder RD1-DR3 hanya meloloskan suspension_type IS NULL atau TS dengan reason HST (NotificationSmsEmailHelper.java:1034-1035 dan :1120-1121), jadi TS-RED dan TS lain selain HST tidak dikirimi SMS/email; TS-HST tetap lolos, berbeda dari kalimat story soal temporary suspension. Eksekusi job-nya sendiri dimatikan di prod: cron.notification.enabled=false (cron-schedules-prod.properties:236, komentar 'Disabled in PROD' di :234). Nilai di server asli cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat satu suspension selesai tetapi TS atau reduction lain masih aktif, notice tetap suspended",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:381-382; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:398; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:440-461; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:400-441; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:746",
+      "fit": "Sesuai",
+      "detail": "Auto revival hanya me-revive baris TS yang due (AutoRevivalHelper.java:398); bila masih ada suspension aktif lain, VON/eVON diisi dari suspension yang tersisa (suspension_type terbaru, due date terjauh; :440-461), jadi suspension_type tidak NULL dan notice tetap tertahan di filter. Revival manual dari staff API melakukan hal yang sama lewat updateVONWithRemainingSuspension (RevivalBaseHelper.java:400-441, dipanggil di :746 pada ocmsadminapi)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah semua temporary suspension dan masa reduction berakhir, suspension dikosongkan sehingga reminder boleh jalan lagi",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:398; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:415-421; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:445-448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:467-490; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:62",
+      "fit": "Sesuai",
+      "detail": "AutoRevivalHelper me-revive baris TS yang due_date_of_revival-nya sebelum awal besok (AutoRevivalHelper.java:398). Bila tidak ada suspension tersisa, field suspension di VON/eVON dikosongkan (:445-448) sehingga notice masuk lagi ke query letter; untuk TS-RED amount_payable dikembalikan ke composition ditambah admin fee atau surcharge sesuai stage (:467-490). Job ini dijalankan di day-end scheduler (ToppanUploadJobsScheduler.java:119) dan cron.toppanupload.enabled=true (cron-schedules-prod.properties:62); nilai di server asli cannot verify from repo. Notice dengan last_processing_stage di luar REVIVAL_ALLOWED_STAGES dilewati, kecuali court stage CSD/CSR/COS yang punya TS-RED (:415-421). Tiket OCMS-DF-2026-028 dan OCMS-DF-2026-072 (Closed, Prod deployed) memperbaiki sumber amount saat revert; OCMS-DF-2026-078 adalah patch data (Closed). Setelah revive, letter berikutnya baru terbit bila job letter dipicu manual (lihat langkah letter)."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS18.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/PS/{form/PSForm,form/PSDetails,form/PSSummary,list/PSList,page/PS,page/PSView}.tsx, pages/NoticeSearch/hook/{ApplyOperationAction.tsx,useBatchOperation.ts}, context/OptionsContext.tsx, utils/{mapping,validation}/PS/PS.ts, utils/constant.ts. ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-apply-suspension, staff-revive-suspension, staff-check-suspension-eligibility), core/helpers/{PermanentSuspensionHelper,SuspensionBaseHelper,SuspensionProcessingHelper,PermanentRevivalHelper,RevivalBaseHelper}, crud/ocmsizdb/suspendednotice/SuspendedNotice, api-authorization.properties (OCMS_APPLY_PS). ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai untuk alur staff PS ini",
+  "note": "Status di stories.json 'Fully paid'; tidak ada flow deck OCMS. Jalur utama ada di UI: untuk notice yang sudah PS (dan belum paid), PSForm lebih dulu memanggil staff-revive-suspension (reason PSR) lalu staff-apply-suspension. Revival hanya mengisi date_of_revival, revival_reason, remarks, officer di baris suspended_notice lama (tanpa delete), baris PS baru ditambah dengan sr_no baru. Tiga catatan: (1) revive dan apply adalah dua request terpisah tanpa rollback, jadi jika apply gagal karena aturan stage per code, PS lama sudah ter-revive dan notice tidak punya PS; (2) jalur safety net di server (reviveOldPS) menelan exception dan memakai reason CSR, berbeda dari PSR di jalur UI; (3) untuk notice paid (PS-FP/PRA) hanya code CFA dan VST yang bisa dipilih dari UI. Revival lewat endpoint ini juga me-revive TS aktif pada notice yang sama. Maintenance ticket: OCMS-DF-2026-114 dan OCMS-DF-2026-129 (Closed; an_flag di-reset saat PS-ANS di-revive, PermanentRevivalHelper.java:206-240), OCMS-DF-2026-075 (Closed; re-apply PS pada notice paid, PermanentSuspensionHelper.java:82-95), OCMS-DF-2026-152 (Ready to DEV/In SIT, terbuka; refundNoticeId dari jalur PLUS salah, bukan jalur UI staff; kode PermanentSuspensionHelper.java:358-366 sudah mengembalikan id refund, apakah ticket sudah tercermin di main cannot verify from repo).",
+  "recommendation": "Klaim sebagian: auto-revive tanpa menghapus record lama dan penambahan PS baru berfungsi pada kasus normal; atomisitas revive+apply, safety net server, dan batasan code untuk notice paid perlu diperbaiki atau diterima URA sebagai batas",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mendeteksi notice yang sudah punya permanent suspension dan me-revive-nya otomatis sebelum code baru diterapkan, tanpa aksi tambahan officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:114-138; ocmsadminui/src/utils/mapping/PS/PS.ts:29-43; ocmsadminui/src/utils/constant.ts:215-218; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:622-667",
+      "fit": "Sesuai",
+      "detail": "Di onAPI, notice dengan suspensionType PS dan tanpa crsReasonOfSuspension (belum paid) dikumpulkan sebagai noticesToRevive dan di-POST ke staff-revive-suspension dengan revivalReason PSR dan revivalRemarks 'Permanent Suspension Revival' (PSForm.tsx:114-129, PS.ts:29-43). Notice yang revive-nya sukses dimasukkan ke daftar apply, yang gagal dicatat sebagai failed (PSForm.tsx:130-137). Tidak ada klik tambahan selain konfirmasi di story 18.8. Endpoint staff-revive-suspension diizinkan untuk OCMS_APPLY_PS (api-authorization.properties:61-63)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Revival mencatat penutupan permanent suspension lama pada baris yang sama tanpa menghapus catatan lama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:111-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:170-201; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:278-296; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:719-724; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:748-753",
+      "fit": "Sesuai",
+      "detail": "revivePS mengambil semua suspension aktif (date_of_revival NULL) dan updateSuspendedNoticeRevival mengisi date_of_revival, revival_reason, revival_remarks, officer_authorising_revival lewat native UPDATE; tidak ada delete di jalur ini (RevivalBaseHelper.java:278-296, 719-724). Jika tidak ada suspension aktif tersisa, VON dan eVON dibersihkan (RevivalBaseHelper.java:748-753). Karena menyasar semua suspension aktif, TS aktif pada notice yang sama ikut di-revive (PermanentRevivalHelper.java:177-178); itu efek samping yang tidak disebut story. Untuk PS-ANS, an_flag direset ke N (PermanentRevivalHelper.java:206-240, OCMS-DF-2026-114 dan OCMS-DF-2026-129, Closed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerapkan permanent suspension code baru sebagai record baru, record lama tetap tersimpan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:140-149; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:132-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-348; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:443-467; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:995-1018",
+      "fit": "Sesuai",
+      "detail": "Setelah revive, staff-apply-suspension menjalankan processPS: updateVON mengisi epr_reason_of_suspension dengan code baru dan insertSuspendedNotice menambah baris baru dengan sr_no baru dari sequence (SuspensionBaseHelper.java:340-348, 443-467; SuspensionProcessingController.java:997). Baris PS lama tidak disentuh lagi, jadi riwayat (lama: revived, baru: aktif) tersimpan di ocms_suspended_notice. Tidak ada operasi delete di PermanentSuspensionHelper maupun SuspensionBaseHelper (hasil grep)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Server tetap me-revive PS lama sebelum menerapkan code baru jika notice masih PS (pengaman di sisi server)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:245-305; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:256-271",
+      "fit": "Sebagian",
+      "detail": "processPS memanggil reviveOldPS jika notice masih bertipe PS, dipakai untuk notice paid (yang tidak di-revive UI) atau pemanggil API lain. Alasan revival di jalur ini CSR ('Permanent Suspension Revival' atau 'Change suspension reason' untuk notice paid), berbeda dari PSR di jalur UI (PermanentSuspensionHelper.java:256-271), sehingga dua pola data revival muncul untuk aksi yang sama. Jika reviveOldPS melempar exception, hanya di-log dan PS baru tetap diterapkan (PermanentSuspensionHelper.java:301-304), sehingga bisa ada dua PS aktif tanpa error ke officer. Jika code sama dengan PS yang ada, request dianggap idempotent dan tidak mengubah apa pun (PermanentSuspensionHelper.java:78-97)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Berlaku untuk semua permanent suspension yang ada, termasuk pada notice yang sudah dibayar (PS-FP/PRA)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:101-111; ocmsadminui/src/utils/constant.ts:114-115; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-192; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:212-220; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:259-262; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:321-377",
+      "fit": "Sebagian",
+      "detail": "Untuk notice paid dengan PS FP atau PRA, UI hanya meneruskan jika code form APP, CFA atau VST; selain itu notice masuk daftar gagal 'Not allowed to apply new PS code to paid Notice(s).' (PSForm.tsx:103-111). Karena APP tidak ada di APPLY_PS_ALLOWED (constant.ts:114-115), dari UI staff hanya CFA dan VST yang bisa dipakai. Server menolak code lain dengan 'Paid/partially paid notices only allow APP, CAN, CFA, or VST' (PermanentSuspensionHelper.java:180-192, 212-220), me-revive PS lama dengan CSR dan membuat record refund (PermanentSuspensionHelper.java:259-262, 321-377); pembuatan refund tidak disebut story ini. Ticket terkait: OCMS-DF-2026-075 (Closed) dan OCMS-DF-2026-152 (terbuka, jalur PLUS; cannot verify dari repo apakah sudah tercermin di main)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Revive dan penerapan code baru berjalan sebagai satu kesatuan sehingga notice tidak kehilangan PS jika penerapan gagal",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/PS/form/PSForm.tsx:118-138; ocmsadminui/src/pages/PS/form/PSForm.tsx:149-160; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:214-215; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:622-624; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:236-244; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:274-276; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:283-295",
+      "fit": "Sebagian",
+      "detail": "Revive (staff-revive-suspension) dan apply (staff-apply-suspension) adalah dua request HTTP dengan @Transactional sendiri-sendiri (SuspensionProcessingController.java:214-215, 622-624); tidak ada rollback lintas keduanya. Eligibility awal saat memilih notice hanya memeriksa daftar stage umum (SuspensionProcessingHelper.java:283-295), sedangkan aturan stage per code baru dicek saat apply (mis. ANS hanya ENA/RD1, CAN hanya NPA/ROV/ENA/RD1; SuspensionBaseHelper.java:236-244, 274-276). Contoh: notice di stage DN1 dengan PS-FOR yang diganti ANS lolos eligibility dan revive, tetapi apply gagal. Hasilnya PS lama sudah ter-revive (VON dibersihkan), PS baru tidak masuk, dan UI hanya menampilkan notice itu sebagai failed tanpa memulihkan PS lama (PSForm.tsx:149-160). Ini kesimpulan dari membaca alur; belum diuji di environment."
+    }
+  ]
+}

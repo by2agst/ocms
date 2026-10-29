@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin/services/DataHiveUenFinService (updateCompanyAddressWithNullSupport), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, workflows/agencies/toppan/upload/helpers/ToppanUploadHelper, application-prod.properties, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code that resends a reminder specifically for returned mail",
+  "note": "Status in stories.json is 'Requirement given - Gen flow'. There is no feature that resends a reminder triggered by an address change on TS-UNC notices. Only the regular path exists: after the notice is revived and returns to a reminder stage with suspension_type NULL, the DataHive UEN & FIN job overwrites the mha_reg address in ONOD and sets letter_address Y, and then Toppan upload builds the data file for the vendor. That regular path excludes notices still under TS-UNC (DataHiveUenFinService.java:238), does not compare addresses, and depends on: cron.mhadownload.uenfin.enabled=false (prod), Toppan letter generation which only runs through the manual trigger POST /toppan/generate-letters because executeJob is commented out (ToppanUploadJobsScheduler.java:118), and sftp.upload.disabledServers=toppan (application-prod.properties:86) which switches off the SFTP upload to the vendor, including the delivery gate bypass (OCMS-DF-2026-192). The real server values cannot verify from repo. That a revived notice is automatically re-issued at the same reminder stage cannot be proven from the repo. Step 1 is the same fact as OCMS20.3 step 3, so it has the same fit.",
+  "recommendation": "Do not claim as done. There is no resend trigger based on an address change; only the regular Toppan path can be reused and it is switched off in the prod properties",
+  "steps": [
+    {
+      "step": "OCMS identifies that the company registered address where the reminder was sent has changed",
+      "detail": "Same as OCMS20.3 step 3: there is no comparison of old vs new address. updateCompanyAddress and updateCompanyAddressWithNullSupport overwrite the mha_reg address (DataHiveUenFinService.java:1633, 1723) and upsertToUncHstAddr overwrites the adhoc row (line 655), with no 'changed' flag."
+    },
+    {
+      "step": "The latest registered address becomes the letter address of the notice so the next reminder goes there",
+      "detail": "On the regular path, updateCompanyAddressWithNullSupport writes the ACRA address to ONOD_addr type mha_reg and sets letterAddress 'Y' when no letter address exists yet (DataHiveUenFinService.java:1723-1760); the job also resets mha_reg letter_address before re-querying (DataHiveUenFinJob.java:219). Limits: the notice query only covers suspension_type IS NULL (DataHiveUenFinService.java:238), so notices still under TS-UNC are not updated until revival; the adhoc path result is not written to the notice (only to ocms_temp_unc_hst_addr); and the job is off in prod properties (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "OCMS regenerates the reminder letter for the notice as a data/PDF file for the print vendor",
+      "detail": "Toppan file generation exists, but the line toppanLettersGeneratorService.executeJob() in ToppanUploadJobsScheduler.executeDayEndJobs is commented out (ToppanUploadJobsScheduler.java:118), so the 00:15 schedule does not generate letters; letters only come from the manual trigger POST /generate-letters (ToppanUnifiedController.java:34). Letter address selection follows letter_address (ToppanUploadHelper.java:397: mha_reg then fallback lta_reg, lta_mail; furnished_mail is not in the fallback). There is no 'resend because address changed' logic and no PDF output on the upload path, only a data file."
+    },
+    {
+      "step": "The reminder file is sent to the vendor for printing and postage to the latest address",
+      "detail": "SFTP upload to the vendor is configured off: sftp.upload.disabledServers=toppan in application-prod.properties:86; the real server value cannot verify from repo. While toppan is disabled the delivery gate in ToppanUploadJob.confirmDeliveryAndAdvanceStage is bypassed and the stage still advances without delivery (OCMS-DF-2026-192). Printing and postage by the vendor are outside the repo."
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "id": "OCMS52.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "steps": [
+    {
+      "step": {
+        "en": "On the Vehicle Number and Notice Number tabs the Search Fines button stays disabled until the Turnstile widget returns a token",
+        "id": "Di tab Vehicle Number dan Notice Number tombol Search Fines tetap disabled sampai widget Turnstile mengembalikan token"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:355-375",
+      "detail": {
+        "en": "InitContinueButton sets button.disabled = !this.turnstileCompleted (line 359) and onClick returns early when isCaptcha is set and turnstileToken is empty (lines 368-370). turnstileCompleted becomes true only inside captcha.onSuccess (lines 399-406), which CaptchaTurnstile calls only after its verifyToken round trip to the API succeeded, so the button is enabled after the token is also validated, not on the raw widget token. Tab indexes 2 (Vehicle Number) and 3 (Notice Number) are the captcha tabs (lines 157-158, 610). Once completed, turnstileCompleted stays true for the lifetime of the page, so later searches and tab switches need no new challenge.",
+        "id": "InitContinueButton mengisi button.disabled = !this.turnstileCompleted (baris 359) dan onClick langsung return kalau isCaptcha aktif tapi turnstileToken kosong (baris 368-370). turnstileCompleted baru true di dalam captcha.onSuccess (baris 399-406), yang dipanggil CaptchaTurnstile hanya setelah verifyToken ke API berhasil, jadi tombol aktif setelah token juga divalidasi, bukan hanya karena widget memberi token. Tab index 2 (Vehicle Number) dan 3 (Notice Number) adalah tab captcha (baris 157-158, 610). Setelah lolos sekali, turnstileCompleted tetap true selama halaman terbuka, jadi search berikutnya dan pindah tab tidak minta challenge baru."
+      }
+    },
+    {
+      "step": {
+        "en": "The UI posts the token to turnstile/v1/validate and the API checks it with Cloudflare siteverify",
+        "id": "UI mem-POST token ke turnstile/v1/validate dan API memeriksanya ke Cloudflare siteverify"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/security/turnstile/TurnstileService.java:30-95",
+      "detail": {
+        "en": "CaptchaTurnstile.verifyToken (ocmseserviceui/src/components/CaptchaTurnstile.ts:148-180) POSTs {token} to the validateEndpoint set at PaymentSearch.ts:397 (DOMAIN.OCMS + turnstile/v1/validate). TurnstileValidationController.validateToken (line 33) calls turnstileService.isTokenValid, which POSTs secret, response and remoteip to turnstile.verify.url = https://challenges.cloudflare.com/turnstile/v0/siteverify (restTemplate.exchange, lines 65-70; value in application-dev/uat/prod.properties). The secret comes from Azure Key Vault (TurnstileConfig.getSecretKey); a Key Vault or HTTP error is caught and returns success=false (fails closed). turnstile.enabled=true in dev, uat and prod (application-prod.properties:83); if it were false, TurnstileService line 32 would skip the check and return success=true. Real Cloudflare responses and the Key Vault secret cannot be verified from the repo.",
+        "id": "CaptchaTurnstile.verifyToken (ocmseserviceui/src/components/CaptchaTurnstile.ts:148-180) mem-POST {token} ke validateEndpoint yang diset di PaymentSearch.ts:397 (DOMAIN.OCMS + turnstile/v1/validate). TurnstileValidationController.validateToken (baris 33) memanggil turnstileService.isTokenValid, yang mem-POST secret, response dan remoteip ke turnstile.verify.url = https://challenges.cloudflare.com/turnstile/v0/siteverify (restTemplate.exchange, baris 65-70; nilai di application-dev/uat/prod.properties). Secret diambil dari Azure Key Vault (TurnstileConfig.getSecretKey); error Key Vault atau HTTP ditangkap dan mengembalikan success=false (fail closed). turnstile.enabled=true di dev, uat dan prod (application-prod.properties:83); kalau false, TurnstileService baris 32 melewati pengecekan dan mengembalikan success=true. Respons Cloudflare asli dan secret di Key Vault cannot be verified from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "An invalid or missing token returns OCMS-4000 'Token not correct. Please try again.'",
+        "id": "Token invalid atau tidak ada mengembalikan OCMS-4000 'Token not correct. Please try again.'"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/security/turnstile/TurnstileValidationController.java:46-76",
+      "detail": {
+        "en": "A missing token (neither 'token' nor 'turnstileToken') returns HTTP 400 with OCMS-4000 and that message (line 54); a token Cloudflare rejects returns HTTP 400 with the same code and message (line 69); an exception returns HTTP 500 with the same message (line 75). Extra payload keys return OCMS-4000 'Unexpected parameters' (line 42). The UI does not show the message: verifyToken only returns false, onFailed keeps Search Fines disabled and the widget is reset, so the officer-visible effect is a disabled button without text.",
+        "id": "Token yang tidak ada (baik 'token' maupun 'turnstileToken') mengembalikan HTTP 400 dengan OCMS-4000 dan pesan itu (baris 54); token yang ditolak Cloudflare mengembalikan HTTP 400 dengan code dan pesan yang sama (baris 69); exception mengembalikan HTTP 500 dengan pesan yang sama (baris 75). Key payload tambahan mengembalikan OCMS-4000 'Unexpected parameters' (baris 42). UI tidak menampilkan pesan itu: verifyToken hanya mengembalikan false, onFailed membuat Search Fines tetap disabled dan widget di-reset, jadi yang dilihat user hanya tombol disabled tanpa teks."
+      }
+    },
+    {
+      "step": {
+        "en": "The captcha is not shown on the Singpass / ID Number tab",
+        "id": "Captcha tidak tampil di tab Singpass / ID Number"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearch.ts:609-617",
+      "detail": {
+        "en": "The uds-captcha-turnstile element is rendered only when currentTab is 2 or 3 (lines 610-611, 'if (!isCaptchaTab) return \"\"'). The ID Number tab is index 1 (default currentTab = 1, line 51) and uses the Singpass/Corppass buttons (lines 335-348), not the Search Fines button.",
+        "id": "Elemen uds-captcha-turnstile hanya dirender saat currentTab bernilai 2 atau 3 (baris 610-611, 'if (!isCaptchaTab) return \"\"'). Tab ID Number adalah index 1 (default currentTab = 1, baris 51) dan memakai tombol Singpass/Corppass (baris 335-348), bukan tombol Search Fines."
+      }
+    },
+    {
+      "step": {
+        "en": "The validate endpoint is open without JWT so it works before login",
+        "id": "Endpoint validate terbuka tanpa JWT sehingga bisa dipakai sebelum login"
+      },
+      "fit": "Sesuai",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:132",
+      "detail": {
+        "en": "isPublicEndpoint returns true when the URI contains '/turnstile/' (line 132), so JwtFilter lets the call through without a token. Anything in front of the app (APIM, gateway rules) is not visible in the repo; cannot verify from repo.",
+        "id": "isPublicEndpoint mengembalikan true kalau URI mengandung '/turnstile/' (baris 132), jadi JwtFilter meloloskan call tanpa token. Apa pun yang ada di depan aplikasi (APIM, aturan gateway) tidak terlihat di repo; cannot verify from repo."
+      }
+    },
+    {
+      "step": {
+        "en": "The search itself is protected so it cannot be run in bulk by bots (purpose of the story)",
+        "id": "Search itu sendiri terlindungi sehingga tidak bisa dijalankan massal oleh bot (tujuan story)"
+      },
+      "fit": "Sebagian",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/auth/filter/JwtFilter.java:133",
+      "detail": {
+        "en": "Only the front-end gate exists. The search call (APIPostSearchFines) sends the form data and never the Turnstile token; JwtFilter marks /v1/parkingfines as public (line 133); the aspect TurnstileValidationAspect and annotation @RequireTurnstile exist but no controller method uses @RequireTurnstile (grep over ocmseserviceapi/src/main/java finds only the definitions). So a client that calls /v1/parkingfines directly bypasses the captcha. Any rate limit or WAF in front of the API is not visible in the repo; cannot verify from repo.",
+        "id": "Yang ada hanya gate di front-end. Call search (APIPostSearchFines) mengirim data form dan tidak pernah mengirim token Turnstile; JwtFilter menandai /v1/parkingfines sebagai public (baris 133); aspect TurnstileValidationAspect dan annotation @RequireTurnstile ada, tapi tidak ada method controller yang memakai @RequireTurnstile (grep di ocmseserviceapi/src/main/java hanya menemukan definisinya). Jadi client yang memanggil /v1/parkingfines langsung melewati captcha. Rate limit atau WAF di depan API tidak terlihat di repo; cannot verify from repo."
+      }
+    }
+  ],
+  "note": {
+    "en": "The widget, the validate endpoint, the Cloudflare siteverify call and the button gate all exist and are enabled in dev/uat/prod properties. Gaps: the captcha is a front-end gate only (search endpoint public, token not sent with the search, @RequireTurnstile unused), one successful challenge unlocks the page for repeated searches, and the UI shows no error text on failure. Cloudflare responses, the Key Vault secret and any gateway protection cannot be verified from the repo. No maintenance ticket mentions captcha or Turnstile.",
+    "id": "Widget, endpoint validate, call siteverify ke Cloudflare dan gate di tombol semuanya ada dan aktif di properties dev/uat/prod. Gap: captcha hanya gate di front-end (endpoint search public, token tidak dikirim bersama search, @RequireTurnstile tidak dipakai), satu challenge yang lolos membuka halaman untuk search berulang, dan UI tidak menampilkan teks error saat gagal. Respons Cloudflare, secret di Key Vault dan proteksi di gateway cannot be verified from repo. Tidak ada maintenance ticket yang menyebut captcha atau Turnstile."
+  },
+  "corrections": [
+    "Evidence paths without a repo folder are split across repos: src/pages/Payment/PaymentSearch.ts and src/components/CaptchaTurnstile.ts are ocmseserviceui; the turnstile Java files, JwtFilter.java and application-prod.properties:83 are ocmseserviceapi. CaptchaTurnstile.ts:93 is only the render call; the token POST is lines 148-180.",
+    "Acceptance 1: the button is enabled only after the token has also been validated by the API (captcha.onSuccess runs after verifyToken), and stays enabled for the rest of the page session.",
+    "Acceptance 3: the API returns OCMS-4000, but the UI does not display 'Token not correct. Please try again.'; it only keeps the button disabled and resets the widget.",
+    "Acceptance 4 wording 'Singpass/ID tab': the tab is labelled 'ID Number' (index 1); it carries no Search Fines button.",
+    "Risk 1 is confirmed and can be stated more precisely: JwtFilter.java:133 makes /v1/parkingfines public, the search request carries no Turnstile token, and @RequireTurnstile is defined but unused. Consider rewording the user story purpose ('so that the search cannot be run by bots in bulk') because the repo only supports 'a captcha is required in the UI'."
+  ]
+}

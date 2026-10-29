@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.17",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/HstManagementServiceImpl (reviveHst, updateMailingAddress); ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findToppanNoticesForStage, findLetterAddressForNotices), framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, framework/workflows/agencies/toppan/upload/{helpers/ToppanUploadHelper,jobs/ToppanUploadJob}, application-prod.properties. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada tombol atau layar resend",
+  "note": "Status 'No requirement'. Story minta setelah officer memutuskan resend, OCMS mengirim ulang reminder ke alternative address lewat file PDF/data ke vendor cetak. Tidak ada aksi 'resend' khusus. Jalur yang ada: Manual HST Revival menulis alamat baru sebagai furnished_mail dengan letter_address='Y' dan mencabut TS-HST (HstManagementServiceImpl.java:419-470, 572-617); setelah itu notice ikut run Toppan biasa (findToppanNoticesForStage membaca suspension_type IS NULL dan next_processing_date <= hari ini; findLetterAddressForNotices membaca letter_address='Y'). Tapi (1) pembuatan letter tidak jalan otomatis: pemanggilan toppanLettersGeneratorService.executeJob() di ToppanUploadJobsScheduler di-comment, hanya lewat POST /toppan/generate-letters; (2) upload ke SFTP Toppan diblok oleh sftp.upload.disabledServers=toppan di application-prod.properties:86 (nilai server asli cannot verify from repo; OCMS-DF-2026-192 membahas dampaknya). Pencetakan dan postage oleh vendor cannot verify from repo.",
+  "recommendation": "Jangan klaim penuh (No requirement). Rantai revival + run Toppan ada di code tapi tidak ada aksi resend, letter generation harus dipicu manual, dan upload Toppan diblok di properties prod. Klaim paling jauh sebagian.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menjadikan alternative address sebagai alamat tujuan reminder",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:419-470; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:572-617; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:630-649",
+      "fit": "Sebagian",
+      "detail": "reviveHst menulis alamat dari request sebagai type_of_address='furnished_mail' dengan letter_address='Y' (HstManagementServiceImpl.java:572-617, baris 607) dan mengosongkan letter_address pada alamat lain (630-649). Hanya terjadi lewat Manual HST Revival yang juga menghapus record HST (baris 466); tidak ada aksi 'confirm resend' dan alamatnya diketik officer, bukan diambil dari appeal."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice kembali masuk antrian reminder setelah suspension dicabut",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:515-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:540-550",
+      "fit": "Sebagian",
+      "detail": "reviveHstSuspension mengisi date_of_revival dan revival_reason 'HAV' di suspended_notice (HstManagementServiceImpl.java:526-531) dan mengosongkan suspension_type, epr_reason_of_suspension, due_date_of_revival di VON (540-550). next_processing_stage dan next_processing_date tidak diubah, jadi reminder keluar mengikuti jadwal lama; tidak ada pengiriman ulang untuk stage yang sudah lewat."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Run Toppan memilih notice dan memakai alamat letter_address='Y'",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:654-662; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118-123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-47",
+      "fit": "Sebagian",
+      "detail": "Pemilihan notice dan alamat sesuai: findToppanNoticesForStage memilih stage + next_processing_date <= hari ini + suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611) dan findLetterAddressForNotices membaca alamat dengan letter_address='Y' (654-662). Tapi letter generation tidak otomatis: toppanLettersGeneratorService.executeJob() di ToppanUploadJobsScheduler di-comment (baris 118), hanya jalan lewat POST /toppan/generate-letters (ToppanUnifiedController.java:34-47)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File PDF/data dibuat dan dikirim ke vendor Toppan untuk cetak dan postage",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:134-227; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:394-409; ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "ToppanUploadJob.executeWithStage membuat file per stage dan mengirimnya. Di properties prod sftp.upload.disabledServers=toppan (application-prod.properties:86) sehingga upload ke SFTP Toppan diblok; nilai di server asli cannot verify from repo. Sesuai fakta terverifikasi, selama blok aktif gate delivery di-bypass dan stage tetap maju tanpa delivery (OCMS-DF-2026-192). Setelah kirim, resetLetterAddressAfterToppan mengembalikan letter_address ke mha_reg/lta_reg/lta_mail tanpa furnished_mail (ToppanUploadHelper.java:394-409), jadi stage berikutnya kembali ke alamat terdaftar. Cetak dan postage oleh vendor cannot verify from repo."
+    }
+  ]
+}

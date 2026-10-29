@@ -1,0 +1,29 @@
+{
+  "story": "OCMS20.23",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "No PLUS appeal check code. Nearby code: ocmsadminapi HstManagementServiceImpl (apply-hst, precondition), ocmsadminapi workflows/furnish/plusintegration/PlusIntegrationController (PLUS calls OCMS for furnish/redirect), ocmsadminprivateapi DailyReportJobsScheduler (HST Report Generator from MHA/DataHive data)",
+  "note": "Story status is 'Requirement given - Gen flow'. Its siblings OCMS20.14-20.17 have status 'No requirement' (the same feature). No job, client, DTO or table was found that pulls appeals from PLUS or stores an appeal address, after trying the keywords appeal, plus, alternative address, appeal address, work item, dashboard in ocmsadminapi, ocmsadminprivateapi (src only), thirdpartyapi, ocmsadminui. The PLUS integration in the repo runs the other way (PLUS calls the plus-furnish*/plus-redirect endpoints), and JwtFilter skips JWT for plus-* endpoints so their protection depends on APIM, which is not visible in the repo. The only step that exists is the precondition (indicator applied). The ad-hoc alternative-address report in ocmsadminapi uses furnish applications, not appeals, and is not claimed. No relevant maintenance ticket.",
+  "recommendation": "Do not claim (apart from the precondition). The daily PLUS appeal check and the work item are not built; ask URA/the team to confirm whether it is built in another repo, or mark it as a gap.",
+  "steps": [
+    {
+      "step": "The special indicator (TS-HST) has already been applied to all outstanding notices under the offender ID",
+      "detail": "Mapping 'special indicator' to HST (an ocms_hst row plus a TS-HST suspension) is inferred from the OCMS 20 comments in the code, not from the story. applyHstSuspension (POST /v1/apply-hst) creates the ocms_hst row (HstManagementServiceImpl.java:307-322), finds all notices with offender_indicator='Y' by ID (:326-327), applies TS-HST per notice through tsHelper.processTS (:492-500) and skips notices with an active PS (:338-340). This is a staff action (main scope of OCMS20.18); here it is only the precondition. Ticket OCMS-DF-2026-094 (Closed) once reported PS notices also getting TS-HST; the current code skips active PS."
+    },
+    {
+      "step": "OCMS runs a daily check for new appeals in PLUS under the indicator ID",
+      "detail": "No job pulls appeal data from PLUS. The only daily HST job is the HST Report Generator at 08:00 (DailyReportJobsScheduler.java:99; cron-schedules-prod.properties:255-256), which reads MHA/DataHive results, not PLUS. The PLUS integration in the repo is PLUS calling OCMS for furnish/redirect (PlusIntegrationController.java:65, :136, :185), not OCMS pulling appeals. Searched the keywords appeal, plus, alternative address, appeal address, work item in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmsadminui: no relevant match (the stale ocmsadminprivateapi/cronservice/ copy is not counted)."
+    },
+    {
+      "step": "OCMS receives the details of new appeals from PLUS (including the address written in the appeal)",
+      "detail": "No code receives or stores an address from a PLUS appeal. The plus-* endpoints in ocmsadminapi only handle furnish and redirect (PlusIntegrationController.java:65, :136, :185). There is no client, DTO or table for an 'appeal address' in the six repos. Note: JwtFilter skips JWT for plus-* endpoints and their protection depends on APIM, which is not visible in the repo."
+    },
+    {
+      "step": "OCMS compares the address in the appeal with the registered address",
+      "detail": "There is no comparison of an appeal address against the registered address. The only address comparison in the HST area is MHA/DataHive address vs the ocms_hst address in the report (HstReportHelper.java:471-472), not an appeal address."
+    },
+    {
+      "step": "OCMS creates a work item to route to the officer's dashboard when the address differs",
+      "detail": "There is no work item for an appeal address difference. The staff UI has no HST work item concept; the only work item there is 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). The 'Monthly HST Work Items Report' email (HstReportServiceImpl.java:336-346) carries aggregate numbers from MHA/DataHive results, not from appeals."
+    }
+  ]
+}

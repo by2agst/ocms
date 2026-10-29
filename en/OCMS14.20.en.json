@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.20",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/form/VehicleForm.tsx, pages/Notice/hook/useNoticeSubmit.tsx, utils/mapping/Notice/Notice.ts; ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController (/validoffencenoticepatch), api-authorization.properties (OCMS_NOTICE_EDIT); ocmsadminprivateapi framework/workflows/autorevival/helpers/AutoRevivalHelper (processTsClvLooping, processClvPostRevival). No relevant code in ocmseserviceapi, ocmseserviceui, thirdpartyapi",
+  "note": "The story asks that an officer can manually change the vehicle registration type (e.g. V back to S) so the notice is processed normally. The edit notice screen has a Vehicle Registration Type dropdown; in edit mode, picking a value shows the confirmation 'Are you sure you want to change the Vehicle Registration Type ?' (VehicleForm.tsx:62-64, 127-130). Saving uses POST validoffencenoticepatch with vehicleRegistrationType (Notice.ts:179, useNoticeSubmit.tsx:64-94) and the controller only patches the fields sent (OcmsValidOffenceNoticeController.java:92-112) with no value validation or transition rule; the endpoint is in group OCMS_NOTICE_EDIT (api-authorization.properties:46-48), the role-to-group mapping cannot be verified from repo. Effect on processing: TS-CLV looping stops for notices that are not type V (AutoRevivalHelper.java:1111), but an active TS-CLV is not removed automatically when the type changes, and the re-apply after revival (AutoRevivalHelper.java:823-837) does not check for type V, so CLV can be applied once more; the officer must revive the TS manually. UI side effect: after confirmation the form clears vehicle_no and vehicle_category (VehicleForm.tsx:147) so they must be re-entered. Story status 'Demo paid (50% of 75%)'.",
+  "recommendation": "Mostly claimable: manual type change with confirmation and save exist. Missing: no automatic removal of TS-CLV when V is changed to another type, and the CLV re-apply after revival does not check the type; ask URA whether the officer is expected to revive TS-CLV manually.",
+  "steps": [
+    {
+      "step": "The officer opens the notice in the edit screen and can change the Vehicle Registration Type",
+      "detail": "VehicleForm shows the vehicle_type dropdown (isRequired, options VEHICLE_TYPE from the standard code list) at VehicleForm.tsx:172-182. In any mode other than CREATE, onVehicleTypeChange opens the confirmation modal 'Are you sure you want to change the Vehicle Registration Type ?' (lines 61-64, 127-130). The list of type options (whether V and S exist) is standard code data in the DB, cannot verify from repo. Who may open edit mode is decided by roles outside the repo."
+    },
+    {
+      "step": "The type change is saved on the notice",
+      "detail": "MapAPINoticeValidVehicle puts vehicleRegistrationType in the payload (Notice.ts:179); useNoticeEdit sends POST validoffencenoticepatch (useNoticeSubmit.tsx:64, 91-94). The controller converts the payload into an entity then calls service.patchWithFiles (OcmsValidOffenceNoticeController.java:106-112). The endpoint belongs to group OCMS_NOTICE_EDIT (api-authorization.properties:46-48). Edge case: the server does not validate the type value or the transition (V to S, S to V, any value) and this path has no other side effects (no CLV mention in crud/OcmsValidOffenceNotice)."
+    },
+    {
+      "step": "Once the type is no longer V, the classified suspension loop stops for that notice",
+      "detail": "processTsClvLooping skips notices whose type is not 'V' (AutoRevivalHelper.java:1111), so TS-CLV looping is not continued after the type is changed to S. The Toppan path does not use the type (plate regex, see OCMS14.19) so it is not affected."
+    },
+    {
+      "step": "The notice returns to the normal processing flow after the type change",
+      "detail": "An active TS-CLV is not removed when the type changes (the patch only writes columns, OcmsValidOffenceNoticeController.java:106-112). The re-apply after revival applies CLV again for every newly revived CLV suspension without looking at the notice type (AutoRevivalHelper.java:823-837; processTS/SuspensionBaseHelper do not refer to vehicle_registration_type), so a notice changed to S can be suspended once more; the officer must revive TS-CLV manually (/v1/staff-revive-suspension is in OCMS_NOTICE_EDIT, api-authorization.properties:50). The Classified Vehicle report only lists the 'V to S' category for CLV that was already revived (ocmsadminprivateapi OcmsValidOffenceNoticeRepository.java:749). Read from code, not executed. UI side effect: after confirmation vehicle_no and vehicle_category are cleared (VehicleForm.tsx:147) and must be re-entered."
+    }
+  ]
+}

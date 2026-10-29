@@ -1,0 +1,187 @@
+{
+  "cluster": "A",
+  "candidates": [
+    {
+      "id": "sms-cron-job-status-alert",
+      "title": "SMS alert to the ops team with the result of the Toppan Day-End job and the CES / CES-encrypt upload jobs",
+      "kind": "new",
+      "related_story": null,
+      "related_note": null,
+      "user_story": "As an OCMS operations officer, I want the system to send an SMS with the success count of the nightly Toppan Day-End job and the CES upload jobs, so that I know the same night whether the batch jobs finished without opening the logs.",
+      "acceptance": [
+        "After the Toppan Day-End job finishes, an SMS 'Job Status: Day End main - X/6 Success, oths - Y/3 Success' is sent to every number in cron.sms.alert.recipients",
+        "After the CES upload job (and the CES encrypted-upload callback), an SMS 'Job Status: CES - X/N Success' is sent to the same recipients",
+        "The alert is controlled only by cron.sms.alert.enabled; it still sends when the business SMS switch sms.enable is false",
+        "A job that did not run or failed counts as not-success in the numerator (denominators are fixed in code)",
+        "The environment tag is added to the message text so UAT and PROD alerts can be told apart"
+      ],
+      "evidence": [
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:129", "what": "Day-End scheduler calls sendDayEndSms(taskResults) after the sub-jobs"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:158-176", "what": "Builds the 'Job Status: Day End main ... oths ...' text and calls jobSmsAlertHelper.sendAlert"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/ces/jobs/CesGenerateFileJob.java:277", "what": "CES upload job sends 'Job Status: CES - x/y Success' through the same helper"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/comcrypt/helper/ComcryptCallbackHelper.java:436", "what": "CES encrypted-upload callback also sends the CES status SMS"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/JobSmsAlertHelper.java:33-56", "what": "sendAlert: checks cron.sms.alert.enabled and recipients, loops over recipients"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/smsutility/SmsUtil.java:336-342", "what": "sendSmsForAlert bypasses the sms.enable kill switch (comment says ops alerts must still arrive)"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/application-prod.properties:89-90", "what": "cron.sms.alert.enabled=true and a recipient list are set in PROD (numbers not repeated here)"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:62", "what": "cron.toppanupload.enabled=true, so the Day-End scheduler runs in PROD config"}
+      ],
+      "works": "yes",
+      "works_basis": "Code path is complete and the alert flag is true in PROD properties; sms.enable=false (application-prod.properties:87) does not block it because sendSmsForAlert bypasses it. Two tickets say it was deployed to PROD (OCMS-SR-2026-040 and 041, Closed / Prod deployed). Whether the APIM SMS gateway really delivers and whether the numbers are still valid cannot be verified from the repo. No unit test was looked for.",
+      "ura_requested": "ticket: OCMS-SR-2026-041 (Toppan Day-End SMS alert) and OCMS-SR-2026-040 (CES upload SMS alert). No flow deck exists in repo.",
+      "points": 3,
+      "points_basis": "Estimate only. Similar in size to OCMS9.8 (retry sending, 3 points): one helper, three call sites, one config toggle, no screen. MGG and URA decide the final number.",
+      "demo_steps": [
+        "In UAT set cron.sms.alert.enabled=true with a test number in cron.sms.alert.recipients",
+        "Trigger the Toppan Day-End job from the cron screen (or wait for 00:15) and check the SMS 'Job Status: Day End main - X/6 Success, oths - Y/3 Success'",
+        "Trigger the CES upload job and check the 'Job Status: CES - x/y Success' SMS"
+      ],
+      "risks": [
+        "Not a story; URA may say it is an operational nicety and part of the cron stories (OCMS8.11 daily letter reports, OCMS27.22 trace also mentions the alert helper).",
+        "Both tickets are maintenance tickets (SR), so URA may treat the work as already covered by the maintenance contract, not as new scope.",
+        "OCMS-SR-2026-150 (check count file for CES alert) is still Ready to DEV / In SIT, so the CES alert may change.",
+        "Recipient phone numbers sit in a properties file in the repo; do not attach that file to the claim."
+      ],
+      "confidence": "Medium"
+    },
+    {
+      "id": "toppan-registered-mail-postal-number",
+      "title": "Postal registration number from Toppan registered-mail return files (RD2 / DN2), saved on the notice and shown in the staff portal",
+      "kind": "extension",
+      "related_story": "OCMS8.11",
+      "related_note": "OCMS8.11 (Requirement given, not paid) asks for daily summary reports on letters sent to the vendor. OCMS11.12 / OCMS11.32 / OCMS12.x only cover sending the 2nd letter to the vendor. None of them mention reading the vendor's return file for the postal registration number of the registered-mail letter, storing it, or showing it on the notice. This candidate is that return-file processing and the screen field only.",
+      "user_story": "As a Notice Processing Officer, I want the OCMS to read the registered-mail return files that Toppan sends back for 2nd reminders and Driver Notices and record the postal registration number against the notice, so that I can see the Postal Reg. Number on the notice screen and trace the registered letter.",
+      "acceptance": [
+        "The Toppan Download cron accepts files named DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* and parses notice number plus postal registration number",
+        "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no (update only, the tracking row must already exist)",
+        "An existing number is not overwritten with a blank value",
+        "The staff portal notice detail (RDP and DN section) shows the field 'Postal Reg. Number'",
+        "Notices in the file that are not in VON are reported as errors, not silently skipped"
+      ],
+      "evidence": [
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java:153-159", "what": "Routes DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* files to the registered-mail parser"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java:91-100", "what": "isValidResponseFile lists the RD2 / DN2 return files as processed files"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/jobs/ToppanDownloadJob.java:375-420", "what": "Reads postalRegistrationNumbers from the parse result and passes them to processStageTransitions"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:226-236", "what": "Chooses tracking table: RD2 -> ocms_request_driver_particulars, DN2 -> ocms_driver_notice"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:434-447", "what": "Comment describing the JOIN UPDATE that writes postal_regn_no and keeps the old value when the new one is null"},
+        {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/drivernotice/DriverNoticeControllerPlus.java:210", "what": "API returns postalRegnNo of the driver notice"},
+        {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/driver/requestdriver/RequestDriverController.java:216", "what": "API returns postalRegnNo of the request-driver record"},
+        {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx:165 and :395", "what": "Notice detail shows the postalRegnNo field for RDP and for DN"},
+        {"repo": "ocmsadminui", "file_line": "ocmsadminui/src/i18n/en/translation.json:721", "what": "Label text 'Postal Reg. Number'"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:90-91", "what": "Toppan Download cron 01:30 enabled=true in PROD config"}
+      ],
+      "works": "partly",
+      "works_basis": "Code chain is complete from file name to DB column to screen, and the download cron is enabled in PROD config. But PROD sets sftp.upload.disabledServers=toppan (application-prod.properties:86), so letters may not be uploaded to Toppan from this tier and therefore no return file would come back; whether real RD2 / DN2 return files have ever been processed in PROD cannot be verified from the repo. The note in ToppanStageTransitionService says this service does NOT move stages; stage moves are done elsewhere in the same download job and are not part of this claim.",
+      "ura_requested": "no (no flow deck exists in repo; no maintenance ticket found for it)",
+      "points": 5,
+      "points_basis": "Estimate only. Comparable to OCMS8.10 (daily summary reports from ICA/DOS data, 5 points): a file parser, a bulk update into two tables, two API fields and two screen fields. MGG and URA decide the final number.",
+      "demo_steps": [
+        "In UAT put a DPT-URA-DN2-D2-<timestamp> test file with one existing DN2 notice on the Toppan download SFTP folder",
+        "Run the Toppan Download cron from the cron screen",
+        "Open the notice in the staff portal, RDP and DN section, and check 'Postal Reg. Number' is filled"
+      ],
+      "risks": [
+        "OCMS8.11 and the Toppan letter stories sit in the same job; URA may say the return-file handling is part of 'send letters to vendor'.",
+        "Toppan upload is blocked in PROD config (application-prod.properties:86), so real use is unproven.",
+        "File format of the return file is only known from code, not from an interface spec in the repo.",
+        "Part of the same job (ACK-based stage moves, 'List of DNs processed' report) is deliberately NOT claimed here to avoid double claim."
+      ],
+      "confidence": "Medium"
+    },
+    {
+      "id": "final-reminder-admin-fee",
+      "title": "Administration fee added to the amount payable at the final reminder stage (RR3 / DR3) and cleared when the notice is redirected to a new party",
+      "kind": "extension",
+      "related_story": "OCMS11.42",
+      "related_note": "OCMS11.42 and OCMS12.31 (Demo paid) cover sending the 3rd letter reminder to the hirer / driver via the vendor. Neither text mentions an administration fee or a change of amount payable at that stage. The only 'admin fee' wording in stories is in OCMS1.3-1.10 (all marked User Story Removed, pre-notice charges) and OCMS9.1. This candidate is the fee rule at RR3/DR3 and its reset on furnish redirect.",
+      "user_story": "As a Notice Processing Officer, I want the OCMS to add the configured administration fee to the amount payable when a notice reaches the final reminder stage (RR3 for owner/hirer, DR3 for driver) and to remove it when the notice is redirected to a new owner/hirer/driver, so that the amount the offender sees and pays is correct for the stage.",
+      "acceptance": [
+        "When the Toppan stage update moves a notice to RR3 or DR3, administration_fee is set from ocms_parameter code ADM for that stage and amount_payable = composition_amount + administration_fee",
+        "For any other stage, administration_fee is written as 0 and amount_payable stays at composition_amount",
+        "If the ADM parameter is missing or not a number, the fee is not written and a warning is logged",
+        "When a furnish is approved (cron auto-approve, staff furnish, or manual review) and the notice goes back to DN1 / RD1, administration_fee is set to 0 and amount_payable is reset to composition_amount"
+      ],
+      "evidence": [
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1834", "what": "Reads parameter ADM for the stage (RR3 / DR3 only)"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1396-1411", "what": "RR3/DR3: amount_payable = composition + fee; other stages: fee = 0 (fix for OCMS-DF-2026-170)"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:672", "what": "Cron furnish approval zeroes the fee on redirect"},
+        {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:251", "what": "Staff furnish zeroes the fee (also :415)"},
+        {"repo": "ocmsadminapi", "file_line": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/manualreview/services/ManualReviewService.java:924", "what": "Manual review approval zeroes the fee"}
+      ],
+      "works": "partly",
+      "works_basis": "The logic is in code and was patched after a PROD report (OCMS-DF-2026-170, Closed / Prod deployed), so it ran in PROD at least once. The value of ADM in the database cannot be verified from the repo (ticket text says $15). The stage update runs inside the Toppan upload flow, which is limited in PROD config by sftp.upload.disabledServers=toppan (application-prod.properties:86); how far the stage update still runs with that setting depends on the delivery-gate bypass and cannot be confirmed here.",
+      "ura_requested": "ticket: OCMS-DF-2026-170 (URA staff describe the $15 fee at RR3/DR3 as expected behaviour and report wrong application) and OCMS-DF-2026-122 (foreign-vehicle $15 fee). No flow deck exists in repo.",
+      "points": 5,
+      "points_basis": "Estimate only. Similar to OCMS8.10 (5 points) in effort: parameter lookup, stage-update arithmetic and three furnish paths. MGG and URA decide the final number.",
+      "demo_steps": [
+        "In UAT make sure ocms_parameter has ADM rows for RR3 and DR3",
+        "Run the Toppan Day-End job on a notice that is one stage before RR3 and check administration_fee and amount_payable on the notice detail",
+        "Furnish a new hirer for that notice and check the fee is back to 0 and amount_payable equals composition_amount"
+      ],
+      "risks": [
+        "Brief and project history treat 'admin fee' as a leftover of removed stories (OCMS1.x). URA may see this as the same thing; the difference is that this is a final-reminder-stage fee, not the pre-notice fee. This needs a business decision before billing.",
+        "The two tickets are defect fixes (DF) on this logic; URA may argue the fee itself was already in an earlier paid scope.",
+        "The fee amount lives in the database, not in the repo; cannot verify the real value.",
+        "Foreign-vehicle admin fee job (day-end job 5 'Admin Fee') is NOT included: it belongs to the foreign vehicle area where OCMS14.30-14.32 were removed."
+      ],
+      "confidence": "Low"
+    },
+    {
+      "id": "repccs-listed-vehicle-file",
+      "title": "Daily 'Listed Vehicle' file of unpaid foreign-vehicle notices (PS-FOR) sent to REPCCS",
+      "kind": "new",
+      "related_story": null,
+      "related_note": "Sits next to OCMS10.1 (ANS vehicle list), OCMS2.1 (NOPO archival list) and OCMS2.2 (offence rule list), which are the other files made by the same job. No story text mentions a list of foreign vehicles for REPCCS. Already registered as orphan 'REPCCS Listed Vehicle (foreign vehicle FOR) daily file to REPCCS' in meta.json.",
+      "user_story": "As a Notice Processing Officer, I want the OCMS to send REPCCS a daily list of foreign vehicles that still have unpaid notices under PS-FOR past the configured period, so that REPCCS can show the 'Outstanding notices. Call URA ...' message to those vehicles.",
+      "acceptance": [
+        "The REPCCS Generate File job runs the Listed Vehicle service as its 3rd step",
+        "The query selects distinct vehicle_no from VON where suspension_type = PS, epr_reason_of_suspension = FOR, nothing paid, and notice date is older than ocms_parameter FOR / PERIOD days",
+        "A fixed-width file (header H, detail D with licence plate and message, trailer T with record count) is built",
+        "The file is saved to Azure blob and sent for PGP encryption and SFTP upload through the comcrypt callback",
+        "When no vehicle qualifies the service ends with 0 records and no file is sent"
+      ],
+      "evidence": [
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/repccs/jobs/RepccsGenerateFileJob.java:172", "what": "Job calls executeRepccsListedVehicle() as service 3 of 4"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/repccs/RepccsListedVehOcmsToRepccsServiceImpl.java:45-100", "what": "Queries vehicles, builds the file, uploads to blob, then asks comcrypt for encryption and SFTP upload"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:468-486", "what": "findRepccsForeignVehicleNotices: PS-FOR, unpaid, older than FOR/PERIOD days"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/repccs/RepcssListedDatFileGenerator.java:13-30", "what": "CASREP file layout: header, detail, trailer, 150 characters per record"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/RepccGenerateFilesController.java:33,53", "what": "Manual trigger POST /crontest/repccs/execute-scheduled-job"},
+        {"repo": "ocmsadminprivateapi", "file_line": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:194", "what": "cron.repupload.enabled=false in PROD (UAT has it true at cron-schedules-uat.properties:196)"}
+      ],
+      "works": "partly",
+      "works_basis": "Code path is complete and the cron is enabled in UAT. In PROD config the whole REPCCS upload cron is off (cron-schedules-prod.properties:194), so it runs only if someone triggers it by hand; real PROD server values cannot be verified. Whether REPCCS actually consumes the file cannot be verified from the repo.",
+      "ura_requested": "no (no flow deck exists in repo; no maintenance ticket found for it)",
+      "points": 3,
+      "points_basis": "Estimate only. Same size as OCMS2.2 (offence rule list to REPCCS, 3 points) which uses the same pattern: one query, one file generator, same upload path. MGG and URA decide the final number.",
+      "demo_steps": [
+        "In UAT make sure one PS-FOR unpaid notice is older than the FOR / PERIOD parameter",
+        "Run POST /crontest/repccs/execute-scheduled-job or wait for 00:01",
+        "Check the generated Listed Vehicle file in blob and the encrypted file on the REPCCS SFTP folder"
+      ],
+      "risks": [
+        "Foreign-vehicle handling is the area where OCMS14.30-14.32 were removed; URA may call this a leftover of that scope.",
+        "REPCCS upload cron is disabled in PROD config; URA can say it is not in use.",
+        "URA never asked for it as far as the repo shows (no ticket, no flow deck).",
+        "The other three files of the same job overlap with OCMS2.1, OCMS2.2 and OCMS10.1 and must not be claimed again."
+      ],
+      "confidence": "Low"
+    }
+  ],
+  "not_claimable": [
+    {"item": "REPCCS webhook create-notice in ocmsadminprivateapi (/repccsWebhook, APIM key check, create-notice pipeline) - seeds 1 and orphans 0/10/12", "source": "ocmsadminprivateapi/.../workflows/repccs/notice_creation/core/RepccsCreateNoticeController.java:39", "reason": "other: receiving REPCCS notices in real time is the text of OCMS3.1 (status Requirement given, so already a story; claim it there). Mapped orphan link to OCMS1.1/1.2 is wrong because those are User Story Removed. Also: old copy in ocmsadminapi has no JwtFilter / key check (security exposure), and ocms.repccs.key.validation.enabled=false in UAT (application-uat.properties:119)."},
+    {"item": "REPCCS Generate File: ANS vehicle, Offence Rule and NOPO Archival files (seed 18)", "source": "ocmsadminprivateapi/.../agencies/repccs/jobs/RepccsGenerateFileJob.java", "reason": "other: already inside OCMS10.1, OCMS2.2 and OCMS2.1 (traces exist for all three). Only the Listed Vehicle file is a candidate."},
+    {"item": "Diplomat / VIP vehicles go straight to RD1 after the LTA response (seed 2); exclusion list and passport holders force RD1 after LTA (seed 4); DataHive contact lookup and ENA staging after LTA (seed 3)", "source": "ocmsadminprivateapi/.../agencies/lta/download/helpers/LtaProcessingOrchestrator.java:101-124; LtaBatchCode0Processor.java:150-167, :685-700", "reason": "other: special vehicle / ID types are covered by OCMS14.1-14.5, OCMS11.2 and OCMS12.2 (traces mention diplomat and PS-MID); LTA query is OCMS7.1 (Fully paid); mobile / email lookup is OCMS9.4 (Fully paid). Ticket OCMS-DF-2026-052 for the diplomat case is a defect fix."},
+    {"item": "DataHive UEN / FIN sync cron with TS-ACR data-quality suspensions, TS-NRO for FIN not found, alternate address lookup, daily UEN / FIN report (seeds 5, 6, 10, 15, 29)", "source": "ocmsadminprivateapi/.../workflows/datahiveuenfin/services/DataHiveUenFinService.java:1346-1440, :3157-3171; jobs/DataHiveUenFinJob.java", "reason": "switched off: cron.mhadownload.uenfin.enabled=false in PROD (cron-schedules-prod.properties:52). Also the behaviour is inside OCMS8.2, 8.3, 8.7, 8.10 (Fully paid) and OCMS11.41 (Demo paid), only with DataHive as the data source instead of DOS."},
+    {"item": "ACRA shareholder data stored for company notices (seeds 8, 38)", "source": "ocmsadminprivateapi/.../datahiveuenfin/services/DataHiveUenFinService.java:1828-1876", "reason": "switched off: same UENFIN cron disabled in PROD (cron-schedules-prod.properties:52). Seed itself says board data is deliberately not written to DB, so the result is partial. Receiving owner / partner / director particulars is the text of OCMS11.18."},
+    {"item": "Work-item stubs for expired EP / WP / LTVP passes, FIN not found, death PS-RP2 (seeds 7, 9)", "source": "ocmsadminprivateapi/.../datahiveuenfin/services/DataHiveUenFinService.java:2936-2967", "reason": "bug or gap: only logs, work item is a placeholder. OCMS8.6 and OCMS8.9 stay Requirement given."},
+    {"item": "eNotification cron: passport holders skipped, company e-mail only, HST ID gets TS-HST after notification, PS-ANS after eAN, error / summary e-mails to ops (seeds 12, 13, 14, 16, 17, 19, 21, 22, 23, 32, 34, 35, 37)", "source": "ocmsadminprivateapi/.../notification_sms_email/jobs and helpers", "reason": "switched off: cron.notification.enabled=false in PROD (cron-schedules-prod.properties:236), sms.enable=false (application-prod.properties:87) and email.enableSmtp=false (:80). The sending flow itself is OCMS9.x, OCMS10.6-10.7 and OCMS11.x (Demo paid / Fully paid); the sub-rules are not separate features. TS-HST automation belongs to the HST feature claimed elsewhere (orphans 36, 39, 46, 48, 62, 64 are the same behaviour)."},
+    {"item": "AN letter tracking in ocms_an_letter, letter_address reset, PS-ANS after the AN letter (seed 20)", "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java:241-293, :955-1010", "reason": "other: part of sending the AN letter to the vendor, which is the text of OCMS10.9 (Requirement given, unpaid). Claim under that story, not separately."},
+    {"item": "Consolidated Control Summary Report (CSR) file for all stages (seed 25)", "source": "ocmsadminprivateapi/.../toppan/upload/jobs/ToppanLettersGeneratorJob.java:254-262, :432", "reason": "other: a count file that goes to Toppan with the letter files; part of the letter-sending stories (OCMS11.7, 11.12, 11.22, 12.x). Toppan upload is blocked in PROD config (application-prod.properties:86)."},
+    {"item": "Toppan delivery gate (stage moves only after file is on SFTP, bypass when toppan is in disabledServers) (seed 33)", "source": "ocmsadminprivateapi/.../toppan/upload/jobs/ToppanUploadJob.java:405-458; cron-schedules-prod.properties:67-73", "reason": "other: internal reliability mechanism with no screen or output a user can see; created for OCMS-DEV-2026-199 / OCMS-DF-2026-192 (the latter is still Ready to UAT)."},
+    {"item": "'List of DNs processed' Toppan report (seed 40)", "source": "ocmsadminprivateapi/.../toppan/report/helpers/ToppanReportHelper.java:432-475", "reason": "other: a daily report on letters sent, which is the text of OCMS8.11 (Requirement given). Mail sending also off: email.enableSmtp=false (application-prod.properties:80), TOPPAN_REPORT is in the allow list (:81) so it is not fully blocked - cannot verify."},
+    {"item": "Letter exceptions by vehicle type: Foreign re-PS-FOR, Military / Diplomatic PS-MID / PS-DIP, VIP TS-CLV (seeds 26, 30, 36, 41, 45)", "source": "ocmsadminprivateapi/.../toppan/upload/helpers/ToppanUploadHelper.java", "reason": "leftover of removed story (foreign vehicle part: OCMS14.30 / 14.31 / 14.32 are User Story Removed) and other (Military / Diplomatic / VIP part: inside OCMS14.1-14.5, OCMS11.42, OCMS12.31, OCMS12.45 whose traces already mention PS-MID)."},
+    {"item": "Cron furnish auto-approval with 6 checks (seed 31)", "source": "ocmsadminprivateapi/.../furnish_processing/helpers/FurnishApprovalHelper.java", "reason": "other: auto-approval against pre-defined conditions is the text of OCMS41.5 / 41.6 / 41.7 (Demo paid) and OCMS11.46."},
+    {"item": "Toppan stage update resets fee to 0 for non-final stages (seed 24) and furnish redirect reset (seed 43)", "source": "ToppanUploadHelper.java:1396-1411; FurnishApprovalHelper.java:672", "reason": "other: merged into candidate final-reminder-admin-fee to avoid double claim; they are defect fixes of OCMS-DF-2026-170."},
+    {"item": "Foreign-vehicle admin fee day-end job (job 5 'Admin Fee') and vHub notification stub", "source": "cron-schedules-prod.properties:79; orphans 83 and 186 in meta.json", "reason": "leftover of removed story / bug or gap: foreign-vehicle area (OCMS14.30-14.32 removed); vHub notification is a stub that only logs. Not examined further in this cluster."}
+  ],
+  "notes": "Most of the 46 seeds are sub-rules of flows that already have a story (eNotification, Toppan letters, special vehicles, DataHive checks). Seeds are heavily duplicated: TS-HST after eNotification appears 6 times, Toppan registered-mail return file 4 times, MID / DIP letter exceptions 5 times. All OCMS1.x stories are 'User Story Removed', so seed notes that point at OCMS1.x as the nearest story do not give coverage either way; for REPCCS notice intake the live story is OCMS3.1. Key PROD flags (ocmsadminprivateapi): cron.repupload.enabled=false, cron.notification.enabled=false, cron.mhadownload.uenfin.enabled=false, sms.enable=false, email.enableSmtp=false, sftp.upload.disabledServers=toppan. Real server values cannot be verified from the repo. Phone numbers and e-mail recipients in application-prod.properties must not be copied into the report. HST (manual HST, monthly HST report, TS-HST looping) was seen in orphans but belongs to another cluster, so it is not claimed here. Stale folder ocmsadminprivateapi/cronservice was not used for any citation."
+}

@@ -1,0 +1,46 @@
+{
+  "story": "OCMS42.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/{HDQuests,Particulars}.ts, utils/map/MapFurnish.ts, utils/validation/Furnish/ValidHirerDriver.ts (ValidQuestions). ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishValidationServiceImpl,FurnishSubmissionServiceImpl}. ocmsadminprivateapi framework/workflows/furnish_processing/helpers/{FurnishApprovalHelper,FurnishSyncHelper}.java, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, thirdpartyapi: tidak dibaca untuk story ini.",
+  "note": "Story tidak ada di flow deck; Sesuai berarti code melakukan apa yang tertulis di story. Status sheet 'Fully paid'. Pertanyaan Q1 (apakah orang itu driver yang melakukan offence) dan pertanyaan lanjutan (SIM valid / bertanggung jawab atas kendaraan) ada dan wajib dijawab; jawaban Q1 menentukan owner_driver_indicator (N = Hirer, Y = Driver) yang dikirim dan dipakai backend. Dua hal perlu diperhatikan: (1) jawaban 'No' pada pertanyaan lanjutan hanya diblokir di UI (tombol Proceed disabled); UI tidak mengumpulkan jawaban pertanyaan lanjutan sendiri: quesTwoAns/quesThreeAns diturunkan dari jawaban Q1 ('Y' hanya pada cabang yang cocok, selain itu kosong; MapFurnish.ts:46-49), sehingga jawaban asli pertanyaan lanjutan tidak tersimpan dan aturan server di FurnishValidationServiceImpl.java:116-140 tidak pernah menolak dari UI ini; (2) update particulars sebagai hirer/driver di notice dilakukan belakangan oleh cron approval/manual review, bukan langsung oleh halaman, dan FIN/Passport selalu masuk manual review. Nilai property cron di server asli tidak bisa diverifikasi dari repo.",
+  "recommendation": "Bisa diklaim dengan catatan: prompt dan penentuan hirer/driver ada; update ke notice terjadi lewat approval cron/manual review, dan jawaban pertanyaan lanjutan tidak disimpan apa adanya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah ID individu (bukan UEN) diisi, halaman menanyakan apakah orang tersebut driver yang melakukan offence (Q1)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:36-40; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:111-115; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:237-262; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:184-190",
+      "fit": "Sesuai",
+      "detail": "Label Q1 'Was the person the driver who committed the parking offence(s) ?' (HDQuests.ts:36). InitQ1() dipanggil jika tipe ID bukan UEN (HDQuests.ts:111-115) dan membuat radio Yes/No (HDQuests.ts:237-262). Q1 wajib untuk non-UEN, tidak berlaku untuk UEN (ValidHirerDriver.ts:184-190)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan pertanyaan lanjutan sesuai jawaban: jika Yes, apakah punya SIM valid; jika No, apakah orang itu bertanggung jawab atas kendaraan",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:37-39; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:253-262; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:268-292; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:353-380; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:64-73; ocmseserviceui/src/pages/Furnish/Form/Particulars.ts:154-158",
+      "fit": "Sesuai",
+      "detail": "Q1=Y memunculkan Q1Yes 'Did the driver have a valid driving licence on the offence date(s)?', Q1=N memunculkan Q1No 'Was the person in charge of the vehicle(s) on the offence date(s)?' (HDQuests.ts:37-39, 253-262, 268-292, 353-380); jawaban lanjutan wajib (ValidHirerDriver.ts:192-202). Jawaban 'No' memunculkan modal 'Invalid Particulars' dan menonaktifkan tombol Proceed (HDQuests.ts:335-351, 382-398; Particulars.ts:64-73, 154-158). Catatan: pertanyaan 'in charge' sesuai contoh story; pertanyaan SIM adalah tambahan yang tidak disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman memutuskan dari jawaban apakah orang yang di-furnish dicatat sebagai hirer atau driver",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/map/MapFurnish.ts:43; ocmseserviceui/src/utils/map/MapFurnish.ts:47-49; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:288-289; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:373-375; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:187",
+      "fit": "Sesuai",
+      "detail": "owner_driver_indicator = 'H' jika UEN atau Q1 = 'N', selain itu 'D' (MapFurnish.ts:43, ulang di :167) lalu dikirim sebagai payload dan disimpan server ke eocms_furnish_application (FurnishSubmissionServiceImpl.java:187). Yang menentukan hanya Q1; jawaban pertanyaan lanjutan hanya menjadi gerbang (lihat langkah 2). Server memercayai nilai dari UI dan tidak menghitung ulang dari jawaban. Perilaku persis jika orang bertanggung jawab tetapi bukan driver (Q1=N lalu Q1No=Y) menghasilkan Hirer, sesuai contoh story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Particulars notice yang dipilih diperbarui sebagai hirer atau driver sesuai keputusan tersebut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:153-173; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:296-310; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishApprovalHelper.java:648-656; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:305-312",
+      "fit": "Sebagian",
+      "detail": "Submission tersimpan Pending dengan owner_driver_indicator (FurnishSubmissionServiceImpl.java:187-218) lalu cron Furnish Processing (cron.syncinternetintranet.enabled=true, jadwal tiap 10 menit di cron-schedules-prod.properties:305-312) menjalankan auto-approval: hanya jika semua CHECK 1-6 lolos (FurnishApprovalHelper.java:153-173), offender baru dibuat dengan indicator H/D dan stage berpindah ke RD1 (Hirer) atau DN1 (Driver) (FurnishApprovalHelper.java:648-656). ID tipe FIN atau Passport otomatis pending untuk review manual (FurnishApprovalHelper.java:296-310), begitu juga bila sudah ada Hirer/Driver dengan peran sama. Jadi update bukan oleh halaman dan tidak pasti otomatis. Nilai property di server asli: cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS38.9",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminui: pages/Report (Report.tsx, ReportList.tsx tab per function ID, component/ReportSlot + DateRangeInput untuk pencarian, lists/* untuk grid, hook/useDownloadReport), utils/validation/Report.ts (batas rentang tanggal), utils/data/LinkData.tsx dan App.tsx (menu dan route report/*), pages/Dashboard (kosong). ocmsadminapi: workflows/reports/daily/DailyReportController+ServiceImpl (daftar file per tanggal dari blob), workflows/reports/system|agency (search laporan data), FileDownloadController (download/blob), OcmsAuthorizationInterceptor + api-authorization.properties (OCMS_REPORT_*).",
+  "note": "Story minta modul laporan umum di dalam dashboard untuk mencari laporan yang tidak di-route ke officer, lalu melihat/mengunduhnya. Report module ada sebagai menu Report (route report/*) dengan 13 tab laporan yang tampil sesuai function ID user dan dijaga server lewat mapping OCMS_REPORT_*; pencarian dilakukan per tab dengan rentang tanggal (dan source untuk 3 tab). Tapi modul ini berdiri sendiri, bukan bagian halaman dashboard (Dashboard kosong), pencarian tidak memakai nama laporan atau kata kunci, rentang dibatasi 7 hari (laporan file), 31 hari (Reminder), 6 bulan, atau 1 tahun (PS), dan banyak laporan OCMS tidak ada di modul (Monthly Paid/Exception, Daily Paid, dan tab yang di-comment). Tampilan di layar sama seperti OCMS38.8: grid untuk laporan data, daftar nama file untuk laporan file. Tab Reminder, DataHive FIN dan UEN punya celah mapping izin (api-authorization.properties:144-145). Tiket OCMS-DF-2026-149 (Closed) dan OCMS-DF-2026-194 (Open) menyangkut export laporan.",
+  "recommendation": "Bisa diklaim sebagian: Report module dengan pencarian per tanggal dan download sudah ada dan berfungsi untuk sebagian besar tab. Integrasi ke dashboard, pencarian berdasarkan nama laporan, dan cakupan semua laporan OCMS belum ada.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka modul laporan umum dari dalam dashboard",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:390; ocmsadminui/src/App.tsx:317; ocmsadminui/src/pages/Report/Report.tsx:20-31; ocmsadminui/src/pages/Dashboard/Dashboard.tsx:17-31",
+      "fit": "Sebagian",
+      "detail": "Modul laporan ada sebagai menu Report (menu.push(LinkReport), LinkData.tsx:390) dengan route report/* (App.tsx:317) dan halaman Report.tsx:20-31 berisi ReportList. Menu ini ada di sidebar staff portal yang sama dengan dashboard, tapi bukan bagian halaman Dashboard, yang kosong (Dashboard.tsx:17-31). Jadi modul umum ada, integrasinya di dalam dashboard tidak."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Modul memuat laporan OCMS yang tidak di-route ke officer, dibatasi hak akses",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:50-146; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/interceptor/OcmsAuthorizationInterceptor.java:51-72; ocmsadminapi/src/main/resources/api-authorization.properties:115-153",
+      "fit": "Sebagian",
+      "detail": "ReportList.tsx menampilkan 13 tab hanya bila user punya function ID-nya (hasFunction, :50-146): Notice FE, RIP, Notice CRE, LTA, vHub, MHA, eNotification, DataHive Contact Info, Reminder Letter, CPS, PS, DataHive FIN, DataHive UEN. Server menolak 403 untuk path di luar mapping function (OcmsAuthorizationInterceptor.java:51-72; api-authorization.properties:115-153). Tab HST, TS, DOS, SMS, Email, Letter, AN, Workorder di-comment (ReportList.tsx:147-201), dan laporan Daily/Monthly Paid, Payment Exception, serta Monthly HST dihasilkan cron dan dikirim lewat email (cron-schedules-prod.properties:262-284) tanpa tab atau source di modul, sehingga tidak bisa dicari di sana. Jadi hanya sebagian laporan OCMS tercakup. Isi function ID per user cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mencari laporan (rentang tanggal, source) di modul",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/component/ReportSlot.tsx:54-80; ocmsadminui/src/pages/Report/component/ReportSlot.tsx:147-149; ocmsadminui/src/utils/validation/Report.ts:14-33; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportController.java:18-37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:23; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:96-100",
+      "fit": "Sesuai",
+      "detail": "Setiap tab punya DateRangeInput dan tombol Search (ReportSlot.tsx:147-149). Search memvalidasi form lalu mengirim filter tanggal (dan source untuk Notice FE/CRE/Reminder) ke grid (ReportSlot.tsx:54-80). Laporan file memanggil POST /v1/daily-report/search yang membaca daftar file per tanggal dari Azure Blob (DailyReportController.java:18-37), maksimum 7 hari (DailyReportServiceImpl.java:23, 96-100; di UI Report.ts:14-33). Pencarian ini bekerja untuk laporan yang dicakup modul. Tidak ada pencarian bebas berdasarkan nama laporan; batasan rentang dan cakupan sudah dibahas di langkah sebelumnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer melihat laporan hasil pencarian di layar",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListLTA.tsx:56-95; ocmsadminui/src/pages/Report/lists/ReportListNoticeCRE.tsx:84-100; ocmsadminui/src/pages/Report/lists/ReportListRIP.tsx:72-87",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS38.8 langkah 3: laporan data tampil sebagai baris grid (ReportListNoticeCRE.tsx:84-100; ReportListRIP.tsx:72-87), sedangkan laporan file (LTA, MHA, eNotification, vHub, DataHive) hanya menampilkan fileName dan fileSize dengan tombol Download (ReportListLTA.tsx:56-95); isi laporan tidak ditampilkan di layar."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengunduh laporan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:114-121; ocmsadminui/src/pages/Report/hook/useDownloadReport.ts:22-40; ocmsadminapi/src/main/resources/api-authorization.properties:144-145",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS38.8 langkah 6: POST /v1/download/blob lalu saveAs (FileDownloadController.java:114-121; useDownloadReport.ts:22-40). Mapping OCMS_REPORT_REMINDER tidak memuat /v1/download/blob (api-authorization.properties:144-145) dan OCMS_REPORT_DH_FIN serta OCMS_REPORT_DH_UEN tidak punya mapping, jadi download di tab itu bisa 403 untuk user yang hanya punya function tersebut. Function ID asli per user cannot verify from repo."
+    }
+  ]
+}

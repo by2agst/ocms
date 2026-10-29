@@ -1,0 +1,64 @@
+{
+  "story": "OCMS42.10",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui hooks/Auth.ts, pages/Furnish/{Landing,Furnish,API,Summary,Form/CompanyParticulars,Form/Particulars}.ts, components/form/Contact.ts, utils/validation/Furnish/ValidCompany.ts; ocmseserviceapi workflows/spcp/{controller/UserInfoController,service/SpcpServiceImpl}, workflows/furnish/FurnishSubmissionController, application-prod.properties. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Status story 'Demo paid (50% of 75%)'; demo_remark 'Internet PII encryption - cannot fetch offender particulars'. Remark itu tidak terlihat dari code. Dari code: untuk company, backend tidak memanggil MyInfo Business tetapi EDH (getEdhData) karena MyInfo butuh konteks Singpass (UserInfoController.java:108-113). Hasil yang dipakai UI hanya nama perusahaan (API.ts:415-423); UEN tidak ditampilkan (field di-comment, UEN dari session) dan nomor kontak/email tidak diisi otomatis, user mengetiknya sendiri. Nama perwakilan diisi dari data login CorpPass. Apakah EDH di gateway URA sama dengan MyInfo Business: cannot verify from repo. Jika EDH tidak mengembalikan nama, field Company Name (disabled) tetap kosong dan submit ditolak sampai user menekan Clear.",
+  "recommendation": "Klaim sebagian: hanya nama perusahaan yang terisi otomatis (dari EDH, bukan MyInfo Business yang terbukti). Konfirmasi ke URA soal EDH vs MyInfo Business, UEN, dan nomor kontak",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perwakilan perusahaan login Corppass di halaman Furnish; session membawa UEN dan transaction id",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Landing.ts:96-104; ocmseserviceui/src/hooks/Auth.ts:174-176; ocmseserviceui/src/pages/Furnish/Furnish.ts:121-138; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:79-83",
+      "fit": "Sesuai",
+      "detail": "Tombol Corppass di Landing memanggil onFurnishCorppass() yang menjalankan onCorppass(isBack, 'FURNISH') (Landing.ts:101, Auth.ts:174-176). Furnish.Auth menyimpan user, isCP dan nama perwakilan dari authResult.name (Furnish.ts:121-138). Di backend UEN diambil dari session sebagai entityId (FurnishSubmissionController:81-83). Handshake Corppass dan isi session asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah notice dipilih, halaman otomatis meminta data perusahaan (tombol Retrieve MyInfo Business juga ada)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Furnish.ts:432-440; ocmseserviceui/src/pages/Furnish/Furnish.ts:185-199; ocmseserviceui/src/pages/Furnish/Form/CompanyParticulars.ts:110-116; ocmseserviceui/src/pages/Furnish/Form/CompanyParticulars.ts:202-206; ocmseserviceui/src/utils/env.ts:66-69",
+      "fit": "Sesuai",
+      "detail": "onSelected memanggil fetchAndApplyUserInfo() (Furnish.ts:439) dengan authType CP dan appId CP khusus Furnish (env.ts:66-69). Tombol gambar 'Retrieve MyInfo Business with Singpass' di form company (CompanyParticulars.ts:202-206) memanggil fungsi yang sama (:110-116)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data perusahaan diambil dari MyInfo Business",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:83-87; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:108-121; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/service/SpcpServiceImpl.java:122-143; ocmseserviceapi/src/main/resources/application-prod.properties:62; ocmseserviceui/src/pages/Furnish/API.ts:415-423",
+      "fit": "Sebagian",
+      "detail": "Untuk authType CP backend hanya memanggil spcpService.getEdhData(...) ke /spcpDS/edh/getEdhData/v1 (UserInfoController:113, SpcpServiceImpl:122-143, application-prod.properties:62). Komentar di :108-111 menyebut MyInfo tidak dipanggil untuk CorpPass karena butuh konteks Singpass. Jadi tidak ada panggilan MyInfo Business di repo; data berasal dari EDH (Entity Data Hub). Apakah gateway URA menjadikan EDH sama dengan MyInfo Business: cannot verify from repo. Sumber data perusahaan ada, tetapi bukan yang disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nama perusahaan terisi otomatis di form owner",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/API.ts:415-423; ocmseserviceui/src/pages/Furnish/Furnish.ts:210-212; ocmseserviceui/src/pages/Furnish/Form/CompanyParticulars.ts:166-168; ocmseserviceui/src/pages/Furnish/Form/CompanyParticulars.ts:126-160",
+      "fit": "Sesuai",
+      "detail": "APIGetUserInfo membaca edh.entityName atau Co_Info_Registered.EntityName (API.ts:418) dan applyUserInfoToFields mengisi cName (Furnish.ts:211); field dikunci disabled=true (CompanyParticulars.ts:168). Nama perwakilan juga diisi dari nama login CorpPass (Furnish.ts:212), bukan dari data perusahaan. Jika nama tidak ada, API.ts:420 return gagal tanpa pesan, field tetap kosong dan validateCName menolak submit (CompanyParticulars.ts:140-160) sampai user menekan Clear yang membuka field (:136)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UEN perusahaan terisi otomatis dan terlihat di halaman",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/CompanyParticulars.ts:227-233; ocmseserviceui/src/pages/Furnish/Furnish.ts:96-101; ocmseserviceui/src/pages/Furnish/Summary.ts:82-108; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:79-83",
+      "fit": "Sebagian",
+      "detail": "Field cID/UEN di form company di-comment (CompanyParticulars.ts:227-231) dan ringkasan review hanya menampilkan Company Name, Representative, Mobile, Email (Summary.ts:82-108). UEN dibawa sebagai user.uen_no ke formData (Furnish.ts:100) dan dipakai backend dari session (FurnishSubmissionController:81-83), tetapi tidak tampil ke user dan bukan hasil MyInfo Business. Sama seperti kasus ID individu di OCMS42.7."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor kontak perusahaan terisi otomatis dari MyInfo Business",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/API.ts:415-423; ocmseserviceui/src/pages/Furnish/Furnish.ts:210-216; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/spcp/controller/UserInfoController.java:116-121; ocmseserviceui/src/utils/validation/Furnish/ValidCompany.ts:32-48",
+      "fit": "Tidak ada code",
+      "detail": "Untuk CP, APIGetUserInfo hanya mengembalikan companyName (API.ts:422); mobile dan email dari respons tidak dibaca. Akibatnya applyUserInfoToFields memanggil setValue untuk cContactNo dan cEmail dengan undefined (Furnish.ts:213-215), yaitu tidak mengisi apa-apa. Nomor kontak dan email perusahaan wajib diketik user (ValidCompany.ts:32-48). Tidak ada code yang mengisi nomor kontak perusahaan dari sumber eksternal. Apakah EDH mengembalikan nomor kontak: cannot verify from repo."
+    }
+  ]
+}

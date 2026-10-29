@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.25",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/HST/revival/{HSTRevival,form/HSTRevivalForm} + hooks/useHST.tsx (Revive HST); ocmsadminapi HstManagementController (POST /v1/revive-hst) dan HstManagementServiceImpl.reviveHst/updateMailingAddress; api-authorization.properties OCMS_HST_REVIVAL. Tidak ada layar work item",
+  "note": "Status story 'Demo paid (50% of 75%)'. Keputusan 'cabut indicator' bisa dilakukan lewat halaman HST Revival (konfirmasi dialog, revive semua TS-HST, hapus row ocms_hst, simpan alamat baru sebagai furnished_mail). Gap: tidak ada work item untuk direview (OIC mengetik ID sendiri dan melihat alamat lama), tidak ada jalur 'tetap' yang tercatat, tidak ada pilihan terpisah 'kirim ulang reminder' (hanya tersirat dari revive; pembuatan surat harian di-comment, ToppanUploadJobsScheduler.java:118, hanya lewat trigger manual), dan officerAuthorisingRevival diisi user sistem sehingga identitas OIC tidak tercatat di suspended_notice (HstManagementServiceImpl.java:529, GAP-011). Pengiriman ulang reminder itu sendiri adalah OCMS20.26. Tiket pemeliharaan yang relevan: tidak ada yang mengubah verdict (OCMS-DF-2026-093 dan -117 menyangkut jalur furnish dan looping, bukan layar ini). Peran akses nyata cannot verify from repo (hanya mapping OCMS_HST_REVIVAL).",
+  "recommendation": "Klaim sebagian (~50%): aksi cabut + konfirmasi ada. Jangan klaim review work item, pencatatan keputusan 'tetap', atau pilihan resend reminder terpisah.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC membuka dan mereview work item (alamat existing vs alamat baru)",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:157-164; ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:153-229; ocmsadminui/src/utils/constant.ts:300-303",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada layar work item HST. Dashboard.tsx tidak punya konsep work item HST; satu-satunya work item di staff UI adalah 'UPL Endorsement' (ocmsadminui/src/utils/constant.ts:300-303). Yang ada: setelah OIC mengetik ID di halaman Revival, check-hst mode revival mengembalikan nama dan alamat dari ocms_hst, yaitu alamat LAMA (HstManagementServiceImpl.java:157-164), bukan alamat baru; alamat baru diketik manual di form (HSTRevivalForm.tsx:153-229)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menyatakan keputusan: cabut indicator atau tetap",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:52-94; ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:252-254; ocmsadminui/src/pages/HST/hooks/useHST.tsx:139; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:419-466; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:528-530; ocmsadminapi/src/main/resources/api-authorization.properties:102-103",
+      "fit": "Sebagian",
+      "detail": "Jalur 'cabut' ada: tombol 'Revive HST' (HSTRevivalForm.tsx:252-254) -> onRevive (:52) -> POST revive-hst (useHST.tsx:139) -> reviveHst (HstManagementServiceImpl.java:419-466): revive semua TS-HST milik ID (reviveHstSuspension, revival reason 'HAV', remarks 'HST Revival - New address obtained', :528-530) lalu menghapus row ocms_hst (:466). Otorisasi lewat mapping OCMS_HST_REVIVAL (api-authorization.properties:102-103). Gap: jalur 'tetap' tidak punya aksi atau catatan (OIC cukup tidak menekan tombol), keputusan tidak melekat ke work item, dan officerAuthorisingRevival diisi DEFAULT_SYSTEM_USER_ID, bukan user OIC (HstManagementServiceImpl.java:529, tanda GAP-011), jadi siapa yang memutuskan tidak tercatat di suspended_notice. Remarks selalu 'New address obtained' meski tidak ada alamat baru yang divalidasi."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC menyatakan keputusan mengirim ulang reminder ke alamat baru/alternatif",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:572-614; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:440-456; ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118",
+      "fit": "Sebagian",
+      "detail": "Tidak ada pilihan 'kirim ulang reminder' di form. Revive menulis alamat form ke record alamat furnished_mail dan menandainya letter_address='Y' (updateMailingAddress, HstManagementServiceImpl.java:572-614, dipanggil dari :455), sehingga surat berikutnya mengarah ke alamat baru, dan layar menyebut 'notices will resume processing' (HSTRevivalForm.tsx:126). Reminder baru benar-benar terkirim hanya jika pipeline Toppan jalan; pemanggilan generator surat harian di-comment (ToppanUploadJobsScheduler.java:118) dan hanya jalan lewat trigger manual POST /toppan/generate-letters. Pengiriman ulang eksplisit adalah cakupan OCMS20.26, bukan dicek di sini; story ini hanya meminta keputusan dinyatakan, dan keputusan itu hanya tersirat dari menekan Revive."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengonfirmasi keputusan OIC",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:73; ocmsadminui/src/pages/HST/revival/form/HSTRevivalForm.tsx:94-106",
+      "fit": "Sesuai",
+      "detail": "Sebelum dieksekusi OIC melihat dialog 'Are you sure you want to revive HST for <ID>? This will delete the HST ID and revive all TS-HST suspensions' (HSTRevivalForm.tsx:73); setelah sukses tampil modal dengan pesan dari server atau 'HST revived successfully.' (:94-106). Konfirmasi ini terhadap keputusan cabut saja; konfirmasi untuk keputusan 'tetap' tidak ada karena tidak ada aksinya (lihat langkah keputusan)."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story": "OCMS19.15",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-revive-suspension, validateSingleRevival), helpers/{RevivalBaseHelper,TemporaryRevivalHelper,PermanentRevivalHelper}, auth/filter/JwtFilter, config/WebConfig, crud/beans/SystemConstant. Other repos: no PLUS revive endpoint (ocmsadminprivateapi only has plus-apply-suspension)",
+  "note": "Sheet status: No requirement (3 points); no flow deck. Demo remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop.' The OCMS side has endpoint POST /v1/plus-revive-suspension that accepts a notice list, caseNo, suspensionType, revivalReason (only CSR or OTH), remarks and officer, validates them, then revives (or only checks with checking=true) and stores the reason in suspended_notice. There are four gaps. First, the endpoint is excluded from JwtFilter and the authorization interceptor (plus-*), so its protection depends on APIM, which cannot be verified from the repo. Second, caseNo is mandatory but dropped: it is neither stored nor passed on (SuspensionProcessingController.java:702, 716). Third, checking=true mode is looser than execution: it does not check the revival code in the DB nor srNo or the active suspension, so eligible=true can be followed by a failure at execution. Fourth, the PLUS-to-OCMS connection problem in the demo remark cannot be verified from the repo. Context ticket: OCMS-DF-2026-114 (PLUS tried a PS-revive of PS-ANS notice on 15 May 2026; Closed, Prod deployed) shows the endpoint is used in production [Medium confidence: from the ticket text].",
+  "recommendation": "Claim the OCMS side (endpoint, CSR/OTH reason validation, notice validation, reason storage). State that authentication depends on APIM and the PLUS-to-OCMS connection cannot be verified from the repo, and that caseNo is not stored.",
+  "steps": [
+    {
+      "step": "PLUS sends a revive request to OCMS: notice list, suspension type (TS/PS), revival reason, remarks, officer, caseNo",
+      "detail": "POST /v1/plus-revive-suspension (SuspensionProcessingController.java:690) reads noticeNo[], caseNo, suspensionType, revivalReason, revivalRemarks, officerAuthorisingRevival and an optional srNo from the body, plus the checking parameter (694-708). It exists in ocmsadminapi only; ocmsadminprivateapi only has plus-apply-suspension."
+    },
+    {
+      "step": "OCMS validates the mandatory fields: notice, caseNo, revival reason, remarks, officer (remarks max 200 characters)",
+      "detail": "Missing fields are answered with 400 OCMS-4000 'Invalid request. Please double-check the request body.' (SuspensionProcessingController.java:710-735); remarks longer than 200 characters are rejected (738-741). Unlike the staff endpoint, remarks are mandatory for PLUS (726-730)."
+    },
+    {
+      "step": "The revival reason from PLUS is limited to CSR or OTH and must be an active revival code",
+      "detail": "The source is forced to PLUS (SuspensionProcessingController.java:752-762). At execution, validateRevivalCodeForSource rejects codes other than CSR/OTH for PLUS (RevivalBaseHelper.java:77-80, 166-173) and rejects codes missing from the active ocms_suspension_reason rows for source OCMS type RV (175-183). Checking mode only tests the CSR/OTH list (SuspensionProcessingController.java:922-928). Whether CSR and OTH are active in that table in each environment cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS decides whether the revival is allowed: the notice exists and is TS/PS as requested, PS only one notice per request",
+      "detail": "More than one PS notice per request is rejected with 'You can only revive one Notice with PS at a time.' (SuspensionProcessingController.java:743-750). At execution the helper checks that the notice exists and VON.suspension_type equals the requested type (TemporaryRevivalHelper.java:126-137, PermanentRevivalHelper.java:137-148). With srNo, only the active suspension with that srNo is revived and its type is checked; when not found the result is a generic 'System error' (TemporaryRevivalHelper.java:139-156, PermanentRevivalHelper.java:150-168)."
+    },
+    {
+      "step": "PLUS can ask for validation only without execution (checking=true) and gets an eligible status per notice",
+      "detail": "checking=true runs validateRevivalList without changing data and returns {noticeNo, eligible, message} per notice (SuspensionProcessingController.java:768-774, 866-948). Its validation is looser than execution: it only checks mandatory fields, the CSR/OTH list, that the notice exists and the type matches (910-939). It does not check the active revival code in the DB (compare RevivalBaseHelper.java:175-183), nor srNo or the active suspension, and a null suspensionType triggers a generic error (936). So eligible=true does not guarantee the execution succeeds."
+    },
+    {
+      "step": "The revival reason from PLUS is stored with the revival data on the suspended notice",
+      "detail": "processSingleRevival passes reason, remarks, officer and srNo to the helper (SuspensionProcessingController.java:833-853); updateSuspendedNoticeRevival writes date_of_revival, revival_reason, revival_remarks, officer_authorising_revival (RevivalBaseHelper.java:278-299). Note: the PLUS caseNo is read and mandatory (SuspensionProcessingController.java:702, 716-719) but is not passed to processRevivalList, so it is not stored."
+    },
+    {
+      "step": "The request from PLUS really reaches OCMS with safe authentication",
+      "detail": "Every path starting with plus- skips JwtFilter (JwtFilter.java:179; SystemConstant.java:269) and is excluded from the authorization interceptor (WebConfig.java:81-83), and there is no plus-* mapping in api-authorization.properties. So the endpoint is open at application level; protection depends on APIM/network, which cannot be verified from the repo. The demo remark says PLUS 'API not pulling in' with a suspected dropped DB connection: that is a deployment/connection issue that cannot be verified from the repo. Ticket OCMS-DF-2026-114 (Closed, Prod deployed) shows PLUS calling a PS-revive in production [Medium confidence]."
+    }
+  ]
+}

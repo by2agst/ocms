@@ -1,0 +1,33 @@
+{
+  "story": "OCMS14.29",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: framework/workflows/daily_reports/{jobs/ClassifiedVehicleReportJob,helpers/ClassifiedVehicleReportHelper,models/ClassifiedVehicleReport*,services/impl/DailyReportServiceImpl}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (findAllTypeVNotices, findTypeVAmendedToS), utilities/emailutility/EmailService, resources/{cron-schedules-prod,application-prod}.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code laporan/dashboard classified vehicle",
+  "note": "Story status 'Requirement given - Gen flow'. What exists is a DAILY 'Classified Vehicle (VIP) Report' (job 7 in DailyReportJobsScheduler, 08:00) that sends a 3-sheet Excel by email to email.report.recipients. There is no weekly or monthly schedule for this report: the monthly job list only has Monthly Exception Report, Monthly Paid Report and HST Monthly Query (cron-schedules-prod.properties:282-284) and the only weekly cron is blob cleanup. The report is cumulative (all type V notices of all time, no period filter), not a per-week/month summary. There is no OIC dashboard in any code; 'routing to the dashboard' is done as an email. Email sending is also switched off in prod: email.enableSmtp=false and email.smtp.allowedSources does not contain this report's source, while the job does not set a source on the EmailRequest, so EmailService.sendEmail returns false and the job ends as failed (application-prod.properties:80-81, EmailService.java:65-71, ClassifiedVehicleReportJob.java:139-146). The real server value cannot be verified from the repo. The 'Outstanding/Settled' split is computed from amount_payable > 0, not from payment status. No maintenance ticket mentions this report.",
+  "recommendation": "Claim only a small part. Only a cumulative daily report sent by email exists; weekly and monthly reports and an OIC dashboard do not exist, and email is switched off in the prod properties. Do not claim as complete.",
+  "steps": [
+    {
+      "step": "OCMS generates a weekly summary report for classified-vehicle notices",
+      "detail": "The only schedule for the classified vehicle report is job 7 in the combined daily report, cron.dailyreport.schedule=0 0 8 * * ? (cron-schedules-prod.properties:255-256,268; DailyReportJobsScheduler.java:102). There is no weekly schedule for this report; the only weekly cron in the properties file is blob cleanup (cron-schedules-prod.properties:318). Searching 'weekly' and 'classified' across all repos finds no other job."
+    },
+    {
+      "step": "OCMS generates a monthly summary report for classified-vehicle notices",
+      "detail": "The combined monthly report (1st of the month, 08:30) only holds Monthly Exception Report, Monthly Paid Report and HST Monthly Query (cron-schedules-prod.properties:275,282-284). There is no monthly classified vehicle job."
+    },
+    {
+      "step": "A summary report of classified-vehicle notices exists (totals, outstanding, settled, amended)",
+      "detail": "ClassifiedVehicleReportHelper builds a 3-sheet Excel: Summary, Type V Notices Detail, Amended Notices (V to S) (ClassifiedVehicleReportHelper.java:49-53,106-113). The Summary sheet holds Total Notices Issued, Outstanding, Settled, Amended (:154-161). The data comes from all VON rows of type V without a date filter (OcmsValidOffenceNoticeRepository.java:728), so it is cumulative, not a per-week/month summary. Amended notices are counted from TS-CLV rows that were revived and are now type S (:749-751)."
+    },
+    {
+      "step": "The report holds offence, car park, amount payable, suspension reason, outstanding notices and settled notices",
+      "detail": "The detail sheet has columns Offence Code (computer_rule_code), Place of Offence (pp_name), Composition/Amount Payable, Payment Status, Suspension Type, Suspension Reason (ClassifiedVehicleReportHelper.java:179-183; OcmsValidOffenceNoticeRepository.java:710-728). The offence is a code, not a description. Suspension Reason comes from epr_reason_of_suspension on VON, which is the latest suspension reason. Payment Status Outstanding/Settled is only derived from amount_payable > 0 (:724-726), not from payment_status, so a waived notice that still has amount_payable shows as Outstanding."
+    },
+    {
+      "step": "The reports are routed to the OIC's dashboard for follow-up",
+      "detail": "The report does not go to a dashboard: the job builds an EmailRequest to email.report.recipients with the Excel attached (ClassifiedVehicleReportJob.java:113-137; application-prod.properties:57, three URA email addresses). There is no endpoint, table or page for an OIC dashboard for this report in ocmsadminapi, ocmsadminui or any other repo."
+    },
+    {
+      "step": "The report is actually delivered to the OIC recipients",
+      "detail": "email.enableSmtp=false in the prod properties and email.smtp.allowedSources only holds DAILY_PAID_REPORT, MONTHLY_PAID_REPORT, PAYMENT_EXCEPTION_REPORT, JOB_EXECUTION_REPORT, LTA_REPORT, FURNISH_DAILY_NOTIFICATION, TOPPAN_REPORT, MHA_REPORT, DATAHIVE_CONTACT_INFO (application-prod.properties:80-81). The job does not set a source on the EmailRequest, so EmailService.sendEmail returns false (EmailService.java:65-71) and the job records 'Email sending failed' (ClassifiedVehicleReportJob.java:139-146). Based on the repo the email is not sent; the real server value cannot be verified from the repo."
+    }
+  ]
+}

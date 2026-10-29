@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.14",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Furnish/Form/HDQuests.ts, pages/Furnish/Furnish.ts (extractOffenceDate), utils/validation/Furnish/ValidHirerDriver.ts, utils/validation/error.ts, components/form/DatetimeInput.ts, utils/map/MapFurnish.ts. ocmseserviceapi workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}, crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplication. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan.",
+  "note": "Story 3 points, status_with_ura 'Fully paid'. Memilih 'Vehicle is leased' menampilkan Start/End Date dan Start/End Time (wajib). Pengecekan terhadap offence date dilakukan di UI saat field berubah (debounce 500 ms) dan saat Proceed to review, memakai offence date paling awal (untuk start) dan paling akhir (untuk end) dari semua notice yang dipilih; server mengecek ulang per notice dengan offence date dari DB. 'Live check' di sini adalah validasi client-side atas tanggal notice yang sudah dimuat, bukan panggilan API per ketikan. Edge case: UI membandingkan sampai menit (HH:mm) sedangkan server memakai LocalDateTime penuh (detik), dan jika notice tidak punya tanggal offence kedua cek dilewati (return true). Tidak ada maintenance ticket yang relevan.",
+  "recommendation": "Bisa diklaim: field rental period dan pengecekan terhadap offence date berfungsi di UI dan server.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner menyatakan hubungan \"Vehicle is leased\" untuk hirer",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/option.ts:34-54; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:181-190",
+      "fit": "Sesuai",
+      "detail": "Opsi 'Vehicle is leased' (nilai H) ada di RelationshipOptions dan RelationshipUENOptions (option.ts:39, 42-54). onSelect mengisi isVehicleLeased = (value === 'H') (HDQuests.ts:189) dan mengganti daftar dokumen agar Vehicle Rental Agreement tersedia (HDQuests.ts:191-196)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Halaman menampilkan field periode sewa (dari tanggal/waktu sampai tanggal/waktu)",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:117-123; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:418-486; ocmseserviceui/src/pages/Furnish/Form/HDQuests.ts:511-541",
+      "fit": "Sesuai",
+      "detail": "Saat isVehicleLeased true, blok 'Rental Period' dirender dengan empat input: Start Date, Start Time, End Date, End Time (HDQuests.ts:511-541) yang diinisialisasi di InitRentalPeriod (HDQuests.ts:418-486, dipicu di HDQuests.ts:117-123). Memilih opsi lain mengosongkan keempat field (HDQuests.ts:184-187)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Keempat field periode sewa wajib diisi",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:71-109; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:111-162; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:247-253",
+      "fit": "Sesuai",
+      "detail": "Jika hdRelation = 'H', hdRentalSD, hdRentalST, hdRentalED, hdRentalET semuanya required (ValidHirerDriver.ts:73-109, 111-162) dengan pesan 'Rental start date is required.' dst. (error.ts:491-516). Server menolak jika rentalPeriodFrom atau rentalPeriodTo kosong (FurnishRequestValidator.java:247-253)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengecek periode sewa terhadap offence date notice yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/Furnish.ts:383-411; ocmseserviceui/src/pages/Furnish/Furnish.ts:435; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:73-103; ocmseserviceui/src/utils/validation/Furnish/ValidHirerDriver.ts:111-155; ocmseserviceui/src/components/form/DatetimeInput.ts:155-160; ocmseserviceui/src/components/form/DatetimeInput.ts:190",
+      "fit": "Sesuai",
+      "detail": "Saat notice dipilih, extractOffenceDate menghitung offence date+time paling awal dan paling akhir dari semua notice terpilih (Furnish.ts:383-411, dipanggil di 435). Yup menguji start <= offence paling awal (ValidHirerDriver.ts:73-103) dan end >= offence paling akhir serta end > start (ValidHirerDriver.ts:111-155), sehingga periode mencakup semua notice. Pengujian berjalan setiap field berubah (DatetimeInput.ts:155-160, 190, mode CHANGE dengan debounce) dan saat Proceed to review. Edge case: jika notice tidak punya tanggal offence, cek dilewati (ValidHirerDriver.ts:86, 128)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Server mengecek ulang dan periode sewa disimpan bersama submission",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceui/src/utils/map/MapFurnish.ts:80-81; ocmseserviceui/src/utils/map/MapFurnish.ts:117-118; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionController.java:170-177; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishRequestValidator.java:237-283; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishSubmissionServiceImpl.java:196-197",
+      "fit": "Sesuai",
+      "detail": "UI menggabungkan tanggal dan jam menjadi rentalPeriodFrom/To (MapFurnish.ts:80-81, 117-118; null jika bukan 'H'). Setelah notice divalidasi, controller memanggil validateRentalPeriod dengan offence date (notice_date_and_time) dari DB (FurnishSubmissionController.java:170-177; FurnishRequestValidator.java:237-283). Jika lolos, nilai disimpan ke record furnish application (FurnishSubmissionServiceImpl.java:196-197) dan ditampilkan di halaman summary (Summary.ts:222-227)."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "story": "OCMS11.21",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): workflows/datahiveuenfin/services/DataHiveUenFinService (F/B notice selection, storeUenDataResult, updateCompanyDetails, updateCompanyAddressWithNullSupport, updateCompanyName), schedulers/MhaDownloadJobsScheduler (second job 'DH UEN and FIN'), agencies/toppan/upload (RR3 query and letter), cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code specific to this story.",
+  "note": "The story asks that when owner/partner/director particulars cannot be received (no individual identified, or the identified candidate is another business entity), OCMS checks and updates the company's latest name and address so the 3rd reminder can be sent. What exists: the DataHive UEN job selects company notices (id_type B) at stages RD1-DR3 including RR3, fetches company data, then overwrites name in ocms_offence_notice_owner_driver and the mha_reg address in the address table. Three things lower the claim: (1) the 'DH UEN and FIN' job is off in prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; the scheduler skips it at MhaDownloadJobsScheduler.java:103-107), so in the repo configuration this update does not run; (2) the word 'DOS' is not in the repo, the source is GovTech DataHive (ACRA view) and whether that is what DOS means: cannot verify from repo; (3) there is no 'no individual identified' condition as trigger: the query selects every company B without looking at the owner/partner/director lookup result (see OCMS11.18 to OCMS11.20), so the update runs for all companies, not only the fallback case. DataHive result data and view contents: cannot verify from repo. Sheet status: Demo paid (50% of 75%); Vault remark: Vault/DataHive connectivity on the server cannot verify from repo. No maintenance ticket covers this job.",
+  "recommendation": "Claim partially. The company name and address update from DataHive exists, but it is off in prod, the source is DataHive (not proven to be DOS), and it is not limited to the 'no individual identified' case. Ask URA to confirm the prod configuration and what 'DOS' means before claiming in full.",
+  "steps": [
+    {
+      "step": "Company notices (id_type B) that are due for a reminder, including RR3, are selected for the UEN check",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL selects notices with next_processing_stage IN (RD1,RD2,RR3,DN1,DN2,DR3), next_processing_date <= today, suspension_type NULL, offender_indicator 'Y', id_type IN ('F','B'), not yet in ocms_nro_temp and not HST (DataHiveUenFinService.java:221-246); B = company. But the second job 'DH UEN and FIN' is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107) and the value is false in cron-schedules-prod.properties:52 (comment: wait until the DataHive views are verified). Value on the prod server: cannot verify from repo."
+    },
+    {
+      "step": "The check is triggered only when no individual owner/partner/director can be identified (withdrawn, or the candidate is another business entity)",
+      "detail": "No condition looks at the owner/partner/director lookup result. The query only filters stage, id_type B and notice status (DataHiveUenFinService.java:235-239); storeUenDataResult only stores company, shareholder and board (:1346-1363) and the board write is disabled (OCMS-DEV-2026-231, :1472-1477), so there is no step that picks an individual or decides 'not identified'. Grep for 'withdrawn', 'candidate', 'identified' in cronservice: no fallback logic (same finding as OCMS11.18 to OCMS11.20)."
+    },
+    {
+      "step": "OCMS requests the latest company data (UEN) from the external source ('DOS')",
+      "detail": "batchProcessUenRecords sends UEN + noticeNo pairs to DataHive in batches and the result (CompanyInfo: entity name, status, address) is consumed by storeUenDataResult (DataHiveUenFinService.java:1014-1030, :1346-1372); UEN not found or a de-registered company triggers TS-ACR. The source is GovTech DataHive (ACRA view); the word 'DOS' is not in the repo: whether DataHive = DOS cannot verify from repo. The job is off in prod (see step 1); response contents and Vault connectivity: cannot verify from repo."
+    },
+    {
+      "step": "The latest company name from the check overwrites the owner name on the notice",
+      "detail": "updateCompanyName patches the name column in ocms_offence_notice_owner_driver for noticeNo + idNo + offender_indicator 'Y' with the entityName from DataHive (DataHiveUenFinService.java:1798-1810, called at :1410). Company details are also stored in ocms_dh_acra_company_detail (:1600-1630). The logic matches the story, but it sits in the job that is off in prod (step 1), so the fit is kept the same."
+    },
+    {
+      "step": "The latest company address is saved as the owner's mailing address",
+      "detail": "updateCompanyAddress validates street, block, postal (all three key fields empty, or street/block empty, triggers TS-ACR) then updateCompanyAddressWithNullSupport creates a row with type_of_address 'mha_reg' or updates the existing row with native SQL, including overwriting old values with NULL, and sets letter_address 'Y' when none exists (DataHiveUenFinService.java:1383, :1633-1712, :1723-1790). This address is what the letter uses. It sits in the job that is off in prod (step 1), so Sebagian; DataHive address contents: cannot verify from repo."
+    },
+    {
+      "step": "The 3rd reminder (RR3) for the company uses the updated name and address",
+      "detail": "The RR3 letter query (findToppanNoticesForStage) reads onod.name and id_type from ocms_offence_notice_owner_driver without distinguishing companies (OcmsValidOffenceNoticeRepository.java:584-614), then only notices with letter_address 'Y' are processed (ToppanUploadJob.java:266), so the updated data flows into the letter. Order: the MHA/DataHive job runs 11:30/16:30/23:30 (cron-schedules-prod.properties:119), the letter at 00:15. But the SFTP upload to Toppan is blocked at application-prod.properties:86 (see OCMS11.22) and the DataHive job is off, so company data is not refreshed before the letter in the repo configuration."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS35.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/vhub/report/{jobs/VhubReportJob,helpers/VhubReportHelper}, agencies/{mha/report/jobs/MhaReportJob,lta/report/jobs/LtaReportJob}, resources/cron-schedules-prod.properties. ocmsadminapi workflows/reports/daily/{DailyReportController,DailyReportServiceImpl,dto/DailyReportRequestDto}, workflows/notice_management/filedownload/downloadfile/FileDownloadController, resources/api-authorization.properties. ocmsadminui pages/Report/{index.tsx,lists/ReportList.tsx,lists/ReportListVHUB.tsx,hook/useDownloadReport.ts}, pages/Dashboard/Dashboard.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terkait",
+  "note": "Requirement tidak diberikan di sheet (status 'No requirement'), jadi langkah diambil dari teks story. Laporan harian vHub (sheet EBGFTW1, EBGFTW2, EBRACK1, EBRNTL) dibuat cron 07:30 dan bisa dilihat serta diunduh dari tab Report di staff portal. Tetapi hanya vHub yang punya laporan kasus kirim dan terima; SPINE tidak ada, laporan MHA/LTA mencakup file enquiry dan tiketnya masih terbuka (OCMS-DF-2026-178, 121, 074, semua Ready to UAT). Angka 'terkirim' vHub tidak bisa menunjukkan kegagalan (not sent ditulis tetap 0) dan laporan berjalan hanya 10 menit setelah unduh balasan yang diproses async. Halaman Dashboard staff portal kosong, jadi 'routed to dashboard' diwujudkan sebagai tab di menu Report. Pemetaan siapa itu OIC dan pengiriman nyata di environment: cannot verify from repo.",
+  "recommendation": "Klaim terbatas pada laporan vHub dan fungsi lihat/unduh. Sebelum dianggap penuh, perbaiki angka 'not sent', beri jeda atau jalankan ulang laporan setelah ACK/NTL diproses, dan tentukan apakah dashboard OIC yang dimaksud adalah halaman Dashboard (saat ini kosong).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report untuk kasus yang dikirim ke vHub",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:67-71; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:169-250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/jobs/VhubReportJob.java:48-62; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:180-181",
+      "fit": "Sebagian",
+      "detail": "Cron cron.vhubreport 0 30 7 * * ? enabled=true di prod (cron-schedules-prod.properties:180-181) membuat vHub_Report_*.xlsx berisi sheet EBGFTW1: baris per notice (offence no, tanggal, kendaraan, tipe, amount, status O/S/C, tanggal bayar) dan total Outstanding/Settled/Cancelled serta total amount (VhubReportHelper.java:169-231). Baris diambil dari ocms_offence_vhub hari itu (baris 67-71). Kelemahan: 'Total Number of Records sent' sama dengan 'selected' (baris 219-220), sedangkan 'not sent' dan amount not sent ditulis tetap '= 0' (baris 221, 225), dan sheet error EBGFTW2 selalu kosong (baris 236-250). Tracking row disimpan walau file belum tentu terkirim (lihat OCMS35.2 langkah 3), jadi laporan tidak bisa menunjukkan kegagalan kirim. Tidak ada tiket vHub khusus."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report untuk record yang diterima dari vHub",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:252-312; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:138-165; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/vhub/report/helpers/VhubReportHelper.java:314-354; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:171-172,180-181",
+      "fit": "Sebagian",
+      "detail": "Laporan yang sama punya sheet EBRACK1 (jumlah ACK sukses dan error plus tally kode error F01-R06/E99, VhubReportHelper.java:252-312) dan EBRNTL (daftar kendaraan NTL dari file NTL terbaru hari itu, baris 314-354). Satu hal yang perlu diperhatikan: download job jalan 07:20 dan hanya meminta dekripsi, sedangkan pemrosesan ACK/NTL dikerjakan callback COMCRYPT secara async; laporan jalan 07:30 (cron-schedules-prod.properties:171-172, 180-181) dan tidak diulang. Jika callback belum selesai, ACK kosong dan NTL tidak ditemukan sehingga sheet kosong tanpa error (baris 138-165, 160-164). Seberapa sering terjadi di environment: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report untuk kasus yang dikirim ke SPINE dan record yang diterima",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:62-351; ocmsadminapi/src/main/resources/api-authorization.properties:115-152",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada interface SPINE (OCMS35.1), jadi tidak ada laporan SPINE. Grep spine di src keenam repo: 0 hasil. Fungsi laporan di api-authorization.properties hanya LTA, VHUB, MHA, ENOTIF, HIVE_CONTACT, REMINDER, CPS, PS, dan lain-lain (baris 115-152), tanpa SPINE."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report untuk interface agensi lain (MHA, LTA)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/report/jobs/MhaReportJob.java:50; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/report/jobs/LtaReportJob.java:33; ocmsadminapi/src/main/resources/api-authorization.properties:129-136",
+      "fit": "Sebagian",
+      "detail": "Job laporan MHA dan LTA ada (MhaReportJob.java:50, LtaReportJob.java:33) dan staff portal punya fungsi laporan OCMS_REPORT_MHA dan OCMS_REPORT_LTA (api-authorization.properties:129-136). Tetapi keduanya melaporkan file enquiry OCMS ke MHA/LTA, bukan dataset yang disediakan (OCMS35.3 belum ada). Tiket terbuka menyebut angka laporan salah: OCMS-DF-2026-178 (MHA daily summary nol dan terbuat dua kali, Ready to UAT), OCMS-DF-2026-121 (LTA VRLS summary nol, Ready to UAT), OCMS-DF-2026-074 (dua notifikasi summary LTA, Ready to UAT). Perbaikan belum terbukti di prod."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Laporan diteruskan (routed) ke dashboard OIC",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:21-32; ocmsadminui/src/pages/Report/lists/ReportList.tsx:80-85; ocmsadminui/src/pages/Report/index.tsx:49-52; ocmsadminapi/src/main/resources/api-authorization.properties:132-133",
+      "fit": "Sebagian",
+      "detail": "Halaman Dashboard staff portal kosong: hanya div row tanpa isi (Dashboard.tsx:27-28). Laporan vHub tampil sebagai tab 'vHub Daily Summary Reports' di halaman Report, hanya untuk user yang punya fungsi OCMS_REPORT_VHUB (ReportList.tsx:80-85; index.tsx:49-52; api-authorization.properties:132-133). Jadi laporan tersedia bagi OIC lewat menu Report, bukan lewat dashboard. Tidak ada email atau notifikasi dari VhubReportJob. Siapa yang dipetakan sebagai OIC (assignment fungsi di database): cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OIC dapat melihat dan mengunduh laporan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Report/lists/ReportListVHUB.tsx:48-56; ocmsadminui/src/pages/Report/lists/ReportListVHUB.tsx:84-90; ocmsadminui/src/pages/Report/hook/useDownloadReport.ts:22-37; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:99; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/filedownload/downloadfile/FileDownloadController.java:114; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/daily/DailyReportServiceImpl.java:179-180",
+      "fit": "Sesuai",
+      "detail": "Tab vHub memanggil daily-report/search dengan source VHUB dan rentang tanggal (ReportListVHUB.tsx:48-56); server menelusuri folder blob vhub dan mengembalikan nama dan ukuran file vHub_Report_* (DailyReportServiceImpl.java:179-180, 265-266). Tombol Download memanggil download/blob (ReportListVHUB.tsx:84-90; useDownloadReport.ts:22-37) yang membaca file dari blob untuk source VHUB (FileDownloadController.java:99, 114) dan menyimpannya sebagai file xlsx. Yang ada hanya daftar file dan unduh; tidak ada pratinjau isi laporan di layar. Otorisasi server memakai pemetaan fungsi OCMS_REPORT_VHUB ke /v1/daily-report/search dan /v1/download/blob (api-authorization.properties:132-133)."
+    }
+  ]
+}

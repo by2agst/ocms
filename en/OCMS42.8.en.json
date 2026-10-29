@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.8",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Furnish,Form/OParticulars,Form/CompanyParticulars}.ts, components/form/{Contact,Email}.ts, utils/validation/Furnish/{ValidOwner,ValidParticulars}.ts, utils/map/MapFurnish.ts; ocmseserviceapi workflows/furnish/{FurnishRequestValidator,FurnishSubmissionController,FurnishSubmissionServiceImpl}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no code for this story",
+  "note": "Story status 'Fully paid'. The contact number and email stay editable after MyInfo fills them, are validated in the UI and the backend, and the edited values are what is saved and used for the acknowledgement email. Gap: the restriction 'only certain fields may be changed' exists only in the UI. The name is locked (disabled), but the Clear button unlocks it and the backend does not compare the name with MyInfo, it only checks non-empty. The contact number on the form is +65 only (country code locked).",
+  "recommendation": "Can be claimed for editing contact and email; note that the name lock is UI-only and can be opened with Clear",
+  "steps": [
+    {
+      "step": "The contact number and email filled by MyInfo can still be edited by the user",
+      "detail": "MyInfo only calls setValue on oContactNo and oEmail (Furnish.ts:215-220). The <contact-fields> and <email-fields> components (OParticulars.ts:217-219) do not set disabled on the number and email inputs (Contact.ts:121-132 only locks the country code; Email.ts:70-85 has no disabled), so the values can be retyped. The same holds in the company form (CompanyParticulars.ts:235-237). Limitation: the country code is locked to +65 and the number length is 8 digits (Contact.ts:121-127), so non-SG numbers cannot be entered."
+    },
+    {
+      "step": "Fields that must not change (the MyInfo name) are locked, only permitted fields can be edited",
+      "detail": "Full Name is locked with disabled=true (OParticulars.ts:179). But the Clear button empties the field and runs oName.disabled=false (:137-139, :158), so the user can type any other name. The backend does not compare ownerName with MyInfo: validateSharedFields only checks non-empty (FurnishRequestValidator:95-97) and the submitted value is stored as is (SubmissionServiceImpl:200). Only the ID is overridden from the session (Controller:81-84). So the restriction on which fields can change is enforced in the UI only."
+    },
+    {
+      "step": "The edited contact number and email are validated (format, email confirmation) in the UI and the backend",
+      "detail": "UI: ValidContact requires the number and checks local/non-local format (ValidParticulars.ts:149-181); ValidEmail requires a valid email format and an identical Confirm Email (:183-217); both are wired into ValidOwner (:24-40) and run before moving to review (Particulars.ts:115-128). The backend repeats them: owner email confirmation is required and must match (FurnishRequestValidator:173-188) and an SG number must be 8 digits starting with 6/8/9 (:195-224)."
+    },
+    {
+      "step": "The edited values are what is submitted and saved, and the acknowledgement email uses the edited address",
+      "detail": "MapFurnish reads the values from the form fields (oContactNo, oEmail) when building the payload (MapFurnish.ts:60-62, 123-125). The backend stores ownerTelCode/ownerTelNo/ownerEmailAddr from the request (SubmissionServiceImpl:202-204) and sends the acknowledgement to request.getOwnerEmailAddr() (Controller:190-195). So the MyInfo data as edited by the user is what is used. Actual email delivery (SMTP): cannot verify from repo."
+    }
+  ]
+}

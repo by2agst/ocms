@@ -1,0 +1,37 @@
+{
+  "story": "OCMS43.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceapi: workflows/urapg/{controller/UraPaymentCallbackRedirectController,service/EPaymentCallbackService,service/UraPaymentService}. thirdpartyapi: workflows/axsNopo/{AxsNopoController,service/AxsNopoServiceImpl}. ocmsadminprivateapi: workflows/synctxndata/{CronSyncTxnData,CronUraPgRetry}, utilities/suspension_helpers/PermanentSuspensionHelper, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceui: not used.",
+  "note": "Story status: Demo paid (50% of 75%). eService path: the gateway callback is received, verified against CheckPaymentStatus, then the transaction and eVON are updated. AXS path: UpdatePONPayReq stores the transaction and updates eVON. Both are then pulled into the intranet by CronSyncTxnData every 10 minutes, which applies PS-FP or PS-PRA and records a suspended notice. Gaps: (a) on the internet side EPaymentCallbackService always writes suspension_type=PS and crs_reason=FP even when the allocated amount is below amount_payable (lines 478-480), which is only corrected when the intranet cron applies PS-PRA; (b) AXS stores a constant payment_mode 'AXS' (AxsNopoServiceImpl.java:1052), the real payment mode from AXS is validated but not stored. Gateway/AXS payload formats and real PG responses: cannot verify from repo. Related tickets: OCMS-DF-2026-099 and OCMS-DF-2026-168 (eVON not updated/overwritten, Closed/Prod deployed), OCMS-SR-2026-159 (remarks cleared for gateway payments, Closed). AXS to URA PG (CronUraPgRetry, tickets OCMS-DF-2026-035/047/147) is the opposite direction and is not counted.",
+  "recommendation": "Claim partially (see the Sebagian steps). Receiving the payment status, storing transaction details and marking PS-FP/PS-PRA in the intranet exist; the real AXS payment mode is not stored and the FP status on the internet side is written without an amount check.",
+  "steps": [
+    {
+      "step": "OCMS receives the payment status callback from the Payment Gateway",
+      "detail": "POST /v1/epayment/callback/success (and /failure) receives the URA PG parameters and calls callbackService.processCallback (line 143). The real parameter format and the callback address on the gateway side: cannot verify from repo."
+    },
+    {
+      "step": "OCMS makes sure the payment really succeeded (verification with the gateway, duplicate callbacks blocked)",
+      "detail": "processCallback skips a callback whose transaction already has status S with payment_amount>0 (idempotent, lines 75-83), calls callUraCheckPaymentStatus (line 91, retried once when not PG200, line 102), and marks success only when the response code and payment status are valid (lines 118-131); otherwise the transaction is marked error. Real PG response content: cannot verify from repo."
+    },
+    {
+      "step": "OCMS saves the transaction details: amount paid, payment date, receipt number, channel, and payment mode (eService)",
+      "detail": "updateTransactionAsSuccess fills status S, payment_date_and_time, payment_mode (from CheckPaymentStatus, falling back to the callback gateway), and payment_amount from sequential allocation per notice (lines 346-386). receipt_no (txnId), type_of_receipt, and sender URA are filled when the transaction is created (UraPaymentService.java:261-269). Ticket OCMS-SR-2026-159 clears remarks for gateway payments (Closed)."
+    },
+    {
+      "step": "After success, the notice on the internet side is marked permanently suspended and paid",
+      "detail": "updateOffenceNoticeAsFullyPaid sets amount_paid, suspension_type='PS', crs_reason_of_suspension='FP' and crs_date_of_suspension for every notice (lines 478-481) with no amount condition; payment_status='FP' and payment_acceptance_allowed='N' only when the allocated amount >= amount_payable (lines 484-488). So an underpayment is still written as PS-FP in eVON until the intranet cron applies PS-PRA and a later sync overwrites it. Tickets OCMS-DF-2026-099 and OCMS-DF-2026-168 (Closed) concern eVON being overwritten by intranet data."
+    },
+    {
+      "step": "Payments from the AXS channel are received (receipt number, amount, date, mode) and the notice is updated",
+      "detail": "POST PONWS/v1/UpdatePONPayReq (processPaymentUpdate) stores an audit row, rejects a duplicate transactionID, validates the fields and total, then the business rules (notice exists, not already FP/PRA, payment_acceptance_allowed != N except ATOMS, non-payable PS rejected; lines 470-516) and stores the transaction with status S, is_sync=N (lines 1040-1058) and marks eVON PS/FP using the per-transaction amount (lines 1088-1100, no check against amount_payable). Receipt, amount and date are stored, but the payment_mode column is filled with the constant AXS (line 1052); the real AXS paymentMode is validated (lines 441-444) and then not stored. AXS payload format: cannot verify from repo."
+    },
+    {
+      "step": "OCMS pulls successful transactions from the internet to the intranet periodically",
+      "detail": "CronSyncTxnData.syncTransactionData loads eocms_web_txn_detail rows with status 'S' and is_sync 'N'/NULL (query at EWebTxnDetailRepository.java:20, no date filter despite the method name 'Today'), copies them into the intranet ocms_web_txn_detail (line 192), then processes each notice in its own transaction (line 215). It is scheduled every 10 minutes, enabled=true in cron-schedules-prod.properties:305-306 (real server value: cannot verify from repo). A failed notice is only logged and retried on the next run (line 240)."
+    },
+    {
+      "step": "The notice in OCMS is marked permanently suspended (PS-FP, or PS-PRA when short) and recorded as paid",
+      "detail": "For each transaction amount_paid is added to the VON; if the total >= amount_payable PS-FP is applied via psHelper.applyPSPaymentToVON (lines 575-589), otherwise PS-PRA (lines 601-615); the helper updates VON and eVON (payment_acceptance_allowed=N, message E2/E12, PermanentSuspensionHelper.java:290-298) and one ocms_suspended_notice row (suspension_type PS, sr_no from a sequence) is created per transaction (lines 619-629). Overpayment creates a refund notice; a payment on a notice that is already FP/PRA or PS-APP creates a refund instead of being applied again (lines 420-447). Ticket OCMS-DF-2026-099 Closed."
+    }
+  ]
+}

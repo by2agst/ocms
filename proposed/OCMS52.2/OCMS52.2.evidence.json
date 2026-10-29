@@ -1,0 +1,181 @@
+{
+ "id": "OCMS52.2",
+ "checked_by": "ledger-L1",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "Menu entry 'Batch Update Mailing Address' opens the page /batch-update-odh. The menu entry is pushed for every user; only the API mapping OCMS_BATCH_UPDATE_ADDRESS guards it.",
+   "status": "not_proved",
+   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
+   "line": 373,
+   "missing": "Entry exists (LinkData.tsx:387 menu.push(LinkBatchUpdateODH), route App.tsx:242 'batch-update-odh', path BatchUpdateODH.ts:1). But 'shown to every user / only the API mapping guards it' is contradicted: LinkData(user.functionUrls) (MainLayout.tsx:34) runs filterMenusByUrl, which drops an item unless the JWT functionUrls match its path (this line), and PrivateRoute.tsx:41-52 shows AccessDeniedPage on the route. What functionUrls contain for a role cannot be verified from the repo. Menu label is rendered on two lines ('Batch Update' / 'Mailing Address').",
+   "fix_en": "The staff menu has an entry 'Batch Update Mailing Address' that opens the page /batch-update-odh. The entry is shown, and the route opens, only when the user's token functionUrls match /batch-update-odh (filterMenusByUrl in LinkData.tsx, PrivateRoute.tsx); the two API calls are guarded by the API mapping OCMS_BATCH_UPDATE_ADDRESS. Which roles hold these cannot be verified from the repo. (Also fix demo step 1: the menu entry is NOT shown to every user.)",
+   "quote": "const hasAccess = allowedUrls.some((url) => item.path!.startsWith(url) || url.startsWith(item.path!));"
+  },
+  {
+   "i": 1,
+   "claim": "Search by offender ID returns the notices where that ID is the current offender (offender_indicator = 'Y') and the VON suspension_type is not 'PS' (TS notices are included, no exception for PS reasons DIP, FOR, MID, RIP or RP2); the list is paginated. No check on processing stage or paid status other than the suspension_type filter.",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java",
+   "line": 202,
+   "missing": "offender_indicator = 'Y' is line 201; whole WHERE (lines 200-202) has no stage/paid/reason condition; Java after the query only maps rows (StaffFurnishService.java:760-800, no filter). Pagination PageRequest.of(skip / limit, limit) OcmsValidOffenceNoticeServiceImpl.java:1049, default page size 10 (StaffFurnishController.java:555). Note a NULL suspension_type passes (line 202) and the Javadoc at StaffFurnishService.java:728-735 describes filters that are not in the SQL.",
+   "fix_en": "",
+   "quote": "AND (v.suspension_type != 'PS' OR v.suspension_type IS NULL)"
+  },
+  {
+   "i": 2,
+   "claim": "Officer picks notices, enters name, phone code, phone number, e-mail and the address and confirms; street name is required. The ID is not written ... a different ID makes that notice fail with 'ID number mismatch'. If no notice is selected, the form updates ALL notices of the ID (the confirm dialog says 'for all Notices').",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/BatchUpdateODH/form/EditODHForm.tsx",
+   "line": 91,
+   "missing": "'ALL notices' is the re-run of the same search with $limit MAX_LIMIT = 999 (constant.ts:305), so (a) it is capped at 999 notices and (b) it excludes every PS notice (search SQL). 'ID number mismatch' only fires when the request idNo is non-blank (StaffFurnishService.java:554-555); the UI does send idNo (FurnishMap.ts:80). Street name required: StaffFurnishController.java:504-505 returns 400 for the whole chunk of 20 (EditODHForm.tsx:105-116), not per notice. Confirm dialog text: EditODHForm.tsx:153 ('for all Notices'). Other claims verified: ID copied at StaffFurnishService.java:582-583.",
+   "fix_en": "Officer picks notices, enters name, phone code, phone number, e-mail and the address (postal code, block, street, floor, unit, building) and confirms; street name is required (without it the server rejects the request). The ID is not written: idNo and idType are copied from the existing row, and a request ID that differs from the notice's offender ID makes that notice fail with 'ID number mismatch'. If no notice is selected, the form re-runs the ID search (up to 999 notices, PS notices excluded) and updates those notices (the confirm dialog says 'for all Notices').",
+   "quote": "data: { idNo, $limit: MAX_LIMIT },"
+  },
+  {
+   "i": 3,
+   "claim": "The same details are written to every selected notice; null request fields keep the old values and the processing stage is not changed.",
+   "status": "partly",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java",
+   "line": 989,
+   "missing": "'null request fields keep the old values' holds only for name, tel code, tel no and e-mail (lines 581, 584-586, ternary on null). The address fields (block, floor, unit, street, building, postal code, lines 988-993) are set straight from the request, so a null/empty field blanks the old value. Stage unchanged: line 611 returns notice.getLastProcessingStage() and the notice is never saved. The update targets the current offender row: UI does not send ownerDriverIndicator (FurnishMap.ts:77 commented out) so findCurrentOffender (line 914) is used, and the address written is the furnished_mail row only.",
+   "fix_en": "The same details are written to every selected notice. Name, phone code, phone number and e-mail left empty keep their old values; the mailing address fields (postal code, block, street, floor, unit, building) are overwritten with the values entered, so an empty field clears the old one. The details are saved on the current offender (offender_indicator = 'Y') of each notice and the mailing address is saved as its furnished_mail address. The processing stage is not changed.",
+   "quote": "address.setFloorNo(request.getFloorNo());"
+  },
+  {
+   "i": 4,
+   "claim": "Officer can choose to also set the mailing address as the letter address (setAsLetterAddress).",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java",
+   "line": 995,
+   "missing": "Flag only: sets letter_address = 'Y' on the furnished_mail row (guard line 994) and clears the flag on the other address rows (line 1007); when not ticked the old flag is kept (line 977). Checkbox: MailingAddressForm.tsx:133-135; mapping FurnishMap.ts:90-91. Whether later letters use furnished_mail depends on the Toppan letter code (ToppanUploadHelper fallback omits furnished_mail, BRIEF_ADDENDUM item 5) and letter generation runs only by manual trigger: not verified here. Do not word it as 'the next letter goes to this address'.",
+   "fix_en": "",
+   "quote": "address.setLetterAddress(\"Y\"); // Mark furnished_mail as letter destination"
+  },
+  {
+   "i": 5,
+   "claim": "The API returns a result per notice (HTTP 207), but the staff screen shows only one message '<n> of <total> notices updated successfully.'; there is no per-notice list on screen.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/BatchUpdateODH/form/EditODHForm.tsx",
+   "line": 129,
+   "missing": "Per-notice list in the API: StaffFurnishController.java:298-311. HTTP 207 is returned only when not all notices succeed, otherwise 200 (lines 315-317). On the screen: this line is the only success text; when any chunk fails (totalFail > 0) the screen shows one backendMessage instead (lines 127-128). Whether the UI POST wrapper treats 207 as success or error cannot be verified from this file.",
+   "fix_en": "The API returns a result per notice (HTTP 200 when all succeed, 207 when at least one fails), but the staff screen shows only one message ('<n> of <total> notices updated successfully.', or the first error message when a request failed); there is no per-notice list on screen.",
+   "quote": ": `${totalSuccess} of ${totalCount} notices updated successfully.`;"
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
+   "line": 387,
+   "note": "Entry and route are real (App.tsx:242, BatchUpdateODH.ts:1). The step detail in proposal.json says 'The UI code does not gate the menu by a permission name' and 'pushed unconditionally': that is incomplete, filterMenusByUrl (LinkData.tsx:373) gates it by JWT functionUrls path. Keep Sesuai for 'entry exists and opens the page', fix the detail text.",
+   "quote": "menu.push(LinkBatchUpdateODH);"
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java",
+   "line": 202,
+   "note": "Step text in proposal.json still promises 'leaving out PS-FP/PS-PRA ... except DIP, FOR, MID, RIP, RP2' and 'outstanding': the SQL excludes every PS (line 202) and has no outstanding/paid test. It is Sebagian as worded; with the step reworded to match acceptance 1 (all PS excluded, TS included) it would be Sesuai. Step and acceptance must say the same thing (consistency rule).",
+   "quote": "AND (v.suspension_type != 'PS' OR v.suspension_type IS NULL)"
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminui/src/pages/BatchUpdateODH/form/EditODHForm.tsx",
+   "line": 91,
+   "note": "No selection => re-search with $limit 999, PS excluded; not literally 'all notices of the ID'. Chunks of 20 (EditODHForm.tsx:99), street name required on server (StaffFurnishController.java:504-505).",
+   "quote": "data: { idNo, $limit: MAX_LIMIT },"
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java",
+   "line": 583,
+   "note": "ID stays (this line), stage unchanged (line 611). Sebagian kept: null address fields blank the old address (lines 988-993) and the shared @Transactional (line 680) with per-notice catch (line 614) cannot be verified from repo.",
+   "quote": "updatedOffender.setIdNo(existingOffender.getIdNo()); // Keep existing - don't allow change"
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java",
+   "line": 995,
+   "note": "Sesuai for the flag being set and other flags reset (:1007). Downstream use of the flag by letter generation not verified (see acceptance 4).",
+   "quote": "address.setLetterAddress(\"Y\"); // Mark furnished_mail as letter destination"
+  },
+  {
+   "i": 5,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java",
+   "line": 317,
+   "note": "API per-notice list yes, screen no (EditODHForm.tsx:127-129). 207 only on partial failure.",
+   "quote": ": ResponseEntity.status(207).body(response); // 207 Multi-Status for partial success"
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+   "line": 89,
+   "meaning": "Permission name that guards the two API paths of this screen.",
+   "quote": "auth.api-authorization.mapping.[OCMS_BATCH_UPDATE_ADDRESS]=\\"
+  },
+  {
+   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+   "line": 90,
+   "meaning": "Paths mapped to OCMS_BATCH_UPDATE_ADDRESS: search-by-id, batch-update-address, standardcodelist. Which roles hold it cannot be verified from the repo.",
+   "quote": "/v1/staff-furnish/search-by-id,/v1/staff-furnish/batch-update-address,/v1/standardcodelist"
+  },
+  {
+   "file": "ocmsadminui/src/utils/constant.ts",
+   "line": 305,
+   "meaning": "MAX_LIMIT = 999 caps the 'no selection = all notices' search.",
+   "quote": "export const MAX_LIMIT = 999; //? Max limit for API queries (for export and list pages)"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS41.50",
+   "status": "Demo paid (50% of 75%), 5 pts",
+   "second_claim_risk": "yes",
+   "reason": "41.50 'select the applicable notices and offender type for the bulk update' is the same interaction (search by ID, select notices, bulk update, confirm). The screen sits in the same Furnish area (useFurnishAPI.ts, staff-furnish controller). Differences (current offender only, no stage change, setAsLetterAddress) are real in code but URA can read this as a second claim on delivered Batch Furnish work. Together with 41.49 and 41.51 (both Demo paid)."
+  },
+  {
+   "story": "OCMS20.10",
+   "status": "Requirement given - Gen flow, 1 pt (demo remark: No vault)",
+   "second_claim_risk": "no",
+   "reason": "20.10 is a DOS lookup to compare registered address vs LTA mailing address; 52.2 is a manual officer edit with no DOS call."
+  },
+  {
+   "story": "OCMS20.11",
+   "status": "Requirement given - Gen flow, 2 pts",
+   "second_claim_risk": "maybe",
+   "reason": "20.11 resends a reminder to an alternative mailing address. 52.2 only stores an address and optionally flags it as letter address; no resend. Low risk, but URA may link the letter-address flag to 20.11's purpose."
+  },
+  {
+   "story": "OCMS28.4",
+   "status": "nan (blank), 1 pt",
+   "second_claim_risk": "no",
+   "reason": "28.4 is the court-side DOS address comparison; no manual edit screen."
+  },
+  {
+   "story": "OCMS22.13",
+   "status": "Demo paid (50% of 75%), 5 pts",
+   "second_claim_risk": "maybe",
+   "reason": "Not on the parent's list but named in risks: OIC amends and confirms an address (court batch). Different batch (court application) from 52.2."
+  }
+ ],
+ "verdict": "FIX WORDING"
+}

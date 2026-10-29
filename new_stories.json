@@ -1,0 +1,820 @@
+[
+ {
+  "no": 1,
+  "id_proposed": "OCMS52.1",
+  "slug": "auto-revival-expired-ts",
+  "tier": "A",
+  "kind": "new",
+  "related": "",
+  "points": 5,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119",
+   "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62,76",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/jobs/AutoRevivalJob.java:14-26",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:113-125",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:381-421",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:165-175",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:440-464",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:555-668",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:861,924,1006-1016",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:354",
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:60"
+  ],
+  "en": {
+   "title": "Automatic revival of expired temporary suspensions (Auto Revival day-end job)",
+   "user_story": "As an OCMS Officer who has temporary suspensions (TS) applied to notices, I want the OCMS to automatically revive each TS when its due date of revival is reached (reason SPO, Suspension Period Over), keep another active suspension valid on the notice, and re-apply TS-PDP when a Pending furnish application exists, so that the notices resume normal processing without officers having to revive them one by one.",
+   "adds": "",
+   "acceptance": [
+    "A daily job picks all TS rows in ocms_suspended_notice with date_of_revival empty and due_date_of_revival before the start of tomorrow.",
+    "A notice is skipped (not revived) when it is paid (crs_reason_of_suspension is not empty, or epr_reason_of_suspension is PRA), has no due TS, has an active PS whose reason is not DIP, MID, FOR, RIP or RP2, or its last processing stage is not an allowed revival stage; the court stages CSD, CSR, COS and COM are allowed only when a due TS has reason RED.",
+    "Due TS rows are marked revived with reason SPO and remark 'Auto-revived on due date'; if another suspension is still active, the remaining suspension with the latest date_of_suspension is copied to VON and eVON, and VON.due_date_of_revival takes the furthest due date of the remaining suspensions (eVON gets no due date).",
+    "After revival, TS-PDP is re-applied on a notice whose revived TS row has reason PDP, when the notice has no active PS-FP or PS-PRA and has a Pending furnish application (status P).",
+    "Officers can also start the job by hand from the staff portal Cron page ('Auto Revival' button); the request is proxied to the cron tier and the job runs in the background."
+   ],
+   "ura": "ticket: OCMS-DF-2026-117 (Closed, Investigation, no code change; URA asked about re-applying TS-HST and TS-CLV after auto revival); also OCMS-DF-2026-023, OCMS-DF-2026-029, OCMS-DF-2026-032, OCMS-DF-2026-139 (defects reported against the job, all Closed, Prod deployed)",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 5, the same as OCMS14.28 (5, continue the temporary suspension when the existing suspension expires), the closest existing story. Lower than OCMS14.19 (8) and OCMS16.4 (8) because the TS-HST and TS-CLV re-apply is left out of the claim and the job has no screen of its own.",
+   "demo": [
+    "In UAT, apply a TS with a short due date to a test notice (staff portal Apply Suspension) and set due_date_of_revival to today in ocms_suspended_notice.",
+    "Open the staff portal Cron page and click Auto Revival. The repo sets the schedule 0 15 0 * * ? with enabled=true in prod, so the 00:15 day-end run can be used only after the real server value is confirmed.",
+    "Open the notice: the TS row shows a revival date and reason SPO, and the VON suspension fields are cleared (or show the latest remaining suspension when another one is still active).",
+    "Repeat with a notice that has a PS such as PS-APP to show it is skipped."
+   ],
+   "risks": [
+    "OCMS-SR-2026-119 (Closed, about 11K PS notices wrongly auto-revived) and OCMS-SR-2026-169 (Closed), together with the defects OCMS-DF-2026-023, OCMS-DF-2026-029, OCMS-DF-2026-032, OCMS-DF-2026-139 (all Closed, Prod deployed) are fixes on this job. URA may treat the job as maintenance already paid, not as a delivered feature.",
+    "The TS-HST and TS-CLV re-apply overlaps with the text of OCMS14.28 (continue TS-CLV when the existing suspension expires) and OCMS20.19, and OCMS-DF-2026-117 shows URA questioned it (TS-HST re-applied on 11 notices that still had a TS-MS due on 31 Aug 2026). The claim is scoped to the base revival and the TS-PDP re-apply to avoid a double claim. The re-apply is done by the reason of the revived row, without a new check of the HST ID or the vehicle type, and also while another TS is still active; this part is not part of the claim.",
+    "The job runs inside the Toppan day-end combined scheduler (ToppanUploadJobsScheduler); the repo has it enabled=true in prod, but if that scheduler is switched off the revival also stops. The real server value cannot be verified from the repo.",
+    "The manual trigger on the Cron page (the Auto Revival button) belongs to OCMS52.3 (Auto Revival row), so it must be claimed in that story only; claiming it in both stories is a double claim.",
+    "No story text asks for automatic revival at all, so URA can argue it was implied by the TS stories (OCMS14.24, OCMS14.28) and not extra scope. Existing orphan #120 (meta.json) already notes one part of this job (keeping other active suspensions).",
+    "OCMS19.1 and OCMS19.9 (Demo paid) cover the OFFICER selecting the revival type and confirming a revival summary. No existing story text describes an automatic day-end revival job, so this is not a double claim by text, but the revival logic (helpers shared with the manual revival) may be argued to be part of those stories."
+   ]
+  },
+  "id": {
+   "title": "Auto revival untuk temporary suspension yang sudah kedaluwarsa (Auto Revival day-end job)",
+   "user_story": "Sebagai OCMS Officer yang menerapkan temporary suspension (TS) pada notice, saya ingin OCMS otomatis me-revive setiap TS saat due date of revival-nya tercapai (reason SPO, Suspension Period Over), tetap mempertahankan suspension aktif lain pada notice, dan meng-apply ulang TS-PDP bila ada furnish application berstatus Pending, supaya notice kembali diproses normal tanpa officer perlu me-revive satu per satu.",
+   "adds": "",
+   "acceptance": [
+    "Job harian mengambil semua baris TS di ocms_suspended_notice dengan date_of_revival kosong dan due_date_of_revival sebelum awal besok.",
+    "Notice di-skip (tidak di-revive) kalau sudah dibayar (crs_reason_of_suspension tidak kosong, atau epr_reason_of_suspension = PRA), tidak punya TS yang due, punya PS aktif dengan reason selain DIP, MID, FOR, RIP atau RP2, atau last processing stage bukan stage revival yang diizinkan; stage court CSD, CSR, COS dan COM hanya diizinkan kalau ada TS due dengan reason RED.",
+    "Baris TS yang due ditandai revived dengan reason SPO dan remark 'Auto-revived on due date'; kalau masih ada suspension lain yang aktif, suspension tersisa dengan date_of_suspension paling baru disalin ke VON dan eVON, dan VON.due_date_of_revival memakai due date terjauh dari suspension yang tersisa (eVON tidak dapat due date).",
+    "Setelah revival, TS-PDP di-apply ulang pada notice yang baris TS-nya yang di-revive ber-reason PDP, kalau notice itu tidak punya PS-FP atau PS-PRA aktif dan punya furnish application berstatus Pending (status P).",
+    "Officer juga bisa menjalankan job secara manual dari halaman Cron di staff portal (tombol 'Auto Revival'); request di-proxy ke cron tier dan job berjalan di background."
+   ],
+   "ura": "ticket: OCMS-DF-2026-117 (Closed, Investigation, tanpa perubahan code; URA bertanya soal re-apply TS-HST dan TS-CLV setelah auto revival); juga OCMS-DF-2026-023, OCMS-DF-2026-029, OCMS-DF-2026-032, OCMS-DF-2026-139 (defect yang dilaporkan pada job ini, semua Closed, Prod deployed)",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 5, sama dengan OCMS14.28 (5, melanjutkan temporary suspension saat suspension yang ada habis), story existing yang paling dekat. Lebih rendah dari OCMS14.19 (8) dan OCMS16.4 (8) karena re-apply TS-HST dan TS-CLV tidak diklaim dan job ini tidak punya screen sendiri.",
+   "demo": [
+    "Di UAT, apply TS dengan due date pendek ke notice uji (staff portal Apply Suspension) lalu set due_date_of_revival ke hari ini di ocms_suspended_notice.",
+    "Buka halaman Cron staff portal dan klik Auto Revival. Repo mengatur schedule 0 15 0 * * ? dengan enabled=true di prod, jadi run day-end jam 00:15 baru bisa dipakai setelah nilai asli di server dikonfirmasi.",
+    "Buka notice: baris TS menunjukkan revival date dan reason SPO, dan field suspension di VON dikosongkan (atau menunjukkan suspension tersisa yang paling baru kalau masih ada yang aktif).",
+    "Ulangi dengan notice yang punya PS seperti PS-APP untuk menunjukkan notice itu di-skip."
+   ],
+   "risks": [
+    "OCMS-SR-2026-119 (Closed, sekitar 11K notice PS salah di-auto-revive) dan OCMS-SR-2026-169 (Closed), bersama defect OCMS-DF-2026-023, OCMS-DF-2026-029, OCMS-DF-2026-032, OCMS-DF-2026-139 (semua Closed, Prod deployed) adalah perbaikan pada job ini. URA bisa menganggap job ini maintenance yang sudah dibayar, bukan fitur yang dikirim.",
+    "Re-apply TS-HST dan TS-CLV beririsan dengan teks OCMS14.28 (melanjutkan TS-CLV saat suspension yang ada habis) dan OCMS20.19, dan OCMS-DF-2026-117 menunjukkan URA mempertanyakannya (TS-HST di-apply ulang di 11 notice yang masih punya TS-MS due 31 Aug 2026). Klaim dibatasi ke revival dasar dan re-apply TS-PDP untuk menghindari double claim. Re-apply ini dilakukan berdasarkan reason baris yang di-revive, tanpa pengecekan ulang HST ID atau vehicle type, dan tetap jalan walau TS lain masih aktif; bagian ini tidak diklaim.",
+    "Job jalan di dalam scheduler day-end Toppan gabungan (ToppanUploadJobsScheduler); di repo statusnya enabled=true di prod, tapi kalau scheduler itu dimatikan revival ikut berhenti. Nilai asli di server tidak bisa diverifikasi dari repo.",
+    "Trigger manual di halaman Cron (tombol Auto Revival) milik OCMS52.3 (baris Auto Revival), jadi harus diklaim di story itu saja; mengklaimnya di kedua story adalah double claim.",
+    "Tidak ada teks story yang meminta automatic revival sama sekali, jadi URA bisa berargumen itu tersirat dari story TS (OCMS14.24, OCMS14.28) dan bukan scope tambahan. Orphan existing #120 (meta.json) sudah mencatat satu bagian job ini (mempertahankan suspension aktif lain).",
+    "OCMS19.1 dan OCMS19.9 (Demo paid) mencakup OFFICER memilih tipe revival dan mengonfirmasi ringkasan revival. Tidak ada teks story yang menjelaskan job revival otomatis di akhir hari, jadi ini bukan klaim ganda menurut teks, tetapi logic revival (helper yang dipakai bersama revival manual) bisa dianggap bagian dari story itu."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 2,
+  "id_proposed": "OCMS52.2",
+  "slug": "batch-update-mailing-address",
+  "tier": "B",
+  "kind": "extension",
+  "related": "OCMS41.50",
+  "points": 4,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminui/src/utils/data/LinkData.tsx:329-337",
+   "ocmsadminui/src/utils/data/LinkData.tsx:387",
+   "ocmsadminui/src/App.tsx:241-244",
+   "ocmsadminui/src/pages/BatchUpdateODH/form/SearchForm.tsx:28",
+   "ocmsadminui/src/pages/BatchUpdateODH/form/EditODHForm.tsx:78-133",
+   "ocmsadminui/src/pages/Furnish/hooks/useFurnishAPI.ts:235-238",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:276",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:330",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:171-215",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:555-559,681-715",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:743",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:89-90"
+  ],
+  "en": {
+   "title": "Batch Update of Mailing Address (staff screen)",
+   "user_story": "As a Notice Processing Officer who needs to correct the contact and mailing address of an offender who is the current offender on many notices, I want to search the notices by the offender ID and update the name, contact details and mailing address on the selected notices in one action (the ID itself stays as it is), so that letters for all those notices go to the right address without editing notice by notice.",
+   "adds": "Same shape as OCMS41.49-41.51 (all Demo paid): search by ID, list notices, select, enter particulars, confirm. Their texts speak of furnishing hirer/driver particulars in bulk for furnishable notices. They do not mention a mailing address, the option to use it as the letter address (setAsLetterAddress), a search that returns only notices where the ID is the current offender, or an update that keeps the same offender and does not change the stage. This extension adds that Batch Update Mailing Address screen and its single update call. URA can still read it as the delivered Batch Furnish work.",
+   "acceptance": [
+    "The staff menu has an entry 'Batch Update Mailing Address' that opens the page /batch-update-odh. The entry is shown, and the route opens, only when the functionUrls in the user's token match /batch-update-odh (filterMenusByUrl in LinkData.tsx, PrivateRoute.tsx); the two API calls are guarded by the API mapping OCMS_BATCH_UPDATE_ADDRESS. Which roles hold these cannot be verified from the repo.",
+    "Search by offender ID returns the notices where that ID is the current offender (offender_indicator = 'Y') and the VON suspension_type is not 'PS' (TS notices are included, and there is no exception for PS reasons DIP, FOR, MID, RIP or RP2 because the SQL does not implement it); the list is paginated. No check on processing stage (court stages are not excluded) or on paid status other than the suspension_type filter.",
+    "Officer picks notices, enters name, phone code, phone number, e-mail and the address (postal code, block, street, floor, unit, building) and confirms; street name is required (without it the server rejects the whole request, which is a chunk of 20 notices). The ID is not written: idNo and idType are copied from the existing row, and a request ID that differs from the notice's offender ID makes that notice fail with 'ID number mismatch'. If no notice is selected, the form re-runs the ID search (up to 999 notices, PS notices excluded) and updates those notices (the confirm dialog says 'for all Notices').",
+    "The same details are written to every selected notice. Name, phone code, phone number and e-mail left empty keep their old values; the mailing address fields (postal code, block, street, floor, unit, building) are overwritten with the values entered, so an empty field clears the old one. The details are saved on the current offender (offender_indicator = 'Y') of each notice and the mailing address is saved as its furnished_mail address. The processing stage is not changed.",
+    "Officer can choose to also set the mailing address as the letter address (setAsLetterAddress).",
+    "The API returns a result per notice (HTTP 200 when all succeed, 207 when at least one fails), but the staff screen shows only one message ('<n> of <total> notices updated successfully.', or the first error message when a request failed); there is no per-notice list on screen."
+   ],
+   "ura": "no (no flow deck exists in repo); maintenance tickets do not mention this screen either. Related stories OCMS41.49, OCMS41.50 and OCMS41.51 (Demo paid) and OCMS22.13 (address amend, Demo paid).",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 4, between OCMS41.46 (3, record/update particulars) and OCMS41.50 (5, select notices for the bulk update, Demo paid): the code is a thin loop over the existing staffUpdateOffenderAndAddress and the screen shows only a total count. Below the 8 first proposed.",
+   "demo": [
+    "Log in to the staff portal with a user whose token functionUrls include /batch-update-odh and open 'Batch Update Mailing Address' (the menu entry is not shown to every user; the API calls need the OCMS_BATCH_UPDATE_ADDRESS mapping)",
+    "Search an ID that is the current offender on 2 or more notices",
+    "Select the notices, change the address and confirm (do not leave the selection empty: that re-runs the search and updates up to 999 notices of the ID, PS notices excluded)",
+    "Open each notice and check the mailing address and the unchanged processing stage"
+   ],
+   "risks": [
+    "OCMS41.49, OCMS41.50 and OCMS41.51 (Demo paid 50%) describe the same shape of screen (search by ID, select notices, bulk update of particulars, confirm). URA may read this screen as the delivered Batch Furnish work and as a second claim for something already billed. OCMS22.13 (address amend, Demo paid) overlaps partly.",
+    "Existing orphans #150 and #210 (OCMS22.11.json, OCMS41.46.json) already list this screen. They note it is only 'similar' to OCMS22.12/22.13 and OCMS41.50/41.51; the difference (the same offender is kept, no stage reset) is real in code.",
+    "URA never requested it in any document we hold, so it is a weaker claim. The menu label says 'Mailing Address' but the form also overwrites name, phone and e-mail.",
+    "With no selection the screen re-runs the ID search and updates up to 999 notices (PS notices are excluded), including notices at court stages, without a stage check; the confirm dialog is the only guard.",
+    "The batch is one @Transactional method and each notice catches its own exception; a DB exception inside the shared transaction may mark it rollback-only, so the per-notice results would not be reliable. This cannot be verified from the repo, and whether the POST wrapper treats HTTP 207 as success also cannot be verified.",
+    "ToppanUploadHelper.resetLetterAddressAfterToppan omits furnished_mail in its fallback, so an address saved as furnished_mail may not drive the letter unless setAsLetterAddress is ticked (BRIEF_ADDENDUM item 5; not checked in detail). Which staff roles hold OCMS_BATCH_UPDATE_ADDRESS cannot be verified from the repo.",
+    "OCMS20.11 (Requirement given - Gen flow, 2 points) resends a reminder to an alternative mailing address. This screen only stores an address and can flag it as the letter address, with no resend, but URA may link the letter-address option to the purpose of OCMS20.11."
+   ]
+  },
+  "id": {
+   "title": "Batch Update of Mailing Address (screen untuk staff)",
+   "user_story": "Sebagai Notice Processing Officer yang perlu memperbaiki kontak dan mailing address offender yang menjadi current offender di banyak notice, saya ingin mencari notice berdasarkan ID offender dan meng-update nama, kontak dan mailing address pada notice yang dipilih dalam satu aksi (ID-nya sendiri tidak berubah), supaya surat untuk semua notice itu terkirim ke alamat yang benar tanpa mengedit notice satu per satu.",
+   "adds": "Bentuknya sama dengan OCMS41.49-41.51 (semua Demo paid): cari berdasarkan ID, tampilkan daftar notice, pilih, isi particulars, konfirmasi. Teks mereka bicara soal bulk update particulars hirer/driver untuk notice yang furnishable. Mereka tidak menyebut mailing address, opsi memakainya sebagai letter address (setAsLetterAddress), pencarian yang hanya mengembalikan notice di mana ID itu current offender, atau update yang mempertahankan offender yang sama dan tidak mengubah stage. Extension ini menambah screen Batch Update Mailing Address itu dan satu call update-nya. URA tetap bisa membacanya sebagai pekerjaan Batch Furnish yang sudah dikirim.",
+   "acceptance": [
+    "Menu staff punya entry 'Batch Update Mailing Address' yang membuka halaman /batch-update-odh. Entry ini tampil, dan route-nya terbuka, hanya kalau functionUrls di token user cocok dengan /batch-update-odh (filterMenusByUrl di LinkData.tsx, PrivateRoute.tsx); dua panggilan API dijaga oleh API mapping OCMS_BATCH_UPDATE_ADDRESS. Role mana yang memegang keduanya tidak bisa diverifikasi dari repo.",
+    "Pencarian berdasarkan ID offender mengembalikan notice di mana ID itu adalah current offender (offender_indicator = 'Y') dan suspension_type di VON bukan 'PS' (notice TS ikut, dan tidak ada pengecualian untuk reason PS DIP, FOR, MID, RIP atau RP2 karena SQL tidak mengimplementasikannya); daftar dipaginasi. Tidak ada pengecekan processing stage (stage court tidak dikecualikan) atau status paid selain filter suspension_type.",
+    "Officer memilih notice, mengisi name, phone code, phone number, e-mail dan address (postal code, block, street, floor, unit, building) lalu confirm; street name wajib diisi (tanpa itu server menolak seluruh request, yaitu satu chunk berisi 20 notice). ID tidak ditulis: idNo dan idType disalin dari row yang ada, dan ID di request yang berbeda dari ID offender notice membuat notice itu gagal dengan 'ID number mismatch'. Kalau tidak ada notice yang dipilih, form menjalankan ulang search ID (sampai 999 notice, notice PS tidak ikut) dan meng-update notice-notice itu (dialog confirm menulis 'for all Notices').",
+    "Detail yang sama ditulis ke setiap notice yang dipilih. Name, phone code, phone number dan e-mail yang dikosongkan mempertahankan nilai lama; field mailing address (postal code, block, street, floor, unit, building) ditimpa dengan nilai yang diisi, jadi field kosong menghapus nilai lama. Detail disimpan pada current offender (offender_indicator = 'Y') tiap notice dan mailing address disimpan sebagai address furnished_mail-nya. Processing stage tidak diubah.",
+    "Officer bisa memilih untuk sekaligus menjadikan mailing address sebagai letter address (setAsLetterAddress).",
+    "API mengembalikan hasil per notice (HTTP 200 kalau semua berhasil, 207 kalau minimal satu gagal), tapi layar staff hanya menampilkan satu pesan ('<n> of <total> notices updated successfully.', atau pesan error pertama kalau request gagal); tidak ada list per notice di layar."
+   ],
+   "ura": "tidak ada (tidak ada flow deck di repo); maintenance ticket juga tidak menyebut screen ini. Story terkait OCMS41.49, OCMS41.50 dan OCMS41.51 (Demo paid) dan OCMS22.13 (amend address, Demo paid).",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 4, di antara OCMS41.46 (3, record/update particulars) dan OCMS41.50 (5, pilih notice untuk bulk update, Demo paid): code-nya loop tipis di atas staffUpdateOffenderAndAddress yang sudah ada dan screen hanya menampilkan jumlah total. Di bawah 8 yang diusulkan awalnya.",
+   "demo": [
+    "Login ke staff portal dengan user yang functionUrls di token-nya memuat /batch-update-odh lalu buka 'Batch Update Mailing Address' (menu ini tidak tampil untuk semua user; panggilan API butuh mapping OCMS_BATCH_UPDATE_ADDRESS)",
+    "Cari ID yang menjadi current offender di 2 notice atau lebih",
+    "Pilih notice, ubah address lalu confirm (jangan biarkan pilihan kosong: itu menjalankan ulang search dan meng-update sampai 999 notice dari ID itu, notice PS tidak ikut)",
+    "Buka tiap notice dan cek mailing address serta processing stage yang tidak berubah"
+   ],
+   "risks": [
+    "OCMS41.49, OCMS41.50 dan OCMS41.51 (Demo paid 50%) menggambarkan bentuk screen yang sama (cari berdasarkan ID, pilih notice, bulk update particulars, konfirmasi). URA bisa membaca screen ini sebagai pekerjaan Batch Furnish yang sudah dikirim dan sebagai klaim kedua untuk sesuatu yang sudah ditagih. OCMS22.13 (amend address, Demo paid) overlap sebagian.",
+    "Orphan existing #150 dan #210 (OCMS22.11.json, OCMS41.46.json) sudah mencatat screen ini. Mereka mencatat bahwa ini hanya 'mirip' OCMS22.12/22.13 dan OCMS41.50/41.51; perbedaannya (offender yang sama dipertahankan, tanpa reset stage) nyata di code.",
+    "URA tidak pernah memintanya di dokumen apa pun yang kami pegang, jadi klaimnya lebih lemah. Label menu bilang 'Mailing Address' tapi form juga menimpa name, phone dan e-mail.",
+    "Tanpa pilihan, layar menjalankan ulang search ID dan meng-update sampai 999 notice (notice PS tidak ikut), termasuk notice di stage court, tanpa pengecekan stage; dialog confirm satu-satunya penjaga.",
+    "Batch adalah satu method @Transactional dan tiap notice menangkap exception-nya sendiri; exception DB di dalam transaction bersama bisa menandainya rollback-only, sehingga hasil per notice tidak bisa diandalkan. Ini tidak bisa diverifikasi dari repo, dan apakah wrapper POST memperlakukan HTTP 207 sebagai sukses juga tidak bisa diverifikasi.",
+    "ToppanUploadHelper.resetLetterAddressAfterToppan tidak menyertakan furnished_mail di fallback-nya, jadi alamat yang disimpan sebagai furnished_mail mungkin tidak dipakai surat kecuali setAsLetterAddress dicentang (BRIEF_ADDENDUM item 5; tidak dicek detail). Role staff mana yang punya OCMS_BATCH_UPDATE_ADDRESS tidak bisa diverifikasi dari repo.",
+    "OCMS20.11 (Requirement given - Gen flow, 2 poin) mengirim ulang reminder ke alternative mailing address. Layar ini hanya menyimpan address dan bisa menandainya sebagai letter address, tanpa kirim ulang, tapi URA bisa mengaitkan opsi letter address dengan tujuan OCMS20.11."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 3,
+  "id_proposed": "OCMS52.3",
+  "slug": "cron-manual-trigger-screen",
+  "tier": "A",
+  "kind": "new",
+  "related": "",
+  "points": 4,
+  "confidence": "Medium",
+  "works": "partly",
+  "evidence": [
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:41-67",
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:70-83",
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:85-100",
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:216",
+   "ocmsadminui/src/pages/Cron/list/CronList.tsx:268",
+   "ocmsadminui/src/App.tsx:319",
+   "ocmsadminui/src/utils/data/LinkData.tsx:391",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyController.java:337",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java:88-136",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java:461",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/CronJobStatusController.java:144",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:187",
+   "ocmsadminprivateapi/src/main/resources/application-prod.properties:80,86-87"
+  ],
+  "en": {
+   "title": "Cron screen: manually trigger and watch back-office jobs from the Staff Portal",
+   "user_story": "As an OCMS support/operations officer, I want a Cron screen in the Staff Portal where I can start a back-office job (LTA, MHA, Toppan, eNotification, reports, DataHive, sync, vHub, auto revival) on demand and, for the jobs that record progress (14 of the 27 buttons), see whether it is running, completed or failed, so that I can re-run a job that did not run or failed without asking a developer.",
+   "adds": "",
+   "acceptance": [
+    "The menu has a 'Cron' entry that opens the /cron page; like the other menu entries it is shown only when the functionUrls in the user's token match its path.",
+    "The page lists 27 jobs (LTA VRLS Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement Files, ENA Reminder and Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, Daily/Monthly Paid and Exception report e-mails, Daily RIP Hirer/Driver report, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload and Download, Unclaimed Report, vHub end-day/download/summary report), each with a 'Trigger Cron' button. There is no REP download row. In the prod properties of the cron tier, Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off; which triggers are affected was not traced and the real server values cannot be verified from the repo.",
+    "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService). The page treats HTTP 200, 202, gateway timeouts (408, 502, 503, 504, 524) and no response as 'triggered' (a job without a status key then shows a 'Triggered' badge, a job with a status key shows Running), so this does not prove the job started; a 4xx/5xx answer shows 'Error triggering'.",
+    "For the 14 jobs that have a status key, the page polls POST cron/job-status?key=<key> every 5 seconds (1 hour timeout) and shows Running with elapsed time, then Done or Failed; the dismiss button appears when the state is finished. The other 13 jobs show only a 30-second 'Triggered' badge.",
+    "The page lets an officer trigger several jobs one after another without waiting; each row keeps its own status tag. Whether the cron tier runs them in parallel is decided by each job and is not claimed."
+   ],
+   "ura": "ticket: OCMS-DF-2026-061 (Closed, Prod deployed; a user reported a bug on the Cron List screen, so the screen is in use; this is not proof that URA asked for it as a requirement)",
+   "points_basis": "Estimate only (MGG/URA decide). Set at 4: one page with a button list and polling on top of a generic proxy, bigger than the list screen OCMS41.49 (3) but below OCMS41.50 (5), because half of the jobs have no status and several proxy methods are commented out. The jobs themselves are claimed under other stories.",
+   "demo": [
+    "Log in to the Staff Portal in UAT with a user that has the OCMS_CRON permission and a token whose functionUrls include /cron.",
+    "Open the 'Cron' menu.",
+    "Click a job that has a status key (for example Daily Paid Notices Report Email, Auto Revival, LTA or MHA) and watch the tag change to Running, then Done or Failed. 'Job Report' has no status key and shows only 'Triggered'.",
+    "Trigger a second job while the first one is running and check that both tags are independent."
+   ],
+   "risks": [
+    "No user story or URA requirement document asks for this screen; URA may call it an internal support tool, not a business feature.",
+    "OCMS-DF-2026-061 (Closed, Prod deployed, bug fix on the Cron List screen) and OCMS-DF-2026-066 (Closed, Prod deployed, turn on LTA cron) are maintenance tickets on this screen; URA may consider it already paid as maintenance.",
+    "The staff API path /v1/cron is protected by JwtFilter and the OCMS_CRON mapping in api-authorization.properties, so there is no open endpoint on that side; the network protection of the cron tier itself cannot be verified from the repo, and which staff roles hold OCMS_CRON is not visible.",
+    "Overlap risk: the Auto Revival manual trigger is also cited in OCMS52.1, and orphans OCMS11.21.json (eNotification CronProxy) and OCMS35.1.json (vHub trigger) already list parts of this screen. It must be claimed once only.",
+    "Some CronProxyService methods are commented out (combined-scheduler toppan/mha/lta, furnish notifications, PII cleanup), so the screen does not reach every back-office job.",
+    "Some prod flags switch off SMS, SMTP and Toppan upload, so URA may say the triggers do nothing in prod; the real server values cannot be verified from the repo.",
+    "OCMS35.2 (Requirement given - Gen flow, 3 points) is the vHub interface. This screen only holds three vHub trigger buttons (CronList.tsx:65-67) and orphan OCMS35.1.json lists the same buttons, so the vHub rows must not be claimed twice."
+   ]
+  },
+  "id": {
+   "title": "Cron screen: trigger manual dan pantau back-office job dari Staff Portal",
+   "user_story": "Sebagai OCMS support/operations officer, saya ingin ada screen Cron di Staff Portal untuk menjalankan back-office job (LTA, MHA, Toppan, eNotification, report, DataHive, sync, vHub, auto revival) sesuai kebutuhan dan, untuk job yang mencatat progress (14 dari 27 tombol), melihat apakah job sedang running, completed atau failed, supaya saya bisa menjalankan ulang job yang tidak jalan atau gagal tanpa minta tolong developer.",
+   "adds": "",
+   "acceptance": [
+    "Menu punya entry 'Cron' yang membuka halaman /cron; seperti entry menu lain, entry ini tampil hanya kalau functionUrls di token user cocok dengan path-nya.",
+    "Halaman menampilkan 27 job (LTA VRLS Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement Files, ENA Reminder dan Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, e-mail report Daily/Monthly Paid dan Exception, Daily RIP Hirer/Driver report, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload dan Download, Unclaimed Report, report vHub end-day/download/summary), masing-masing dengan tombol 'Trigger Cron'. Tidak ada baris REP download. Di properties prod cron tier, upload SFTP Toppan (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) dan SMS (sms.enable=false) dimatikan; trigger mana yang terdampak tidak ditelusuri dan nilai asli di server tidak bisa diverifikasi dari repo.",
+    "Satu klik mengirim POST cron/<job>/trigger ke staff API, yang meneruskannya ke cron tier (CronProxyController/CronProxyService). Halaman menganggap HTTP 200, 202, gateway timeout (408, 502, 503, 504, 524) dan tidak ada response sebagai 'triggered' (job tanpa status key lalu menampilkan badge 'Triggered', job dengan status key menampilkan Running), jadi ini tidak membuktikan job benar-benar mulai; jawaban 4xx/5xx menampilkan 'Error triggering'.",
+    "Untuk 14 job yang punya status key, halaman melakukan polling POST cron/job-status?key=<key> tiap 5 detik (timeout 1 jam) dan menampilkan Running dengan elapsed time, lalu Done atau Failed; tombol dismiss muncul saat state sudah selesai. 13 job lainnya hanya menampilkan badge 'Triggered' selama 30 detik.",
+    "Halaman membolehkan officer men-trigger beberapa job berurutan tanpa menunggu; tiap baris punya status tag sendiri. Apakah cron tier menjalankannya paralel ditentukan tiap job dan tidak diklaim."
+   ],
+   "ura": "ticket: OCMS-DF-2026-061 (Closed, Prod deployed; user melaporkan bug di screen Cron List, jadi screen ini dipakai; ini bukan bukti bahwa URA memintanya sebagai requirement)",
+   "points_basis": "Hanya perkiraan (MGG/URA yang memutuskan). Ditetapkan 4: satu halaman dengan daftar tombol dan polling di atas proxy generik, lebih besar dari screen daftar OCMS41.49 (3) tapi di bawah OCMS41.50 (5), karena setengah dari job tidak punya status dan beberapa method proxy di-comment. Job-nya sendiri diklaim di story lain.",
+   "demo": [
+    "Login ke Staff Portal di UAT dengan user yang punya permission OCMS_CRON dan token yang functionUrls-nya memuat /cron.",
+    "Buka menu 'Cron'.",
+    "Klik job yang punya status key (misalnya Daily Paid Notices Report Email, Auto Revival, LTA atau MHA) dan lihat tag berubah ke Running, lalu Done atau Failed. 'Job Report' tidak punya status key dan hanya menampilkan 'Triggered'.",
+    "Trigger job kedua saat job pertama masih running dan cek bahwa kedua tag berjalan independen."
+   ],
+   "risks": [
+    "Tidak ada user story atau dokumen requirement URA yang meminta screen ini; URA bisa menyebutnya alat support internal, bukan fitur bisnis.",
+    "OCMS-DF-2026-061 (Closed, Prod deployed, bug fix di screen Cron List) dan OCMS-DF-2026-066 (Closed, Prod deployed, turn on LTA cron) adalah maintenance ticket pada screen ini; URA bisa menganggapnya sudah dibayar sebagai maintenance.",
+    "Path staff API /v1/cron dilindungi JwtFilter dan mapping OCMS_CRON di api-authorization.properties, jadi tidak ada endpoint terbuka di sisi itu; proteksi network cron tier sendiri tidak bisa diverifikasi dari repo, dan role staff mana yang punya OCMS_CRON tidak terlihat.",
+    "Risiko overlap: manual trigger Auto Revival juga dikutip di OCMS52.1, dan orphan OCMS11.21.json (eNotification CronProxy) dan OCMS35.1.json (vHub trigger) sudah mencatat sebagian screen ini. Harus diklaim di satu tempat saja.",
+    "Beberapa method CronProxyService di-comment (combined-scheduler toppan/mha/lta, furnish notifications, PII cleanup), jadi screen ini tidak menjangkau semua back-office job.",
+    "Beberapa flag prod mematikan SMS, SMTP dan upload Toppan, jadi URA bisa bilang trigger tidak berbuat apa-apa di prod; nilai asli di server tidak bisa diverifikasi dari repo.",
+    "OCMS35.2 (Requirement given - Gen flow, 3 poin) adalah interface vHub. Layar ini hanya punya tiga tombol trigger vHub (CronList.tsx:65-67) dan orphan OCMS35.1.json mencantumkan tombol yang sama, jadi baris vHub tidak boleh diklaim dua kali."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 4,
+  "id_proposed": "OCMS52.4",
+  "slug": "toppan-registered-mail-postal-number",
+  "tier": "A",
+  "kind": "extension",
+  "related": "OCMS8.11",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "partly",
+  "evidence": [
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java:153-159",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java:91-100",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/jobs/ToppanDownloadJob.java:375-420",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:226-236",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:434-447",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/drivernotice/DriverNoticeControllerPlus.java:210",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/driver/requestdriver/RequestDriverController.java:216",
+   "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx:165 and :395",
+   "ocmsadminui/src/i18n/en/translation.json:721",
+   "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:90-91"
+  ],
+  "en": {
+   "title": "Postal registration number from Toppan registered-mail return files (RD2 / DN2), saved on the notice and shown in the staff portal",
+   "user_story": "As a Notice Processing Officer, I want the OCMS to read the registered-mail return files that Toppan sends back for 2nd reminders and Driver Notices and record the postal registration number against the notice, so that I can see the Postal Reg. Number on the notice screen and trace the registered letter.",
+   "adds": "OCMS8.11 (Requirement given, not paid) asks for daily summary reports on letters sent to the vendor, and its own trace already uses the Toppan return-file code; the Detailed RD & DN report generated after the ACK download already prints a postal_regn_no column, so that report column belongs to OCMS8.11. OCMS11.12 / OCMS11.32 / OCMS12.x only cover sending the 2nd letter to the vendor. None of them name parsing the registered-mail return file, writing the postal registration number into the RD2/DN2 tracking rows, or the 'Postal Reg. Number' field on the notice screen. This candidate is that parse, write and screen field only.",
+   "acceptance": [
+    "The Toppan Download cron accepts files named DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* and parses notice number plus postal registration number. The file layout is known from code only; there is no interface spec in the repo. A detail record shorter than 237 characters gives no registration number, but the notice is still counted as successful.",
+    "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no. It is an update only: the tracking row (notice_no + stage) must already exist; the only code found that creates these rows is the Toppan upload flow (ToppanUploadHelper.java:889-897). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated; if several rows exist for the same notice and stage only one of them is updated.",
+    "An existing number is not overwritten with a blank value; a non-blank new value does overwrite an older different number.",
+    "The staff portal notice detail (RDP and DN section) shows the field 'Postal Reg. Number'",
+    "Notices in the file that are not in VON are counted as errors, not silently skipped; the job shows only the error count ('Stage transition errors for <stage>: n notices failed'), not each notice number."
+   ],
+   "ura": "no (no flow deck exists in repo; no maintenance ticket found for it)",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, about OCMS11.12 (3, send the 2nd letter to the vendor). Lower than OCMS8.10 (5, Fully paid) and OCMS8.11 (5) because the new work is one parser branch, one set-based update and two read-only screen fields, and the report column is already part of OCMS8.11.",
+   "demo": [
+    "In UAT put a DPT-URA-DN2-D2-<timestamp> test file with one existing DN2 notice (with a tracking row created by the Toppan upload flow) on the Toppan download SFTP folder",
+    "Run the Toppan Download cron from the cron screen",
+    "Open the notice in the staff portal, RDP and DN section, and check 'Postal Reg. Number' is filled"
+   ],
+   "risks": [
+    "OCMS8.11 (Requirement given, not paid) sits in the same job run and uses the same return-file code; URA may ask why this is not claimed inside OCMS8.11, or may say the return-file handling is part of 'send letters to vendor'.",
+    "Toppan upload is blocked in the PROD properties (sftp.upload.disabledServers=toppan, application-prod.properties:86) and the upload job runs only by manual trigger. Toppan downloads stay enabled (toppandownload enabled=true), but no return file can exist for letters that were never sent, so real use is unproven and the repo cannot show that any real RD2/DN2 file was received.",
+    "The tracking rows that the update needs are created only by the Toppan upload flow; a notice that is in VON but has no tracking row gives only a warning and is still counted as updated. The only code found that creates them is ToppanUploadHelper.java:889-897; code elsewhere or DB tools cannot be ruled out. If several rows exist for the same notice and stage, only one is updated.",
+    "The parser also accepts DPT-URA-PDF-D2 files, but the stage-transition code writes only for RD2 and DN2 names, so registration numbers from PDF-letter files are read and dropped.",
+    "Orphans OCMS12.41.json and OCMS11.31.json already record the RD2 and DN2 return-file processing as code without a story, so it must be claimed once only.",
+    "Part of the same job (ACK-based stage moves, 'List of DNs processed' report, the postal_regn_no report column) is deliberately NOT claimed here to avoid a double claim."
+   ]
+  },
+  "id": {
+   "title": "Postal registration number dari file return registered-mail Toppan (RD2 / DN2), disimpan di notice dan ditampilkan di staff portal",
+   "user_story": "Sebagai Notice Processing Officer, saya ingin OCMS membaca file return registered-mail yang dikirim balik Toppan untuk 2nd reminder dan Driver Notice lalu mencatat postal registration number pada notice, supaya saya bisa melihat Postal Reg. Number di notice screen dan melacak registered letter-nya.",
+   "adds": "OCMS8.11 (Requirement given, belum dibayar) meminta laporan ringkasan harian untuk surat yang dikirim ke vendor, dan trace-nya sendiri sudah memakai code return-file Toppan; report Detailed RD & DN yang dibuat setelah ACK download sudah mencetak kolom postal_regn_no, jadi kolom report itu milik OCMS8.11. OCMS11.12 / OCMS11.32 / OCMS12.x hanya mencakup pengiriman surat ke-2 ke vendor. Tidak satu pun menyebut parsing return file registered-mail, menulis postal registration number ke baris tracking RD2/DN2, atau field 'Postal Reg. Number' di screen notice. Kandidat ini hanya parse, write dan field screen itu.",
+   "acceptance": [
+    "Cron Toppan Download menerima file bernama DPT-URA-RD2-D2-* dan DPT-URA-DN2-D2-* dan mem-parse notice number plus postal registration number. Layout file hanya diketahui dari code; tidak ada interface spec di repo. Detail record yang lebih pendek dari 237 karakter tidak menghasilkan registration number, tapi notice-nya tetap dihitung berhasil.",
+    "Untuk file RD2 nomor ditulis ke ocms_request_driver_particulars.postal_regn_no; untuk file DN2 ke ocms_driver_notice.postal_regn_no. Ini hanya update: tracking row (notice_no + stage) harus sudah ada; satu-satunya code yang ditemukan yang membuat row ini adalah flow upload Toppan (ToppanUploadHelper.java:889-897). Notice yang ada di VON tapi tidak punya tracking row dicatat sebagai warning dan tetap dihitung updated; kalau ada beberapa row untuk notice dan stage yang sama, hanya satu yang di-update.",
+    "Nomor yang sudah ada tidak ditimpa dengan nilai kosong; nilai baru yang tidak kosong menimpa nomor lama yang berbeda.",
+    "Notice detail di staff portal (bagian RDP dan DN) menampilkan field 'Postal Reg. Number'",
+    "Notice di file yang tidak ada di VON dihitung sebagai error, tidak di-skip diam-diam; job hanya menampilkan jumlah error ('Stage transition errors for <stage>: n notices failed'), bukan nomor tiap notice."
+   ],
+   "ura": "tidak (tidak ada flow deck di repo; tidak ditemukan maintenance ticket untuk ini)",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, setara OCMS11.12 (3, kirim surat ke-2 ke vendor). Lebih rendah dari OCMS8.10 (5, Fully paid) dan OCMS8.11 (5) karena pekerjaan barunya satu cabang parser, satu update set-based dan dua field screen read-only, dan kolom report sudah bagian dari OCMS8.11.",
+   "demo": [
+    "Di UAT taruh file uji DPT-URA-DN2-D2-<timestamp> berisi satu notice DN2 yang ada (dengan baris tracking dari flow upload Toppan) di folder SFTP Toppan download",
+    "Jalankan cron Toppan Download dari screen cron",
+    "Buka notice di staff portal, bagian RDP dan DN, dan cek 'Postal Reg. Number' terisi"
+   ],
+   "risks": [
+    "OCMS8.11 (Requirement given, belum dibayar) ada di job run yang sama dan memakai code return-file yang sama; URA bisa bertanya kenapa ini tidak diklaim di dalam OCMS8.11, atau bilang penanganan return file adalah bagian dari 'send letters to vendor'.",
+    "Upload Toppan diblokir di PROD properties (sftp.upload.disabledServers=toppan, application-prod.properties:86) dan job upload hanya jalan lewat manual trigger. Download Toppan tetap aktif (toppandownload enabled=true), tapi return file tidak mungkin ada untuk surat yang tidak pernah terkirim, jadi pemakaian nyata belum terbukti dan repo tidak bisa menunjukkan ada file RD2/DN2 asli yang pernah diterima.",
+    "Baris tracking yang dibutuhkan update hanya dibuat oleh flow upload Toppan; notice yang ada di VON tapi tidak punya baris tracking hanya menghasilkan warning dan tetap dihitung sebagai updated. Satu-satunya code yang ditemukan yang membuatnya adalah ToppanUploadHelper.java:889-897; code lain atau tool DB tidak bisa dikesampingkan. Kalau ada beberapa row untuk notice dan stage yang sama, hanya satu yang di-update.",
+    "Parser juga menerima file DPT-URA-PDF-D2, tapi code stage-transition hanya menulis untuk nama RD2 dan DN2, jadi registration number dari file surat PDF dibaca lalu dibuang.",
+    "Orphan OCMS12.41.json dan OCMS11.31.json sudah mencatat pemrosesan return-file RD2 dan DN2 sebagai code tanpa story, jadi harus diklaim di satu tempat saja.",
+    "Bagian lain dari job yang sama (pindah stage berbasis ACK, report 'List of DNs processed', kolom report postal_regn_no) sengaja TIDAK diklaim di sini supaya tidak double claim."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 5,
+  "id_proposed": "OCMS52.5",
+  "slug": "urapg-axs-hourly-sync",
+  "tier": "A",
+  "kind": "new",
+  "related": "",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "partly",
+  "evidence": [
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:22-72",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/UraPgRetryJobsScheduler.java:27-40",
+   "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:350-351",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:432,687-695",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java:24-35",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:113-146",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:455-460",
+   "ocmsadminprivateapi/src/main/resources/application-prod.properties:106-107"
+  ],
+  "en": {
+   "title": "Hourly send of AXS payment transactions to the URA Payment Gateway",
+   "user_story": "As a Fines Payment Processing Officer who needs AXS payments to reach the URA Payment Gateway, I want the OCMS to send every AXS transaction not yet reported to the URA Payment Gateway every hour and mark it as sent, leaving the failed ones to be sent again in the next run, so that every AXS payment is reported to the gateway.",
+   "adds": "",
+   "acceptance": [
+    "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N.",
+    "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N, typeOfReceipt = '01' and sender = 'AXS', and posts all of them in ONE request (no batch size, no retry limit) to the URA PG endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1.",
+    "Rows the gateway reports as sent are updated to urapg_sync_status = Y (per receipt_no); the others stay N and are sent again in the next run.",
+    "Rows that still fail are written to the error log (receipt_no list). notifyUraPgErrors is still called but its body is empty (the e-mail call is commented out, OCMS-DF-2026-147), so no notification is sent. The job does not compare counts or amounts between OCMS and the gateway (no such code was found by grep in the repos). Manual endpoints exist: POST /v1/ura-pg/send in UraPgController and a cron trigger in CombinedSchedulerTriggerController."
+   ],
+   "ura": "ticket: OCMS-DF-2026-035 and OCMS-DF-2026-047 (URA reported the OCMS to PG sync failing for AXS NOPO transactions); OCMS-DF-2026-147 (hourly AXS to URA PG sync freezing the scheduler); all Closed, Prod deployed bug fixes",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, below OCMS43.2 (5, Demo paid, receives payment status and transaction details and updates eVON). This job is one query, one POST and one flag update, the error notification is switched off and there is no reconciliation check.",
+   "demo": [
+    "In UAT make an AXS payment on a test notice (or insert an AXS row in web_txn_detail through the normal sync) so that urapg_sync_status becomes N.",
+    "Wait for the top of the hour (or trigger CombinedSchedulerTriggerController item #18).",
+    "Check web_txn_detail: urapg_sync_status changes from N to Y and the application log shows 'URA PG Sync Result: n success'."
+   ],
+   "risks": [
+    "OCMS-DF-2026-035, OCMS-DF-2026-047 and OCMS-DF-2026-147 (all Closed, Prod deployed) are bug fixes on this very job, so URA may treat it as maintenance already paid.",
+    "OCMS43.2 trace states this direction 'is not counted' for that story, so the work is unclaimed today, but URA may say it belongs to OCMS43.x (payment channels interface) and was already paid. Orphan OCMS46.1.json also links the same code to the Removed stories OCMS46.4 and OCMS46.5 (refund queries to the payment gateway, a different payload); URA could ask whether it falls under a Removed story.",
+    "No story text mentions sending transactions to the gateway; the only URA evidence is the bug tickets.",
+    "All pending rows go in one request with no retry limit; a growing backlog makes one ever larger request (OCMS-DF-2026-047 'batch retry causing PG to timeout' is this failure mode).",
+    "Success depends on the external gateway and the APIM key; if reading the key from Key Vault fails only a warning is logged and the call fails at the gateway. This cannot be verified from the repo.",
+    "The staff portal Cron page has no button for this job (CronList.tsx has no URA PG entry), so a demo needs the backend trigger or the hourly run. The class names say 'Retry' but this is the first and only send path for the row."
+   ]
+  },
+  "id": {
+   "title": "Pengiriman per jam transaksi pembayaran AXS ke URA Payment Gateway",
+   "user_story": "Sebagai Fines Payment Processing Officer yang membutuhkan pembayaran AXS sampai ke URA Payment Gateway, saya ingin OCMS mengirim setiap transaksi AXS yang belum dilaporkan ke URA Payment Gateway tiap jam dan menandainya sebagai terkirim, sementara yang gagal dikirim lagi di run berikutnya, supaya setiap pembayaran AXS dilaporkan ke gateway.",
+   "adds": "",
+   "acceptance": [
+    "Saat sync Internet-ke-Intranet memproses transaksi AXS, transaksi itu mendapat urapg_sync_status = N.",
+    "Tiap jam job membaca semua baris web_txn_detail dengan urapg_sync_status = N, typeOfReceipt = '01' dan sender = 'AXS', lalu mem-post semuanya dalam SATU request (tanpa batch size, tanpa batas retry) ke endpoint URA PG /paymentgateway/Recon/insertOcmsAxsTxn/v1.",
+    "Baris yang dilaporkan gateway sebagai terkirim di-update ke urapg_sync_status = Y (per receipt_no); sisanya tetap N dan dikirim lagi di run berikutnya.",
+    "Row yang masih gagal ditulis ke error log (list receipt_no). notifyUraPgErrors masih dipanggil tapi body-nya kosong (panggilan e-mail di-comment, OCMS-DF-2026-147), jadi tidak ada notifikasi yang dikirim. Job tidak membandingkan jumlah atau amount antara OCMS dan gateway (code seperti itu tidak ditemukan lewat grep di repo). Endpoint manual ada: POST /v1/ura-pg/send di UraPgController dan cron trigger di CombinedSchedulerTriggerController."
+   ],
+   "ura": "ticket: OCMS-DF-2026-035 dan OCMS-DF-2026-047 (URA melaporkan sync OCMS ke PG gagal untuk transaksi AXS NOPO); OCMS-DF-2026-147 (sync AXS ke URA PG per jam membuat scheduler freeze); semuanya bug fix Closed, Prod deployed",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, di bawah OCMS43.2 (5, Demo paid, menerima payment status dan transaction details lalu meng-update eVON). Job ini satu query, satu POST dan satu update flag, notifikasi error dimatikan dan tidak ada pengecekan rekonsiliasi.",
+   "demo": [
+    "Di UAT buat pembayaran AXS pada notice uji (atau insert baris AXS di web_txn_detail lewat sync normal) supaya urapg_sync_status menjadi N.",
+    "Tunggu awal jam (atau trigger CombinedSchedulerTriggerController item #18).",
+    "Cek web_txn_detail: urapg_sync_status berubah dari N ke Y dan application log menampilkan 'URA PG Sync Result: n success'."
+   ],
+   "risks": [
+    "OCMS-DF-2026-035, OCMS-DF-2026-047 dan OCMS-DF-2026-147 (semua Closed, Prod deployed) adalah bug fix pada job ini, jadi URA bisa menganggapnya maintenance yang sudah dibayar.",
+    "Trace OCMS43.2 menyatakan arah ini 'tidak dihitung' untuk story itu, jadi pekerjaannya belum diklaim hari ini, tapi URA bisa bilang ini bagian OCMS43.x (payment channels interface) dan sudah dibayar. Orphan OCMS46.1.json juga mengaitkan code yang sama ke story Removed OCMS46.4 dan OCMS46.5 (query refund ke payment gateway, payload berbeda); URA bisa bertanya apakah ini masuk story Removed.",
+    "Tidak ada teks story yang menyebut pengiriman transaksi ke gateway; satu-satunya bukti URA adalah bug ticket.",
+    "Semua baris pending dikirim dalam satu request tanpa batas retry; backlog yang membesar membuat satu request yang makin besar (OCMS-DF-2026-047 'batch retry causing PG to timeout' adalah mode kegagalan ini).",
+    "Keberhasilan bergantung pada gateway eksternal dan APIM key; kalau pembacaan key dari Key Vault gagal hanya warning yang di-log dan call gagal di gateway. Ini tidak bisa diverifikasi dari repo.",
+    "Halaman Cron staff portal tidak punya tombol untuk job ini (CronList.tsx tidak punya entry URA PG), jadi demo butuh trigger backend atau run per jam. Nama class memakai 'Retry' tapi ini adalah jalur kirim pertama dan satu-satunya untuk baris itu."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 6,
+  "id_proposed": "OCMS52.6",
+  "slug": "redirect-offender-to-existing-record",
+  "tier": "B",
+  "kind": "extension",
+  "related": "OCMS41.46",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminui/src/pages/Notice/form/OwnerForm.tsx:438",
+   "ocmsadminui/src/pages/Notice/hook/useODH.tsx:422",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/controllers/StaffFurnishController.java:146",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:320",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:374",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:404-415",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:442-443",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:79"
+  ],
+  "en": {
+   "title": "Redirect current offender to an existing Owner/Hirer/Driver record on the notice",
+   "user_story": "As a Notice Processing Officer who finds that the person who should be followed up is already recorded on the notice as owner, hirer or driver, I want to redirect the notice to that existing record (with a confirmation before and after the form step), so that the notice restarts the correct reminder flow against that person without keying a new record.",
+   "adds": "OCMS41.44-41.47 (all Demo paid) cover: check existing particulars, prompt them on screen, record/update particulars, confirm overwrite. None of them says that the officer can switch the current offender to another record that already exists on the notice, or that the stage and amount payable are reset when this happens. That switch is the added scope. The redirect call also rewrites the particulars of the target record (name, ID type, e-mail, phone, address), which is the same content as OCMS41.46 record/update, so the overlap with OCMS41.46 is real. The administration fee reset (OCMS-DF-2026-170) and the HST revive (OCMS-DF-2026-093) are defect fixes and are not claimed here.",
+   "acceptance": [
+    "On the Owner, Hirer and Driver forms a 'Redirect' button is shown when the loaded record exists and that person is not the current offender (hasParticulars && !isOffender); it does not depend on an ID typed by the officer. Two confirmations apply: a first modal, then the form unlocks in REDIRECT mode (name, e-mail, phone and address can be edited; on the Owner and Driver forms the ID type and ID number stay locked, the Hirer form was not confirmed; form validation is skipped), then a second modal 'Do you wish to proceed to Redirect the Notice?'.",
+    "On confirm the system finds the target record by notice number and owner/driver indicator, checks that the submitted ID number equals the stored one (otherwise 'ID number does not match the target offender record'), sets every row with offender_indicator 'Y' to 'N' and the target to 'Y'. In the same call the submitted name and ID type (both mandatory) are written to the target record, e-mail and phone are written when supplied, and the address is written to the furnished_mail address record when address fields are supplied.",
+    "The redirect is refused when the notice is not furnishable (checkFurnishable: an active Permanent Suspension (PS), the Advisory Notice flag, or a last processing stage outside the furnishable list NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC; a TS does not block), and when the submitted ID type is a UEN (B or U) for a Driver; the UEN check reads the ID type of the request, not the stored record.",
+    "The processing stage is changed to the first stage of the new party (RD1 for owner/hirer, DN1 for driver) and amount payable is recalculated from the composition amount. The administration fee is set to 0 because of OCMS-DF-2026-170 (a defect fix), so it is not a separate claim.",
+    "TS-HST is re-evaluated (revived if the old offender was in the HST list and the new one is not). This comes from OCMS-DF-2026-093 (Closed, Prod deployed), so it is maintenance and not part of the claim."
+   ],
+   "ura": "no (no flow deck exists in repo). Maintenance tickets on this flow, all Closed: OCMS-DF-2026-170 (admin fee reset, Prod deployed), OCMS-DF-2026-093 (HST revive on redirect, Prod deployed), OCMS-DF-2026-092 (HST furnish) and OCMS-DF-2026-024 (furnish overwrite). They report on side effects of this flow and do not request the redirect itself.",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, the same as OCMS41.46 (3, record/update particulars, Demo paid), because the redirect call is a variant of that update plus the switch of the current offender. Not 5 (OCMS41.50) because the fee reset and the HST revive are defect fixes and the rest is close to OCMS41.46/41.47.",
+   "demo": [
+    "Open a furnishable notice that has both an owner and a hirer record, where the owner is current",
+    "On the hirer tab, the 'Redirect Hirer' button is shown from the stored hirer record (no ID is typed)",
+    "Click Redirect and confirm the first modal, optionally edit the particulars, save and confirm the second modal",
+    "Check that the hirer is now current, the stage is RD1 and the amount payable equals the composition amount"
+   ],
+   "risks": [
+    "URA may argue redirect is the 'overwrite / update' step of OCMS41.46-41.47 in another form; the call rewrites name, ID type, e-mail, phone and address of the target record. Existing orphans #209 and #73 already list it as 'related, not stated in story'.",
+    "OCMS-DF-2026-170, OCMS-DF-2026-093, OCMS-DF-2026-092 and OCMS-DF-2026-024 (Closed, Prod deployed except where the ticket says Prod deployment) are maintenance tickets on this flow; the admin fee reset and the HST revive may be seen as already paid.",
+    "Stage reset and amount rules are business rules we cannot compare with a URA requirement because no flow deck exists. The amount recalculation only falls to the composition amount for RD1/DN1 targets; there is no fee path.",
+    "VON, eVON and PII are synced outside the @Transactional boundary of one database, so a failure after the first save can leave Intranet changed and Internet/PII not; this cannot be verified from the repo.",
+    "The controller and service Javadoc still say that only noticeNo, ownerDriverIndicator and idNo are required, while the validator also requires name and ID type; it must not be quoted. Which staff roles hold OCMS_OIC_FURNISH cannot be verified from the repo.",
+    "OCMS41.47 (Demo paid 50% of 75%, 1 point) is the confirm/overwrite prompt, and the two redirect modals look similar to it. OCMS41.44 (Demo paid 50% of 75%, 2 points) checks the furnishable stage and prompts existing particulars; the redirect reuses staff-furnish/furnish-redirect-check and the hasParticulars display, and only the switch of the current offender is new."
+   ]
+  },
+  "id": {
+   "title": "Redirect current offender ke record Owner/Hirer/Driver yang sudah ada di notice",
+   "user_story": "Sebagai Notice Processing Officer yang menemukan bahwa orang yang harus ditindaklanjuti sudah tercatat di notice sebagai owner, hirer atau driver, saya ingin me-redirect notice ke record yang sudah ada itu (dengan konfirmasi sebelum dan sesudah langkah form), supaya notice memulai ulang reminder flow yang benar terhadap orang tersebut tanpa mengetik record baru.",
+   "adds": "OCMS41.44-41.47 (semua Demo paid) mencakup: cek particulars yang ada, tampilkan di screen, record/update particulars, konfirmasi overwrite. Tidak satu pun menyebut bahwa officer bisa memindahkan current offender ke record lain yang sudah ada di notice, atau bahwa stage dan amount payable di-reset saat itu terjadi. Perpindahan itulah scope tambahannya. Call redirect juga menulis ulang particulars record target (name, ID type, e-mail, phone, address), yang isinya sama dengan record/update OCMS41.46, jadi overlap dengan OCMS41.46 nyata. Reset administration fee (OCMS-DF-2026-170) dan revive HST (OCMS-DF-2026-093) adalah defect fix dan tidak diklaim di sini.",
+   "acceptance": [
+    "Di form Owner, Hirer dan Driver tombol 'Redirect' tampil kalau record yang dimuat ada dan orang itu bukan current offender (hasParticulars && !isOffender); tidak bergantung pada ID yang diketik officer. Ada dua konfirmasi: modal pertama, lalu form terbuka dalam mode REDIRECT (name, e-mail, phone dan address bisa diedit; di form Owner dan Driver ID type dan ID number tetap terkunci, form Hirer tidak dikonfirmasi; form validation dilewati), lalu modal kedua 'Do you wish to proceed to Redirect the Notice?'.",
+    "Saat confirm, sistem mencari target record berdasarkan notice number dan owner/driver indicator, memeriksa ID number yang dikirim sama dengan yang tersimpan (kalau tidak: 'ID number does not match the target offender record'), mengubah setiap row dengan offender_indicator 'Y' menjadi 'N' dan target menjadi 'Y'. Dalam panggilan yang sama name dan ID type yang dikirim (keduanya wajib) ditulis ke target record, e-mail dan phone ditulis kalau diisi, dan address ditulis ke record address furnished_mail kalau field address diisi.",
+    "Redirect ditolak kalau notice tidak furnishable (checkFurnishable: Permanent Suspension (PS) yang aktif, flag Advisory Notice, atau last processing stage di luar daftar furnishable NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC; TS tidak memblokir), dan kalau ID type yang dikirim adalah UEN (B atau U) untuk Driver; pengecekan UEN membaca ID type dari request, bukan dari record yang tersimpan.",
+    "Processing stage diubah ke stage pertama pihak baru (RD1 untuk owner/hirer, DN1 untuk driver) dan amount payable dihitung ulang dari composition amount. Administration fee diset 0 karena OCMS-DF-2026-170 (defect fix), jadi bukan klaim terpisah.",
+    "TS-HST dievaluasi ulang (di-revive kalau offender lama ada di daftar HST dan yang baru tidak). Ini berasal dari OCMS-DF-2026-093 (Closed, Prod deployed), jadi termasuk maintenance dan bukan bagian klaim."
+   ],
+   "ura": "tidak ada (tidak ada flow deck di repo). Maintenance ticket pada flow ini, semuanya Closed: OCMS-DF-2026-170 (reset admin fee, Prod deployed), OCMS-DF-2026-093 (revive HST saat redirect, Prod deployed), OCMS-DF-2026-092 (furnish HST) dan OCMS-DF-2026-024 (furnish overwrite). Ticket itu melaporkan efek samping flow ini dan tidak meminta redirect itu sendiri.",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, sama dengan OCMS41.46 (3, record/update particulars, Demo paid), karena call redirect adalah varian update itu ditambah perpindahan current offender. Bukan 5 (OCMS41.50) karena reset fee dan revive HST adalah defect fix dan sisanya dekat dengan OCMS41.46/41.47.",
+   "demo": [
+    "Buka notice furnishable yang punya record owner dan hirer, dengan owner sebagai current",
+    "Di tab hirer, tombol 'Redirect Hirer' muncul dari record hirer yang tersimpan (tidak ada ID yang diketik)",
+    "Klik Redirect dan konfirmasi modal pertama, edit particulars kalau perlu, save lalu konfirmasi modal kedua",
+    "Cek bahwa hirer sekarang current, stage-nya RD1 dan amount payable sama dengan composition amount"
+   ],
+   "risks": [
+    "URA bisa berargumen redirect adalah langkah 'overwrite / update' OCMS41.46-41.47 dalam bentuk lain; call-nya menulis ulang name, ID type, e-mail, phone dan address record target. Orphan existing #209 dan #73 sudah mencatatnya sebagai 'related, not stated in story'.",
+    "OCMS-DF-2026-170, OCMS-DF-2026-093, OCMS-DF-2026-092 dan OCMS-DF-2026-024 (Closed, Prod deployed kecuali ticket menulis Prod deployment) adalah maintenance ticket pada flow ini; reset admin fee dan revive HST bisa dianggap sudah dibayar.",
+    "Aturan reset stage dan amount adalah business rule yang tidak bisa dibandingkan dengan requirement URA karena tidak ada flow deck. Perhitungan ulang amount untuk target RD1/DN1 hanya jatuh ke composition amount; tidak ada jalur fee.",
+    "VON, eVON dan PII di-sync di luar batas @Transactional satu database, jadi kegagalan setelah save pertama bisa membuat Intranet berubah tapi Internet/PII tidak; ini tidak bisa diverifikasi dari repo.",
+    "Javadoc controller dan service masih menyebut hanya noticeNo, ownerDriverIndicator dan idNo yang wajib, padahal validator juga mewajibkan name dan ID type; jangan dikutip. Role staff mana yang punya OCMS_OIC_FURNISH tidak bisa diverifikasi dari repo.",
+    "OCMS41.47 (Demo paid 50% of 75%, 1 poin) adalah prompt confirm/overwrite, dan dua modal redirect terlihat mirip dengannya. OCMS41.44 (Demo paid 50% of 75%, 2 poin) memeriksa furnishable stage dan menampilkan prompt existing particulars; redirect memakai ulang staff-furnish/furnish-redirect-check dan tampilan hasParticulars, dan hanya perpindahan current offender yang baru."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 7,
+  "id_proposed": "OCMS52.7",
+  "slug": "rip-hirer-driver-furnished-report",
+  "tier": "B",
+  "kind": "new",
+  "related": "",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "partly",
+  "evidence": [
+   "ocmsadminui/src/pages/Report/lists/ReportList.tsx:59-63",
+   "ocmsadminui/src/pages/Report/lists/ReportListRIP.tsx:51",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/reports/system/rip/RipReportController.java:29",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:124",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/jobs/RipHirerDriverReportJob.java:22-30",
+   "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/daily_reports/helpers/RipHirerDriverReportHelper.java:39-45",
+   "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:256",
+   "ocmsadminprivateapi/src/main/resources/application-prod.properties:57"
+  ],
+  "en": {
+   "title": "RIP Hirer/Driver Furnished report (screen and Excel export; daily file and e-mail built but the e-mail is switched off)",
+   "user_story": "As a Special Notice Processing Officer who follows up notices suspended for deceased offenders (PS-RP2), I want a report of the notices where the current offender is a hirer or driver who is deceased, available on screen and as Excel, so that the OIC can follow up on those notices.",
+   "adds": "",
+   "acceptance": [
+    "Report tab 'RIP' in the staff portal Report page, shown only when the user has the REPORT_RIP function",
+    "Screen search through POST /v1/reports/rip/furnished-driver-hirer and Excel download 'RIP_Hirer_Driver_Furnished_Report.xlsx' through POST /v1/reports/rip/export, both filtered by a date-of-suspension range. The notices are those with an un-revived PS-RP2 suspension (date_of_revival IS NULL) where the current offender (offender_indicator Y) is a hirer or driver with life_status 'D' (deceased); 'furnished' is not tested.",
+    "The daily job selects un-revived PS-RP2 notices where the current offender is a deceased hirer or driver and date_of_suspension equals the report date, and builds 'OCMS_RIP_Hirer_Driver_Report_<date>.xlsx' with a Summary sheet and a data sheet. The report date is set to today when the job instance has no date yet (the field is not reset after a run, so repeated scheduled runs in the same running instance may reuse the first date - needs verification). A manual run for a chosen date exists in DailyReportController.",
+    "The job builds the e-mail to email.report.recipients (and a 'no data' or failure mail), but with the repo config no mail leaves: email.enableSmtp=false in the prod and UAT properties, and the job sets no source, which is not on the email.smtp.allowedSources list. The e-mail leg is therefore not part of the claim.",
+    "The job runs inside the Combined Daily Report at 08:00 (cron.dailyreport.schedule=0 0 8 * * ?, enabled=true in the repo config; the real server values cannot be verified)."
+   ],
+   "ura": "ticket: OCMS-DF-2026-149 (Closed, Prod deployed) lists 'RIP Hirer/Driver Furnished Report' among the Report module screens whose Excel export was moved from client-side to backend generation (POST reports/rip/export). No flow deck exists in repo.",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, the same as the VIP daily report stories OCMS14.23 (3) and OCMS14.25 (3), because what can be shown is the screen search and the Excel export; the e-mail leg is switched off and the export is covered by OCMS-DF-2026-149. Not 5 (OCMS14.16).",
+   "demo": [
+    "Open Report > RIP, search a date range and download the Excel 'RIP_Hirer_Driver_Furnished_Report.xlsx'",
+    "Do not demo the 08:00 e-mail in UAT: email.enableSmtp=false there, so no mail arrives. Show the daily file only through the job log or a local run."
+   ],
+   "risks": [
+    "OCMS-DF-2026-149 (Closed, Prod deployed) names this report and moved its Excel export to the backend (RipReportController comment 'backend replacement for the retired client-side ExportReportNotice'). URA may treat the screen and the export as maintenance already paid.",
+    "Orphans #88, #89 and #93 already list this report and suggest it might belong to OCMS14.x (RIP stories 14.10-14.16 are in 'Requirement given - Gen flow'). OCMS14.10-14.14 do not mention a hirer/driver report; OCMS14.12-14.14 are about DOS ownership. URA could say it belongs to the Epic 14 RIP flow.",
+    "The e-mail leg is switched off by email.enableSmtp=false (prod and UAT) and the RIP job has no allowlisted source, so the repo cannot prove that any RIP mail reaches the OIC. The failure mail goes to the same recipient list, so a failed run is not escalated separately.",
+    "The report name says 'Furnished' but the query selects deceased hirer/driver offenders under PS-RP2; furnishing is not tested. The Javadoc of RipHirerDriverReportJob says 02:00 but the schedule is 08:00; the Javadoc must not be quoted.",
+    "Not requested in any document we hold.",
+    "OCMS38.8 and OCMS38.9 (Requirement given, not paid) ask for viewing and exporting reports from the OCMS dashboard report module. URA may read the RIP report as part of those stories. The report is reachable from the Report page tab, which the proposal treats as separate scope.",
+    "[Medium confidence] From reading the code (not run): RipHirerDriverReportJob is a singleton @Component; reportDate is only set when null (RipHirerDriverReportJob.java:268-272), cleanup() does not reset it (line 296) and DailyReportJobsScheduler.java:98 calls execute() without a date, so repeated scheduled runs in the same running instance may reuse the first date until restart. Verify in UAT with two consecutive days.",
+    "OCMS14.25 (Requirement given - Gen flow, 3 points) is a daily report on driver particulars furnished for classified/VIP notices routed to the OIC. This report has a similar name ('Hirer/Driver Furnished'), is also a daily report to the OIC with the same 3 points and runs in the same Combined Daily Report job family, so URA may treat it as the same deliverable. The claim is the deceased hirer/driver content under PS-RP2, not VIP; and with the repo config the e-mail to the OIC is not sent."
+   ]
+  },
+  "id": {
+   "title": "Report RIP Hirer/Driver Furnished (screen dan export Excel; file harian dan e-mail sudah dibangun tapi e-mail dimatikan)",
+   "user_story": "Sebagai Special Notice Processing Officer yang menindaklanjuti notice yang di-suspend karena offender meninggal (PS-RP2), saya ingin report notice yang current offender-nya adalah hirer atau driver yang sudah meninggal, tersedia di screen dan sebagai Excel, supaya OIC bisa menindaklanjuti notice tersebut.",
+   "adds": "",
+   "acceptance": [
+    "Tab report 'RIP' di halaman Report staff portal, hanya tampil kalau user punya function REPORT_RIP",
+    "Search di layar lewat POST /v1/reports/rip/furnished-driver-hirer dan download Excel 'RIP_Hirer_Driver_Furnished_Report.xlsx' lewat POST /v1/reports/rip/export, keduanya difilter dengan rentang date of suspension. Notice yang masuk adalah yang punya suspension PS-RP2 yang belum di-revive (date_of_revival IS NULL) dengan current offender (offender_indicator Y) berupa hirer atau driver dengan life_status 'D' (meninggal); 'furnished' tidak diuji.",
+    "Daily job memilih notice PS-RP2 yang belum di-revive dengan current offender berupa hirer atau driver yang meninggal dan date_of_suspension sama dengan report date, lalu membuat 'OCMS_RIP_Hirer_Driver_Report_<date>.xlsx' dengan sheet Summary dan satu sheet data. Report date diisi hari ini kalau instance job belum punya tanggal (field tidak di-reset setelah run, jadi run terjadwal berulang di instance yang sama mungkin memakai ulang tanggal pertama - perlu verifikasi). Run manual untuk tanggal pilihan ada di DailyReportController.",
+    "Job menyusun e-mail ke email.report.recipients (dan mail 'no data' atau mail gagal), tapi dengan config di repo tidak ada mail yang keluar: email.enableSmtp=false di properties prod dan UAT, dan job tidak mengisi source, yang tidak ada di daftar email.smtp.allowedSources. Jadi bagian e-mail tidak termasuk klaim.",
+    "Job jalan di dalam Combined Daily Report jam 08:00 (cron.dailyreport.schedule=0 0 8 * * ?, enabled=true di config repo; nilai asli di server tidak bisa diverifikasi)."
+   ],
+   "ura": "ticket: OCMS-DF-2026-149 (Closed, Prod deployed) mencantumkan 'RIP Hirer/Driver Furnished Report' di antara screen modul Report yang export Excel-nya dipindah dari client-side ke backend (POST reports/rip/export). Tidak ada flow deck di repo.",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, sama dengan story daily report VIP OCMS14.23 (3) dan OCMS14.25 (3), karena yang bisa ditunjukkan adalah pencarian di screen dan export Excel; bagian e-mail dimatikan dan export sudah tercakup OCMS-DF-2026-149. Bukan 5 (OCMS14.16).",
+   "demo": [
+    "Buka Report > RIP, cari date range dan download Excel 'RIP_Hirer_Driver_Furnished_Report.xlsx'",
+    "Jangan demo e-mail jam 08:00 di UAT: email.enableSmtp=false di sana, jadi tidak ada mail yang datang. Tunjukkan file harian hanya lewat job log atau run lokal."
+   ],
+   "risks": [
+    "OCMS-DF-2026-149 (Closed, Prod deployed) menyebut report ini dan memindahkan export Excel-nya ke backend (komentar RipReportController 'backend replacement for the retired client-side ExportReportNotice'). URA bisa menganggap screen dan export sebagai maintenance yang sudah dibayar.",
+    "Orphan #88, #89 dan #93 sudah mencatat report ini dan menyarankan mungkin termasuk OCMS14.x (story RIP 14.10-14.16 berstatus 'Requirement given - Gen flow'). OCMS14.10-14.14 tidak menyebut report hirer/driver; OCMS14.12-14.14 tentang kepemilikan DOS. URA bisa bilang ini bagian flow RIP Epic 14.",
+    "Bagian e-mail dimatikan oleh email.enableSmtp=false (prod dan UAT) dan job RIP tidak punya source yang di-allowlist, jadi repo tidak bisa membuktikan ada mail RIP yang sampai ke OIC. Mail gagal dikirim ke daftar penerima yang sama, jadi run yang gagal tidak dieskalasi terpisah.",
+    "Nama report bilang 'Furnished' tapi query memilih offender hirer/driver yang meninggal di bawah PS-RP2; furnishing tidak diuji. Javadoc RipHirerDriverReportJob menulis 02:00 padahal schedule-nya 08:00; Javadoc tidak boleh dikutip.",
+    "Tidak diminta di dokumen apa pun yang kami pegang.",
+    "OCMS38.8 dan OCMS38.9 (Requirement given, belum dibayar) meminta melihat dan mengekspor report dari modul report di dashboard OCMS. URA bisa membaca report RIP sebagai bagian dari story itu. Report ini bisa dijangkau dari tab di halaman Report, yang oleh proposal diperlakukan sebagai scope terpisah.",
+    "[Medium confidence] Dari membaca code (tidak dijalankan): RipHirerDriverReportJob adalah singleton @Component; reportDate hanya diisi kalau null (RipHirerDriverReportJob.java:268-272), cleanup() tidak me-reset-nya (line 296) dan DailyReportJobsScheduler.java:98 memanggil execute() tanpa tanggal, jadi run terjadwal berulang di instance yang sama mungkin memakai ulang tanggal pertama sampai restart. Verifikasi di UAT dengan dua hari berturut-turut.",
+    "OCMS14.25 (Requirement given - Gen flow, 3 poin) adalah daily report particulars driver yang di-furnish untuk notice classified/VIP yang diteruskan ke OIC. Report ini namanya mirip ('Hirer/Driver Furnished'), juga daily report ke OIC dengan poin sama (3) dan jalan di keluarga job Combined Daily Report yang sama, jadi URA bisa menganggapnya deliverable yang sama. Klaimnya adalah isi hirer/driver yang meninggal di bawah PS-RP2, bukan VIP; dan dengan config repo e-mail ke OIC tidak terkirim."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 8,
+  "id_proposed": "OCMS52.8",
+  "slug": "manage-template-create",
+  "tier": "B",
+  "kind": "extension",
+  "related": "OCMS36.1",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminui/src/App.tsx:288-301",
+   "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx:118-120",
+   "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx:137-141",
+   "ocmsadminui/src/pages/ManageTemplate/form/CreateTemplateForm.tsx:93-100",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:52-76",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:99-115",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:158-163"
+  ],
+  "en": {
+   "title": "Create a new SMS, e-mail or letter template (Manage Template, 'Create Template')",
+   "user_story": "As a reminder processing officer who maintains notification templates, I want to create a new SMS, e-mail or letter template on the Create Template screen, typing a name that follows the naming rules (including the _SMS, _EMAIL or _LETTER suffix), so that a new notification wording can be added without a developer inserting it into the database.",
+   "adds": "OCMS36.1 (Demo paid, 21 points) covers browsing and amending existing SMS/e-mail/letter templates. OCMS36.2-36.5 cover edit, test send, QR/PDF and save/schedule (OCMS36.5 speaks of scheduling 'the new templates', which URA may read as including newly created ones). None of them says the officer can create a brand new template. This extension adds only the Create Template screen and the POST that saves it. The server-side naming validation is a pen-test remediation (OCMS-SR-2026-039, OCMS-DEV-2026-039, Closed, Prod deployed) and is not claimed.",
+   "acceptance": [
+    "On the Manage Template list there is a 'Create Template' button for each type (SMS, EMAIL, LETTER) that opens /enotification/create-template/<type>. The button is not wrapped in a function check, and the server mapping has dedicated create functions for EMAIL and SMS only, none for LETTER.",
+    "The form takes Template Name and the template body (plus Remarks) and saves with POST templatestore; the Template Type is set from the tab and the UI upper-cases the name. The officer must type the _SMS/_EMAIL/_LETTER suffix (the UI only checks that the name contains the type). The create path calls repository.save on an entity keyed by templateName with no existence check, so saving an existing name is expected to overwrite that template (inferred from the code, not run).",
+    "Backend rejects a Template Type that is not SMS, EMAIL or LETTER. This can only be triggered by a direct API call, because the screen sets the type from the tab. It is not demonstrable on screen.",
+    "Backend rejects a Template Name that is not uppercase letters, digits and underscores, or does not end with _SMS, _EMAIL or _LETTER matching the type, and returns the reason text to the screen. This is pen-test remediation (OCMS-SR-2026-039, OCMS-DEV-2026-039), so it is listed but not claimed.",
+    "The same validation applies to a direct API call, not only to the screen (same pen-test remediation, not claimed)."
+   ],
+   "ura": "no (no flow deck exists in repo). Related: ticket OCMS-SR-2026-163 (Closed, Prod deployed; a test SMS template created on 31 Jul 2026 through this screen had to be deleted by a DB patch) and OCMS-SR-2026-039 (Closed, Prod deployed; pen test of staff portal API validation).",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, the same as OCMS36.5 (3, save the changes and schedule the templates) and above OCMS36.2 (2, SMS edit with test send): the claim is one form in three variants plus the POST. Below OCMS36.3 (5) and OCMS36.4 (5), which have the editor, QR/PDF and test send. The naming validation is excluded.",
+   "demo": [
+    "Open eNotifications > Manage Template in UAT and choose the SMS tab.",
+    "Click 'Create Template' and save with name TEST_DEMO_SMS and a short body; it should appear in the list.",
+    "Try the name test_demo and the name TEST_DEMO_EMAIL under the SMS type; both should be refused with a message (this is the pen-test validation, shown for information only).",
+    "UAT only. Do not run this in Production and do not reuse the name of an existing template (it is expected to be overwritten); there is no delete feature in any layer, so a test row stays until a DB patch (see OCMS-SR-2026-163)."
+   ],
+   "risks": [
+    "URA may say 'create template' is part of 'manage template' in OCMS36.1, which is already Demo paid, or that OCMS36.5 ('schedule the implementation of the new templates') covers it. The story text says 'browse and be able to amend', so create is outside the words, but the argument is open.",
+    "The server-side naming validation was added as a pen-test fix (OCMS-SR-2026-039 and OCMS-DEV-2026-039, Closed, Prod deployed), and OCMS-SR-2026-163 shows Create was already live in Production on 31 Jul 2026. URA may treat the screen and its validation as maintenance already paid.",
+    "POST /v1/templatestore has no existence check (repository.save on an entity with an assigned templateName key, inferred from the code, not run): creating an existing templateName is expected to overwrite that template, including live ones that cron jobs select by exact name.",
+    "No delete function in any layer and the edit endpoint rejects a changed name, so a wrongly created or mistyped template needs a DB patch (OCMS-SR-2026-163).",
+    "Which roles hold OCMS_ENOTIF_MANAGE_TEMPLATE / the create functions, and whether any cron job reads a newly created template, cannot be verified from the repo.",
+    "OCMS36.3 (Demo paid 50% of 75%, 5 points, remark 'Upload not yet') is editing a letter template, QR upload and sample PDF. Create Template reuses the same editor components (CreateTemplateForm with the compose editor) to create a letter, so URA may say the letter editor is already claimed; the claim must stay on the Create Template screen and the POST. OCMS36.2 (Demo paid 50% of 75%, 2 points) is the SMS text edit and test send; Create SMS uses the same text area, and only creation is new."
+   ]
+  },
+  "id": {
+   "title": "Membuat template SMS, e-mail atau letter baru (Manage Template, 'Create Template')",
+   "user_story": "Sebagai reminder processing officer yang mengelola template notifikasi, saya ingin membuat template SMS, e-mail atau letter baru di screen Create Template, dengan mengetik nama yang mengikuti aturan penamaan (termasuk suffix _SMS, _EMAIL atau _LETTER), supaya wording notifikasi baru bisa ditambahkan tanpa developer meng-insert ke database.",
+   "adds": "OCMS36.1 (Demo paid, 21 poin) mencakup browse dan amend template SMS/e-mail/letter yang sudah ada. OCMS36.2-36.5 mencakup edit, test send, QR/PDF dan save/schedule (OCMS36.5 bicara soal menjadwalkan 'the new templates', yang bisa dibaca URA sebagai termasuk template yang baru dibuat). Tidak satu pun menyebut officer bisa membuat template yang benar-benar baru. Extension ini hanya menambah screen Create Template dan POST yang menyimpannya. Validasi penamaan di server adalah pen-test remediation (OCMS-SR-2026-039, OCMS-DEV-2026-039, Closed, Prod deployed) dan tidak diklaim.",
+   "acceptance": [
+    "Di daftar Manage Template ada tombol 'Create Template' untuk tiap tipe (SMS, EMAIL, LETTER) yang membuka /enotification/create-template/<type>. Tombol tidak dibungkus function check, dan mapping server hanya punya function create khusus untuk EMAIL dan SMS, tidak ada untuk LETTER.",
+    "Form menerima Template Name dan isi template (plus Remarks) dan menyimpan dengan POST templatestore; Template Type diambil dari tab dan UI mengubah name menjadi huruf besar. Officer harus mengetik sendiri suffix _SMS/_EMAIL/_LETTER (UI hanya memeriksa bahwa name memuat type-nya). Jalur create memanggil repository.save pada entity dengan key templateName tanpa pengecekan keberadaan, jadi menyimpan name yang sudah ada diperkirakan menimpa template itu (disimpulkan dari code, tidak dijalankan).",
+    "Backend menolak Template Type selain SMS, EMAIL atau LETTER. Ini hanya bisa terpicu lewat direct API call, karena screen mengisi type dari tab. Tidak bisa didemokan di screen.",
+    "Backend menolak Template Name yang bukan huruf besar, angka dan underscore, atau tidak berakhir _SMS, _EMAIL atau _LETTER sesuai type, dan mengembalikan teks alasan ke screen. Ini pen-test remediation (OCMS-SR-2026-039, OCMS-DEV-2026-039), jadi dicantumkan tapi tidak diklaim.",
+    "Validasi yang sama berlaku untuk direct API call, bukan hanya screen (pen-test remediation yang sama, tidak diklaim)."
+   ],
+   "ura": "tidak ada (tidak ada flow deck di repo). Terkait: ticket OCMS-SR-2026-163 (Closed, Prod deployed; template SMS uji yang dibuat 31 Jul 2026 lewat screen ini harus dihapus dengan DB patch) dan OCMS-SR-2026-039 (Closed, Prod deployed; pen test validasi API staff portal).",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, sama dengan OCMS36.5 (3, save perubahan dan schedule template) dan di atas OCMS36.2 (2, edit SMS dengan test send): klaimnya satu form dalam tiga varian ditambah POST. Di bawah OCMS36.3 (5) dan OCMS36.4 (5) yang punya editor, QR/PDF dan test send. Validasi penamaan dikeluarkan.",
+   "demo": [
+    "Buka eNotifications > Manage Template di UAT dan pilih tab SMS.",
+    "Klik 'Create Template' dan simpan dengan nama TEST_DEMO_SMS dan isi singkat; template harus muncul di daftar.",
+    "Coba nama test_demo dan nama TEST_DEMO_EMAIL di bawah tipe SMS; keduanya harus ditolak dengan pesan (ini validasi pen-test, hanya ditunjukkan sebagai informasi).",
+    "Hanya di UAT. Jangan jalankan di Production dan jangan pakai ulang nama template yang sudah ada (diperkirakan akan tertimpa); tidak ada fitur delete di layer mana pun, jadi row uji tetap ada sampai ada DB patch (lihat OCMS-SR-2026-163)."
+   ],
+   "risks": [
+    "URA bisa bilang 'create template' adalah bagian dari 'manage template' di OCMS36.1 yang sudah Demo paid, atau OCMS36.5 ('schedule the implementation of the new templates') sudah mencakupnya. Teks story bilang 'browse and be able to amend', jadi create di luar kata-katanya, tapi argumennya masih terbuka.",
+    "Validasi penamaan di server ditambahkan sebagai pen-test fix (OCMS-SR-2026-039 dan OCMS-DEV-2026-039, Closed, Prod deployed), dan OCMS-SR-2026-163 menunjukkan Create sudah live di Production pada 31 Jul 2026. URA bisa menganggap screen dan validasinya sebagai maintenance yang sudah dibayar.",
+    "POST /v1/templatestore tidak punya pengecekan keberadaan (repository.save pada entity dengan key templateName yang di-assign, disimpulkan dari code, tidak dijalankan): membuat templateName yang sudah ada diperkirakan menimpa template itu, termasuk yang sedang live dan dipilih cron job berdasarkan nama persis.",
+    "Tidak ada fungsi delete di layer mana pun dan endpoint edit menolak perubahan nama, jadi template yang salah dibuat atau salah ketik butuh DB patch (OCMS-SR-2026-163).",
+    "Role mana yang punya OCMS_ENOTIF_MANAGE_TEMPLATE / function create, dan apakah ada cron job yang membaca template yang baru dibuat, tidak bisa diverifikasi dari repo.",
+    "OCMS36.3 (Demo paid 50% of 75%, 5 poin, remark 'Upload not yet') adalah edit letter template, upload QR dan sample PDF. Create Template memakai ulang komponen editor yang sama (CreateTemplateForm dengan compose editor) untuk membuat letter, jadi URA bisa bilang letter editor sudah diklaim; klaim harus tetap di layar Create Template dan POST-nya. OCMS36.2 (Demo paid 50% of 75%, 2 poin) adalah edit teks SMS dan test send; Create SMS memakai text area yang sama, dan hanya pembuatan yang baru."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 10,
+  "id_proposed": "OCMS52.10",
+  "slug": "cps-report-download-and-error-mail",
+  "tier": "A",
+  "kind": "extension",
+  "related": "OCMS15.11",
+  "points": 2,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:142-160",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:163-185",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ReportGenerationService.java:61",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:285",
+   "ocmsadminui/src/pages/CPS/form/CPSForm.tsx:189",
+   "ocmsadminui/src/pages/Report/lists/ReportListCPS.tsx:126",
+   "ocmsadminapi/src/main/resources/application-prod.properties:49"
+  ],
+  "en": {
+   "title": "Change Processing Stage result report (download after save, report list tab); error e-mail built but not claimed",
+   "user_story": "As a Notice Processing Officer who has changed the processing stage of notices in bulk, I want to download a report of the changes recorded that day and open past reports by date, so that I can keep a record of the stage changes.",
+   "adds": "OCMS15.1-15.11 (all Demo paid) cover search, validation, summary and confirm of the stage change and the stage change itself. None of them mentions a report of the changes made or a place to download it later. The report and the report-list tab are added scope. The error e-mail is an internal developer alert and is not claimed.",
+   "acceptance": [
+    "After a batch with at least one success, the system builds an Excel report of all stage changes recorded today by every officer (findByDateOfChange(today)), not only this batch, and returns the report path and an expiry time of 24 hours; the 24 hours is a response field only, the code never checks it and no blob lifecycle is in the repo. If report generation fails the batch still succeeds.",
+    "POST /v1/change-processing-stage/reports lists reports for a date range (maximum 90 days) and POST /v1/change-processing-stage/report/{reportId} downloads one. The list is built from change records in the database plus blobs by date prefix, so a date without change records never appears, two reports of the same day show the same count, and a date whose blob is gone is listed with a null report URL.",
+    "Report tab 'Change Processing Stage Report' (path cps_report, function REPORT_CPS) in the Report page shows the list and downloads.",
+    "If any notice failed or gave a warning, an error e-mail with the batch result is sent asynchronously to email.error.recipients. These recipients are developer addresses and two URA addresses, so this is an internal alert, not a user feature, and it is not part of the claim; delivery depends on email.enableSmtp, whose real server value cannot be verified."
+   ],
+   "ura": "ticket: OCMS-DF-2026-095 (Closed, Prod deployment; a defect where the CPS report showed a wrong current offender name/ID). The report content was therefore already corrected as maintenance. It shows URA used the report, not that URA asked for it.",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 2, the same as OCMS15.9 (2, check that the new stage is valid) and below OCMS15.11 (3, confirm to save the stage change): the claim is the report build, the list and the download. The error e-mail carries no points.",
+   "demo": [
+    "Change the stage of 2 notices on the Change Processing Stage page and confirm; check that the Excel downloads (it contains all of today's changes)",
+    "Open Report > Change Processing Stage Report, pick today's date and download the report again",
+    "Optional, information only: include one invalid notice in a batch and check whether the error e-mail arrives in the UAT mailbox (not part of the claim; depends on email.enableSmtp)"
+   ],
+   "risks": [
+    "Orphans #104, #105 and #109 already list the report and the e-mail; #72 lists the staff CPS page itself, which is covered by the paid OCMS15.1-15.11.",
+    "URA could argue the report is part of 'confirm to save' in OCMS15.10 or the summary in OCMS15.9.",
+    "OCMS-DF-2026-095 (Closed, Prod deployment) fixed the report content, so URA may treat the report as maintenance already paid.",
+    "The error e-mail goes to developer and two URA addresses; it is an internal alert, not a user-facing feature, and delivery is not provable from the repo.",
+    "The 24-hour expiry is not enforced by code, and the report covers all of today's changes of every officer, not only the batch that was just saved.",
+    "Bug to be aware of: the report built after the PLUS stage change also covers all of today's changes, not only the PLUS ones (ChangeOfProcessingService.java:1395-1421); this is not claimed here. OCMS15.12-15.15 (PLUS flow, Gen flow) are close and not discussed.",
+    "OCMS22.10 (Fully paid, 3 points) asks for a report of the notices successfully processed when a Court Processing Officer updates the court processing stage. URA may read the Change Processing Stage report as the delivery of OCMS22.10, which would make this a second claim for work already paid. The OCMS22.10 trace found no court report, so this link is a risk to settle with URA, not a proof.",
+    "OCMS15.11 (Demo paid 50% of 75%, 3 points) claims the save and stage-change part (CPSForm, ChangeOfProcessingService). The report is built inside the same submit call and downloaded automatically by CPSForm; the OCMS15.11 text says nothing about a report, but URA can see it as part of confirm-and-save. OCMS38.9 (Requirement given - Gen flow, 5 points) asks for a common report module to search and download reports; the CPS tab is one tab of that module (ReportList.tsx:115), so claim the CPS tab in only one of the two stories."
+   ]
+  },
+  "id": {
+   "title": "Report hasil Change Processing Stage (download setelah save, tab daftar report); e-mail error sudah dibangun tapi tidak diklaim",
+   "user_story": "Sebagai Notice Processing Officer yang mengubah processing stage notice secara bulk, saya ingin mengunduh report perubahan yang tercatat hari itu dan membuka report lama berdasarkan tanggal, supaya saya punya catatan perubahan stage.",
+   "adds": "OCMS15.1-15.11 (semua Demo paid) mencakup pencarian, validasi, summary dan konfirmasi perubahan stage serta perubahan stage itu sendiri. Tidak satu pun menyebut report perubahan yang dibuat atau tempat mengunduhnya nanti. Report dan tab daftar report adalah scope tambahan. E-mail error adalah alert internal untuk developer dan tidak diklaim.",
+   "acceptance": [
+    "Setelah batch dengan minimal satu sukses, sistem membuat report Excel berisi semua perubahan stage yang tercatat hari ini oleh semua officer (findByDateOfChange(today)), bukan hanya batch ini, dan mengembalikan path report serta waktu expiry 24 jam; 24 jam itu hanya field di response, code tidak pernah mengeceknya dan tidak ada blob lifecycle di repo. Kalau pembuatan report gagal batch tetap sukses.",
+    "POST /v1/change-processing-stage/reports menampilkan daftar report untuk rentang tanggal (maksimum 90 hari) dan POST /v1/change-processing-stage/report/{reportId} mengunduh satu report. Daftar dibangun dari record perubahan di database ditambah blob berdasarkan prefix tanggal, jadi tanggal tanpa record perubahan tidak pernah muncul, dua report di hari yang sama menampilkan jumlah yang sama, dan tanggal yang blob-nya sudah hilang ditampilkan dengan report URL null.",
+    "Tab 'Change Processing Stage Report' (path cps_report, function REPORT_CPS) di halaman Report menampilkan daftar dan melakukan download.",
+    "Kalau ada notice yang gagal atau memberi warning, e-mail error berisi hasil batch dikirim secara asynchronous ke email.error.recipients. Penerimanya adalah alamat developer dan dua alamat URA, jadi ini alert internal, bukan fitur untuk user, dan tidak termasuk klaim; pengiriman bergantung pada email.enableSmtp yang nilai asli di servernya tidak bisa diverifikasi."
+   ],
+   "ura": "ticket: OCMS-DF-2026-095 (Closed, Prod deployment; defect di mana report CPS menampilkan nama/ID current offender yang salah). Jadi isi report sudah diperbaiki sebagai maintenance. Ini menunjukkan URA memakai report, bukan bahwa URA memintanya.",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 2, sama dengan OCMS15.9 (2, cek bahwa stage baru valid) dan di bawah OCMS15.11 (3, konfirmasi save perubahan stage): klaimnya adalah pembuatan report, daftar dan download. E-mail error tidak membawa poin.",
+   "demo": [
+    "Ubah stage 2 notice di halaman Change Processing Stage dan konfirmasi; cek Excel terunduh (isinya semua perubahan hari ini)",
+    "Buka Report > Change Processing Stage Report, pilih tanggal hari ini dan unduh report lagi",
+    "Opsional, hanya informasi: masukkan satu notice invalid dalam batch dan cek apakah e-mail error masuk ke mailbox UAT (tidak termasuk klaim; bergantung pada email.enableSmtp)"
+   ],
+   "risks": [
+    "Orphan #104, #105 dan #109 sudah mencatat report dan e-mail; #72 mencatat halaman CPS staff itu sendiri, yang sudah tercakup OCMS15.1-15.11 yang dibayar.",
+    "URA bisa berargumen report adalah bagian dari 'confirm to save' di OCMS15.10 atau summary di OCMS15.9.",
+    "OCMS-DF-2026-095 (Closed, Prod deployment) memperbaiki isi report, jadi URA bisa menganggap report sebagai maintenance yang sudah dibayar.",
+    "E-mail error dikirim ke alamat developer dan dua alamat URA; ini alert internal, bukan fitur untuk user, dan pengirimannya tidak bisa dibuktikan dari repo.",
+    "Expiry 24 jam tidak ditegakkan oleh code, dan report mencakup semua perubahan hari ini dari semua officer, bukan hanya batch yang baru disimpan.",
+    "Bug yang perlu diketahui: report yang dibuat setelah perubahan stage PLUS juga mencakup semua perubahan hari ini, bukan hanya yang PLUS (ChangeOfProcessingService.java:1395-1421); ini tidak diklaim di sini. OCMS15.12-15.15 (flow PLUS, Gen flow) dekat dan tidak dibahas.",
+    "OCMS22.10 (Fully paid, 3 poin) meminta report notice yang berhasil diproses saat Court Processing Officer mengubah court processing stage. URA bisa membaca report Change Processing Stage sebagai pemenuhan OCMS22.10, sehingga ini menjadi klaim kedua untuk pekerjaan yang sudah dibayar. Trace OCMS22.10 tidak menemukan report court, jadi kaitan ini adalah risiko yang perlu diselesaikan dengan URA, bukan bukti.",
+    "OCMS15.11 (Demo paid 50% of 75%, 3 poin) mengklaim bagian save dan perubahan stage (CPSForm, ChangeOfProcessingService). Report dibuat di dalam panggilan submit yang sama dan di-download otomatis oleh CPSForm; teks OCMS15.11 tidak menyebut report, tapi URA bisa melihatnya sebagai bagian confirm-and-save. OCMS38.9 (Requirement given - Gen flow, 5 poin) meminta common report module untuk search dan download report; tab CPS adalah salah satu tab modul itu (ReportList.tsx:115), jadi tab CPS diklaim di salah satu story saja."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ },
+ {
+  "no": 11,
+  "id_proposed": "OCMS52.11",
+  "slug": "hst-manual-update",
+  "tier": "A",
+  "kind": "extension",
+  "related": "OCMS20.18",
+  "points": 3,
+  "confidence": "Medium",
+  "works": "yes",
+  "evidence": [
+   "ocmsadminui/src/App.tsx:199",
+   "ocmsadminui/src/utils/data/LinkData.tsx:193-195",
+   "ocmsadminui/src/pages/HST/update/HSTUpdate.tsx:111-118",
+   "ocmsadminui/src/pages/HST/hooks/useHST.tsx:101-104",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementController.java:142-148",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:354-372",
+   "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:400",
+   "ocmsadminapi/src/main/resources/api-authorization.properties:99-100"
+  ],
+  "en": {
+   "title": "Manual HST Update: change name and address of an HST ID and carry the name to all its notices",
+   "user_story": "As a Notice Processing Officer who maintains the list of IDs with a special indicator (HST), I want to look up an HST ID and correct its name and address, so that the HST record and the offender name on the notices of that ID stay correct.",
+   "adds": "OCMS20.18 and OCMS20.28 (both Demo paid, already traced in docs/archify) cover applying the special indicator (TS-HST) to the notices of an ID and lifting it manually. They are traced to apply-hst and revive-hst. Nothing covers editing the stored HST record (name, address, address-change date, invalid-address tag) or pushing the corrected name to the offender records. This extension is only that edit. The same screen belongs to the Manual HST group (suspension, update, revival); orphan OCMS20.26.json already lists it, so it must not be counted twice.",
+   "acceptance": [
+    "Menu HST > Manual HST Update opens /hst/update.",
+    "The officer enters an ID; the screen shows the name and address stored in the HST row (not the latest address of the offender) and the notices listed for that ID. The notice list is unfiltered: every offender row of the ID (offencenoticeownerdriverlist filtered by idNo only, limit 1000), not only outstanding notices.",
+    "The officer edits name and address fields (postal code, block, street, building, floor, unit, date of address change, invalid address tag) with basic form validation (only the name is required). UI limits differ from API limits (name 100 vs 66, street 50 vs 32, invalid address tag 50 vs 1), so a value that passes the UI can be rejected by the API (HTTP 400).",
+    "On save, POST update-hst updates the HST row; if the ID is not in HST the API returns 'HST ID not found in system' (HTTP 404). The service overwrites every address column of the HST row with the values in the request, so a field left empty on the screen becomes null.",
+    "The name is also updated on the offender (ONOD) rows with offender_indicator Y of that ID, including paid or closed notices; notice address is not changed. Per-notice errors are only logged inside the loop; the effect on the transaction is not verified from the repo. The updater is stored as a system user, not the officer."
+   ],
+   "ura": "no (no flow deck exists in repo). Related manual HST tickets exist (OCMS-DF-2026-091, -092, -093, -094) but they are about applying HST, not about this edit screen; no maintenance ticket changed this screen.",
+   "points_basis": "Estimate only, for MGG and URA to decide. Set at 3, the same as OCMS15.7 (3, display the relevant fields and take the input, Demo paid) and above OCMS20.28 (2, lift HST manually, Demo paid): one search form, one edit form, one endpoint, two table updates. Below OCMS15.8 (5).",
+   "demo": [
+    "In UAT open HST > Manual HST Update and search an ID that is already in the HST table.",
+    "Change the name and the postal code and save.",
+    "Check the HST row, and open one notice of that ID: the offender name should show the new name, the address should be unchanged."
+   ],
+   "risks": [
+    "Could be read as part of OCMS20.18/20.28 manual HST handling (both Demo paid, same HST module, orphan OCMS20.26.json). The story texts do not mention editing the HST record.",
+    "Per-notice errors are only logged in the loop. updateHst is @Transactional, so the real behaviour may be all-or-nothing with a 500 instead of a partial update; this is Spring runtime behaviour that cannot be verified from the repo.",
+    "Updater is stored as a system user (DEFAULT_SYSTEM_USER_ID), not the officer, which weakens the audit trail.",
+    "The name is changed only in the intranet ONOD table; whether it reaches the internet side depends on the batch sync cron. Which roles hold OCMS_HST_UPDATE cannot be verified from the repo.",
+    "Closed tickets OCMS-DF-2026-091 to -094 are on the Manual HST apply flow, so URA may consider the HST module partly paid as maintenance."
+   ]
+  },
+  "id": {
+   "title": "Manual HST Update: ubah name dan address dari HST ID dan bawa name itu ke semua notice-nya",
+   "user_story": "Sebagai Notice Processing Officer yang mengelola daftar ID dengan special indicator (HST), saya ingin mencari HST ID dan memperbaiki nama serta alamatnya, supaya record HST dan nama offender di notice milik ID itu tetap benar.",
+   "adds": "OCMS20.18 dan OCMS20.28 (keduanya Demo paid, sudah di-trace di docs/archify) mencakup penerapan special indicator (TS-HST) ke notice suatu ID dan mencabutnya secara manual. Keduanya di-trace ke apply-hst dan revive-hst. Tidak ada yang mencakup edit record HST yang tersimpan (nama, alamat, tanggal perubahan alamat, invalid-address tag) atau mendorong nama yang sudah dikoreksi ke record offender. Extension ini hanya edit itu. Screen yang sama termasuk grup Manual HST (suspension, update, revival); orphan OCMS20.26.json sudah mencatatnya, jadi tidak boleh dihitung dua kali.",
+   "acceptance": [
+    "Menu HST > Manual HST Update membuka /hst/update.",
+    "Officer memasukkan ID; layar menampilkan name dan address yang tersimpan di row HST (bukan address terbaru offender) dan notice yang terdaftar untuk ID itu. List notice tidak difilter: semua row offender dari ID itu (offencenoticeownerdriverlist hanya difilter idNo, limit 1000), bukan hanya notice outstanding.",
+    "Officer mengedit field nama dan alamat (postal code, block, street, building, floor, unit, tanggal perubahan alamat, invalid address tag) dengan validasi form dasar (hanya nama yang wajib). Batas di UI berbeda dari batas di API (name 100 vs 66, street 50 vs 32, invalid address tag 50 vs 1), jadi nilai yang lolos UI bisa ditolak API (HTTP 400).",
+    "Saat save, POST update-hst meng-update row HST; kalau ID tidak ada di HST, API mengembalikan 'HST ID not found in system' (HTTP 404). Service menimpa setiap kolom address di row HST dengan nilai di request, jadi field yang dikosongkan di layar menjadi null.",
+    "Nama juga di-update di baris offender (ONOD) dengan offender_indicator Y milik ID itu, termasuk notice yang sudah dibayar atau closed; alamat notice tidak diubah. Error per notice hanya di-log di dalam loop; efeknya terhadap transaction tidak diverifikasi dari repo. Updater tersimpan sebagai system user, bukan officer."
+   ],
+   "ura": "tidak ada (tidak ada flow deck di repo). Ada ticket manual HST terkait (OCMS-DF-2026-091, -092, -093, -094) tapi isinya penerapan HST, bukan screen edit ini; tidak ada maintenance ticket yang mengubah screen ini.",
+   "points_basis": "Hanya perkiraan, MGG dan URA yang memutuskan. Ditetapkan 3, sama dengan OCMS15.7 (3, tampilkan field relevan dan terima input, Demo paid) dan di atas OCMS20.28 (2, cabut HST manual, Demo paid): satu form pencarian, satu form edit, satu endpoint, dua update tabel. Di bawah OCMS15.8 (5).",
+   "demo": [
+    "Di UAT buka HST > Manual HST Update dan cari ID yang sudah ada di tabel HST.",
+    "Ubah nama dan postal code lalu save.",
+    "Cek baris HST, dan buka satu notice milik ID itu: nama offender harus menampilkan nama baru, alamat tidak berubah."
+   ],
+   "risks": [
+    "Bisa dibaca sebagai bagian dari penanganan manual HST OCMS20.18/20.28 (keduanya Demo paid, modul HST yang sama, orphan OCMS20.26.json). Teks story tidak menyebut edit record HST.",
+    "Error per notice hanya di-log di loop. updateHst bersifat @Transactional, jadi perilaku sebenarnya bisa all-or-nothing dengan 500, bukan update parsial; ini perilaku runtime Spring yang tidak bisa diverifikasi dari repo.",
+    "Updater tersimpan sebagai system user (DEFAULT_SYSTEM_USER_ID), bukan officer, sehingga audit trail lemah.",
+    "Nama hanya diubah di tabel ONOD intranet; apakah sampai ke sisi internet bergantung pada cron batch sync. Role mana yang punya OCMS_HST_UPDATE tidak bisa diverifikasi dari repo.",
+    "Ticket Closed OCMS-DF-2026-091 sampai -094 ada di flow apply Manual HST, jadi URA bisa menganggap modul HST sebagian sudah dibayar sebagai maintenance."
+   ]
+  },
+  "src": {
+   "en": "Code scan (no flow deck)",
+   "id": "Pemindaian code (tidak ada flow deck)"
+  }
+ }
+]

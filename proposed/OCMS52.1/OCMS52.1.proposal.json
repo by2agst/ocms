@@ -1,0 +1,113 @@
+{
+ "id": "OCMS52.1",
+ "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "The Auto Revival job runs every day in the 00:15 day-end run without an officer.",
+    "id": "Job Auto Revival jalan tiap hari di run day-end jam 00:15 tanpa officer."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:96-119",
+   "detail": {
+    "en": "runDayEndJobs() is @Scheduled with ${cron.toppanupload.schedule} and returns early when 'enabled' is false; executeDayEndJobs() calls autoRevivalService.executeJob() (line 119, not commented out; the Toppan letters and HST jobs next to it are commented out). cron-schedules-prod.properties:61-62 sets schedule '0 15 0 * * ?' and enabled=true, and application-prod.properties:17 imports that file, so the repo has it ON in prod. The job lives inside the combined day-end scheduler, so if that scheduler is switched off the revival stops too. The real server value and whether the cron was really on at a given time cannot be verified from the repo (OCMS-DF-2026-139 mentions the revival cron being 'manually switched on' on 3 Jun 2026).",
+    "id": "runDayEndJobs() pakai @Scheduled ${cron.toppanupload.schedule} dan langsung return kalau 'enabled' false; executeDayEndJobs() memanggil autoRevivalService.executeJob() (line 119, tidak di-comment; job Toppan letters dan HST di sebelahnya yang di-comment). cron-schedules-prod.properties:61-62 isinya schedule '0 15 0 * * ?' dan enabled=true, dan application-prod.properties:17 meng-import file itu, jadi di repo statusnya ON di prod. Job ini numpang di scheduler day-end gabungan, jadi kalau scheduler itu dimatikan revival ikut berhenti. Nilai asli di server dan apakah cron benar-benar nyala di waktu tertentu tidak bisa diverifikasi dari repo (OCMS-DF-2026-139 menyebut revival cron 'manually switched on' tanggal 3 Jun 2026)."
+   }
+  },
+  {
+   "step": {
+    "en": "The job picks every TS row in ocms_suspended_notice with date_of_revival empty and due_date_of_revival before the start of tomorrow.",
+    "id": "Job mengambil semua baris TS di ocms_suspended_notice dengan date_of_revival kosong dan due_date_of_revival sebelum awal besok."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsSuspendedNotice/OcmsSuspendedNoticeRepository.java:105-111",
+   "detail": {
+    "en": "The @Query selects suspensionType = :suspensionType AND dateOfRevival IS NULL AND dueDateOfRevival < :beforeDate. AutoRevivalHelper.queryNoticesForRevival() (line 113-125) passes TEMPORARY and LocalDate.now().plusDays(1).atStartOfDay(), then keeps one row per notice_no (putIfAbsent). Per-notice validation happens later in processBatchRevivals, which reloads all active suspensions of those notices.",
+    "id": "@Query memilih suspensionType = :suspensionType AND dateOfRevival IS NULL AND dueDateOfRevival < :beforeDate. AutoRevivalHelper.queryNoticesForRevival() (line 113-125) mengirim TEMPORARY dan LocalDate.now().plusDays(1).atStartOfDay(), lalu menyisakan satu baris per notice_no (putIfAbsent). Validasi per notice terjadi belakangan di processBatchRevivals, yang me-load ulang semua suspension aktif notice itu."
+   }
+  },
+  {
+   "step": {
+    "en": "A notice is skipped (not revived) when it is paid, has no active TS that is due, has an active PS whose reason is not DIP, MID, FOR, RIP or RP2, or its last processing stage is not an allowed revival stage (NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC; court stages CSD, CSR, COS, COM only when a due TS has reason RED).",
+    "id": "Notice di-skip (tidak di-revive) kalau sudah dibayar, tidak punya TS aktif yang due, punya PS aktif dengan reason selain DIP, MID, FOR, RIP, RP2, atau last processing stage bukan stage revival yang diizinkan (NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC; stage court CSD, CSR, COS, COM hanya kalau ada TS due dengan reason RED)."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:381-421",
+   "detail": {
+    "en": "Phase A checks, in order: VON missing (skipped as orphan); no active TS (line 381-382); 'paid' means VON.crs_reason_of_suspension is non-empty (line 385-389) or epr_reason_of_suspension = PRA (line 390-392), not payment_status; no due TS (line 400); any active PS whose reason is not in SystemConstant.SuspensionReason.PS_NON_BLOCKING_REVIVAL_REASONS = DIP, MID, FOR, RIP, RP2 (line 404-408, SystemConstant.java:68); last processing stage must be in REVIVAL_ALLOWED_STAGES (SystemConstant.java:121) or in REVIVAL_COURT_RED_ONLY_STAGES (CSD, CSR, COS, COM) with a due TS of reason RED (line 414-421). The acceptance text in new_stories.json leaves out the RED exception and defines 'paid' loosely. Tickets OCMS-DF-2026-023, OCMS-DF-2026-029 and OCMS-DF-2026-139 (all Closed, Prod deployed) show these rules were added after PS-APP notices were wrongly revived; OCMS-SR-2026-119 records about 11K wrongly revived PS notices still needing a data patch. Whether the deployed server runs this version cannot be verified from the repo.",
+    "id": "Check Phase A berurutan: VON tidak ada (di-skip sebagai orphan); tidak ada TS aktif (line 381-382); 'paid' artinya VON.crs_reason_of_suspension tidak kosong (line 385-389) atau epr_reason_of_suspension = PRA (line 390-392), bukan payment_status; tidak ada TS yang due (line 400); ada PS aktif dengan reason yang tidak ada di SystemConstant.SuspensionReason.PS_NON_BLOCKING_REVIVAL_REASONS = DIP, MID, FOR, RIP, RP2 (line 404-408, SystemConstant.java:68); last processing stage harus ada di REVIVAL_ALLOWED_STAGES (SystemConstant.java:121) atau di REVIVAL_COURT_RED_ONLY_STAGES (CSD, CSR, COS, COM) dengan TS due ber-reason RED (line 414-421). Teks acceptance di new_stories.json tidak menyebut pengecualian RED dan mendefinisikan 'paid' terlalu longgar. Ticket OCMS-DF-2026-023, OCMS-DF-2026-029, OCMS-DF-2026-139 (semua Closed, Prod deployed) menunjukkan aturan ini ditambah setelah notice PS-APP salah di-revive; OCMS-SR-2026-119 mencatat sekitar 11K notice PS salah di-revive yang masih butuh data patch. Apakah server yang jalan sudah versi ini tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "Each due TS row is marked revived with reason SPO, remark 'Auto-revived on due date' and the system user as authorising officer.",
+    "id": "Tiap baris TS yang due ditandai revived dengan reason SPO, remark 'Auto-revived on due date' dan system user sebagai officer yang mengotorisasi."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:424-436",
+   "detail": {
+    "en": "For every due TS the helper builds params date_of_revival = now, revival_reason 'SPO', revival_remarks 'Auto-revived on due date', officer_authorising_revival = DEFAULT_SYSTEM_USER_ID. batchReviveSuspensions (line 560-612) writes them with one JOIN UPDATE on the full key notice_no + date_of_suspension + sr_no (comment says sr_no alone is not unique).",
+    "id": "Untuk tiap TS yang due, helper menyusun param date_of_revival = now, revival_reason 'SPO', revival_remarks 'Auto-revived on due date', officer_authorising_revival = DEFAULT_SYSTEM_USER_ID. batchReviveSuspensions (line 560-612) menulisnya dengan satu JOIN UPDATE pada key lengkap notice_no + date_of_suspension + sr_no (komentar di code bilang sr_no saja tidak unik)."
+   }
+  },
+  {
+   "step": {
+    "en": "If another suspension is still active after revival, VON and eVON keep it; if none is left, the suspension fields on VON and eVON are cleared.",
+    "id": "Kalau masih ada suspension lain yang aktif setelah revival, VON dan eVON mempertahankannya; kalau tidak ada lagi, field suspension di VON dan eVON dikosongkan."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:440-464",
+   "detail": {
+    "en": "Remaining = active suspensions minus those just revived. If empty, VON and eVON get null type, reason and date (vonUpdates / evonUpdates, line 447-448). If not empty, the suspension type, reason and date come from the remaining row with the LATEST date_of_suspension (line 452-461), and only VON.due_date_of_revival gets the furthest due date (line 452-458). eVON gets no due date at all (batchUpdateEvons writes type, reason, date only, line 668-720). So the proposal's 'VON and eVON keep the suspension with the furthest revival date' is not what the code does. VON and eVON are written in separate databases without one shared transaction, which the repo does not make atomic (cannot verify from repo what happens if the eVON write fails).",
+    "id": "Remaining = suspension aktif dikurangi yang baru di-revive. Kalau kosong, VON dan eVON diisi null untuk type, reason, date (vonUpdates / evonUpdates, line 447-448). Kalau masih ada, type, reason dan date diambil dari baris remaining dengan date_of_suspension PALING BARU (line 452-461), dan hanya VON.due_date_of_revival yang diisi due date terjauh (line 452-458). eVON sama sekali tidak dapat due date (batchUpdateEvons hanya menulis type, reason, date, line 668-720). Jadi kalimat proposal 'VON dan eVON menyimpan suspension dengan revival date terjauh' bukan yang dilakukan code. VON dan eVON ditulis di database terpisah tanpa satu transaction bersama, dan repo tidak membuatnya atomic (apa yang terjadi kalau tulis eVON gagal tidak bisa diverifikasi dari repo)."
+   }
+  },
+  {
+   "step": {
+    "en": "After revival the job re-applies TS-HST and TS-CLV for notices whose revived TS had reason HST or CLV, unless the notice is paid.",
+    "id": "Setelah revival job meng-apply ulang TS-HST dan TS-CLV untuk notice yang TS-nya baru di-revive dengan reason HST atau CLV, kecuali notice sudah dibayar."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:735-790",
+   "detail": {
+    "en": "AutoRevivalJob calls processHstPostRevival and processClvPostRevival (AutoRevivalJob.java, steps 3a and 3b) only for records that were revived. The trigger is the REASON of the revived TS (HST at line 760, CLV at line 823), not a fresh check that the ID is still an HST ID or that the vehicle is type V; the only guard is isPaidNotice (PS-FP or PS-PRA active, line 1245-1250). The re-apply runs even when another TS is still active: OCMS-DF-2026-117 (Closed, Investigation, no code change) is URA asking why TS-HST was re-applied on 11 notices that still had a TS-MS due on 31 Aug 2026. The 'V' vehicle check exists only in processTsClvLooping (line 1111), a separate step for VIP notices at RR3/DR3. So 'where the notice still qualifies' in the user story is only partly true.",
+    "id": "AutoRevivalJob memanggil processHstPostRevival dan processClvPostRevival (AutoRevivalJob.java, step 3a dan 3b) hanya untuk record yang berhasil di-revive. Pemicunya adalah REASON TS yang baru di-revive (HST di line 760, CLV di line 823), bukan pengecekan baru bahwa ID masih HST ID atau kendaraan masih tipe V; satu-satunya guard adalah isPaidNotice (PS-FP atau PS-PRA aktif, line 1245-1250). Re-apply tetap jalan walau masih ada TS lain yang aktif: OCMS-DF-2026-117 (Closed, Investigation, tanpa perubahan code) adalah URA yang bertanya kenapa TS-HST di-apply ulang di 11 notice yang masih punya TS-MS due 31 Aug 2026. Check kendaraan 'V' hanya ada di processTsClvLooping (line 1111), step terpisah untuk notice VIP di RR3/DR3. Jadi 'where the notice still qualifies' di user story hanya benar sebagian."
+   }
+  },
+  {
+   "step": {
+    "en": "TS-PDP is re-applied when the notice has a Pending furnish application (status P); with no Pending record the revival simply ends.",
+    "id": "TS-PDP di-apply ulang kalau notice punya furnish application berstatus Pending (status P); kalau tidak ada yang Pending revival selesai begitu saja."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:861-1030",
+   "detail": {
+    "en": "processPdpPostRevival loads ocms_furnish_application rows with status = 'P' (line 924), skips records whose revived reason is not PDP, and calls tsHelper.processTS(... PDP ...) only when pendingRecords is non-empty (line 1006-1016); otherwise it counts success and stops. For a paid notice it patches VON instead of re-applying. Ticket OCMS-DF-2026-032 (Closed, Prod deployed) fixed an earlier bug where TS-PDP was not re-applied for Pending furnish.",
+    "id": "processPdpPostRevival me-load baris ocms_furnish_application dengan status = 'P' (line 924), melewati record yang reason-nya bukan PDP, dan memanggil tsHelper.processTS(... PDP ...) hanya kalau pendingRecords tidak kosong (line 1006-1016); kalau kosong dihitung sukses lalu selesai. Untuk notice yang sudah dibayar yang dilakukan adalah patch VON, bukan re-apply. Ticket OCMS-DF-2026-032 (Closed, Prod deployed) memperbaiki bug lama saat TS-PDP tidak di-apply ulang untuk Pending furnish."
+   }
+  },
+  {
+   "step": {
+    "en": "An officer can also start the job from the staff portal Cron page ('Auto Revival' button), which calls the staff API and then the cron tier.",
+    "id": "Officer juga bisa menjalankan job dari halaman Cron staff portal (tombol 'Auto Revival'), yang memanggil staff API lalu cron tier."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:60",
+   "detail": {
+    "en": "CronList.tsx:60 defines 'Auto Revival' with endpoint cron/auto-revival/trigger and line 97 maps it to cron/job-status?key=auto-revival. ocmsadminapi CronProxyController.java:354 (@PostMapping /auto-revival/trigger) calls CronProxyService.triggerAutoRevival (line 294-295) which proxies /cron/auto-revival/trigger. ocmsadminprivateapi AutoRevivalController.java /trigger starts autoRevivalService.executeJob() on a background thread and returns 200 at once (fire and forget). Route /cron is in App.tsx:319 and the menu entry in LinkData.tsx:391; the staff API path /v1/cron is mapped to OCMS_CRON in api-authorization.properties:187. Which staff roles hold OCMS_CRON in a real environment cannot be verified from the repo.",
+    "id": "CronList.tsx:60 mendefinisikan 'Auto Revival' dengan endpoint cron/auto-revival/trigger dan line 97 memetakannya ke cron/job-status?key=auto-revival. CronProxyController.java:354 di ocmsadminapi (@PostMapping /auto-revival/trigger) memanggil CronProxyService.triggerAutoRevival (line 294-295) yang mem-proxy /cron/auto-revival/trigger. AutoRevivalController.java /trigger di ocmsadminprivateapi menjalankan autoRevivalService.executeJob() di background thread dan langsung balas 200 (fire and forget). Route /cron ada di App.tsx:319 dan menu di LinkData.tsx:391; path staff API /v1/cron dipetakan ke OCMS_CRON di api-authorization.properties:187. Role staff mana yang punya OCMS_CRON di environment asli tidak bisa diverifikasi dari repo."
+   }
+  }
+ ],
+ "note": {
+  "en": "The base revival chain (schedule, selection, skip rules, SPO write, manual trigger, TS-PDP re-apply) is built and the repo has the job ON in prod. Gaps: the VON/eVON sync rule in the acceptance list is wrong (latest suspension wins, not furthest revival date; eVON gets no due date) and TS-HST/TS-CLV are re-applied by the reason of the revived row without re-checking HST ID or vehicle type V, and while another TS is still active (OCMS-DF-2026-117). The repo cannot prove the real server schedule value, whether the cron was on at any given time, the deployed version, or which staff roles can press the button. The job has a long defect history (OCMS-DF-2026-023, 029, 032, 139, OCMS-SR-2026-119, all Closed) and URA may treat it as implied by the TS stories, not as extra scope. HST and CLV re-apply overlaps with OCMS14.28 and OCMS20.19, so the claim should stay on base revival and TS-PDP re-apply.",
+  "id": "Rantai revival dasar (schedule, selection, skip rules, tulis SPO, manual trigger, re-apply TS-PDP) sudah dibangun dan di repo job-nya ON di prod. Gap: aturan sync VON/eVON di acceptance list salah (suspension paling baru yang menang, bukan revival date terjauh; eVON tidak dapat due date) dan TS-HST/TS-CLV di-apply ulang berdasarkan reason baris yang di-revive tanpa cek ulang HST ID atau vehicle type V, dan tetap jalan walau TS lain masih aktif (OCMS-DF-2026-117). Repo tidak bisa membuktikan nilai schedule di server asli, apakah cron nyala di waktu tertentu, versi yang ter-deploy, atau role staff mana yang boleh menekan tombol. Job ini punya riwayat defect panjang (OCMS-DF-2026-023, 029, 032, 139, OCMS-SR-2026-119, semua Closed) dan URA bisa menganggapnya sudah tersirat di story TS, bukan scope tambahan. Re-apply HST dan CLV beririsan dengan OCMS14.28 dan OCMS20.19, jadi klaim sebaiknya tetap di revival dasar dan re-apply TS-PDP."
+ },
+ "corrections": [
+  "Acceptance 3: 'VON and eVON keep the suspension with the furthest revival date' is wrong. The code keeps the remaining suspension with the latest date_of_suspension; only VON.due_date_of_revival takes the furthest due date, and eVON gets no due date (AutoRevivalHelper.java:452-461, 668-720).",
+  "Acceptance 2: add that stages CSD, CSR, COS, COM are allowed when a due TS has reason RED, and that 'paid' means crs_reason_of_suspension non-empty or epr reason PRA (AutoRevivalHelper.java:385-421).",
+  "Acceptance 4 and user story: TS-HST/TS-CLV are re-applied by the reason of the revived TS row (paid notices excluded), not by re-checking HST ID or classified (V) vehicle; the V check exists only in the separate TS-CLV looping step (AutoRevivalHelper.java:1111).",
+  "Demo step 3: after revival, VON suspension fields show the latest remaining suspension (not the furthest) when one remains.",
+  "Risk text: demo step 2 says 'wait for the 00:15 day-end run'; the repo shows enabled=true and schedule 0 15 0 * * ? in prod, but the real server value cannot be verified."
+ ]
+}

@@ -1,0 +1,55 @@
+{
+  "story": "OCMS1.5",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (cek kontak ENA, DataHive refresh, kirim SMS/email), framework/schedulers/NotificationJobsScheduler, cron-schedules-{prod,uat,dev}.properties (cron.notification.enabled=false, cron.enareminder.datahive=false). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'User Story Removed': verdict tetap Removed, tidak diklaim. Pengecekan mobile number/email ada di job eNotification (hanya pada stage ENA, individu SMS, company email, kontak kosong dipindah ke RD1) dan pengirim SMS/email ada, tetapi cron.notification.enabled=false di prod, uat, dan dev, begitu juga pembaruan DataHive (cron.enareminder.datahive=false). Epic OCMS9 yang dirujuk story tidak ada di input. Admin fee pada notifikasi umumnya belum ada karena baru diterapkan di RR3/DR3 atau foreign vehicle. Penyedia SMS/email dan nilai flag di runtime: cannot verify from repo.",
+  "recommendation": "Tidak diklaim (Removed). Cek kontak dan pengirim notifikasi ada tetapi scheduler dimatikan di semua environment di repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah owner particulars didapat, OCMS mengecek apakah owner punya mobile number atau email address",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:356-368",
+      "fit": "Sebagian",
+      "detail": "Job eNotification mengambil kontak owner dari ocms_offence_notice_owner_driver (offender_tel_no, offender_tel_code, email_addr; NotificationSmsEmailHelper.java:1016-1017) dan mengecek kosong atau tidak hanya pada stage ENA: tanpa nomor (individu) atau tanpa email (company) notice dipindah ke RD1 (NotificationSmsEmailJob.java:356-368). Cek ini bagian dari job pengirim notifikasi, bukan langkah terpisah tepat setelah owner particulars didapat. Isi Epic OCMS9 tidak ada di input."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Individu dicek mobile number-nya dan company dicek email address-nya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:352-353",
+      "fit": "Sebagian",
+      "detail": "sendSms = idType bukan 'B' dan sendEmail = idType 'B' (NotificationSmsEmailJob.java:352-353): individu hanya dicek nomor ponselnya, company hanya email-nya. Story menyebut 'mobile number/email' tanpa pembagian ini, dan Epic OCMS9 yang jadi acuan tidak ada di input, jadi kecocokan penuh tidak bisa dibuktikan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kontak diperbarui dari sumber data pemerintah (DataHive) bila tersedia",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2475",
+      "fit": "Sebagian",
+      "detail": "refreshContactInfo hanya memanggil DataHive (Singpass/CorpPass) bila cron.enareminder.datahive=true; di prod nilainya false (cron-schedules-prod.properties:48), dan di uat/dev juga false, sehingga yang dipakai hanya kontak yang sudah ada di record (NotificationSmsEmailHelper.java:2461-2475). Jadi pembaruan kontak dari DataHive ada di code tapi mati di semua environment di repo. Langkah ini tidak disebut eksplisit di story; dicatat karena bagian dari pengecekan kontak."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim notifikasi SMS atau email ke owner",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Code pengirim ada (NotificationSmsEmailJob.java:289 untuk SMS batch, email per record), tetapi scheduler dimatikan: cron.notification.enabled=false di prod (cron-schedules-prod.properties:236), uat (cron-schedules-uat.properties:238), dan dev (cron-schedules-dev.properties:239), dan NotificationJobsScheduler.java:49 berhenti bila flag false. Notice di ENA juga dilewati bila ID ada di ocms_enotification_exclusion_list. Tiket OCMS-DF-2026-180 (Closed) menyebut cron eNotification menunggu diaktifkan. Apakah job dijalankan manual atau flag diubah di environment runtime: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notifikasi memuat parking charge dan admin fee yang masih terutang",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1010",
+      "fit": "Sebagian",
+      "detail": "Query notifikasi mengambil von.amount_payable (NotificationSmsEmailHelper.java:1010) dan dimasukkan ke data pesan (:417). amount_payable sudah termasuk administration_fee bila fee diterapkan (AdminFeeHelper.batchUpdateAdminFee: amount_payable = composition_amount + administration_fee), tetapi saat stage ENA admin fee untuk notice REPCCS belum ada (lihat OCMS1.3), jadi jumlah yang ditampilkan umumnya hanya composition amount. Teks template pesan tidak dibaca di story ini. Tiket OCMS-DF-2026-180 memperbaiki payment due date eNA (7 hari)."
+    }
+  ]
+}

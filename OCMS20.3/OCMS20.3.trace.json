@@ -1,0 +1,46 @@
+{
+  "story": "OCMS20.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin/{jobs/DataHiveUenFinJob,services/DataHiveUenFinService}, services/datahive/nricFinUenDataRetrieval/service/{DataHiveUENServiceImpl,DataHiveUENBatchService}, workflows/unclaimedreport/{helpers/UnclaimedReportHelper,services/UnclaimedReportServiceImpl}, crud ocmsizdb/OcmsTempUncHstAddr, schedulers/MhaDownloadJobsScheduler, cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code perbandingan alamat",
+  "note": "Status stories.json 'Requirement given - Gen flow', demo_remark 'No vault' (maksud tidak jelas dari repo). Story menyebut DOS; DOS = DataHive/ACRA tidak bisa dikonfirmasi dari repo, kata DOS hanya muncul di layar UI 'DOS Reports'. Yang ada di code adalah pemanggilan view DataHive V_DH_ACRA_FIRMINFO_R/D dengan UEN. Alamat terdaftar yang diterima untuk antrean adhoc hanya di-upsert ke ocms_temp_unc_hst_addr (type_of_address dikunci 'mha_reg') tanpa dibandingkan dengan alamat tempat reminder dikirim, sehingga 'identifikasi apakah ada perubahan alamat' tidak ada di code. Generator laporan hasil UNC (checkAndGenerateBatchDataReport) ada tetapi tidak punya caller di ocmsadminprivateapi/src (grep seluruh src), dan query-nya memfilter query_reason='UNC' sedangkan entity OcmsTempUncHstAddr tidak punya kolom query_reason dan upsert adhoc tidak mengisinya; apakah DB punya default cannot verify from repo. Job UEN & FIN dimatikan di prod properties (cron.mhadownload.uenfin.enabled=false). Tidak ada tiket pemeliharaan yang spesifik pada jalur adhoc UEN ini; OCMS-DF-2026-137 (validasi format UEN) hanya soal format input.",
+  "recommendation": "Jangan klaim penuh. Pemanggilan DataHive dengan UEN dan penyimpanan alamat ada tetapi job mati di prod properties; perbandingan alamat lama vs baru dan laporan hasil untuk staf tidak ada. Konfirmasi dengan URA apakah DOS = DataHive",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN perusahaan yang suspended TS-UNC ke sumber data registry (DOS) untuk meminta alamat terdaftar terbaru",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:48; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:404; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1055; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/jobs/DataHiveUenFinJob.java:251; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "Batch UEN service mengirim UEN ke view DataHive V_DH_ACRA_FIRMINFO_R dan _D (DataHiveUENBatchService.java:48-49, query di baris 404-406) dan batchProcessUenRecords dipanggil dari DataHiveUenFinJob.java:251. DOS = DataHive/ACRA tidak bisa dikonfirmasi dari repo. Job dilewati bila cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107), dan itu nilai di cron-schedules-prod.properties:52; nilai server nyata cannot verify from repo. Early-return DataHiveUenFinJob.java:189-191 membuat antrean adhoc tidak dibaca bila tidak ada record reguler."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima alamat terdaftar terbaru (blok, lantai, unit, jalan, gedung, kode pos) dari registry dan menyimpannya",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:565; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:655; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:693; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1055",
+      "fit": "Sebagian",
+      "detail": "Untuk record adhoc (tanpa noticeNo) storeAdhocUenAddressToUncHstAddr mengambil alamat dari CompanyInfo (DataHiveUenFinService.java:565-585) dan upsertToUncHstAddr menyimpannya ke ocms_temp_unc_hst_addr dengan type_of_address 'mha_reg' (baris 655, 693). Alamat disimpan, tetapi hanya sebagai satu baris per id_no (ditimpa tiap run, tanpa riwayat) dan label sumber 'mha_reg' salah untuk data ACRA. Hanya berjalan jika job UEN & FIN aktif (lihat langkah 1)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membandingkan alamat terdaftar terbaru dengan alamat tempat reminder yang kembali dikirim dan menandai bila berubah",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:655; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1633; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1723",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada perbandingan alamat lama vs baru di mana pun di enam repo (grep addressChanged/compare/differ pada jalur Unclaimed dan DataHive UEN, tiga sinonim). upsertToUncHstAddr menimpa baris yang ada (DataHiveUenFinService.java:655-684), dan jalur notice reguler updateCompanyAddress/updateCompanyAddressWithNullSupport (baris 1633, 1723) langsung menimpa alamat mha_reg di ONOD tanpa membandingkan. Staf harus membandingkan sendiri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil alamat terdaftar terbaru diberikan ke staf Notice Processing Officer dalam laporan untuk tindak lanjut",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:110; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:115; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:317; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/helpers/UnclaimedReportHelper.java:337; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsTempUncHstAddr/OcmsTempUncHstAddr.java:36; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:100; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/unclaimedreport/services/UnclaimedReportServiceImpl.java:69",
+      "fit": "Tidak ada code",
+      "detail": "UnclaimedReportServiceImpl.checkAndGenerateBatchDataReport (UnclaimedReportServiceImpl.java:110) membuat Excel dari ocms_temp_unc_hst_addr tetapi tidak ada caller di ocmsadminprivateapi/src: scheduler dan controller hanya memanggil executeJob/generateReport yang membuat laporan daftar notice TS-UNC (UnclaimedReportServiceImpl.java:69), bukan laporan alamat. Query laporan memfilter query_reason = 'UNC' (UnclaimedReportHelper.java:337) sementara entity OcmsTempUncHstAddr tidak punya kolom itu (OcmsTempUncHstAddr.java, kolom dimulai di baris 36) dan upsert adhoc tidak mengisinya; default di DB cannot verify from repo. Kode ada tetapi tidak terjangkau, jadi langkah ini tidak diklaim."
+    }
+  ]
+}

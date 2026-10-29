@@ -1,0 +1,25 @@
+{
+  "story": "OCMS14.22",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/form/VehicleForm.tsx (onComOk), pages/Notice/hook/useNoticeSubmit.tsx (useNoticeEdit), utils/mapping/Notice/Notice.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice/{Controller,ServiceImpl,Entity}, api-authorization.properties. ocmsadminprivateapi autorevival/helpers/AutoRevivalHelper, notification_sms_email/helpers/NotificationSmsEmailHelper, toppan/upload/helpers/ToppanUploadHelper, syncintranetinternet/SyncIntranetInternetService, OcmsValidOffenceNoticeRepository. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "1-point story, status 'Demo paid (50% of 75%)'. Saving the type change exists: after Yes the value goes into the form (VehicleForm.tsx:137-138), Save sends POST validoffencenoticepatch with vehicleRegistrationType and updUserId (useNoticeSubmit.tsx:61-98, Notice.ts:179, 331), and OcmsValidOffenceNoticeController.patchPost (lines 92-113) calls patchWithFiles, which updates the vehicle_registration_type column. 'Notice is processed accordingly' is only Sebagian: other processes do read this column (TS-CLV looping only for type V, SMS/email exclude type V, the Classified Vehicle report, sync to eVON), but the patch has no side effects: changing V to S does not revive an active TS-CLV and does not change the stage. Also, the first TS-CLV at the Toppan RR3/DR3 upload keys on a vehicle number starting with V (ToppanUploadHelper.java:706), not on the type, so the result can be inconsistent with a manually changed type. The server does not validate the type value or the notice stage on this patch path (UI only). The Special Notice Processing Officer role and server configuration values cannot be verified from the repo. No maintenance ticket changes the verdict.",
+  "recommendation": "Can be claimed for saving the type change. 'Processed accordingly' is not complete: there is no hook when V changes to S (an active TS-CLV is not revived) and the first TS-CLV at the Toppan upload uses the vehicle number pattern, not the type. Ask URA to confirm the expected behaviour when the type is changed.",
+  "steps": [
+    {
+      "step": "After Yes, the new vehicle registration type is placed in the edit form",
+      "detail": "onComOk fills prev['vehicle_type'] and prev['vehicle_type_data'] with the chosen option (VehicleForm.tsx:137-138) and closes the dialog (line 158). Type X fills the default vehicle_no and category (lines 140-145); other types clear both (lines 146-149). Same fact as step 3 of OCMS14.21, so the same fit."
+    },
+    {
+      "step": "Officer saves; the portal sends vehicleRegistrationType to the patch API",
+      "detail": "In EDIT mode, Save calls useNoticeEdit, which POSTs to 'validoffencenoticepatch' with {noticeNo, ...notice} (useNoticeSubmit.tsx:61-98, 154-157). MapAPINoticeValidEdit includes vehicleRegistrationType when vehicle_type is set (Notice.ts:179, 317) and updUserId (Notice.ts:331). The UI does not block edits by stage: the non_editable check is commented out (EditForm.tsx:210-217)."
+    },
+    {
+      "step": "The API updates the vehicle_registration_type column on ocms_valid_offence_notice",
+      "detail": "POST /validoffencenoticepatch (OcmsValidOffenceNoticeController.java:92-113) turns the payload into an entity and calls patchWithFiles (OcmsValidOffenceNoticeServiceImpl.java:73-75), which runs super.patch, a generic partial update of the vehicle_registration_type column (OcmsValidOffenceNotice.java:123-124). There is no validation of the type value or the stage in the controller/service (validation is UI only); the endpoint belongs to the OCMS_NOTICE_EDIT function (api-authorization.properties:46-48). Role assignment cannot be verified from the repo."
+    },
+    {
+      "step": "The notice is processed according to the new type by later processes",
+      "detail": "Other processes read this column: TS-CLV looping only for type V (AutoRevivalHelper.java:1111-1112), SMS/email exclude types I, D, V (NotificationSmsEmailHelper.java:1061, 1151), the Classified Vehicle report selects type V (OcmsValidOffenceNoticeRepository.java:728) and the sync copies the type to eVON (SyncIntranetInternetService.java:305). But the patch has no side effects: V to S does not revive an active TS-CLV (it runs until its due date) and does not change the stage. The first TS-CLV at the Toppan RR3/DR3 upload uses a vehicle number starting with V (ToppanUploadHelper.java:706), not the type: a notice turned into V with a number not starting with V is only caught by the daily looping, and a notice starting with V turned into S can still get TS-CLV. Which jobs are active on the server cannot be verified from the repo."
+    }
+  ]
+}

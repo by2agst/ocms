@@ -1,0 +1,64 @@
+{
+  "story": "OCMS18.25",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{PermanentSuspensionHelper, SuspensionBaseHelper}. ocmsadminprivateapi crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository (query LTA upload, MHA upload, Toppan letters), framework/workflows/agencies/{lta/upload, mha/upload, toppan/upload}, framework/workflows/autorevival/helpers/AutoRevivalHelper, framework/schedulers/ToppanUploadJobsScheduler, cron-schedules-prod.properties. ocmseserviceapi workflows/parkingfines/ParkingFinesController (filter payment_acceptance_allowed)",
+  "note": "Status di stories.json: Fully paid. Setelah PS, VON/eVON ditandai suspension_type=PS dan job batch yang diperiksa (LTA upload, MHA upload, Toppan letters) memilih notice dengan filter suspension_type kosong atau bukan PS, sedangkan auto-revival hanya mengambil TS. Pembayaran online dimatikan lewat payment_acceptance_allowed=N untuk kode di PS_DISABLE_PAYMENT; isi daftar itu ada di DB (cannot verify from repo). Tidak semua job diperiksa satu per satu (misalnya LTA download, admin fee, furnish), jadi klaim 'tidak ada tindak lanjut sama sekali' tidak bisa dibuktikan penuh dari repo. Riwayat tiket menunjukkan kebocoran yang sudah diperbaiki: OCMS-DF-2026-002 (LTA enquiry memasukkan notice PS), OCMS-DF-2026-133 (PS masuk antrean MHA dari unclaimed flow), OCMS-DF-2026-139 dan OCMS-SR-2026-119 (PS-APP di-revive cron), OCMS-DF-2026-097 (payment flag PS-ANS tetap Y); semuanya Closed / Prod deployed. Job notifikasi SMS/email dimatikan di prod (cron.notification.enabled=false), jadi tidak dihitung. Letter generation Toppan tidak jalan lewat cron (panggilan executeJob dikomentari), hanya trigger manual.",
+  "recommendation": "Klaim dengan catatan: penanda PS dan filter di job LTA/MHA/Toppan serta auto-revival ada; pembayaran online bergantung data DB dan Toppan hanya lewat trigger manual. Jangan menyatakan semua job sudah diperiksa.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menandai notice sebagai permanently suspended di data utama dan salinan eService",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:139-144; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:340-348; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:383-401",
+      "fit": "Sesuai",
+      "detail": "updateVON mengisi suspension_type=PS, epr_reason_of_suspension, epr_date_of_suspension (SuspensionBaseHelper.java:345-348) dan updateEVON menyalin ke eVON (:399-401), dipanggil dari updateDatabase di processPS (PermanentSuspensionHelper.java:139-144). Gagal sinkron eVON hanya di-log dan tidak membatalkan PS (SuspensionBaseHelper.java:431-434)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang di-PS tidak bisa dibayar online lagi",
+      "repo": "ocmsadminapi, ocmseserviceapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:139-142; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:352-356; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:406-409; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:258; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:347; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:409",
+      "fit": "Sebagian",
+      "detail": "Untuk kode PS di PS_DISABLE_PAYMENT, updateVON dan updateEVON mengisi payment_acceptance_allowed=N (SuspensionBaseHelper.java:352-356, :406-409) dan pencarian parking fines di eService hanya meloloskan record dengan flag Y (ParkingFinesController.java:258, :347, :409). Daftar kode dibaca dari ocms_standard_code (SuspensionBaseHelper.java:139-142); isinya, dan apakah APP/CAN/CFA/VST ada di dalamnya, cannot verify from repo (komentar di :351 bukan bukti). Tiket OCMS-DF-2026-097 (flag PS-ANS tetap Y, Closed) menunjukkan flag ini pernah tidak konsisten."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Upload ke LTA tidak lagi menyertakan notice PS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:68-77; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/upload/helpers/LtaUploadHelper.java:90; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:134-135",
+      "fit": "Sesuai",
+      "detail": "streamLtaUploadData hanya memilih notice dengan (suspension_type IS NULL OR suspension_type != 'PS') (OcmsValidOffenceNoticeRepository.java:73), dipakai LtaUploadHelper (LtaUploadHelper.java:90); cron ltaupload enabled=true di prod (cron-schedules-prod.properties:134-135). Tiket OCMS-DF-2026-002 (LTA enquiry memasukkan notice PS, Closed, Prod deployed) adalah riwayat kebocoran di jalur LTA lain."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Upload ke MHA (NRIC/NRO) tidak lagi menyertakan notice PS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:538-541; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:581; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/mha/upload/helpers/MhaNricDataHelper.java:81; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:105-106",
+      "fit": "Sesuai",
+      "detail": "findNoticesForMhaNricUpload mensyaratkan von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:538-541, method :581) dan dipakai MhaNricDataHelper (MhaNricDataHelper.java:81); cron mhaupload enabled=true di prod (cron-schedules-prod.properties:105-106). Tiket OCMS-DF-2026-133 (notice PS masuk antrean MHA lewat submit unclaimed, Closed, Prod deployed) adalah kebocoran di jalur ocmsadminapi yang sudah diperbaiki."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat reminder/notice ke Toppan tidak lagi memuat notice PS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:608-611; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:614; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1887; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "findToppanNoticesForStage menyaring von.suspension_type IS NULL (OcmsValidOffenceNoticeRepository.java:608-611, method :614) dan dipanggil ToppanUploadHelper (ToppanUploadHelper.java:1887). Tetapi pemanggilan letter generation di jadwal harian dikomentari (ToppanUploadJobsScheduler.java:118), sehingga surat hanya dibuat lewat trigger manual meski cron toppanupload enabled=true (cron-schedules-prod.properties:61-62). Filter ada, eksekusi otomatisnya tidak; fit Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PS tidak dicabut otomatis oleh job auto-revival",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/autorevival/helpers/AutoRevivalHelper.java:119-123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:119; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:76",
+      "fit": "Sesuai",
+      "detail": "Auto-revival mencari row suspended_notice bertipe TEMPORARY yang jatuh tempo (AutoRevivalHelper.java:119-123), jadi PS (tanpa due date revival) tidak disentuh; job ini jalan dari jadwal toppanupload (ToppanUploadJobsScheduler.java:119, cron-schedules-prod.properties:76). Tiket OCMS-DF-2026-139 (PS-APP di-revive cron) dan OCMS-SR-2026-119 (~11K notice PS dengan due date legacy ikut auto-revive) adalah kebocoran lama; keduanya Closed, tetapi sisa ~11K notice baru dipatch atas permintaan user, jadi data lama bisa masih terdampak: cannot verify from repo."
+    }
+  ]
+}

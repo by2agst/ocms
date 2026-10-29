@@ -1,0 +1,55 @@
+{
+  "story": "OCMS13.2",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin/services/DataHiveUenFinService, framework/services/datahive/nricFinUenDataRetrieval/service/{DataHiveUENServiceImpl,DataHiveUENBatchService}, framework/schedulers/MhaDownloadJobsScheduler, cron-schedules-{prod,uat}.properties. ocmsadminapi crud/ocmsizdb/OcmsDhAcraBoardInfo (dhacraboardinfolist), crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService, notice_creation/core/helpers/AutoSuspensionHelper. ocmsadminui pages/Notice/context/NoticeContext. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status 'Demo paid (50% of 75%)'. Story minta OCMS mengirim UEN perusahaan ke DOS dan menerima/meng-update particulars owner/partner/director berdasarkan tanggal offence dan periode appointment. Kata 'DOS' tidak muncul di code; DOS = DataHive/ACRA tidak bisa dipastikan dari repo. Yang ada: job 'DH UEN and FIN' (dipakai juga oleh OCMS8.2) menyaring notice id_type B di next stage RD1..DR3 termasuk DN1, meng-query view ACRA FIRMINFO dan BOARD_INFO per UEN, dan meng-update nama serta alamat perusahaan. Job ini mati di prod (cron.mhadownload.uenfin.enabled=false, cron-schedules-prod.properties:52; UAT true), jadi step yang bergantung padanya Sebagian. Data board (director/partner) di-query tetapi tidak ditulis ke DB (OCMS-DEV-2026-231), dan query tidak memakai tanggal offence maupun periode appointment: tidak ada code yang memilih owner/partner/director berdasarkan tanggal, dan tidak ada code yang menjadikannya offender notice. UI staff hanya menampilkan record board dengan reference_period terbaru. Notice UPL dari REPCCS/EHT tidak membawa UEN (lihat OCMS13.1 step 3), sehingga baris UEN harus diisi jalur lain. Demo_remark menyebut Vault: di repo 'vault' adalah Azure Key Vault untuk kredensial (AzureKeyVaultUtil, datahive.keyvault.url); izin koneksi ke App Service cannot verify from repo. Tidak ada tiket pemeliharaan yang menyebut job ini; OCMS-DF-2026-137 (validasi UEN, Closed) hanya soal format ID. Catatan konsistensi: trace OCMS8.2 menilai step 'menerima/meng-update nama dan alamat company' Sesuai untuk mekanisme yang sama; di sini memakai konvensi addendum (step yang eksekusinya dimatikan property prod = Sebagian), perlu disamakan.",
+  "recommendation": "Klaim sebagian saja: pengiriman UEN dan update data perusahaan ada tetapi mati di prod. Pemilihan owner/partner/director berdasarkan tanggal offence dan appointment tidak ada dan jangan diklaim; minta URA konfirmasi 'DOS' dan aturan pemilihan director",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS mengirim UEN perusahaan offender ke DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:235-246; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:116; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:140; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:43; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:100-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:52",
+      "fit": "Sebagian",
+      "detail": "Job 'DH UEN and FIN' memilih notice di next stage RD1/RD2/RR3/DN1/DN2/DR3 (DN1 = tempat notice UPL berada) dengan id_type B (UEN), offender_indicator Y, tanpa suspension (DataHiveUenFinService.java:235-246), lalu meng-query view DataHive V_DH_ACRA_FIRMINFO_R dan _D per UEN (DataHiveUENServiceImpl.java:116,140). Job hanya jalan bila cron.mhadownload.uenfin.enabled=true (MhaDownloadJobsScheduler.java:43,100-107); di prod bernilai false dengan komentar 'keep disabled until DataHive view names are verified' (cron-schedules-prod.properties:52), UAT true (cron-schedules-uat.properties:52). Nilai server sebenarnya cannot verify from repo. 'DOS = DataHive/ACRA' cannot be confirmed from the repo (kata DOS tidak ada di code). Notice UPL dari REPCCS/EHT tidak membawa baris UEN (OCMS13.1 step 3)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima dan meng-update nama entitas serta alamat perusahaan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:112-141; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:173-174; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:200-206",
+      "fit": "Sebagian",
+      "detail": "Hasil view ACRA (entity name, tipe, status, tanggal registrasi/deregistrasi, alamat) disimpan lewat updateCompanyDetails dan updateCompanyAddress (DataHiveUENServiceImpl.java:173-174); perusahaan deregistered atau alamat kosong/tidak lengkap memicu TS-ACR (:177-206). Fungsinya ada, tetapi eksekusinya mati di prod karena flag job yang sama (cron-schedules-prod.properties:52), jadi Sebagian menurut konvensi addendum. Catatan: trace OCMS8.2 menilai mekanisme yang sama Sesuai; perlu disamakan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menerima particulars owner/partner/director dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:579-585; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:606-610; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:437-443; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1470-1477; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsDhAcraBoardInfo/OcmsDhAcraBoardInfoController.java:47",
+      "fit": "Sebagian",
+      "detail": "Setelah company ditemukan, getBoardInfo meng-query V_DH_ACRA_BOARD_INFO_FULL per ENTITY_UEN (POSITION_APPOINTMENT_DATE, POSITION_WITHDRAWN_WITHDRAWAL_DATE, PERSON_IDENTIFICATION_NUMBER, POSITION_HELD_CODE, REFERENCE_PERIOD) (DataHiveUENServiceImpl.java:83, 579-585; versi batch DataHiveUENBatchService.java:437-443). Hasilnya hanya ditampung di memori: penulisan ke DB dimatikan (OCMS-DEV-2026-231, 'Post-MVP: review field mappings', DataHiveUENServiceImpl.java:606-610 dan DataHiveUenFinService.java:1470-1477), jadi particulars tidak tersimpan/ter-update. UI membaca tabel board lewat POST /dhacraboardinfolist (OcmsDhAcraBoardInfoController.java:47) yang tidak diisi job ini. Ditambah job-nya mati di prod. 'Menerima' ada, 'meng-update' tidak, maka Sebagian."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner/partner/director dipilih berdasarkan tanggal offence dan periode appointment",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:579-585; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENServiceImpl.java:597-600; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:437-443; ocmsadminui/src/pages/Notice/context/NoticeContext.tsx:869-878",
+      "fit": "Tidak ada code",
+      "detail": "Query board tidak punya predikat tanggal (hanya WHERE ENTITY_UEN, DataHiveUENServiceImpl.java:579-585; batch DataHiveUENBatchService.java:437-443). positionAppointmentDate dan positionWithdrawnDate hanya dibawa ke objek BoardInfo (DataHiveUENServiceImpl.java:597-600) dan tidak pernah dibandingkan dengan notice_date_and_time (grep: tidak ada pemakaian). UI staff memilih satu record board per UEN dengan reference_period terbaru (NoticeContext.tsx:869-878), bukan berdasarkan tanggal offence. Tidak ada code yang menerapkan aturan periode appointment."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menindaklanjuti notice terhadap owner/partner/director (menjadikannya offender notice)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:241-243; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/AutoSuspensionHelper.java:61-66",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada code yang menaruh director/partner terpilih sebagai offender notice (tidak ada penulisan ke owner_driver dari data board; penulisan board sendiri dimatikan). Kata 'director' di code hanya muncul sebagai role di eligibility Change Processing Stage (EligibilityService.java:50, 241-243) dan sebagai alasan TS-ACR 'director/shareholder cannot be identified' (AutoSuspensionHelper.java:61-66). Perpindahan offender ke director harus dilakukan manual oleh staff."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS41.38",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi furnish_processing/{services/FurnishProcessingService,helpers/FurnishApprovalHelper (checkPriorSubmission/evaluatePriorSubmission),helpers/ValidationContext}. ocmsadminapi crud/ocmsizdb/OcmsFurnishApplication/{OcmsFurnishApplicationController,OcmsFurnishApplicationServiceImpl,OcmsFurnishApplicationRepository}, workflows/furnish/{helpers/FurnishPersistenceService,submission/FurnishSubmissionServiceImpl}. ocmsadminui pages/Notice/mode/update/UpdateForm.tsx, pages/Notice/context/NoticeContext.tsx",
+  "note": "Status 'Demo paid (50% of 75%)'. There are two prior-submission checks with different rules: (1) the Furnish Processing cron, CHECK 6, treats any other submission on the same notice as 'prior' and sends it to manual review with the reason 'Prior submission under notice'; (2) the furnishapplicationlist endpoint in ocmsadminapi computes a resubmission Y/N flag at read time, requiring the same notice_no and owner_id_no and an earlier cre_date. Neither limits itself to rejected submissions. CHECK 6 is the last check, so when checks 1-5 already fail, the stored reason is that first failure and the prior submission is not recorded. Two new submissions on the same notice in one cron cycle count as prior for each other.",
+  "recommendation": "Claim partially: a prior-submission check exists, but it is not limited to the same owner/hirer (cron) and not limited to rejected submissions",
+  "steps": [
+    {
+      "step": "OCMS checks whether the same notice already had an earlier furnish submission",
+      "detail": "buildValidationContext loads all furnish applications for the notices in the batch (furnishService.findByNoticeNoIn, FurnishApprovalHelper.java:127); checkPriorSubmission reads ctx.getPriorSubmissions(noticeNo) (FurnishApprovalHelper.java:417-422) and is called as CHECK 6 (lines 218-219)."
+    },
+    {
+      "step": "The check is limited to submissions from the same owner/hirer",
+      "detail": "In the cron, evaluatePriorSubmission only drops the record with the same txn_no; a submission by anyone on that notice counts as prior (FurnishApprovalHelper.java:428-434). The owner is used only by the resubmission flag in furnishapplicationlist, query findByNoticeNoAndOwnerIdNoAndCreDateBefore (OcmsFurnishApplicationRepository.java:39, OcmsFurnishApplicationServiceImpl.java:34-37). Two different rules for the same thing."
+    },
+    {
+      "step": "Only earlier submissions with status rejected are counted",
+      "detail": "There is no status filter in CHECK 6 (FurnishApprovalHelper.java:428-431) or in the resubmission flag (OcmsFurnishApplicationServiceImpl.java:35-37); a prior that is still Pending or already Approved is also counted. The result is wider than the story (rejected ones are caught, but so are the others)."
+    },
+    {
+      "step": "When a prior exists, the request is not auto-approved and waits for officer review",
+      "detail": "evaluatePriorSubmission returns AutoApprovalResult.pending('Prior submission under notice') (FurnishApprovalHelper.java:432-435); FurnishProcessingService sends it to executeManualReview (FurnishProcessingService.java:171-176). The reason is stored in reason_for_review and remarks (FurnishApprovalHelper.java:530-531), but only when checks 1-5 pass (FurnishApprovalHelper.java:150-176 and 218-219)."
+    },
+    {
+      "step": "OCMS knows the request is a resubmission (a flag the UI can use)",
+      "detail": "furnishapplicationlist adds a resubmission 'Y'/'N' field to every record through enrichWithResubmission (OcmsFurnishApplicationController.java:52-65, 87-99), computed at read time. The POST /furnish/submit path also has isResubmission (FurnishSubmissionServiceImpl.java:68, FurnishPersistenceService.java:49-53) but no caller exists in any repo."
+    }
+  ]
+}

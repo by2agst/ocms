@@ -1,0 +1,33 @@
+{
+  "story": "OCMS8.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi: datahiveuenfin/{jobs/DataHiveUenFinJob,helpers/DataHiveUenFinHelper,services/DataHiveUenFinService} (FIN), services/datahive/nricFinUenDataRetrieval/service/DataHiveFINBatchService (MOM and MHA views), schedulers/MhaDownloadJobsScheduler, cron-schedules-{prod,uat}.properties. Passport: no code. Other repos: none",
+  "note": "Status 'Fully paid'. Only FIN holders have a path: the FIN goes to DataHive (EP/WP from MOM, LTVP/STP from MHA), the address and pass status (pass type, expiry, active flag) are stored, and name and DOB are updated. Foreign passport holders have no path at all (no idType P query), although the story names them. The DataHive job is off in PROD (cron-schedules-prod.properties:52, comment: waiting for view name verification). An expired/cancelled pass only produces a log line; work item creation is a placeholder (DataHiveUenFinService.java:3043-3045, 3109-3111, 3124-3126). A FIN not found in any dataset gets TS-NRO (logged in orphans). No maintenance ticket names this FIN path; OCMS-DF-2026-126 and -098 (Closed) concern FINs entering the MHA file as type N and FIN format validation.",
+  "recommendation": "Claim partially. The FIN path (address and pass status) is built but off in PROD; foreign passport has no path. Ask URA whether passports must be checked with ICA/DOS and when the DataHive job will be switched on.",
+  "steps": [
+    {
+      "step": "OCMS selects notices of FIN holders to check with ICA/DOS",
+      "detail": "The query id_type IN ('F','B') offender Y at reminder stage, suspension NULL, not HST (DataHiveUenFinService.java:221-246) is called at DataHiveUenFinJob.java:185, but the job only runs when cron.mhadownload.uenfin.enabled=true (MhaDownloadJobsScheduler.java:101-107) and in PROD it is false (cron-schedules-prod.properties:52). Same fit as OCMS8.3."
+    },
+    {
+      "step": "Foreign passport holders (ID type P) are selected to be checked with ICA/DOS",
+      "detail": "Only idType N (MhaNricDataHelper.java:346) and F/B (DataHiveUenFinService.java:239) are selected; there is no query or view for idType P. The only P logic: eNotification is skipped (NotificationSmsEmailJob.java:237). Same fit as OCMS8.1 and OCMS8.3."
+    },
+    {
+      "step": "OCMS sends the FIN number to ICA/DOS (DataHive)",
+      "detail": "batchRetrieveFINData (DataHiveUenFinService.java:1113) sends the FIN as an IN query to the MHA views (FINDEATH, PRGRANT, SCGRANT, LTVP, STP) and MOM views (EPFOREIGNER, WPWORKER, EPWORKPASS, WPWORKPASS) (DataHiveFINBatchService.java:46-54, 370-375). The job is off in PROD, PROD view names are unverified, DataHive connection: cannot verify from repo. Same fit as OCMS8.3."
+    },
+    {
+      "step": "OCMS receives and updates the latest residential address from ICA/DOS",
+      "detail": "updateAddressForFIN takes the address from the work permit (EP/WP, MOM) or pass (LTVP/STP, MHA) and creates an mha_reg record (DataHiveUenFinService.java:1560, 2523-2570). A FIN without a work permit or pass gets no address; the fallback uses existing LTA/furnish addresses (line 2566), not ICA data. The job is off in PROD. Same fit as OCMS8.3."
+    },
+    {
+      "step": "OCMS receives and stores the pass status from ICA/DOS",
+      "detail": "updateWorkPermitData stores workPassStatusCd, isActive, expiryDate, cancelledDate, withdrawnDate, passtypeCd (EP/WP) (DataHiveUenFinService.java:2363-2400); updatePassData stores nonWorkPassType, dateOfExpiry, dateOfIssue and the LTVP/STP reference period (lines 2445-2480). Both are called from storeFinDataResult (lines 1508, 1539). Action on an expired/cancelled pass is log-only (work item placeholder), but that is beyond the story text. The job is off in PROD (see steps 1 and 3)."
+    },
+    {
+      "step": "OCMS updates the latest particulars (name, date of birth) of the foreign offender",
+      "detail": "After the work permit or pass is stored, updateOwnerDriverPersonalInfo writes name and date_of_birth (DataHiveUenFinService.java:1512, 1543). Its SQL is WHERE notice_no = ? only, without id_no or offender_indicator (lines 2425-2428), so every owner/driver row on the notice is overwritten, including an owner who is not that FIN. One thing to watch: the same case on the MHA path was fixed by OCMS-DF-2026-177 (Closed), but the DataHive path was not. It is skipped when the FIN turns out to be PR/SC (lines 1512, 1543)."
+    }
+  ]
+}

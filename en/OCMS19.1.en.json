@@ -1,0 +1,33 @@
+{
+  "story": "OCMS19.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/NoticeSearch/{component/NoticeSearchSlot,hook/ApplyOperationAction,hook/useBatchOperation}, pages/Revival/form/RevivalForm, utils/option.tsx, utils/constant.ts; ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (staff-revive-eligibility, staff-revive-suspension) and helpers/{TemporaryRevivalHelper,PermanentRevivalHelper,RevivalBaseHelper}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not used",
+  "note": "Payment status: Demo paid (50% of 75%). The story asks the officer to select the revival type (temporary suspension, permanent suspension or reduction). The code has one Apply Revival operation in Notice Search and no type picker. The type (TS or PS) is derived from each notice suspensionType and sent to the staff-revive-suspension endpoint. Reduction is not a type of its own: it is handled as TS with reason RED, and amount_payable is restored from ocms_reduced_offence_amount, but a failed restore is swallowed (the revival still succeeds). Tickets OCMS-DF-2026-028, -072 and -078 touch this behaviour. Ticket OCMS-DF-2026-184 (Pending UAT) about the TS-UNC due_date_of_revival does not change this story's verdict. Per-role staff access and server property values: cannot verify from repo.",
+  "recommendation": "Claim the TS and PS revival from Notice Search. Record that there is no explicit revival-type picker and that reduction only works through TS-RED. Ask URA to confirm that automatic type detection is acceptable.",
+  "steps": [
+    {
+      "step": "Officer opens the Notice Search page (All or Outstanding) in the staff portal",
+      "detail": "Route notices/search/:search_type renders NoticeSearch.Search (App.tsx:99-106). Revival has no entry menu of its own: the revival page (App.tsx:166) only holds notices already selected from search results, so this page is the real starting point. Server-side role restriction: cannot verify from repo."
+    },
+    {
+      "step": "Officer selects notices in the results and picks Apply Revival in the Apply Operation dropdown",
+      "detail": "BatchOperationOptions holds Apply TS, Apply PS, Apply Revival, Batch Furnish (option.tsx:314-319). The dropdown only shows operations that pass hasFunction(OCMS_APPLY_REVIVAL) (NoticeSearchSlot.tsx:285-288, constant.ts:275-279); the Select button stays disabled until a notice is ticked and an operation is chosen (NoticeSearchSlot.tsx:298-302). The server mapping OCMS_APPLY_REVIVAL is in ocmsadminapi/src/main/resources/api-authorization.properties:65-67."
+    },
+    {
+      "step": "Officer selects the revival type: temporary suspension, permanent suspension or reduction",
+      "detail": "There is no revival-type choice. Only one Apply Revival option exists (option.tsx:317). The type is derived from notice.suspensionType: RevivalForm splits the notices into TS and PS lists (RevivalForm.tsx:106-107). The revival_type field is commented out in validation (Revival.ts:26) and the i18n label revival_type (i18n/en/translation.json:766) is unused in the UI. Reduction does not appear as a type; it is TS with reason RED. One batch may mix TS and PS."
+    },
+    {
+      "step": "Revival of temporary suspension (TS) is executed",
+      "detail": "For TS notices RevivalForm calls POST staff-revive-suspension with suspensionType TS (RevivalForm.tsx:137-163). The controller forwards to tsRevivalHelper.reviveTS (SuspensionProcessingController.java:847-849); staff pass srNo null so all active TS are revived (SuspensionProcessingController.java:658-661). Eligibility rejects TS-HST (SuspensionProcessingController.java:378-381)."
+    },
+    {
+      "step": "Revival of permanent suspension (PS) is executed",
+      "detail": "For PS notices RevivalForm calls POST staff-revive-suspension with suspensionType PS (RevivalForm.tsx:109-135) and the controller forwards to psRevivalHelper.revivePS (SuspensionProcessingController.java:851-853). There is a limit the story does not mention: only 1 PS notice per run; with more than 1 all are rejected with You can only revive one Notice with PS at a time (SuspensionProcessingController.java:402-410). The limit narrows but does not remove the function, so the fit stays Sesuai."
+    },
+    {
+      "step": "Revival of a reduction in the composition amount: the amount returns to the pre-reduction value",
+      "detail": "Reduction is handled as TS with reason RED: TemporaryRevivalHelper calls revertCompositionAmountIfReduced for RED suspensions (TemporaryRevivalHelper.java:170-177) and PS revival also clears a coexisting TS-RED (PermanentRevivalHelper.java:187-193). The method reads the pre-reduction amount_payable from ocms_reduced_offence_amount and writes it to VON and eVON (RevivalBaseHelper.java:877-909). Gaps: it silently skips when the notice is already FP (RevivalBaseHelper.java:868-872) or no reduction record exists (RevivalBaseHelper.java:880-884), and exceptions are swallowed with a log only, so the revival succeeds without the amount restored (RevivalBaseHelper.java:919-923). Tickets: OCMS-DF-2026-028 (closed; revert from ocms_reduced_offence_amount, needs migration of old rows), OCMS-DF-2026-072 (closed; stored value format), OCMS-DF-2026-078 (manual patch of 4 revived TS-RED notices with wrong amounts). Whether the old-data migration was run: cannot verify from repo."
+    }
+  ]
+}

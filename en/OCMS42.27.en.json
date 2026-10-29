@@ -1,0 +1,25 @@
+{
+  "story": "OCMS42.27",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Form/Particulars.ts ('Proceed to review' button + ValidateALL), Confirmation.ts (declaration checkbox, Submit disabled)}, utils/validation/Furnish/*, utils/validation/error.ts; ocmseserviceapi workflows/furnish/{FurnishRequestValidator, FurnishSubmissionController}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant.",
+  "note": "Status Fully paid; 1 point. Mandatory fields are checked at the particulars step (the 'Proceed to review' button does not advance to the review page when there are errors) and re-checked in the backend. The checkbox is guarded by a disabled Submit button, not by an error message. Notes: (1) the message 'Please acknowledge the declaration if you wish to proceed.' exists in error.ts:265 and :518 but is never used because the validation object in Confirmation is empty ({}), so the user is not told why Submit is off; (2) the ValidateALL call on Submit (Confirmation.ts:120-125) uses an empty validation and validates nothing; (3) the backend does not accept or check the declaration, so a request without the checkbox would still be accepted when the UI is bypassed; (4) when the backend rejects (HTTP 400), the UI shows the generic 'Error occurred during submission' screen (Confirmation.ts:193-198), not field messages. Bypass through the stepper or cache restore: cannot verify from repo. Ticket OCMS-DF-2026-137 (UEN vs NRIC) changed the ID validation rule in UI and API, Closed, does not change the verdicts.",
+  "recommendation": "Can be claimed. State that the checkbox check is UI-only and no error message is shown.",
+  "steps": [
+    {
+      "step": "Mandatory particulars fields (owner/company and hirer/driver) are validated when the user presses Proceed to review",
+      "detail": "The 'Proceed to review' button runs ValidateALL with the ValidOwner/ValidCompany + ValidHirerDriver schema (Particulars.ts:53,86,89,114-119); the schema requires fields such as hdName and hdRelation (ValidHirerDriver.ts:16-24, :167). Errors are shown per field through onSubmitValidate (Particulars.ts:119). Applies to individual and company because the schema is chosen by isCP."
+    },
+    {
+      "step": "When a required field is empty or invalid, the user cannot continue to the review page",
+      "detail": "`if (validationError || !othersValid) return;` (Particulars.ts:128) stops before stepper.show(3) (Particulars.ts:149). Mandatory documents are checked through docs.validateDoc (Particulars.ts:146-150). The button is also disabled when the Q1 answer is invalid (Particulars.ts:154-157). Whether the stepper can be jumped to step 3 directly: cannot verify from repo."
+    },
+    {
+      "step": "When the declaration checkbox is not selected, the user cannot submit",
+      "detail": "submitBtn.disabled = true at the start (Confirmation.ts:118) and it becomes false only when both values 1 and 2 are selected (Confirmation.ts:234-238), so the submission cannot continue. Gap: there is no error message. The message 'Please acknowledge the declaration...' (error.ts:265) is never triggered because the Confirmation validation is empty (Confirmation.ts:58), and ValidateALL on Submit (Confirmation.ts:120-125) has no schema. The guard is UI-only."
+    },
+    {
+      "step": "The backend rejects a submission whose mandatory fields are empty",
+      "detail": "@Valid on the request (FurnishSubmissionController.java:70; @NotBlank in FurnishSubmissionRequestDTO.java:49-60) and validator.validateAll (FurnishRequestValidator.java:33-66; controller :98-103) return HTTP 400 when mandatory fields, ID, email, phone or documents are empty or wrong. However there is no declaration check in the backend (no such field), and the UI shows the generic error screen instead of field messages (Confirmation.ts:193-198)."
+    }
+  ]
+}

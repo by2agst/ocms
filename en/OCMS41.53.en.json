@@ -1,0 +1,25 @@
+{
+  "story": "OCMS41.53",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/helpers/FurnishabilityChecker (notice, PS, an_flag, stage checks), workflows/furnish/stafffurnish/services/StaffFurnishService, workflows/furnish/plusintegration/controllers/PlusIntegrationController, workflows/notice_management/ownerdriver/ownerdriver/OwnerDriverServiceImplPlus. Other repos: no code",
+  "note": "Demo remark in the sheet (PLUS API not pulling data, suspected DB connection drop) cannot be verified from the repo. The furnish and redirect paths from PLUS go through the same single furnishable check as the Staff Portal (FurnishabilityChecker). The /plus-update-offence-notice-owner-driver path does not run that check. The StaffFurnishService Javadoc says a PS with an exception reason code (DIP, FOR, MID, RIP, RP2) can be furnished, but the FurnishabilityChecker code rejects every active PS. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim mostly: the furnishable check (notice exists, PS, advisory notice, stage) exists and is used by /plus-furnish, /plus-redirect, /plus-furnish-redirect-check. Note two points: /plus-update-offence-notice-owner-driver does not use this check, and the PS exception rule in the Javadoc is not in the code.",
+  "steps": [
+    {
+      "step": "OCMS confirms the notice requested by PLUS exists",
+      "detail": "checkFurnishability reads the notice from OcmsValidOffenceNotice; if missing the result is NOTICE_NOT_FOUND 'Notice not found' (FurnishabilityChecker.java:94-102). staffFurnish also reloads the notice before changing data (StaffFurnishService.java:187-193)."
+    },
+    {
+      "step": "OCMS checks that the notice's last processing stage is a furnishable stage",
+      "detail": "The stage must be one of NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CFC, CPC (FurnishabilityChecker.java:51-61); otherwise the result is STAGE_NOT_FURNISHABLE 'Last Processing Stage is not eligible' (118-126). The same check is used by /plus-furnish-redirect-check (PlusIntegrationController.java:65-92). Whether the stage list matches the Appendix: cannot verify from the repo. Same fit as the stage step in OCMS41.52."
+    },
+    {
+      "step": "OCMS rejects notices with an active Permanent Suspension or an Advisory Notice",
+      "detail": "checkPermanentSuspension rejects the notice when a suspended_notice of type PS has an empty date_of_revival (FurnishabilityChecker.java:340-348), and a notice with an_flag = Y is rejected as an Advisory Notice (363-368). The StaffFurnishService Javadoc says a PS with an exception reason code (DIP, FOR, MID, RIP, RP2) is still allowed (StaffFurnishService.java:83-84), but the code has no such exception: every active PS is rejected. The story does not mention PS or Advisory Notice; the correct rule cannot be verified from the repo."
+    },
+    {
+      "step": "OCMS decides whether to accept or reject the particulars from PLUS based on the furnishable check",
+      "detail": "In /plus-furnish and /plus-redirect, a not-furnishable result stops the process before any data changes (StaffFurnishService.java:181-183, 326-328) and PLUS receives HTTP 422 with the reason message (PlusIntegrationController.java:159, 208); /plus-furnish-redirect-check replies furnishable true/false with a message (80-84). Only the message is passed on, not the reasonCode. But /plus-update-offence-notice-owner-driver only checks that the notice exists (OwnerDriverServiceImplPlus.java:133-137) and then writes the fields (143-146) without a stage/PS/an_flag check, so one of the two PLUS update paths does not follow the furnishable decision."
+    }
+  ]
+}

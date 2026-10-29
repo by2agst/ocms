@@ -1,0 +1,55 @@
+{
+  "story": "OCMS41.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/furnish_processing/services/FurnishProcessingService (batchSaveToIntranet, batchSyncStatusToInternet), crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl, crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl, workflows/furnish_processing/helpers/FurnishSyncHelper, crud/beans/SystemConstant. ocmseserviceapi workflows/furnish/FurnishApplicationListServiceImpl (status P/A/R menjadi teks). ocmsadminui pages/Notice/detail/DecissionDetails, pages/Furnish/form/DecisionForm. ocmsadminapi, thirdpartyapi: tidak terlibat",
+  "note": "Status Demo paid (50% of 75%); demo: cron aktif lalu sync Internet-Intranet. Status 'A' dan remarks 'Auto Approved by SYSTEM' ditulis ke Intranet dan Internet oleh cron, jadi pembaca bisa tahu itu auto-approve lewat status dan remarks. Bagian 'user ID tampil sebagai OCMS' tidak ada: tidak ada string OCMS yang ditulis sebagai user; Internet diberi upd_user_id 'ocmsiz_app_conn' (nama akun DB) dan Intranet diisi lewat native SQL yang tidak menyentuh upd_user_id, sehingga kolom 'Updated By' di layar staff kemungkinan kosong untuk record hasil sync (kesimpulan dari code, nilai DB nyata cannot verify from repo). Tampilan portal eService untuk status Approved tidak ditelusuri sampai render UI. Tidak ada tiket maintenance yang mengubah verdict.",
+  "recommendation": "Klaim sebagian: status Approved dan remarks sistem ada; user ID 'OCMS' belum ada (yang tampil kosong atau akun DB). Minta URA konfirmasi apakah remarks 'Auto Approved by SYSTEM' cukup, atau tambah penulisan user ID OCMS",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status submission di Intranet DB diubah menjadi Approved ('A') untuk yang di-approve otomatis",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:167-170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:184-187; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl.java:62-74",
+      "fit": "Sesuai",
+      "detail": "Record yang lolos pengecekan masuk daftar approved (FurnishProcessingService.java:167-170, 137-138) lalu batchUpdateStatusApproved menjalankan UPDATE ocms_furnish_application SET status='A' (OcmsFurnishApplicationServiceImpl.java:62-74, baris 69). Kegagalan SQL hanya di-log (FurnishProcessingService.java:202-204)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Status Approved juga ditulis ke Internet DB sehingga eService API mengembalikan 'Approved'",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:212-216; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmspiiezdb/EocmsFurnishApplication/EocmsFurnishApplicationServiceImpl.java:158-171; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:253-262",
+      "fit": "Sesuai",
+      "detail": "batchSyncStatusToInternet memanggil eFurnishService.batchUpdateStatus(txnNos, 'A', 'Auto Approved by SYSTEM', ocmsiz_app_conn) (FurnishProcessingService.java:212-216) yang meng-UPDATE eocms_furnish_application (EocmsFurnishApplicationServiceImpl.java:158-171). eService API memetakan 'A' menjadi 'Approved' (FurnishApplicationListServiceImpl.java:253-262). Render di ocmseserviceui tidak ditelusuri."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Remarks 'Auto Approved by SYSTEM' disimpan sehingga terlihat bahwa approval dilakukan sistem",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl.java:69-70; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:213-214",
+      "fit": "Sesuai",
+      "detail": "Intranet: SET status='A', remarks='Auto Approved by SYSTEM' (OcmsFurnishApplicationServiceImpl.java:69-70). Internet: remarks yang sama dikirim di batchUpdateStatus (FurnishProcessingService.java:213-214)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User ID yang tampil untuk approval otomatis adalah 'OCMS'",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/beans/SystemConstant.java:9; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/services/FurnishProcessingService.java:213-214; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsFurnishApplication/OcmsFurnishApplicationServiceImpl.java:62-74; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/furnish_processing/helpers/FurnishSyncHelper.java:240-244; ocmsadminui/src/pages/Notice/detail/DecissionDetails.tsx:324-331",
+      "fit": "Beda dari flow",
+      "detail": "Tidak ada user 'OCMS'. Internet diberi upd_user_id = DEFAULT_SYSTEM_USER_ID 'ocmsiz_app_conn' (SystemConstant.java:9; FurnishProcessingService.java:214). Intranet di-UPDATE lewat native SQL yang hanya mengubah status dan remarks (OcmsFurnishApplicationServiceImpl.java:62-74), sehingga @PreUpdate BaseEntity tidak jalan, dan record baru hasil sync dibuat dengan updUserId null (FurnishSyncHelper.java:240-244). Layar staff menampilkan 'Updated By' dari updUserId (DecissionDetails.tsx:329-331), jadi untuk record auto-approve kemungkinan kosong. Nilai DB nyata cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Staff yang membuka notice melihat status Approved dan remarks pada detail furnished hirer/driver",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Notice/detail/DecissionDetails.tsx:150-170; ocmsadminui/src/pages/Furnish/list/FurnishSummaryList.tsx:120-126; ocmsadminui/src/pages/Furnish/form/DecisionForm.tsx:419",
+      "fit": "Sesuai",
+      "detail": "DecissionDetails menampilkan lastProcessingStage, status, reasonForReview dan remarks dari record furnish (DecissionDetails.tsx:150-170); daftar Furnished Hirer/Driver menampilkan status lewat opsi FURNISH_STATUS (FurnishSummaryList.tsx:120-126). Label teks untuk 'A' berasal dari standard code di DB: cannot verify from repo."
+    }
+  ]
+}

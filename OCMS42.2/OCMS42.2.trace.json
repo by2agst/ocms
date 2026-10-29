@@ -1,0 +1,55 @@
+{
+  "story": "OCMS42.2",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui route/route.ts, pages/Furnish/{Furnish,Landing}.ts, pages/Furnish/NoticesTable/{Notices,FurnishableNotices,PendingNotices,Column}.ts, pages/Furnish/API.ts, hooks/Auth.ts; ocmseserviceapi workflows/spcp/controller/SpcpController, auth/filter/JwtFilter, workflows/furnish/{FurnishApplicationListController,FurnishApplicationListServiceImpl,FurnishValidationServiceImpl,dto/FurnishApplicationResponseDTO}, crud/ocmspii/{eocmsoffencenoticeownerdriver,eocmsfurnishapplication}, crud/ocmsezdb/eocmsvalidoffencenotice. ocmsadminui, ocmsadminapi, ocmsadminprivateapi, thirdpartyapi: sisi staff/cron/agency, tidak dipakai langkah story ini (hanya cron sync Intranet ke eVON yang memberi data, tidak ditelusuri)",
+  "note": "Status 'Fully paid'. Tab Pending Submissions ada dan menampilkan nomor notice, tanggal/jam offence, car park, nama orang yang di-furnish dan tanggal submission. Gap: kolom offence committed dan amount payable tidak ada (tabel pending tidak join ke eVON dan entity furnish_application tidak menyimpannya), dan pengajuan Pending lebih dari 6 bulan hilang dari tab padahal notice-nya tetap disembunyikan dari daftar furnishable. Tidak ada tiket maintenance yang mengubah verdict ini.",
+  "recommendation": "Klaim sebagian: field notice, tanggal, car park, nama dan tanggal furnish terpenuhi. Offence committed dan amount payable belum ada; batas 6 bulan perlu dikonfirmasi ke URA.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setelah login, customer membuka tab Pending Submissions di halaman furnish",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:198-204; ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:247-254; ocmseserviceui/src/pages/Furnish/NoticesTable/Notices.ts:306-309; ocmseserviceui/src/pages/Furnish/API.ts:604-624; ocmseserviceui/src/pages/Furnish/NoticesTable/PendingNotices.ts:57; ocmseserviceui/src/pages/Furnish/NoticesTable/PendingNotices.ts:73",
+      "fit": "Sesuai",
+      "detail": "Halaman notice punya tab 'Pending Submissions' (Notices.ts:306-309). Klik tab index 2 memanggil fetchPendingNotices (Notices.ts:198-204, 247-254) -> APIGetFurnishNoticesByStatus({status:'P'}) yang POST ke v1/furnishapplicationlist (API.ts:604-624). Layar menampilkan jumlah 'N submission(s) pending approval found' (PendingNotices.ts:73) atau 'No submission(s) pending approval found' (PendingNotices.ts:57)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem mengambil pengajuan furnish milik ID yang login yang masih berstatus Pending",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListController.java:80-83; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:163-178; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplicationRepository.java:66-68; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:104-112; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplicationRepository.java:33-39",
+      "fit": "Sebagian",
+      "detail": "Controller memakai ID dari JWT session (FurnishApplicationListController.java:80-83) dan meneruskan status 'P' ke getSubmittedApplications, yang memanggil findSubmittedApplicationsByIdNoAndStatuses(idNo, ['P'], sixMonthsAgo) (FurnishApplicationListServiceImpl.java:163-178). Query membaca eocms_furnish_application dengan owner_id_no didekripsi = ID, status IN ('P'), dan cre_date >= 6 bulan lalu (EocmsFurnishApplicationRepository.java:66-68). Gap: pengajuan Pending yang lebih tua dari 6 bulan hilang dari tab ini, padahal notice-nya tetap disaring keluar dari daftar furnishable tanpa batas tanggal (FurnishApplicationListServiceImpl.java:104-112; EocmsFurnishApplicationRepository.java:33-39), sehingga notice itu tidak tampil di tab mana pun. Batas 6 bulan tidak disebut story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan notice number, tanggal dan jam offence, serta car park",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:6; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:8-12; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:14-21; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:77-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:197-203",
+      "fit": "Sesuai",
+      "detail": "PendingColumns memuat 'Notice Number' (Column.ts:6), 'Offence Date & Time' (8-12, diisi app.getOffenceDate di FurnishApplicationListServiceImpl.java:201) dan 'Place of Offence' = pp_code - pp_name (Column.ts:14-21; ServiceImpl:202-203) (daftar kolom di Column.ts:77-85). Ada juga Submission Ref Number dan Vehicle Number sebagai tambahan."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan offence committed dan amount payable",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:77-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:197-213; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplication.java:36-37; ocmseserviceui/src/pages/Furnish/API.ts:94-111",
+      "fit": "Tidak ada code",
+      "detail": "PendingColumns tidak punya kolom offence maupun amount (Column.ts:77-85). DTO untuk pengajuan Pending hanya diisi noticeNo, vehicleNo, tanggal, ppCode/ppName, stage, txnNo, furnishName, furnish ID, status, submittedAt, updatedAt (FurnishApplicationListServiceImpl.java:197-213); entity eocms_furnish_application hanya punya offence_date, tanpa amount atau offence (EocmsFurnishApplication.java:36-37). Mapping UI membaca amountPayable/computerRuleCodeDescription (API.ts:94-111) tetapi nilainya tidak pernah terisi untuk list Pending. Dicari dengan kata amount, offence, rule, due di folder Furnish UI dan workflows/furnish."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tabel menampilkan orang yang di-furnish dan tanggal furnish",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:37-46; ocmseserviceui/src/pages/Furnish/NoticesTable/Column.ts:77-85; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:206; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/furnish/FurnishApplicationListServiceImpl.java:211; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/crud/ocmspii/eocmsfurnishapplication/EocmsFurnishApplicationRepository.java:43-44",
+      "fit": "Sesuai",
+      "detail": "Kolom 'Furnished Hirer/Driver Name' (Column.ts:43-46) diisi app.getFurnishName() (FurnishApplicationListServiceImpl.java:206) dari kolom furnish_name yang didekripsi (EocmsFurnishApplicationRepository.java:43-44). Kolom 'Submission Date' (Column.ts:37-41) diisi submittedAt = cre_date (FurnishApplicationListServiceImpl.java:211), diformat tanggal dan jam. Keduanya ada di PendingColumns (Column.ts:77-85)."
+    }
+  ]
+}

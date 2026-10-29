@@ -1,0 +1,55 @@
+{
+  "story": "OCMS15.4",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/CPS/page/CPSSearch.tsx (Datagrid 'Eligible Notices', kolom, getAddress, useSelectAll), utils/constant.ts (NOTICE_SEARCH_LIMIT); ocmsadminapi OcmsChangeOfProcessing/{ChangeOfProcessingService.searchNotices/populateAddressFieldsFromBatch, dto/SearchChangeProcessingStageResponse, dto/SearchChangeProcessingStageRequest}. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak terlibat",
+  "note": "Story minta daftar notice dengan detail kunci (notice number, current processing stage) agar officer bisa memilih untuk bulk change. Datagrid 'Eligible Notices' menampilkan notice no, current stage dan tanggalnya, plus offence type, tanggal offence, vehicle no, offender ID/nama, suspension type/reason dan alamat; setiap baris bisa dipilih (row/all). Celah: kolom alamat memakai getAddress yang hanya menangani letterAddress furnished_mail dan mha_reg, semua nilai lain (termasuk lta_mail yang dikirim API) jatuh ke alamat lta_reg, jadi notice dengan letter address lta_mail menampilkan alamat registered, bukan alamat mail. Select All dibatasi 1000 notice (NOTICE_SEARCH_LIMIT) dengan modal peringatan. Tiket maintenance: tidak ada yang menyentuh daftar ini. Total hasil di grid dan pagination UI tidak ditelusuri sampai ke komponen Datagrid (cannot verify).",
+  "recommendation": "Boleh diklaim dengan catatan (Evidence 90%): daftar dan detail kunci Sesuai; perbaiki getAddress agar lta_mail tampil benar",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil pencarian ditampilkan sebagai daftar notice yang eligible",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:333-364; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:251-259",
+      "fit": "Sesuai",
+      "detail": "Datagrid berjudul 'Eligible Notices' mengambil data dari change-processing-stage/search lewat POST dan tidak memuat data sebelum Search ditekan (showInitData={false}) (CPSSearch.tsx:333-364). API hanya mengirim notice yang lolos filter eligibility (Controller:251-259)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar menampilkan detail kunci: notice number, current processing stage, dan tanggal stage, plus offence type, vehicle, offender, suspension",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:366-378; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:418-451",
+      "fit": "Sesuai",
+      "detail": "Kolom: Notice No (366), Offence Type (369-372), Offence Date & Time (375-378), Vehicle No (418), Offender ID (421), Offender Name (424-427), Current Processing Stage (430-433), Current Processing Date (436-439), Suspension Type (442-445) dan Reason for Suspension (448-451). Dua detail yang disebut story ada."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Daftar menampilkan alamat letter offender",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:41-74; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:380-413; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:884-886; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:902-910",
+      "fit": "Sebagian",
+      "detail": "API mengirim letterAddress = type_of_address yang bertanda letter_address 'Y' (lta_reg, lta_mail, mha_reg atau furnished_mail) beserta kelompok field alamatnya (Service:884-886, 902-910). getAddress di UI hanya mencocokkan furnished_mail dan mha_reg, sisanya diambil dari lta_reg (CPSSearch.tsx:45-73), jadi letterAddress lta_mail menampilkan alamat registered LTA, bukan alamat mail. Alamat tidak disebut di story, tetapi kolomnya salah untuk kasus itu."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "API mengembalikan field-field itu per notice, diurutkan dan dipaginasi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:493-549; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:555-561; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/SearchChangeProcessingStageResponse.java:60-101; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/dto/SearchChangeProcessingStageRequest.java:136-142",
+      "fit": "Sesuai",
+      "detail": "Setiap EligibleNotice diisi noticeNo, offenceType, offenceDateTime, offender name/id (ONOD offender_indicator='Y'), vehicleNo, currentProcessingStage, currentProcessingStageDate, suspensionType dan reasonForSuspension (Service:529-546). Urutan default offenceDateTime DESC dan boleh diganti lewat field whitelist (493-503); limit default 10, skip default 0 (SREQ:136-142; Service:505-516)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer bisa memilih satu, beberapa, atau semua notice dari daftar untuk bulk change",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:346-349; ocmsadminui/src/pages/CPS/page/CPSSearch.tsx:81-116; ocmsadminui/src/utils/constant.ts:96",
+      "fit": "Sesuai",
+      "detail": "Datagrid memakai checkbox per baris dan select all (CPSSearch.tsx:346-349). Select All memanggil ulang search dengan $limit = total; bila total melebihi NOTICE_SEARCH_LIMIT (1000, constant.ts:96) muncul modal 'The result set is too large' dan tidak ada yang terpilih (CPSSearch.tsx:81-116)."
+    }
+  ]
+}

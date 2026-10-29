@@ -1,0 +1,64 @@
+{
+  "story": "OCMS1.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/agencies/toppan/upload/{jobs/ToppanLettersGeneratorJob, jobs/ToppanUploadJob, helpers/ToppanUploadHelper, models/ToppanStage}, framework/schedulers/ToppanUploadJobsScheduler, framework/controllers/ToppanUnifiedController, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository, application-*.properties, cron-schedules-*.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status story: User Story Removed (5 poin), verdict tetap Removed. Code mirip: cron 'Toppan Generate Letters' membuat data file per stage (RD1, RD2, RR3, DN1, DN2, DR3, ANL), menghitung tanggal surat post-dated (hari ini + parameter POS) dan due date (+ PDD), lalu mengirim file ke vendor Toppan lewat COMCRYPT/SFTP. Format yang dibuat adalah data file (URA-DPT-{stage}-D1-timestamp); PDF hanya untuk Advisory Notice Letter (ANL), bukan notice RD1. Tiga hal menurunkan nilai: (1) di day-end scheduler pemanggilan job letter dikomentari (ToppanUploadJobsScheduler.java:118), jadi hanya bisa jalan lewat endpoint manual /toppan/generate-letters; (2) sftp.upload.disabledServers=toppan di dev/uat/prod memblokir upload ke Toppan (application-prod.properties:86); (3) tiket OCMS-DF-2026-192 (Ready to UAT) mencatat stage tidak maju selama blok itu, dan code sekarang mem-bypass delivery gate saat server diblokir, jadi notice bisa maju stage tanpa file terkirim. Admin fee hanya diisi di RR3/DR3, tidak di surat RD1. Nilai property per environment dan penerimaan oleh Toppan cannot verify from repo. Catatan double check: story Removed, jadi step yang ada code-nya dihitung Sebagian (bukan Sesuai) agar konsisten dengan OCMS1.1-1.5; tidak ada klaim.",
+  "recommendation": "Tidak diklaim (Removed)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hanya notice dengan alamat terdaftar terbaru (letter address) yang masuk surat",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:266; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2372-2376; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:603-614",
+      "fit": "Sebagian",
+      "detail": "Query Toppan memilih notice di next_processing_stage = stage, tanggal <= hari ini, tanpa suspension, owner offender_indicator='Y' (OcmsValidOffenceNoticeRepository.java:603-614). Lalu filterByLetterAddress membuang notice yang tidak punya baris alamat letter_address='Y' dan menimpa field alamat dengan alamat itu (ToppanUploadHelper.java:2372-2376; dipanggil ToppanUploadJob.java:266)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat bersifat post-dated (tanggal surat dihitung ke depan)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:196-210; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2059-2061",
+      "fit": "Sebagian",
+      "detail": "calculateLetterDate = tanggal proses + nilai parameter POS per stage (default 14 hari bila tidak ada) (ToppanUploadHelper.java:196-210) dan dipakai saat menyusun data surat (:2059-2061). Nilai POS di database cannot verify from repo; tiket OCMS-DF-2026-180 menyebut POS = 6 hari."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat memuat outstanding parking charges dan admin fee",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:217-231; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1320-1324; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1390-1401; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:2063-2077",
+      "fit": "Sebagian",
+      "detail": "Due date = tanggal surat + PDD (ToppanUploadHelper.java:217-231). amountPayable diset ke compositionAmount; administration_fee dihitung dan ditambahkan ke amountPayable hanya untuk RR3/DR3, sedangkan stage lain (termasuk RD1) menulis fee 0 (OCMS-DF-2026-170) (:1320-1324, :1390-1401, :2063-2077). Jadi surat RD1/RD2 memuat charges tanpa admin fee; story meminta keduanya. Isi template surat Toppan cannot verify from repo (dibuat vendor dari data file)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat dibuat sebagai data file (atau PDF) untuk vendor",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:279-290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:326-334; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/models/ToppanStage.java:19-25",
+      "fit": "Sebagian",
+      "detail": "Per stage job membuat data file bernama URA-DPT-{stage}-D1-yyyyMMddHHmmss lewat agencyFileExchangeService.createRequestFileContent (ToppanUploadJob.java:279-290). PDF hanya dibuat untuk Advisory Notice Letter (generateAnLetterPdfs, :326-334). Story menyebut 'PDF atau data file', jadi data file untuk RD1 dst. memenuhi. Stage yang ditangani: RD1, RD2, RR3, DN1, DN2, DR3, ANL (ToppanStage.java:19-25)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dikirim ke vendor untuk dicetak dan dikirim pos",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:314; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:405-434; ocmsadminprivateapi/src/main/resources/application-prod.properties:84-86",
+      "fit": "Sebagian",
+      "detail": "File diunggah ke blob lalu dikirim via COMCRYPT ke SFTP Toppan (ToppanUploadJob.java:314; callback mengenkripsi dan upload). Tapi sftp.upload.disabledServers=toppan di dev/uat/prod (application-prod.properties:84-86) memblokir upload ke Toppan (dibuat lewat OCMS-DF-2026-170). Karena itu confirmDeliveryAndAdvanceStage mem-bypass delivery gate saat server diblokir sehingga stage tetap maju (ToppanUploadJob.java:405-434, perbaikan OCMS-DF-2026-192 yang statusnya Ready to UAT). Artinya di konfigurasi repo, file tidak sampai ke vendor tetapi notice tetap naik stage. Apakah Toppan benar menerima, mencetak, dan mengirim pos, serta nilai per-environment, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Surat dikirim otomatis sesuai jadwal job",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:114-126; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34-40; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:61-62",
+      "fit": "Sebagian",
+      "detail": "ToppanLettersGeneratorJob memproses semua stage berurutan (ToppanLettersGeneratorJob.java:151-160), tetapi di ToppanUploadJobsScheduler.executeDayEndJobs baris pemanggilannya dikomentari (ToppanUploadJobsScheduler.java:118) meski cron.toppanupload.enabled=true (cron-schedules-prod.properties:61-62). Job hanya jalan lewat POST /toppan/generate-letters (ToppanUnifiedController.java:34-40) yang juga dipicu manual dari staff portal (tiket OCMS-DF-2026-192). Jadi tidak ada eksekusi terjadwal otomatis untuk letter di commit ini."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess}.ts, Table/{TablePayment,Column}.ts, API.ts (fine selection, getTotal, Total Amount Payable row); ocmseserviceapi workflows/urapg/service/UraPaymentService (total recomputed from amount_payable), workflows/parkingfines (payable flag). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant",
+  "note": "The story asks for the total amount payable of the selected fines to be computed and shown. The calculation is in the UI: getTotal (TablePayment.ts:52-60) sums notice.amount_payable of the selected rows and the result appears in the Total Amount Payable row (desktop) and the card footer (mobile). Selection survives page changes (PaymentSearchResult.ts:198-208) and only payable rows can be ticked. The UI total is display only: at payment the charged amount is recomputed by UraPaymentService from amount_payable in the DB (UraPaymentService.java:148-213), the UI does not send its total, and that class does not check payment_acceptance_allowed. The amount that reaches the payment gateway cannot verify from repo. The sheet status 'Demo paid (50% of 75%)' with the PII encryption remark cannot be proven from the repo; the total calculation does not use PII data.",
+  "recommendation": "Can be claimed for the total calculation and display in the UI. Note that the charged amount is recomputed separately on the server (double type) without a payment_acceptance_allowed check, and the amount sent to the gateway cannot be proven from the repo",
+  "steps": [
+    {
+      "step": "Offender selects the payable fines under the searched vehicle",
+      "detail": "The checkbox only appears when bool = data.isSelect === 'Y' && !isInitiated (PaymentSearchResult.ts:243); isSelect = 'Y' only if paymentAcceptanceAllowed === 'Y' (API.ts:52). Non-payable rows or rows still processing (E10) have no checkbox, only an info icon. The same UnpaidTable serves vehicle, notice and ID search. The E10/E11 (5 minute) rule was fixed in OCMS-DF-2026-026 (Closed, Prod deployed)."
+    },
+    {
+      "step": "The UI sums the amount payable of all selected fines",
+      "detail": "getTotal(data) takes notice.amount_payable of each selected row, drops empty/0 values (.filter(item => item)), sums them with lodash sum, then formats as '$ x.xx' (FormatDecimal 2 digits). mergeSelections merges the active page selection with the selections of other pages (unpaidSelected) before computing, so the total covers all pages."
+    },
+    {
+      "step": "The total amount payable is shown to the offender",
+      "detail": "RowTotalAmount shows a 'Total Amount Payable' row with the value under the table (desktop); MobileTotal shows the same card footer on small screens. The value comes from table.total (set by getTotal) or the fallback getTotal(getData('SELECTED')). The Transaction Summary step calls getTotal again (PaymentProcess.ts:123)."
+    },
+    {
+      "step": "The total changes when the offender changes the selection",
+      "detail": "onSelect and onSelectAll call mergeSelections which refills table.total (PaymentSearchResult.ts:226-233); restoreSelections restores ticks and total after a page change or page size change (210-223). There is no separate calculation for vehicle search, so this fact is the same as for ID and notice search."
+    },
+    {
+      "step": "The amount charged equals the total shown",
+      "detail": "The server does not use the UI total: generateTransaction sums notice.getAmountPayable() from eVON itself for each notice sent (double totalAmount, :148, :190-198, :213). With the same data the numbers match, but there is no UI-vs-server comparison, and UraPaymentService does not check payment_acceptance_allowed (grep 'acceptance' in that file: 0 hits), so only the UI/search holds back non-payable notices. The amount the payment gateway receives and the double rounding result cannot verify from repo."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "story": "OCMS17.16",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (POST /plus-apply-suspension), helpers/{TemporarySuspensionHelper,SuspensionProcessingHelper,SuspensionBaseHelper}, crud/beans/SystemConstant. Tiruan di ocmsadminprivateapi framework/workflows/plus/notice_creation/core. ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan (PLUS memanggil API, bukan UI).",
+  "note": "Story minta OCMS memvalidasi apakah TS dari PLUS boleh diterapkan. Endpoint POST /plus-apply-suspension ada dan menjalankan validasi per notice: field wajib, kode suspensi boleh dipakai PLUS (tabel ocms_suspension_reason), last processing stage, notice sudah dibayar, dan PS yang sudah ada. Aturan ini sama untuk eksekusi dan dry-run (checking=true). Ada dua catatan: (1) di dry-run, notice yang sudah TS langsung dibalas eligible sebelum cek source/stage/paid (SuspensionProcessingHelper.java:366-370), jadi hasil dry-run bisa lebih longgar daripada eksekusi; (2) daysToRevive hanya dicek tidak null, nilai 0 atau negatif diganti diam-diam dengan default tabel/30 hari. Endpoint yang sama ada di ocmsadminapi dan ocmsadminprivateapi dengan logika serupa; route yang dipakai PLUS (via APIM) cannot verify from repo. Isi tabel ocms_suspension_reason (kode mana yang boleh untuk PLUS) cannot verify from repo. Tiket OCMS-DF-2026-025 (Closed, Prod deployed) mengubah aturan stage TS-RED dari PLUS sampai COS; code sudah mengikutinya.",
+  "recommendation": "Klaim sebagai selesai untuk validasi inti. Sebutkan dua catatan: dry-run bisa lebih longgar (jalur pendek TS-ke-TS) dan daysToRevive tidak divalidasi nilainya.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "PLUS mengirim request TS (daftar notice, kode suspensi, jumlah hari, officer) dan OCMS memeriksa field wajib serta source PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:504-528; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:531-544",
+      "fit": "Sesuai",
+      "detail": "POST /plus-apply-suspension (query checking=true untuk dry-run). noticeNo, suspensionType, reasonOfSuspension, daysToRevive dan officerAuthorisingSuspension wajib; kalau kosong dijawab HTTP 400 OCMS-4000. suspensionSource dipaksa PLUS dan nilai lain ditolak (SuspensionProcessingController.java:534-538). Mirror di ocmsadminprivateapi (ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_creation/core/SuspensionProcessingController.java:54). daysToRevive hanya dicek tidak null; nilai 0 atau negatif tidak ditolak dan jatuh ke default (TemporarySuspensionHelper.java:188-208). Route mana yang dipanggil PLUS cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa bahwa kode suspensi boleh dipakai oleh PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:73-77; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-311; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:323-336",
+      "fit": "Sesuai",
+      "detail": "checkSourcePermissionFromDb mencari baris ocms_suspension_reason dengan suspensionType, reasonOfSuspension, suspensionSource=PLUS dan status A. Tidak ada baris atau query gagal menghasilkan false, jadi ditolak dengan 'Source not authorized to use this Suspension Code'. Dry-run punya versi sendiri (SuspensionProcessingHelper.java:491-503). Isi tabel (kode mana yang aktif untuk PLUS) cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa last processing stage notice termasuk stage yang boleh di-TS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:65-67; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-278; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:508-535",
+      "fit": "Sesuai",
+      "detail": "Stage umum yang boleh: NPA, ROV, ENA, RD1, RD2, RR3, DN1, DN2, DR3, CPC, CFC (SuspensionBaseHelper.java:65-67). ROV hanya di stage ROV, CLV hanya RR3/DR3, NRO tidak boleh di RR3/DR3 (SuspensionBaseHelper.java:217-236). Stage null atau di luar daftar ditolak (OCMS-4002 + pesan). TS-RED dari PLUS boleh sampai COS sesuai OCMS-DF-2026-025 (Closed, Prod deployed; SuspensionBaseHelper.java:197-206, SuspensionProcessingHelper.java:515-524). Dry-run dan eksekusi menolak court stage lewat cek berbeda (SuspensionProcessingHelper.java:526 vs SuspensionBaseHelper.java:209-212), tetapi hasil akhirnya sama-sama ditolak."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa apakah notice sudah dibayar",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:86-90; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:425-429; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:293",
+      "fit": "Sesuai",
+      "detail": "Eksekusi menolak kalau crs_reason_of_suspension terisi (TemporarySuspensionHelper.java:87-90); dry-run juga menolak EPR = PRA (partial payment, SuspensionProcessingHelper.java:427). Pesan: 'Unable to TS as one or more Notices has been paid.' Di eksekusi, notice PRA tetap tertolak karena PRA tidak ada di daftar PS yang boleh ditumpuk TS (TemporarySuspensionHelper.java:170)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa PS yang sudah ada pada notice",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:158-179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:375-384; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:294",
+      "fit": "Sesuai",
+      "detail": "Notice yang sedang PS ditolak untuk TS dengan 'Unable to TS as Notice has been permanently suspended', kecuali reason PS ada di FOR, MID, DIP, RP2, RIP, atau kode TS-nya PAM (TemporarySuspensionHelper.java:163-171). Pengecekan memakai kolom VON (suspension_type dan epr_reason), sesuai OCMS-DF-2026-025 yang mengembalikan cek ke VON."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Setiap notice dalam batch dinilai sendiri dan mode dry-run (checking=true) memberi hasil validasi yang sama dengan eksekusi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:978-1010; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:342-452; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:366-370; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:595-617",
+      "fit": "Sebagian",
+      "detail": "processNoticeList memproses tiap notice sendiri (SuspensionProcessingController.java:995-1010); checking=true memanggil validateSuspension tanpa menulis DB. Tetapi hasilnya tidak identik dengan eksekusi: (1) notice yang sudah TS + request TS langsung dibalas eligible=true (SuspensionProcessingHelper.java:366-370) sebelum cek source, stage dan paid, padahal eksekusi tetap menjalankan semuanya (TemporarySuspensionHelper.java:73-90); (2) dry-run punya cek 'Overlapping suspension detected' dari tabel suspended_notice (SuspensionProcessingHelper.java:595-617) yang tidak ada di jalur eksekusi TS. Jadi dry-run bisa menjawab eligible padahal eksekusi menolak, atau sebaliknya. Apakah PLUS memakai dry-run sebelum apply cannot verify from repo."
+    }
+  ]
+}

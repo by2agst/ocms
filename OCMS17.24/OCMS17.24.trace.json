@@ -1,0 +1,55 @@
+{
+  "story": "OCMS17.24",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/helpers/{TemporarySuspensionHelper,TsDueDateRule,SuspensionBaseHelper}, workflows/payment_reduction/reduction/helpers/ReductionPersistenceService, workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl. ocmsadminprivateapi utilities/suspension_helpers/{TemporaryRevivalHelper,RevivalBaseHelper}, framework/workflows/agencies/lta/download/helpers/{LtaProcessingStageManager,LtaBatchTsRovProcessor}, framework/workflows/synctxndata/AxsTransactionValidator, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository",
+  "note": "Story minta periode paling panjang: start date paling awal dan end date paling akhir. End date: VON.due_date_of_revival mengambil tanggal terjauh di jalur TS staff/PLUS, TS-RED, dan TS-UNC (TsDueDateRule.furthest), dan setelah revival sebagian diisi ulang dengan tanggal terjauh dari TS yang tersisa. Start date: tidak sesuai, VON.epr_date_of_suspension diisi waktu TS terbaru (SuspensionBaseHelper.java:347) dan setelah revival sebagian memakai TS yang paling baru dibuat (RevivalBaseHelper.java:343); tanggal awal tiap TS hanya tersimpan di baris ocms_suspended_notice dan tidak ada field yang menghitung 'paling awal'. Dua jalur cron masih menimpa due_date_of_revival tanpa membandingkan: LTA TS-ROV per-record (LtaProcessingStageManager.java:194) dan AXS TS-PAM (AxsTransactionValidator.java:103). Tiket OCMS-DF-2026-184 (TS-UNC menimpa tanggal TS-MS yang lebih jauh) berstatus Pending UAT Verification; di main jalur UnclaimedServiceImpl sudah memakai TsDueDateRule.furthest (baris 421), tetapi status UAT-nya cannot verify from repo. Eskalasi tertahan selama suspension_type terisi (lihat OCMS17.22), bukan oleh perbandingan tanggal.",
+  "recommendation": "Klaim sebagian: end date terjauh sudah benar di jalur utama, start date paling awal tidak ada, dan dua jalur cron belum membandingkan tanggal. Jangan klaim 'earliest start date' sebagai selesai.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat TS diterapkan lewat staff/PLUS, end date di VON mengikuti tanggal revival terjauh",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:110-118; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:131",
+      "fit": "Sesuai",
+      "detail": "processTS membandingkan due date TS baru dengan VON.dueDateOfRevival dan memakai yang lebih jauh untuk VON/eVON (TemporarySuspensionHelper.java:110-118, 124), sedangkan baris ocms_suspended_notice menyimpan tanggal TS itu sendiri (baris 131)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jalur TS-RED (reduction) dan TS-UNC juga memakai tanggal revival terjauh",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TsDueDateRule.java:22-30; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/reduction/helpers/ReductionPersistenceService.java:105-106; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/unclaimed/UnclaimedServiceImpl.java:421",
+      "fit": "Sesuai",
+      "detail": "TsDueDateRule.furthest mengembalikan tanggal yang lebih jauh (TsDueDateRule.java:22-30) dan dipakai ReductionPersistenceService (baris 105-106) serta UnclaimedServiceImpl (baris 421). Tiket OCMS-DF-2026-184 melaporkan 23 notice yang due date TS-MS-nya tertimpa TS-UNC; di main perbaikannya sudah ada, tetapi tiket masih Pending UAT Verification (status deployment cannot verify from repo)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Semua jalur pembuat TS lain (LTA, AXS) juga menjaga end date terjauh",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaProcessingStageManager.java:194; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/AxsTransactionValidator.java:103; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/lta/download/helpers/LtaBatchTsRovProcessor.java:241-245",
+      "fit": "Sebagian",
+      "detail": "LTA TS-ROV batch membandingkan dan memakai tanggal terjauh (LtaBatchTsRovProcessor.java:241-245), tetapi LtaProcessingStageManager.applyTsRovStatus langsung menulis dueDateOfRevival (baris 194, dipanggil dari LtaBatchCode0Processor) dan AxsTransactionValidator.applyTsPamSuspension menimpa VON.dueDateOfRevival dengan tanggal TS-PAM baru (baris 103), tanpa membandingkan dengan TS yang sudah ada. Notice dengan TS jauh lalu TS-ROV/TS-PAM pendek bisa kehilangan tanggal terjauh di VON. Pola ini sama dengan penyebab tiket OCMS-DF-2026-184."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Start date di notice adalah yang paling awal dari semua TS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:343; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:347; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/RevivalBaseHelper.java:343",
+      "fit": "Beda dari flow",
+      "detail": "updateVON mengisi epr_date_of_suspension dari LocalDateTime.now() setiap TS baru (SuspensionBaseHelper.java:343, 347), jadi start date di VON adalah TS terbaru. Setelah revival sebagian, VON diisi dari TS yang paling baru dibuat (RevivalBaseHelper.java:343, ocmsadminprivateapi). Tanggal awal tiap TS hanya ada di baris ocms_suspended_notice; tidak ada code yang menghitung start date paling awal. Komentar code menyebut perilaku ini berasal dari UAT feedback; apakah itu menggantikan requirement story, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice tidak naik stage selama masih ada TS yang berlaku, sampai TS terakhir berakhir",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporaryRevivalHelper.java:215-221; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/TemporaryRevivalHelper.java:250; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/RevivalBaseHelper.java:339-344; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeRepository.java:610",
+      "fit": "Sesuai",
+      "detail": "Auto revival hanya me-revive TS yang jatuh tempo (TemporaryRevivalHelper.java:215-221, 250) dan mengisi ulang VON dengan tanggal terjauh dari TS yang tersisa (RevivalBaseHelper.java:339-344), jadi suspension_type tetap terisi sampai TS terakhir selesai. Selama terisi, surat reminder tidak dibuat (OcmsValidOffenceNoticeRepository.java:610). Catatan: stage tetap bisa maju lewat LTA upload dan SMS/email punya pengecualian, lihat OCMS17.22."
+    }
+  ]
+}

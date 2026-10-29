@@ -1,0 +1,25 @@
+{
+  "story": "OCMS40.2",
+  "flow_ref": "User story (not in the flow deck OCMS)",
+  "code_summary": "ocmsadminui (route/menu search-vault dikomentari), ocmsadminprivateapi workflows/agencies/mha/{upload,download} (batch MHA NRIC tiap 09:00/14:00/21:00 dan 11:30/16:30/23:30, MhaNricController manual), services/datahive/nricFinUenDataRetrieval (NRIC/FIN DataHive; enrichment dimatikan di prod), ocmsadminui pages/Notice/detail/OwnerDetails.tsx (Registered Address per notice)",
+  "note": "The story asks the officer to send an ID number + offence date to ICA/DOS and receive info (e.g. address). The story status is blank (no requirement/status given), so it is traced normally. The ad-hoc screen cannot be reached (route/menu commented out, epic40 folder does not exist). What exists: the MHA NRIC Upload/Download batch for notices at stage RD1/RD2/RR3/DN1/DN2/DR3; the upload mapping carries only noticeNo, idNo, stage and next processing date, with no offence date (MhaNricDataHelper.java:91-94). The DataHive path for NRIC/FIN is switched off in prod (cron.mhadownload.datahive=false, cron.mhadownload.uenfin.enabled=false). That MHA = ICA and DOS = DataHive/LTA cannot be confirmed from the repo; the real server property values and the MHA SFTP cannot be verified from the repo. No maintenance ticket is specific to this ad-hoc feature.",
+  "recommendation": "Claim only as Sebagian: the ID is sent to MHA by batch and the address is stored per notice, but the ad-hoc screen and per-officer query do not exist, the offence date is not sent in the MHA file, and the DataHive path is switched off in prod. Ask URA to confirm whether MHA = ICA, DOS = DataHive and whether the batch is enough.",
+  "steps": [
+    {
+      "step": "Officer opens the ad-hoc query page in the staff portal",
+      "detail": "Path /search-vault (title 'Agencies Information') and a menu item 'Ad-hoc Vault Query' are defined (SearchVault.ts:1-12, LinkData.tsx:255-259), but the route in App.tsx:331 and the menu.push in LinkData.tsx:405 are commented out, as is the Epic40 import (App.tsx:54); the pages/epic40 folder does not exist in ocmsadminui. The page cannot be opened from the staff portal. ReportListDOS.tsx:82 ('DOS Reports', resource dosvaultrecords) is only a report list with no controller or authorization mapping, not a query form; DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "Officer fills in the ID number and offence date, UI sends it to the API",
+      "detail": "The SearchVaultUEN/SearchVaultUIN form components only remain as commented-out imports (UPLOffender.tsx:11, ReportListDOS.tsx:25); the epic40 mapping and validation are commented out too (utils/mapping/index.ts:37, utils/validation/index.ts:43). ocmsadminapi has no endpoint that accepts an ID number + offence date for a single query; the only enquiry-like call is the parameterless batch trigger POST /lta-enquiry/trigger (CronProxyController.java:33-34), and ocmsadminapi has no proxy to /v1/datahive/query in ocmsadminprivateapi."
+    },
+    {
+      "step": "OCMS sends the ID number and offence date to ICA/DOS",
+      "detail": "The MHA NRIC Upload batch is active in prod (cron.mhaupload.enabled=true, 09:00/14:00/21:00 Monday-Saturday, cron-schedules-prod.properties:105-106) and takes IDs from notices at stage RD1/RD2/RR3/DN1/DN2/DR3; the record mapping is only noticeNo, idNo, nextProcessingStage, nextProcessingDate (MhaNricDataHelper.java:91-94), with no offence date. The manual trigger POST /mha/upload (MhaNricController.java:34-36) takes no ID parameter. DataHive path: the offence date is used for FIN (DataHiveUenFinService.java:751-760, taken from nextProcessingDate), but cron.mhadownload.datahive=false (cron-schedules-prod.properties:50) and the UEN/FIN sync is switched off (:52); the real server value cannot be verified from the repo. MHA = ICA and DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "step": "OCMS receives the individual's info (e.g. address) and shows it to the officer",
+      "detail": "The MHA NRIC Download batch is active (cron.mhadownload.enabled=true, 11:30/16:30/23:30, cron-schedules-prod.properties:119-120); its result updates owner/driver data including the address change date (MhaNricDownloadHelper.java:792-795) and Notice detail shows 'Registered Address' (OwnerDetails.tsx:286-287). The info appears per notice after the batch, not as a direct answer to the officer. DataHive (NRIC/FIN) info is not filled while cron.mhadownload.datahive=false and uenfin.enabled=false in prod."
+    }
+  ]
+}

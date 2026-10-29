@@ -1,0 +1,25 @@
+{
+  "story": "OCMS20.2",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/notice_management/suspension/unclaimed/{UnclaimedServiceImpl,UnclaimedController}, crud ocmsizdb/OcmsAdhocNroTemp. ocmsadminprivateapi workflows/agencies/mha/upload/{helpers/MhaNricDataHelper,jobs/MhaNricUploadJob}, workflows/datahiveuenfin/{jobs/DataHiveUenFinJob,services/DataHiveUenFinService}, schedulers/{MhaUploadJobsScheduler,MhaDownloadJobsScheduler}, cron-schedules-prod.properties. ocmsadminui constant.ts (ID_TYPE). ocmseserviceapi, ocmseserviceui, thirdpartyapi: no related code",
+  "note": "Status in stories.json is 'Requirement given - Gen flow'. The story asks OCMS to tell whether a notice is against a company or an individual and then automatically run the registered-address check. The code tells them apart by the ID type of the letter recipient (from RDP.owner_id_type or DN.driver_id_type): N = NRIC, F = FIN, B = UEN. On Unclaimed submit, offenders who are still current and not PS are put in ocms_adhoc_nro_temp with their id_type. ID type N is picked up by the MHA upload job (cron.mhaupload.enabled=true in prod), ID type F/B by the DataHive UEN & FIN job. In the prod properties cron.mhadownload.uenfin.enabled=false so the company path (B) does not run; the real server value cannot verify from repo. Two more gaps: (1) DataHiveUenFinJob returns early when there are no regular notices (DataHiveUenFinJob.java:189-191) before reading the adhoc queue (line 200), so an adhoc UEN is only processed when a regular record happens to exist; (2) other id_types such as P (passport) and U (unknown) go neither to MHA (only N) nor to DataHive (only F,B) so they are silently not checked. No maintenance ticket is specific to this routing; OCMS-DF-2026-133 (PS must not enter the MHA queue, Closed) is visible in the code.",
+  "recommendation": "Partial claim: ID type identification and routing of individuals to MHA exist; the company path (DataHive UEN) is off in the prod properties and has an early return that skips the adhoc queue. Verify the flag on the server and fix the early return before claiming in full",
+  "steps": [
+    {
+      "step": "OCMS reads the ID type of the returned reminder recipient (NRIC, FIN, UEN) from the reminder letter record",
+      "detail": "buildDtoFromRdp fills idType from rdp.getOwnerIdType() (UnclaimedServiceImpl.java:223) and buildDtoFromDn from dn.getDriverIdType() (line 268); default 'N' when empty. UI type codes: NRIC=N, UEN=B (constant.ts:191,193). A company is recognised by ID type B, not from another entity-type field."
+    },
+    {
+      "step": "After the TS-UNC suspension, offenders who are still the current offender and not PS are put in the address-check queue with their ID type",
+      "detail": "submit-unclaimed calls prepareAdhocNroTempRecords (UnclaimedController.java:167). The method skips notices with an active PS (UnclaimedServiceImpl.java:691, OCMS-DF-2026-133 Closed), makes sure the ONOD offender_indicator Y matches the recipient ID, then saves idNo and idType into ocms_adhoc_nro_temp (lines 751-762). A failure in this step is only logged and does not cancel the submit (UnclaimedController.java:166-171)."
+    },
+    {
+      "step": "For individuals (NRIC), OCMS automatically sends the ID to MHA to find the latest registered address",
+      "detail": "MhaNricDataHelper.queryUnclaimedAndHstData reads ocms_adhoc_nro_temp with idType N (MhaNricDataHelper.java:442-447); MhaNricUploadJob merges it into the MHA enquiry file (MhaNricUploadJob.java:160). Cron.mhaupload.schedule runs Monday-Saturday 09:00, 14:00, 21:00 and enabled=true in cron-schedules-prod.properties:105-106. Whether SFTP to MHA really works on the server cannot verify from repo."
+    },
+    {
+      "step": "For companies (UEN), OCMS automatically sends the UEN to DataHive to find the latest registered address",
+      "detail": "Code for the company path exists: queryAdhocNroTempData reads ocms_adhoc_nro_temp with id_type F or B (DataHiveUenFinService.java:325-328, 336) and DataHiveUenFinJob merges it (DataHiveUenFinJob.java:200). But (a) cron.mhadownload.uenfin.enabled=false in prod (cron-schedules-prod.properties:52) so MhaDownloadJobsScheduler skips this job (MhaDownloadJobsScheduler.java:103-104); the real server value cannot verify from repo; (b) the job returns early when the regular notice query is empty (DataHiveUenFinJob.java:189-191) before the adhoc queue is read at line 200, so an adhoc UEN is only processed when some regular record exists; (c) id_type P/U is not processed by any path. DOS = DataHive/ACRA cannot be confirmed from the repo; the call goes to DataHive views V_DH_ACRA_*."
+    }
+  ]
+}

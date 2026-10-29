@@ -1,0 +1,91 @@
+{
+  "story": "OCMS21.1",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{CreateNoticeServiceImpl (processSingleNotice step 5a, batch prefetch), helpers/NoticeValidationHelper.checkDuplicateOffenseDetailsPreCreation, helpers/NoticeProcessingHelper.setDbbSuspensionFlags, helpers/NoticeRecordHelper (applyPreSetDbbFlags, buildSuspensionRecords)}; ocmsadminprivateapi workflows/repccs/notice_creation/core (salinan jalur yang sama untuk webhook REPCCS); ocmseserviceapi parkingfines/ParkingFinesController (filter paymentAcceptanceAllowed); ocmsadminui utils/constant.ts (PS code list). thirdpartyapi: tidak ada code terkait.",
+  "note": "Status di sheet: 'Demo paid (50% of 75%)'. Story minta suspend permanen otomatis untuk notice duplicate (aturan, tanggal-jam, car park, suspension; ~5 skenario). Kode mengerjakannya saat notice dibuat: notice baru yang cocok dengan notice lama (kendaraan + rule + car park + tanggal/jam) langsung dibuat sebagai PS-DBB, dengan 5 kondisi notice lama (aktif, PS-FOR, PS-ANS khusus type O, sudah dibayar FP/PRA, suspension lain). Yang disuspend adalah notice BARU yang masuk, bukan notice outstanding lama yang disapu ulang. Daftar 5 skenario URA tidak ada di repo; kecocokannya tidak bisa dipastikan. Celah: duplicate dalam satu batch tidak saling terdeteksi, dan ocmsadminapi fail-open bila cek error. Tidak ada ticket maintenance yang relevan (OCMS-DF-2026-086 hanya menyinggung kolom epr/crs reason, tidak mengubah verdict). Nilai real properti/seeding DB (mis. ocms_offence_rule_code) cannot verify from repo.",
+  "recommendation": "Klaim untuk deteksi dan PS-DBB saat pembuatan notice. Perbaiki/konfirmasi: duplicate dalam satu batch dan perilaku fail-open saat query error. Minta URA konfirmasi daftar 5 skenario",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat notice baru dibuat, OCMS otomatis menjalankan cek duplicate sebelum notice disimpan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1119-1120; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/CreateNoticeServiceImpl.java:788-789",
+      "fit": "Sesuai",
+      "detail": "processSingleNotice memanggil checkDuplicateOffenseDetailsPreCreation lalu setDbbSuspensionFlags sebelum createNoticeRecord (Sub-step 5a, dikomentari 'DBB must be checked before FOR'). Jalur yang sama ada di ocmsadminprivateapi (webhook REPCCS). Berlaku untuk semua endpoint create-notice di CreateNoticeController (create-notice, staff-create-notice, plus-create-notice, repccsWebhook-create-notice)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice dianggap kandidat duplicate bila kendaraan, offence rule, dan car park sama dengan notice yang sudah ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:387-388; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:394-404; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:720",
+      "fit": "Sesuai",
+      "detail": "Cek jalan hanya bila vehicleNo, noticeDateAndTime, computerRuleCode dan ppCode semua terisi (387-388). Kandidat diambil per kendaraan+tanggal (CreateNoticeServiceImpl.java:720) lalu difilter computerRuleCode sama dan ppCode sama (400-403). Memenuhi 'offence rule' dan 'car park' di story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Tanggal dan jam notice dibandingkan menurut jenis pelanggaran",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:464-478",
+      "fit": "Sesuai",
+      "detail": "Offence type O (parking): tanggal saja yang dibandingkan. Type E (enforcement): tanggal + jam + menit (detik diabaikan). Type lain/U: exact date-time. Offence type diambil dari tabel offence rule (CreateNoticeServiceImpl.java:968-971). Aturan per-type ini ditulis dengan label 'OCMS 21' di kode; story hanya menyebut 'notice date and time' tanpa detail, jadi detail O vs E tidak bisa dicocokkan ke requirement."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Skenario 1: notice yang sudah ada masih aktif (tidak disuspend) maka notice baru duplicate",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:490-494",
+      "fit": "Sesuai",
+      "detail": "Bila suspensionType notice lama null/kosong, isDuplicate=true dengan alasan 'Existing notice is active (not suspended)'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Skenario 2 dan 3: notice yang sudah ada berstatus PS-FOR atau PS-ANS (ANS hanya untuk offence type O)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:498-506",
+      "fit": "Sesuai",
+      "detail": "Notice lama PS dengan epr reason FOR menjadi duplicate; reason ANS menjadi duplicate hanya bila offenseType = O (parking), tidak untuk E."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Skenario 4 dan 5: notice yang sudah ada sudah dibayar (PS-FP/PRA) atau disuspend dengan tipe lain (mis. TS)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:508-519",
+      "fit": "Sesuai",
+      "detail": "crsReason FP atau PRA menjadi duplicate (notice sudah dibayar). Suspension type selain PS (mis. TS) juga dianggap duplicate (515-518). PS dengan code lain tidak dianggap duplicate (continue, 513). Total ada 5 kondisi duplicate di kode, tetapi story hanya menulis 'about 5 scenarios' tanpa daftar, jadi kecocokan dengan daftar URA tidak bisa dipastikan dari repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice duplicate langsung dibuat dengan permanent suspension code khusus PS-DBB",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeProcessingHelper.java:82-91; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:559-568; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:497-503; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:326-330; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:31,43",
+      "fit": "Sesuai",
+      "detail": "setDbbSuspensionFlags + applyPreSetDbbFlags mengisi VON saat INSERT: suspension_type='PS' (SystemConstant.PERMANENT, baris 31), epr_reason_of_suspension='DBB' (baris 43), due_date_of_revival=null, lalu record ocms_suspended_notice dibuat dengan remarks 'DBB: <alasan> - Original notice: <noticeNo>'. Di Staff Portal, DBB juga ada di daftar PS code manual (ocmsadminui/src/utils/constant.ts:115)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Cek duplicate tetap bekerja untuk notice yang masuk dalam satu batch dan saat query gagal",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:706-757; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/CreateNoticeServiceImpl.java:1119-1120; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:538-539; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeValidationHelper.java:440-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/repccs/notice_creation/core/helpers/NoticeValidationHelper.java:539-540",
+      "fit": "Sebagian",
+      "detail": "Kandidat duplicate hanya diambil dari DB sebelum loop batch (CreateNoticeServiceImpl.java:706-757); map tidak diperbarui saat notice baru disusun dan disimpan sekaligus di akhir batch, jadi dua notice duplicate di file/batch yang sama tidak saling terdeteksi (temuan dari membaca kode; tidak dijalankan). Bila cek error, ocmsadminapi diam-diam mengembalikan 'noDuplicate' (NoticeValidationHelper.java:538-539) sehingga notice dibuat tanpa PS-DBB (fail-open), sedangkan ocmsadminprivateapi melempar exception (539-540). Fallback TS-OLD (query gagal 3x) hanya tercapai di jalur tanpa prefetch (440-442). Tidak ada ticket maintenance untuk fitur ini."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pelanggar tidak didenda dua kali: pembayaran notice PS-DBB ditutup",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/NoticeRecordHelper.java:563-570; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:258; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/parkingfines/ParkingFinesController.java:375",
+      "fit": "Sesuai",
+      "detail": "applyPreSetDbbFlags set payment_acceptance_allowed = NOT_ALLOWED ('N'); eService hanya menampilkan notice yang bisa dibayar dengan filter paymentAcceptanceAllowed = 'Y' (ParkingFinesController.java:258). Channel lain (AXS, counter) cannot verify from repo."
+    }
+  ]
+}

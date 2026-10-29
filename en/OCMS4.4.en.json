@@ -1,0 +1,45 @@
+{
+  "story": "OCMS4.4",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/Notice/hook/{useNoticeSubmit.tsx,useNoticeUploadSubmit.ts}, utils/mapping/Notice/Notice.ts. ocmsadminapi workflows/notice_creation/core/{CreateNoticeController (/staff-create-notice), CreateNoticeServiceImpl.processSingleNotice}, helpers/{NoticeValidationHelper, AdvisoryNoticeHelper, NoticeProcessingHelper, SpecialVehUtils, NoticeNumberHelper, NoticeRecordHelper}, crud/ocmsizdb/sequence/SequenceRepository, resources/api-authorization.properties. ocmsadminprivateapi, ocmseserviceapi, ocmseserviceui, thirdpartyapi: not related",
+  "note": "Status in the sheet is 'Demo paid (50% of 75%)'. Staff record offences through the form or an XLSX upload, then the same pipeline as the PLUS path checks mandatory fields, offence rule, DBB, AN, decides the vehicle type/stage, builds a unique notice number from a per-subsystem sequence and saves to VON/eVON. Gaps: the offence type (O/E/U/A/T) is picked by staff and not matched against the rule table; an exception in the DBB check is swallowed; the notice number sequence is formatted to 5 digits with no guard after 99999. Tickets: OCMS-SR-2026-101 and OCMS-DF-2026-102 (UPL defaults, Closed, the code is now correct), OCMS-DF-2026-188 (bulk create template, Pending UAT Verification, upload path only).",
+  "recommendation": "Claimable for staff recording, automatic criteria and unique notice numbers. Tell URA the offence type is not validated against the rule table and ask for the sequence behaviour after 99999.",
+  "steps": [
+    {
+      "step": "Staff records the offence in OCMS (create notice form or XLSX upload)",
+      "detail": "The Staff Portal calls POST staff-create-notice for the single create form (useNoticeSubmit.tsx:37-52) and the bulk XLSX upload (useNoticeUploadSubmit.ts:147). The UI sets subsystemLabel \"004\" and anFlag N (Notice.ts:287-289). The server grants access through function OCMS_NOTICE_CREATE (api-authorization.properties:28-29) and the controller runs the same pipeline as the other channels (CreateNoticeController.java:34-38; CreateNoticeServiceImpl.java:181-183). Label 004 is not forced by the server on this path (unlike PLUS, CreateNoticeServiceImpl.java:451-475); the UI decides. Ticket OCMS-DF-2026-188 (bulk create template cannot be downloaded, status Pending UAT Verification) concerns the XLSX upload path, not the single form, so it does not lower the fit."
+    },
+    {
+      "step": "OCMS checks the mandatory fields of the recorded offence",
+      "detail": "validateMandatoryFieldsForBatch requires compositionAmount, computerRuleCode, creDate, creUserId, noticeDateAndTime, offenceNoticeType, ppCode, ppName and vehicleCategory (NoticeValidationHelper.java:113-157); PLUS only (label 005) also requires vehicleNo and vehicleRegistrationType (:162-171). noticeNo is optional for labels 003-010, 020-021, 023 and 030-999 because OCMS generates the number (:84-103). Failed notices go to the failed list, the rest are still processed (CreateNoticeServiceImpl.java:499-531)."
+    },
+    {
+      "step": "OCMS checks the offence rule as part of the pre-defined criteria",
+      "detail": "getOffenseTypeFromRuleCode looks up computerRuleCode in the offence rule table and returns the offence type (O/E/U), stored in singleDtoMap as 'offenseType' (CreateNoticeServiceImpl.java:967-971; NoticeValidationHelper.java:315-346). The result is the gate for the DBB and AN checks. An unknown rule code throws RuntimeException so the notice fails and goes to the error collector (:347-349; CreateNoticeServiceImpl.java:972-980)."
+    },
+    {
+      "step": "OCMS checks the offence history (same offence already exists)",
+      "detail": "Before INSERT, checkDuplicateOffenseDetailsPreCreation searches for other notices with the same vehicleNo + computerRuleCode + ppCode and offence time (type O: date only; type E: date + hour + minute; others exact) and only counts it as a duplicate when the old notice is active, PS-FOR, PS-ANS (type O only), PS-FP/PRA or TS (NoticeValidationHelper.java:462-520). On a duplicate the notice is created with PS-DBB; if the query fails 3 times it is created with TS-OLD (NoticeProcessingHelper.java:69-122; CreateNoticeServiceImpl.java:1119-1124). An existing noticeNo is rejected right away as a duplicate (:958-965). One thing to watch out for: an unexpected exception in this method is swallowed and treated as not duplicate (NoticeValidationHelper.java:535-537)."
+    },
+    {
+      "step": "OCMS checks advisory notice eligibility",
+      "detail": "AN is only checked when the offence type is O and the vehicle type is S/D/V/I (CreateNoticeServiceImpl.java:1175; AdvisoryNoticeHelper.java:99-107), then through exemption rules (ocmsAnExemptionRulesService, AdvisoryNoticeHelper.java:147-166) and past offences in the last 24 months: it qualifies when there is no past offence, or every past offence is already PS with an ANS reason (AdvisoryNoticeHelper.java:216-289). When qualified: an_flag=Y, payment_acceptance_allowed=N, eservice code ANS (NoticeProcessingHelper.java:124-142) and a PS-ANS record is created too. A vehicle already AN in the same batch is skipped (CreateNoticeServiceImpl.java:1168-1172). Notices from EHT/CES labels 030-999 use the sender's an_flag (:1052-1109)."
+    },
+    {
+      "step": "OCMS prepares the notice by vehicle type (stage, payment flag, suspension)",
+      "detail": "OCMS decides the vehicle registration type: X for empty/N.A plates, I for MID/MINDEF, otherwise D/V/S/F through SpecialVehUtils.checkVehregistration (CreateNoticeServiceImpl.java:1007-1039; SpecialVehUtils.java:43-80). Processing stage and payment flag are then set per type: X -> payment N, composition 0, eservice E4 (NoticeProcessingHelper.java:390-411); S/V/D -> NPA then ROV, payment Y, E1 (:422-445); F -> stage NPA/ROV and PS-FOR; I -> military (CreateNoticeServiceImpl.java:1128-1151). Tickets OCMS-SR-2026-101 and OCMS-DF-2026-102 (wrong UPL defaults) are Closed/Prod deployed and the code now sets N/0/E4 for type X."
+    },
+    {
+      "step": "OCMS automatically creates the correct type of parking offence notice",
+      "detail": "The automatic notice variations exist (PS-ANS, PS-DBB/TS-OLD, PS-FOR, UPL, military). But the offence type (O/E/U/A/T) is chosen by staff in the form and sent as is (Notice.ts:261-277); anFlag is always sent as N from the UI (Notice.ts:287). The server does not derive or validate that type against the rule table; the offence type from the rule table (CreateNoticeServiceImpl.java:967-971) is only the DBB/AN gate (NoticeValidationHelper.java:140-143). So 'OCMS checks criteria to create the correct type' holds for suspension/stage variations, not for the offence type."
+    },
+    {
+      "step": "OCMS generates a unique notice number for every notice",
+      "detail": "When noticeNo is empty, processNoticeNumber builds 10 characters: 1 year digit + 3 subsystem code digits + 5 sequence digits + 1 modulo-11 check digit (NoticeNumberHelper.java:27-61, 127-149). The sequence comes from a SQL Server sequence per owner ocmsizmgr.seq_notice_no_<owner> (SequenceRepository.java:65-68; NoticeNumberHelper.java:99) so numbers do not collide between requests; the subsystem label must be valid in the standard code table (NoticeNumberHelper.java:43-46). An existing noticeNo is rejected as a duplicate (CreateNoticeServiceImpl.java:958-965). One thing to watch out for: the sequence is formatted %05d (NoticeNumberHelper.java:102), so after 99999 the number gets 6 digits and the notice number length changes; whether the sequence is reset or cycled is in the DB definition, cannot verify from repo."
+    },
+    {
+      "step": "The notice is saved so it can be processed in the next stages",
+      "detail": "The VON + OND records are saved in the intranet database (NoticeRecordHelper.java:156, batch saveAllNoRetry :380) and eVON/eOND in the internet database (NoticeRecordHelper.java:222). If the batch save fails every notice in the batch is marked failed (CreateNoticeServiceImpl.java:811-830) and the response lists success/failed/duplicate (CreateNoticeServiceImpl.java:844-851); a consolidated error email is sent when there are errors (:848). The next stage (ROV, or DN1 for UPL) is already set on the record (NoticeProcessingHelper.java:390-445)."
+    }
+  ]
+}

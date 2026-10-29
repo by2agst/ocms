@@ -1,0 +1,73 @@
+{
+  "story": "OCMS15.8",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{ChangeOfProcessingController (POST /v1/change-processing-stage/validate dan submit), ChangeOfProcessingService.validateNotices/processNotice, EligibilityService.checkEligibility}. ocmsadminui pages/CPS/form/CPSForm.tsx (onConfirmation), utils/constant.ts. Repo lain: tidak relevan",
+  "note": "Contoh di story (notice stage Owner tidak bisa ke stage Driver) dijalankan EligibilityService: role offender diambil dari ONOD, lalu stage baru dicek terhadap himpunan stage per role (Driver: DN1, DN2, DR3, CPC; Owner/Hirer/Director: ROV, RD1, RD2, RR3, CFC, CPC). Ditambah blok court stage, PS (kecuali kode DIP/FOR/MID/RIP/RP2), offence type, syarat RD2 dan entity CFC. Cek jalan di validate dan diulang lagi saat submit. Celah: UI menawarkan ENA yang selalu ditolak (sama dengan OCMS15.7). Komentar EligibilityService.java:62-63 bilang offence type 'O or U', code mengizinkan O dan E; yang dipakai adalah code. Data ONOD/VON di DB: cannot verify from repo. Tidak ada maintenance ticket khusus eligibility.",
+  "recommendation": "Klaim dengan catatan: 6 Sesuai, 1 Sebagian (ENA ditawarkan UI tapi selalu ditolak).",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS dipanggil untuk memeriksa stage baru saat officer klik Proceed to CPS",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/CPS/form/CPSForm.tsx:90-117; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:380-386; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:140-142; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:191-192",
+      "fit": "Sesuai",
+      "detail": "Proceed to CPS menjalankan onConfirmation: validasi FE, lalu POST change-processing-stage/validate dengan semua notice (CPSForm.tsx:90-117, tombol :380-386). Controller validateChangeProcessingStage (ChangeOfProcessingController.java:140-142) meneruskan ke validateNotices (:191-192), yang tidak mengubah data."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Stage baru harus sesuai role offender notice (Owner tidak bisa ke stage Driver)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:49-50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:157-166; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:215-226; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:253-259; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:108-113",
+      "fit": "Sesuai",
+      "detail": "Role diambil dari ONOD offender_indicator='Y' (findCurrentOffender :157-166; resolveRole :215-226, default OWNER bila tidak ada ONOD). getEligibleStages memberi DN1/DN2/DR3/CPC untuk Driver dan ROV/RD1/RD2/RR3/CFC/CPC untuk Owner/Hirer/Director (:49-50, :253-259); stage di luar himpunan ditolak INELIGIBLE_STAGE (:108-113). Ini persis contoh di story. Data ONOD di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice di court stage atau suspensi permanen (PS) ditolak",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:85-88; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:90-99; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:57-59; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:100",
+      "fit": "Sesuai",
+      "detail": "Notice di stage CRT/CRC/CFI ditolak COURT_STAGE (EligibilityService.java:85-88; SystemConstant.java:100). Notice dengan suspension_type 'PS' ditolak PS_BLOCKED kecuali eprReasonOfSuspension ada di DIP, FOR, MID, RIP, RP2 (:57-59, :90-99). Aturan ini mencegah perubahan stage yang salah, sejalan dengan tujuan story."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Aturan khusus Owner/Hirer: offence type, syarat sudah lewat RD2, dan entity CFC",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:51-56; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:115-122; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:124-150",
+      "fit": "Sesuai",
+      "detail": "Owner/Hirer hanya boleh untuk offence type O atau E (:51, :115-122; komentar :62-63 menulis 'O or U', yang berlaku code). RR3/CFC/CPC butuh notice sudah di RD2 atau sesudahnya, kecuali entity ACRA BN/LP (:124-150, RD2_NOT_PROCESSED). CFC butuh ID type UEN 'B' dan entity BN/LP (:128-138, ENTITY_TYPE_INVALID). Lookup ACRA di DB: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Hasil cek dipisah per notice dan notice yang tidak valid ditampilkan ke officer",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:217-320; ocmsadminui/src/pages/CPS/form/CPSForm.tsx:125-147",
+      "fit": "Sesuai",
+      "detail": "validateNotices memanggil checkEligibility per notice dan mengisi changeableNotices atau nonChangeableNotices lengkap dengan code dan message (ChangeOfProcessingService.java:217-320). UI menampilkan alasan per notice dan berhenti kalau ada satu saja yang non-changeable, jadi tidak ada notice yang lolos ke konfirmasi (CPSForm.tsx:125-147). Akibatnya satu notice invalid menahan seluruh batch."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Validitas dicek ulang saat simpan sehingga stage salah tidak pernah diterapkan",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:975-983; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:47-81",
+      "fit": "Sesuai",
+      "detail": "processNotice memanggil checkEligibility lagi sebelum mengubah VON dan mengembalikan FAILED dengan code bila tidak eligible (ChangeOfProcessingService.java:975-983), jadi memanggil submit langsung tanpa validate tetap aman untuk aturan stage. Controller submit tidak mengulang cek 'remark wajib untuk OTH' (hanya ada di validate, ChangeOfProcessingController.java:163-185); itu aturan field, bukan aturan stage."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pilihan stage di UI selaras dengan stage yang diterima server",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/constant.ts:149-158; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:49-50; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/EligibilityService.java:108-113",
+      "fit": "Sebagian",
+      "detail": "UI menawarkan ENA (constant.ts:149-158) padahal ENA tidak ada di himpunan stage role mana pun (EligibilityService.java:49-50), jadi ENA selalu gagal INELIGIBLE_STAGE di langkah Proceed (:108-113). CFC kebalikannya: diterima server, tidak ditawarkan UI. Penolakan tetap terjadi di server, jadi stage salah tidak terapkan; yang kurang adalah pilihan yang tidak bisa dipakai. Sama dengan fakta di OCMS15.7."
+    }
+  ]
+}

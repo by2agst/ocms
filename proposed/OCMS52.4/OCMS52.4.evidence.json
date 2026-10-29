@@ -1,0 +1,165 @@
+{
+ "id": "OCMS52.4",
+ "checked_by": "ledger-L1",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "The Toppan Download cron accepts files named DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* and parses notice number plus postal registration number. The file layout is known from code only; there is no interface spec in the repo.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
+   "line": 99,
+   "missing": "Accept list: ToppanDownloadHelper.java:98-99 (used at :71). Parse routing: ToppanResponseParser.java:153 (RD2) and :157 (DN2); notice no = content.substring(10, 20) at :627 (must match 9 digits + letter, :642); registration no = substring(222, 237) at :704 (A15, uppercase alphanumeric, :710). Gap to know: a detail record shorter than 237 chars gives no registration number (:703) but the notice is still counted successful (:525). Schedule: cron-schedules-prod.properties:90-91 (0 30 1 * * ?, enabled=true), real server value cannot be verified from repo.",
+   "fix_en": "",
+   "quote": "upperName.startsWith(\"DPT-URA-DN2-D2-\") ||"
+  },
+  {
+   "i": 1,
+   "claim": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no (update only; the tracking row must already exist, and those rows are created only by the Toppan upload flow). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated.",
+   "status": "partly",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 301,
+   "missing": "Proved: table by file name :230-236; UPDATE only joins existing rows (:517-521 DN, :593-597 RDP); warn :271; counted as updated :301 (this line). 'Created only by the Toppan upload flow': the only creator found by grep is ToppanUploadHelper.java:889-897; absence in other code or DB tools cannot be proved. Extra edge: if several tracking rows exist for the same notice and stage, only one (the last returned by the query, no ORDER BY) is updated (:362-367).",
+   "fix_en": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no. It is an update only: the tracking row (notice_no + stage) must already exist; the only code found that creates these rows is the Toppan upload flow (ToppanUploadHelper). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated; if several rows exist for the same notice and stage only one of them is updated.",
+   "quote": "updatedCount = noticesForPrefetch.size();"
+  },
+  {
+   "i": 2,
+   "claim": "An existing number is not overwritten with a blank value; a non-blank new value does overwrite an older different number.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 513,
+   "missing": "RD2 twin at :589-590. A blank value in the file is dropped in the parser (:706 'if (!regNo.isEmpty())') so it reaches the UPDATE as NULL and the CASE keeps the old value (:514).",
+   "fix_en": "",
+   "quote": "\"dn.postal_regn_no = CASE WHEN t.postal_regn_no IS NOT NULL \" +"
+  },
+  {
+   "i": 3,
+   "claim": "The staff portal notice detail (RDP and DN section) shows the field 'Postal Reg. Number'",
+   "status": "proved",
+   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
+   "line": 396,
+   "missing": "RDP block :165-166, DN block :395-396; label text 'Postal Reg. Number' at ocmsadminui/src/i18n/en/translation.json:721; API fills it: RequestDriverController.java:216 and DriverNoticeControllerPlus.java:210 (dto.setPostalRegnNo). Roles that can open the notice detail cannot be verified from repo.",
+   "fix_en": "",
+   "quote": "label: t(\"rdpdn.form.postal_reg\"),"
+  },
+  {
+   "i": 4,
+   "claim": "Notices in the file that are not in VON are reported as errors, not silently skipped",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 215,
+   "missing": "errors.add at :215 and errorCount++ at :216 after a bulk VON lookup (:188); the job turns errorCount > 0 into one message 'Stage transition errors for <stage>: n notices failed' (ToppanDownloadJob.java:442-443) and stores errorCount (:505). The per-notice text stays in the service result ('errors', :311-312); the job keeps only the count. Wording 'reported as errors' is fine, do not say each notice number is shown to the officer.",
+   "fix_en": "",
+   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
+   "line": 98,
+   "note": "Download side itself is ON in prod (cron-schedules-prod.properties:91). Sebagian is conservative: the file only exists after Toppan received letters, and upload is blocked (application-prod.properties:86) plus the letter job runs only by manual trigger (ToppanUploadJobsScheduler.java:118 commented). By the BRIEF_ADDENDUM item 4 convention (step's own execution switched off) this step could be Sesuai; Sebagian is acceptable and not an overclaim.",
+   "quote": "upperName.startsWith(\"DPT-URA-RD2-D2-\") ||      // RD2 return file (process + blob)"
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java",
+   "line": 704,
+   "note": "Notice no at :627. Fixed-width layout known from code only. Detail records shorter than 237 chars silently lose the registration number (:703) and duplicates of a notice overwrite in the map (:529).",
+   "quote": "String regNo = content.substring(222, 237).trim();"
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 231,
+   "note": "Write is real (:517-521, :593-597). Sebagian because the tracking rows come from the Toppan upload flow, which is manual-trigger only (ToppanUploadJobsScheduler.java:118 commented) and blocked in prod (application-prod.properties:86); a missing row only logs (:271). Real prod data cannot be verified from repo.",
+   "quote": "trackingTable = \"ocmsizmgr.ocms_request_driver_particulars\";"
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 514,
+   "note": "CASE WHEN ... ELSE dn.postal_regn_no END; RD2 twin :590.",
+   "quote": "\"    THEN t.postal_regn_no ELSE dn.postal_regn_no END, \" +"
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 215,
+   "note": "Counted into the job's error list (ToppanDownloadJob.java:442-443). A notice in VON without a tracking row is NOT an error (:259-274).",
+   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
+  },
+  {
+   "i": 5,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
+   "line": 395,
+   "note": "Display only (read-only field). DN block :395-396, RDP block :165-166; API setters RequestDriverController.java:216, DriverNoticeControllerPlus.java:210. Data in prod depends on the earlier steps.",
+   "quote": "source: \"postalRegnNo\","
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 90,
+   "meaning": "Toppan Download schedule 01:30 daily.",
+   "quote": "cron.toppandownload.schedule=0 30 1 * * ?"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 91,
+   "meaning": "Toppan Download enabled=true in prod properties; real server value cannot be verified from repo.",
+   "quote": "cron.toppandownload.enabled=true"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 86,
+   "meaning": "Toppan SFTP upload is switched off in prod properties, so letters that would produce RD2/DN2 return files are not sent from this config; real server value cannot be verified from repo.",
+   "quote": "sftp.upload.disabledServers=toppan"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java",
+   "line": 118,
+   "meaning": "Letter generation (creates the tracking rows) is commented out of the day-end run; only the manual trigger runs it (BRIEF_ADDENDUM item 5).",
+   "quote": "// runJob(job1Name, () -> toppanLettersGeneratorService.executeJob().get(), taskResults);"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS8.11",
+   "status": "Requirement given - Gen flow, 5 pts",
+   "second_claim_risk": "maybe",
+   "reason": "8.11 asks for daily summary reports on letters sent incl. interface errors and its trace already uses the Toppan return-file code and the same job run (ToppanDownloadJobsScheduler.java:69-76 generates the report right after the download). 52.4 is the parse + write + screen field only; URA can argue the return-file processing is the data feed of 8.11. Keep the report column out of 52.4 (already stated)."
+  },
+  {
+   "story": "OCMS42.21",
+   "status": "Fully paid, 3 pts",
+   "second_claim_risk": "no",
+   "reason": "42.21 is the e-service page that auto-fills address from a postal code; unrelated to postal registration number."
+  },
+  {
+   "story": "OCMS41.61",
+   "status": "User Story Removed, 2 pts",
+   "second_claim_risk": "no",
+   "reason": "41.61 is a registered-address match check for furnished particulars; no Toppan return file, no postal_regn_no."
+  }
+ ],
+ "verdict": "FIX WORDING"
+}

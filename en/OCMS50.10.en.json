@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.10",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "No subscribe/unsubscribe feature in the portal: ocmseserviceui and ocmseserviceapi have no route, endpoint, or the words opt-out/unsubscribe. Similar code only on the staff and cron side: ocmsadminapi crud/ocmsizdb/enotificationexclusion (CRUD on ocms_enotification_exclusion_list), ocmsadminui pages/ENotifExclusion (Exclusion page), ocmsadminprivateapi framework/workflows/notification_sms_email/{jobs/NotificationSmsEmailJob,helpers/NotificationSmsEmailHelper} (skips excluded IDs). thirdpartyapi: none",
+  "note": "Sheet status 'User Story Removed': the verdict stays Removed even though similar code exists. The offender cannot choose subscribe/unsubscribe in the portal (grep unsubscribe, opt-out, optIn, subscri*, notification preference in ocmseserviceui and ocmseserviceapi: 0 relevant hits). What exists is a staff-managed e-notification exclusion list (ocms_enotification_exclusion_list: id_no + remarks) and NotificationSmsEmailJob which skips IDs in that list (reminders skipped, ENA moved to RD1 paper track). SMS and email sending are switched off in the prod properties (sms.enable=false, email.enableSmtp=false); the real server values cannot verify from repo. Every step that has code is written as Sebagian per the Removed rule.",
+  "recommendation": "Not claimed (Removed)",
+  "steps": [
+    {
+      "step": "The logged-in offender sees an option to subscribe/unsubscribe to SMS/email notifications",
+      "detail": "The portal routes are only payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). Grep unsubscribe, opt-out, optIn, 'notification preference', subscri* in ocmseserviceui/src and ocmseserviceapi/src: there is no notification preference feature in either the UI or the API."
+    },
+    {
+      "step": "The offender's choice is stored as a notification preference",
+      "detail": "Storage exists but not from the offender: the EnotificationExclusion entity (table ocms_enotification_exclusion_list, columns id_no and remarks) is filled by staff through POST /v1/enotificationexclusion and the staff 'exclusion' page (App.tsx:302-310; ExclusionForm uses the enotificationexclusionlist endpoint). The endpoints map to OCMS_ENOTIF_EXCLUSION in api-authorization.properties:156. There is no channel column (SMS vs email): one ID means all e-notifications are skipped."
+    },
+    {
+      "step": "An offender who unsubscribed no longer receives SMS/email reminders",
+      "detail": "NotificationSmsEmailJob loads all id_no from ocms_enotification_exclusion_list (loadAllExcludedIds, NotificationSmsEmailHelper.java:1207-1216) and skips records whose ID is in that list (NotificationSmsEmailJob.java:225-231). loadAllExcludedIds returns an empty set when the query fails (:1212-1215), so it is fail-open. Sending is governed by prod properties: sms.enable=false (application-prod.properties:87) and email.enableSmtp=false (:80); the values on the real server cannot verify from repo."
+    },
+    {
+      "step": "An offender who unsubscribed still receives the hardcopy reminders",
+      "detail": "For an excluded ID at the ENA stage the job calls patchNextStageToRd1NextDay (NotificationSmsEmailJob.java:228-230) so the notice moves to RD1 (paper track); for other reminder stages the record is simply skipped. Whether the hardcopy letter is really sent (Toppan) cannot verify from repo, and letter generation in the Toppan cron itself is disabled (ToppanUploadJobsScheduler.executeDayEndJobs, manual trigger only)."
+    },
+    {
+      "step": "The offender can change their decision (subscribe again) at any time",
+      "detail": "Only staff can change it: the patch (:102) and delete (:166) endpoints exist in ocmsadminapi, but api-authorization.properties:156 only maps enotificationexclusionlist, enotificationexclusion and enotificationexclusionpatch; enotificationexclusiondelete and enotificationexclusionexists are not in that mapping, and grep in ocmsadminui/src finds no delete call. The authorization behaviour for unmapped paths cannot verify from repo. There is no path for the offender themselves."
+    }
+  ]
+}

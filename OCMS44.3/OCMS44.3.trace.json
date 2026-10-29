@@ -1,0 +1,82 @@
+{
+  "story": "OCMS44.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/Payment/{PaymentCash.tsx,action/ActionSave.tsx}, utils/mapping/Payment/Cash.ts, utils/validation/Payment/ValidCash.ts, utils/constant.ts (MANUAL_PAYMENT_MODE). ocmsadminapi workflows/payment_reduction/payment/{PaymentUpdateController,PaymentUpdateServiceImpl,PaymentValidator,dto/PaymentUpdateRequest}, api-authorization.properties. ocmsadminprivateapi DailyPaidReportHelper (laporan internal, bukan interface). Tidak ada kata 'Cumulus' di enam repo.",
+  "note": "Status 'Fully paid' di sheet. Pencatatan pembayaran manual jalan: officer mengisi Amount Paid, Date of Payment, Payment Mode (CASH, CHEQUE, atau OTHER), Remarks, lalu Update memanggil POST /v1/updatePayment yang menyimpan satu baris web_txn_detail (sender OCMS) dan mengubah status notice. Gap besar: tidak ada interface ke Cumulus sama sekali (grep 'cumulus' 0 hasil di enam repo, tanpa cronservice basi), dan tidak ada field receipt details: nomor receipt dibuat sistem (prefix MPY) dan tidak ditampilkan ke officer (unduh receipt dikomentari, PaymentCash.tsx:127-139). Bisa dicatat satu notice per kali, bukan beberapa sekaligus. Edge case berbahaya: Amount Paid 0.00 lolos validasi UI (ValidCash.ts:30-33) dan server (DecimalMin 0.00, PaymentUpdateRequest.java:49-53); jumlah 0 masuk jalur PARTIAL_PAYMENT (PaymentValidator.java:91-101) sehingga notice menjadi PS (PaymentUpdateServiceImpl.java:316-333, 389-401). Tanggal masa depan hanya diblokir di UI (ValidCash.ts:34-57), server hanya @NotNull (PaymentUpdateRequest.java:41-43). Tickets: OCMS-SR-2026-106 (Date of Payment backdated menjadi crs_date_of_suspension, PaymentUpdateServiceImpl.java:124, 373-383), OCMS-SR-2026-159 (kolom remarks memang untuk pembayaran manual di counter, PaymentUpdateServiceImpl.java:166), OCMS-SR-2026-190 (pembayaran atas notice PS-APP menjadi refund, PaymentUpdateServiceImpl.java:98-116). Role pengguna cannot verify from repo.",
+  "recommendation": "Jangan klaim penuh. Bagian pencatatan (amount, tanggal, mode, remarks, simpan) bisa diklaim; interface ke Cumulus tidak ada di repo mana pun dan receipt details tidak diinput officer. Minta URA konfirmasi apakah Cumulus dibuat di luar enam repo ini.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih notice(s) yang akan dicatat pembayarannya",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:148-214; ocmsadminui/src/pages/Payment/PaymentCash.tsx:290-310; ocmsadminui/src/pages/NoticeSearch/list/NoticeSearchOutstandingList.tsx:145-152",
+      "fit": "Sebagian",
+      "detail": "Pembayaran dicatat satu Notice No. per kali lewat kotak pencarian (PaymentCash.tsx:148-214, 290-310). Tidak ada pemilihan beberapa notice, dan checkbox di daftar outstanding tidak mengarah ke pembayaran (NoticeSearchOutstandingList.tsx:145-152). Fit sama dengan OCMS44.2 langkah 3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi Amount Paid",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:314-339; ocmsadminui/src/utils/mapping/Payment/Cash.ts:21; ocmsadminui/src/utils/validation/Payment/ValidCash.ts:30-33; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/dto/PaymentUpdateRequest.java:49-53",
+      "fit": "Sesuai",
+      "detail": "Field Amount Paid wajib, 2 desimal, terisi awal dengan amountPayable dan bisa diubah; hint muncul jika kurang atau lebih dari amount payable (PaymentCash.tsx:250-259, 314-339; Cash.ts:21; ValidCash.ts:30-33). Server menerima 0.00 sampai 99999999999999999.99 (PaymentUpdateRequest.java:49-53), jadi nilai 0 lolos (lihat note)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi Date of Payment",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:341-348; ocmsadminui/src/utils/validation/Payment/ValidCash.ts:34-57; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/dto/PaymentUpdateRequest.java:41-43; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:167-168",
+      "fit": "Sesuai",
+      "detail": "Field Date of Payment wajib, format tanggal-waktu, tanggal masa depan ditolak di UI (PaymentCash.tsx:341-348; ValidCash.ts:34-57). Nilainya disimpan sebagai transaction_date_and_time dan payment_date_and_time (PaymentUpdateServiceImpl.java:167-168). Server hanya @NotNull, jadi larangan tanggal masa depan hanya di UI (PaymentUpdateRequest.java:41-43). Tanggal backdated dipakai sebagai crs_date_of_suspension (OCMS-SR-2026-106)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memilih Payment Mode",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:228-230; ocmsadminui/src/pages/Payment/PaymentCash.tsx:350-382; ocmsadminui/src/utils/constant.ts:163-166; ocmsadminui/src/utils/validation/Payment/ValidCash.ts:58-67; ocmsadminui/src/utils/mapping/Payment/Cash.ts:31-32; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/dto/PaymentUpdateRequest.java:36-39",
+      "fit": "Sesuai",
+      "detail": "Dropdown Payment Mode berisi kode dari standardcodelist yang difilter MANUAL_PAYMENT_MODE = CASH, CHEQUE, ditambah OTHER dengan teks bebas maksimal 6 karakter (PaymentCash.tsx:228-230, 350-382; constant.ts:163-166; ValidCash.ts:58-67; Cash.ts:31-32). Server menerima string sampai 10 karakter (PaymentUpdateRequest.java:36-39). Isi dropdown bergantung data standard code, cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi receipt details",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:290-392; ocmsadminui/src/utils/mapping/Payment/Cash.ts:27-41; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:159-161; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:183-220; ocmsadminui/src/pages/Payment/PaymentCash.tsx:127-139",
+      "fit": "Beda dari flow",
+      "detail": "Form hanya punya Notice No., Summon No./NTAC No., Vehicle No., Amount Paid, Date of Payment, Payment Mode, Remarks (PaymentCash.tsx:290-392) dan payload hanya noticeNo, paymentMode, transactionDateAndTime, remarks, amountPaid (Cash.ts:27-41). Tidak ada field receipt. Nomor receipt dibuat server: 'MPY' + 9 digit sequence + checksum (PaymentUpdateServiceImpl.java:160, 183-220) dan tidak ditampilkan; langkah unduh receipt dikomentari (PaymentCash.tsx:127-139)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengisi Remarks",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:384-392; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/dto/PaymentUpdateRequest.java:45-47; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:166",
+      "fit": "Sesuai",
+      "detail": "Text area Remarks maksimal 200 karakter (PaymentCash.tsx:384-392), diteruskan ke web_txn_detail.remarks (PaymentUpdateRequest.java:45-47; PaymentUpdateServiceImpl.java:166). OCMS-SR-2026-159 mengonfirmasi kolom ini memang untuk komentar staff pada pembayaran manual."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menyimpan; OCMS merekam pembayaran",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/Payment/PaymentCash.tsx:90-104; ocmsadminui/src/pages/Payment/action/ActionSave.tsx:52-60; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateController.java:40-60; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:83-132; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:159-180; ocmsadminapi/src/main/resources/api-authorization.properties:111-112",
+      "fit": "Sesuai",
+      "detail": "Tombol Update memunculkan konfirmasi (ActionSave.tsx:52-60) lalu POST updatePayment (PaymentCash.tsx:90-104; PaymentUpdateController.java:40-60). processPaymentUpdate (@Transactional) menyimpan satu baris web_txn_detail: receipt MPY, sender OCMS, status SUCCESS, payment_mode, jumlah, remarks (PaymentUpdateServiceImpl.java:83-132, 159-180), lalu menjalankan validator dan mengubah VON/eVON (dibahas di OCMS44.5). Endpoint terdaftar di OCMS_PAYMENT_CASH (api-authorization.properties:111-112). Catatan: type_of_receipt diisi konstanta ESERVICE untuk pembayaran counter (PaymentUpdateServiceImpl.java:165). Otorisasi role cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyerahkan (interface) data collection ke Cumulus",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:83-132; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/payment_reduction/payment/PaymentUpdateServiceImpl.java:170; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentReport/helpers/DailyPaidReportHelper.java:166-184",
+      "fit": "Tidak ada code",
+      "detail": "Kata 'cumulus' tidak muncul di ocmsadminapi, ocmsadminprivateapi (src), ocmsadminui, ocmseserviceapi, thirdpartyapi (grep tanpa case, 0 hasil); sinonim finance system/general ledger/collection interface juga 0. processPaymentUpdate berhenti setelah update database (PaymentUpdateServiceImpl.java:83-132) tanpa panggilan keluar. Yang mendekati hanya atoms_flag 'N' (PaymentUpdateServiceImpl.java:170) dan tab Offline Payments di Daily Paid Report (DailyPaidReportHelper.java:166-184), laporan internal, bukan interface. Mungkin dibangun di luar repo ini: cannot verify from repo."
+    }
+  ]
+}

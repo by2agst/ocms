@@ -1,0 +1,64 @@
+{
+  "story": "OCMS6.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_management/retrieval/getnotice/{GetNoticeController,GetNoticeServiceImpl,mapper/NoticeResponseMapper}, crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.getAllWithOwnerInfo, auth/filter/JwtFilter, config/WebConfig, retrieval/validnotice/{EvalidNoticeController,EvalidNoticeServiceImpl}. ocmsadminprivateapi src/main/java/.../framework/workflows/plus/notice_management/retrieval/getnotice/{GetNoticeController,GetNoticeServiceImpl}. thirdpartyapi, ocmsadminui, ocmseserviceapi, ocmseserviceui: tidak ada code FOMS atau pembaca notice untuk sistem lain",
+  "note": "Status di sheet: Demo paid (50% of 75%), remark 'From PLUS or any other system that calls validoffencenotice'. Jalur PLUS ada: POST /v1/plus-offence-notice membaca valid offence notice live dari DB (join offender saat ini), mendukung filter, paging, dan riwayat suspension, memetakan 29 field. Celahnya: (1) endpoint eVON internet (/plus-evalid-offence-notice) hanya mengembalikan data dummy; (2) tidak ada code khusus FOMS atau sistem lain; (3) ada dua salinan logika (ocmsadminapi dan ocmsadminprivateapi) dan salinan intranet tidak menangani $or dan filter berupa List; (4) path plus-* lolos JwtFilter dan authorization interceptor tanpa autentikasi di code, jadi keamanan bergantung pada gateway/APIM yang tidak ada di repo (cannot verify from repo). Endpoint staff /v1/validoffencenoticelist dan /validoffencenoticepatch butuh JWT staff, bukan untuk sistem lain. Tiket dipakai: OCMS-SR-2026-107 (surcharge di respons), OCMS-SR-2026-048 (filter outstanding untuk PLUS, hanya ditutup di UI).",
+  "recommendation": "Klaim untuk jalur PLUS (plus-offence-notice). Jangan klaim eVON internet (masih dummy) dan dukungan FOMS tanpa konfirmasi; minta bukti gateway/autentikasi pemanggil",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem lain (PLUS) bisa memanggil endpoint untuk membaca informasi parking offence notice tanpa login staff",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeController.java:34-40; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_management/retrieval/getnotice/GetNoticeController.java:24-30",
+      "fit": "Sesuai",
+      "detail": "POST /v1/plus-offence-notice ada di ocmsadminapi (GetNoticeController.java:34-40) dan salinannya di ocmsadminprivateapi (GetNoticeController.java:24-30). Di ocmsadminapi, path berawalan plus- dikecualikan dari JwtFilter (JwtFilter.java:179) dan dari OcmsAuthorizationInterceptor (WebConfig.java:83), jadi tidak butuh session staff. Autentikasi pemanggil (APIM/subscription key/network) tidak ada di repo: cannot verify from repo; kalau gateway tidak membatasi, endpoint ini terbuka untuk siapa pun."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemanggil bisa menyaring notice (noticeNo, vehicleNo, operator, $or) dan membaca per halaman ($skip/$limit)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:91-139; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:324-325; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:584-585; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:72-110",
+      "fit": "Sebagian",
+      "detail": "Di ocmsadminapi, body diubah ke parameter pencarian: $skip/$limit, $or, nilai String/Number/Boolean/List/Map operator (GetNoticeServiceImpl.java:91-139) lalu dijalankan getAllWithOwnerInfo dengan default limit 20 (VN:324-325) dan paging lewat setFirstResult/setMaxResults (VN:584-585); tidak ada batas maksimum $limit. Salinan di ocmsadminprivateapi lebih sempit: tidak menangani $or dan nilai List (GetNoticeServiceImpl.java:72-110), sehingga filter seperti noticeNo[$in] berupa array diabaikan diam-diam. Repo tidak membuktikan salinan mana yang dipakai PLUS (cannot verify from repo). Tidak ada satu filter 'outstanding' di API (PLUS-DF-2026-323 / OCMS-SR-2026-048 hanya ditutup di Staff Portal UI)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Respons berisi detail parking offence (nomor notice, kendaraan, tempat, rule, stage, suspension, jumlah, status bayar)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/mapper/NoticeResponseMapper.java:66-100; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeServiceImpl.java:337-339",
+      "fit": "Sesuai",
+      "detail": "NoticeResponseMapper memetakan 29 field ke format PLUS: noticeNo, vehicleNo, ppCode/ppName, computerRuleCode, last/next processing stage dan date, suspensionType, epr/crs reason dan date, compositionAmount, amountPayable, surcharge (OCMS-SR-2026-107), paymentAcceptanceAllowed, anFlag, atomsFlag, paymentStatus (NoticeResponseMapper.java:66-100). Data dibaca live dari OCMS valid offence notice di-join ke offender saat ini (offenderIndicator = 'Y', OcmsValidOffenceNoticeServiceImpl.java:337-339), dalam transaksi read-only (GetNoticeServiceImpl.java:45-47)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemanggil bisa meminta riwayat suspension notice ikut dikirim (suspendedIndicator = Y)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:53-55; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:63-68; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/GetNoticeServiceImpl.java:175-199; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/getnotice/mapper/NoticeResponseMapper.java:95-99",
+      "fit": "Sesuai",
+      "detail": "Kalau body memuat suspendedIndicator = 'Y', service mengambil semua suspended notice per nomor notice dalam satu query (findByNoticeNoIn) dan menambahkannya ke tiap record sebagai field suspended (GetNoticeServiceImpl.java:53-55, 63-68, 175-199; NoticeResponseMapper.java:95-99). Tanpa flag itu field tidak dikirim."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem lain bisa membaca valid offence notice versi internet (eVON)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/validnotice/EvalidNoticeController.java:25-29; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/validnotice/EvalidNoticeServiceImpl.java:73-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/retrieval/validnotice/EvalidNoticeServiceImpl.java:124-125",
+      "fit": "Tidak ada code",
+      "detail": "POST /v1/plus-evalid-offence-notice ada tapi hanya mengembalikan data dummy: notice 'E2025001001', kendaraan 'SBA1234A', stage CPC/RD1 hard-coded (EvalidNoticeServiceImpl.java:73-83, 124-125); Javadoc controller menyebut 'Currently returns dummy data only' (EvalidNoticeController.java:22-24). Tidak ada query ke tabel eVON. Jadi pembacaan eVON sungguhan belum dibuat. Catatan: story hanya menyebut 'parking offence information'; fungsi ini dihitung karena PLUS memakai jalur plus-* yang sama."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Sistem CPD lain selain PLUS (misalnya FOMS) juga bisa mengambil informasi yang sama",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/filter/JwtFilter.java:179; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:83",
+      "fit": "Sebagian",
+      "detail": "Tidak ada kode atau konfigurasi khusus FOMS: grep 'foms' di ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmsadminui, ocmseserviceapi, ocmseserviceui tidak menemukan apa pun. Endpoint hanya bernama plus-* dan isinya generik, jadi sistem lain secara teknis bisa memanggilnya selama lolos gateway; tidak ada identitas pemanggil, kredensial per sistem, atau pembeda sistem di code. Apakah FOMS benar-benar memakainya: cannot verify from repo."
+    }
+  ]
+}

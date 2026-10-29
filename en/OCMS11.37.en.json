@@ -1,0 +1,29 @@
+{
+  "story": "OCMS11.37",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi (cronservice): notification_sms_email/helpers/NotificationSmsEmailHelper and jobs/NotificationSmsEmailJob (e-reminder email for companies); workflows/datahiveuenfin/{services/DataHiveUenFinService,helpers,jobs}; services/datahive/nricFinUenDataRetrieval/{service/DataHiveUENBatchService,dto/UenNoticeData,dto/UENDataResult}; schedulers/MhaDownloadJobsScheduler; cron-schedules-prod.properties. ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code that sends a UEN to DOS",
+  "note": "The story asks OCMS to send the company (hirer) UEN to 'DOS' so the owner/partner/director can be identified by offence date and appointment period. The word 'DOS' does not appear in the repo; the code uses GovTech DataHive (ACRA views) as the source, and whether that is what DOS means: cannot verify from repo. The UEN is indeed sent to DataHive (batch query for company, shareholder, board) for offenders with id_type B, but the query and the sending DTO carry no offence date, and no step selects a person by appointment period. The code does not distinguish a company hirer from a company owner: both are picked through offender_indicator = 'Y'. The DataHive UEN/FIN job is switched off in prod (cron-schedules-prod.properties:52) and the company e-reminder is off too (cron-schedules-prod.properties:236). Fits are kept equal to sibling OCMS11.17. Sheet status: Demo paid (50% of 75%); demo_remark mentions Vault (DataHive credentials), vault content: cannot verify from repo. No relevant maintenance ticket (OCMS-DF-2026-137 is only UEN format validation, not sending to a data source).",
+  "recommendation": "Claim only a small part. Sending the UEN to DataHive and fetching board data exist, but identification by offence date and appointment period is missing, and the job is off in prod. Ask URA to confirm whether DOS = DataHive and the director/partner selection rule.",
+  "steps": [
+    {
+      "step": "The company hirer receives an e-reminder (email) that refers to the 2nd reminder, or has opted out",
+      "detail": "For a company (id_type B) the code checks email only and does not use SMS (NotificationSmsEmailHelper.java:656-659, :2470-2471); opt-out is checked through ocms_enotification_exclusion_list (:1133, NotificationSmsEmailJob.java:226-232). The eNotification job is switched off in cron-schedules-prod.properties:236 (UAT too), so in the repo configuration company e-reminders do not run. Same fit as OCMS11.17 step 1 and OCMS11.36 steps 1-2."
+    },
+    {
+      "step": "A notice whose company hirer (UEN) is due is selected for checking",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL selects notices at stage RD1/RD2/RR3/DN1/DN2/DR3 with next_processing_date <= today, suspension_type NULL, vehicle_registration_type <> 'I', id_type F or B, offender_indicator 'Y', not in ocms_nro_temp and not HST (DataHiveUenFinService.java:221-248, called at :265). A company hirer (B) is included; the code selects at every reminder/demand stage, wider than the story but covering RR3. Same fit as OCMS11.17 step 2."
+    },
+    {
+      "step": "The company hirer's UEN is sent to the data source (DOS) as a query",
+      "detail": "batchProcessUenRecords builds UEN+noticeNo pairs (DataHiveUenFinService.java:1024-1031) and batchRetrieveUENData sends the UEN to DataHive with an IN query on the registered and de-registered company tables (DataHiveUENBatchService.java:392-407). However the job is skipped when cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107), and the value is false in prod (cron-schedules-prod.properties:52). The word 'DOS' does not appear in the repo; whether DataHive = DOS: cannot verify from repo. Same fit as OCMS11.17 step 3."
+    },
+    {
+      "step": "Company board and shareholder data is fetched to find the owner/partner/director",
+      "detail": "Besides company data, the code fetches V_DH_ACRA_SHAREHOLDER_NGZ and V_DH_ACRA_BOARD_INFO_FULL for the UENs found (DataHiveUENBatchService.java:50-51, :432-443) and parses person ID, position code, appointment and withdrawn dates (:483-502, UENDataResult.BoardInfo :88-101). Only the ID and position code are fetched, with no person name or address. Same fit as the job that is off in prod (previous step, cron-schedules-prod.properties:52)."
+    },
+    {
+      "step": "The owner/partner/director is identified by offence date and appointment period",
+      "detail": "The board query is only WHERE ENTITY_UEN IN (...) with no date (DataHiveUENBatchService.java:432-442); UenNoticeData carries only uen and noticeNo, no offence date (UenNoticeData.java:15-27); and board data is only logged, not written to the DB because updateBoardInfo is commented out (DataHiveUenFinService.java:1470-1477, OCMS-DEV-2026-231). No code compares the offence date with positionAppointmentDate/positionWithdrawnDate; grep for appointment/director/partner across the six repos only finds DTO fields and the uncalled board update. Same as OCMS11.17 step 5."
+    }
+  ]
+}

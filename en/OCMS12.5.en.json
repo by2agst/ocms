@@ -1,0 +1,25 @@
+{
+  "story": "OCMS12.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (combineNotices, refreshCompanyContactInfo, generateMessages, sendEmail, saveSendStatus), jobs/NotificationSmsEmailJob}, utilities/emailutility/EmailService.sendEmail, application-{dev,uat,prod}.properties (email.enableSmtp, email.smtp.allowedSources), cron-schedules-*.properties (cron.notification.enabled). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: no code for this story",
+  "note": "The requirement is given in the story text (status_with_ura: Demo paid 50% of 75%). For company owners (idType B, UEN) the RD1 reminder is combined per UEN + stage + due date and sent as an email through EmailService. Findings: (1) in application-prod.properties email.enableSmtp=false and the source ENOTIFICATION is not in email.smtp.allowedSources (lines 80-81), so EmailService.sendEmail refuses to send in prod; in uat ENOTIFICATION is allowed and in dev enableSmtp=true; (2) cron.notification.enabled=false in all environments; (3) the email text (template RD1_EMAIL_COMPANY) is in the ocms_template_store database table, not in the repo, so the reference to the first letter cannot be proven; (4) the fresh email from Corppass DataHive is switched off by the same flag as OCMS12.3. Email permission and Vault: cannot verify from repo.",
+  "recommendation": "Claim partially. Combining per UEN and email sending exist in code, but email is blocked in prod (enableSmtp=false, ENOTIFICATION not in the allowlist), the cron is inactive and the template content is not visible in the repo. Ask for evidence of template RD1_EMAIL_COMPANY and confirmation of the prod config.",
+  "steps": [
+    {
+      "step": "The company owner's email address is obtained from DOS (Corppass DataHive)",
+      "detail": "refreshCompanyContactInfo fetches the UEN email from Corppass DataHive and saves it (updateOcmsCompanyContactInfo), but refreshContactInfo returns early while cron.enareminder.datahive=false (dev, uat, prod, line 48), so the old email in owner_driver is used. Same fit as OCMS12.3 step 2 and OCMS12.4 step 1 (same fact). DataHive/Vault connection: cannot verify from repo."
+    },
+    {
+      "step": "Unique company owners (by UEN) are identified and their outstanding notices are merged into one email",
+      "detail": "getRecipientKey gives the key 'B_<UEN>' for idType B (NH:2235-2241); combineNotices merges per key + stage + paymentDueDate, appends combinedNotices and sums amountPayable (NH:2178-2196). The result is one email per UEN per stage and due date."
+    },
+    {
+      "step": "The email lists the outstanding notices and refers to the first letter reminder",
+      "detail": "For idType B, deliveryChannel = EMAIL and the template is named RD1_EMAIL_COMPANY[_COMBINED] (NH:443-476); subject and body are split by templateService.splitEmailTemplate (NH:325). noticeCount, combinedNotices, amountPayable and paymentDueDate are supplied (NH:424-430), but the template text is in ocms_template_store (database), not the repo, so the reference to the first letter cannot be proven. Template not found -> email skipped (NJ:383-385)."
+    },
+    {
+      "step": "The email is sent to the company owner in the batch job and the result is recorded",
+      "detail": "The job calls sendEmail per company record (NJ:376-393) through EmailService with source ENOTIFICATION and records the status (saveSendStatus, NJ:396). But EmailService.sendEmail refuses to send when email.enableSmtp=false and the source is not in email.smtp.allowedSources (EmailService:65-73): prod has enableSmtp=false and ENOTIFICATION is not in the allowlist (application-prod.properties:80-81); uat allows ENOTIFICATION (78-79), dev has enableSmtp=true. The daily cron is enabled=false (NS:42-60). SMTP/email access permission from the App Service: cannot verify from repo."
+    }
+  ]
+}

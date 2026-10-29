@@ -1,0 +1,37 @@
+{
+  "story": "OCMS17.19",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/{SuspensionProcessingController,helpers/SuspensionProcessingHelper,helpers/TemporarySuspensionHelper}, workflows/notice_management/suspension/suspendednotice/{SuspendedNoticeControllerPlus,SuspendedNoticeServiceImplPlus,dto/SuspendedNoticePlusDto}; ocmsadminprivateapi framework/workflows/plus/notice_management/retrieval/getnotice. Repo lain tidak relevan.",
+  "note": "Story minta OCMS mengirim detail TS yang ada (kode dan jumlah hari) ke PLUS supaya user PLUS bisa konfirmasi menerapkan TS baru. Response apply/validate hanya berisi noticeNo, success/eligible, message, srNo dan appCode; tidak ada kode TS lama maupun hari. Data itu hanya bisa ditarik PLUS lewat /plus-suspended-notice dan /plus-offence-notice (kode reasonOfSuspension, dueDateOfRevival; jumlah hari tidak dikirim, harus dihitung dari dateOfSuspension dan dueDateOfRevival). Tidak ada mekanisme konfirmasi di OCMS: request TS kedua diproses sama seperti request pertama. Layar PLUS yang menampilkan detail dan tombol konfirmasi cannot verify from repo.",
+  "recommendation": "Jangan klaim sebagai selesai. Yang ada hanya data TS yang bisa ditarik PLUS; pengiriman detail oleh OCMS pada alur apply dan konfirmasi belum ada di code.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menyusun detail TS yang ada (kode suspensi dan jumlah hari) dan mengirimnya ke PLUS pada response validasi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:1198-1218; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:541-551; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1198",
+      "fit": "Tidak ada code",
+      "detail": "Response validasi hanya {noticeNo, eligible, message} (SuspensionProcessingHelper.java:1198-1218) dan response eksekusi {noticeNo, srNo, success, message} + appCode (SuspensionBaseHelper.java:541-551, SuspensionProcessingController.java:1186-1198). Tidak ada field kode TS lama atau jumlah hari. Dicari dengan grep existing/already/overlap/existingSuspension di ocmsadminapi dan ocmsadminprivateapi (jalur PLUS dan UI) tanpa hasil di alur apply."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Detail TS yang ada (kode, tipe, sumber, due date revival, remarks) tersedia bagi PLUS lewat endpoint baca",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/dto/SuspendedNoticePlusDto.java:12-35; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/suspendednotice/SuspendedNoticeServiceImplPlus.java:42-70; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/plus/notice_management/retrieval/getnotice/mapper/NoticeResponseMapper.java:48-75",
+      "fit": "Sebagian",
+      "detail": "DTO suspended_notice memuat reasonOfSuspension, suspensionType, suspensionSource, dateOfSuspension, dueDateOfRevival, suspensionRemarks. Jumlah hari tidak ada sebagai field; PLUS harus menghitung dari dateOfSuspension dan dueDateOfRevival. /plus-offence-notice memberi reason dan dueDateOfRevival level notice, di mana saat ada beberapa TS reason = TS terbaru sedangkan due date = yang terjauh (TemporarySuspensionHelper.java:104-118), jadi keduanya bisa berasal dari TS berbeda. Ini tarikan oleh PLUS, bukan kiriman OCMS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "User PLUS diberi tahu soal suspension yang ada dan mengonfirmasi tetap menerapkan TS baru",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/TemporarySuspensionHelper.java:68-70; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:485-555",
+      "fit": "Sebagian",
+      "detail": "Di sisi OCMS tidak ada status atau flag konfirmasi: request /plus-apply-suspension yang kedua diproses sama seperti yang pertama, dan TS lama tidak menghalangi (TemporarySuspensionHelper.java:68-70), jadi 'konfirmasi lalu apply' bisa berjalan, hanya tanpa syarat konfirmasi. Layar PLUS yang menampilkan detail dan meminta konfirmasi cannot verify from repo."
+    }
+  ]
+}

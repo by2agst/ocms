@@ -1,0 +1,76 @@
+{
+ "id": "OCMS52.6",
+ "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "On the Owner, Hirer and Driver forms a Redirect button and a confirmation modal appear when the particulars already exist but that person is not the current offender",
+    "id": "Di form Owner, Hirer dan Driver muncul tombol Redirect dan modal konfirmasi kalau particulars sudah ada tetapi orang itu bukan current offender"
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/Notice/hook/useODH.tsx:493-501",
+   "detail": {
+    "en": "The Redirect button renders only when hasParticulars && !isOffender (offenderIndicator not Y) and no other mode is active (lines 493-501). OwnerForm.tsx:438/485, HirerForm.tsx:467/513 and DriverForm.tsx:453/499 all place that button. Clicking it first calls POST staff-furnish/furnish-redirect-check (lines 101-106) and then opens the confirmation \"Do you wish to proceed to Redirect the Notice?\" (lines 150-152, 183-188). Cannot verify from repo: which roles see the Notice form. Review: the flow has two confirmations (useODH.tsx:149-153 and :183-188) and the button is driven by the stored record, not by an ID the officer enters, so \"one confirmation\" is only partly true.",
+    "id": "Tombol Redirect hanya muncul kalau hasParticulars && !isOffender (offenderIndicator bukan Y) dan tidak ada mode lain yang aktif (baris 493-501). OwnerForm.tsx:438/485, HirerForm.tsx:467/513 dan DriverForm.tsx:453/499 semuanya menaruh tombol itu. Klik tombol memanggil dulu POST staff-furnish/furnish-redirect-check (baris 101-106) lalu membuka konfirmasi \"Do you wish to proceed to Redirect the Notice?\" (baris 150-152, 183-188). Cannot verify from repo: role mana yang melihat form Notice. Review: flow-nya punya dua konfirmasi (useODH.tsx:149-153 dan :183-188) dan tombolnya muncul dari record yang tersimpan, bukan dari ID yang diketik officer, jadi \"satu konfirmasi\" hanya sebagian benar."
+   }
+  },
+  {
+   "step": {
+    "en": "On confirm the system finds the target record by notice number, owner/driver indicator and ID number, sets the old current offender to N and the target to Y",
+    "id": "Saat dikonfirmasi sistem mencari record tujuan lewat notice number, owner/driver indicator dan ID number, lalu mengubah current offender lama jadi N dan tujuan jadi Y"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:345-374",
+   "detail": {
+    "en": "The target row is read by (noticeNo, ownerDriverIndicator) (lines 346-350) and the request idNo must equal the stored idNo, otherwise the call fails with \"ID number does not match\" (lines 359-362). updatePreviousOffendersToNonCurrent sets every row that is Y to N (line 371, method at 868), then the target gets offenderIndicator Y (line 374) and is saved and synced to the PII DB (lines 393-394). The service is @Transactional (line 319) but the VON, eVON and PII DBs are separate; atomicity across them cannot be verified from the repo. The call is POST /v1/staff-furnish/staff-redirect (StaffFurnishController.java:146; mapped in api-authorization.properties:79). The controller rejects a request without name or ID type (validateRedirectRequest, lines 443-459), although its javadoc says only noticeNo, indicator and idNo are required.",
+    "id": "Row tujuan dibaca lewat (noticeNo, ownerDriverIndicator) (baris 346-350) dan idNo di request harus sama dengan idNo tersimpan, kalau tidak gagal dengan \"ID number does not match\" (baris 359-362). updatePreviousOffendersToNonCurrent mengubah setiap row yang Y menjadi N (baris 371, method di 868), lalu row tujuan diberi offenderIndicator Y (baris 374) dan disimpan serta disync ke PII DB (baris 393-394). Service ini @Transactional (baris 319) tetapi DB VON, eVON dan PII terpisah; atomicity lintas DB tidak bisa diverifikasi dari repo. Panggilannya POST /v1/staff-furnish/staff-redirect (StaffFurnishController.java:146; dipetakan di api-authorization.properties:79). Controller menolak request tanpa name atau ID type (validateRedirectRequest, baris 443-459), padahal javadoc-nya bilang hanya noticeNo, indicator dan idNo yang wajib."
+   }
+  },
+  {
+   "step": {
+    "en": "A UEN (ID type B or U) is refused as Driver",
+    "id": "UEN (ID type B atau U) ditolak sebagai Driver"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:331-335",
+   "detail": {
+    "en": "If the indicator is D and the request idType is B or U, the call returns \"UEN cannot be a Driver.\" (lines 331-335). The check reads the idType of the request, not the stored one, and the controller makes idType mandatory (StaffFurnishController.java:456-458), so it cannot be skipped by omitting it. It is applied before any row is changed.",
+    "id": "Kalau indicator D dan idType di request B atau U, panggilan mengembalikan \"UEN cannot be a Driver.\" (baris 331-335). Pengecekan memakai idType dari request, bukan yang tersimpan, dan controller mewajibkan idType (StaffFurnishController.java:456-458), jadi tidak bisa dilewati dengan menghilangkannya. Dijalankan sebelum row apa pun diubah."
+   }
+  },
+  {
+   "step": {
+    "en": "The processing stage becomes the first stage of the new party (RD1 for owner or hirer, DN1 for driver), the amount payable is recalculated from the composition amount and the administration fee is set to 0",
+    "id": "Processing stage menjadi stage pertama pihak baru (RD1 untuk owner atau hirer, DN1 untuk driver), amount payable dihitung ulang dari composition amount dan administration fee diset 0"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:402-426",
+   "detail": {
+    "en": "determineNewStage returns RD1 for owner and hirer and DN1 for driver (lines 924-933); the stage is checked against ocms_stage_map (line 405). calculateAmountPayable (AmountPayableCalculationService.java:59-142) adds no fee when the new stage is RD1 or DN1: no rule gives a fee for those targets and the default returns the composition amount (lines 167-170). administrationFee is set to 0 (line 415, OCMS-DF-2026-170), the last/next stage and dates are set (lines 419-424), and the change is synced to eVON (line 426). The next processing date comes from calculateNextProcessingDate (line 418; not read in detail).",
+    "id": "determineNewStage mengembalikan RD1 untuk owner dan hirer dan DN1 untuk driver (baris 924-933); stage dicek terhadap ocms_stage_map (baris 405). calculateAmountPayable (AmountPayableCalculationService.java:59-142) tidak menambah fee kalau stage baru RD1 atau DN1: tidak ada rule yang memberi fee untuk target itu dan default mengembalikan composition amount (baris 167-170). administrationFee diset 0 (baris 415, OCMS-DF-2026-170), last/next stage dan tanggal diisi (baris 419-424), dan perubahan disync ke eVON (baris 426). Next processing date berasal dari calculateNextProcessingDate (baris 418; tidak dibaca detail)."
+   }
+  },
+  {
+   "step": {
+    "en": "TS-HST is re-evaluated: applied if the new offender is on the HST list, revived if the old offender was on the list and the new one is not",
+    "id": "TS-HST dievaluasi ulang: diterapkan kalau offender baru ada di daftar HST, di-revive kalau offender lama ada di daftar dan yang baru tidak"
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/furnish/stafffurnish/services/StaffFurnishService.java:436-447",
+   "detail": {
+    "en": "autoApplyHstIfRequired applies TS-HST to the notice when the new idNo is in the HST table (line 436; method at 839-853). If the old current offender (captured at lines 366-368 before the swap) is HST and the new one is not, hstManagementService.reviveHstForSingleNotice is called (lines 441-447, OCMS-DF-2026-093, Closed). Failures inside autoApplyHstIfRequired are caught inside the method, so the redirect itself still succeeds.",
+    "id": "autoApplyHstIfRequired menerapkan TS-HST ke notice kalau idNo baru ada di tabel HST (baris 436; method di 839-853). Kalau current offender lama (diambil di baris 366-368 sebelum ditukar) HST dan yang baru bukan, hstManagementService.reviveHstForSingleNotice dipanggil (baris 441-447, OCMS-DF-2026-093, Closed). Kegagalan di dalam autoApplyHstIfRequired ditangkap di dalam method, jadi redirect tetap sukses."
+   }
+  }
+ ],
+ "note": {
+  "en": "The whole chain (button, check, confirmation, API, swap, stage, amount, HST) is in code and reachable from the three forms. What the repo cannot prove: the roles allowed to open the forms, atomicity across VON, eVON and PII, and URA expectations (no flow deck). Redirect can also overwrite name, ID type, e-mail, phone and address of the target record in the same call (lines 376-400), so it is not a pure switch; the controller requires name and ID type. The same endpoint is reached by furnish batch code and by the manual-review flow that share the stage and fee reset rules. Closely related stories OCMS41.44 to 41.47 cover checking and recording particulars, not switching to a record that already exists.",
+  "id": "Seluruh rantai (tombol, check, konfirmasi, API, penukaran, stage, amount, HST) ada di code dan bisa dijangkau dari tiga form. Yang tidak bisa dibuktikan repo: role yang boleh membuka form, atomicity lintas VON, eVON dan PII, dan ekspektasi URA (tidak ada flow deck). Redirect juga bisa menimpa name, ID type, e-mail, telepon dan address record tujuan dalam panggilan yang sama (baris 376-400), jadi bukan sekadar pindah; controller mewajibkan name dan ID type. Story terdekat OCMS41.44 sampai 41.47 mencakup pengecekan dan pencatatan particulars, bukan pindah ke record yang sudah ada."
+ },
+ "corrections": [
+  "Acceptance 2 should add: the call also requires name and ID type, and it overwrites the target name, ID type, e-mail, phone and address with what is submitted.",
+  "Acceptance 4: administration fee is reset because of OCMS-DF-2026-170 (a defect fix); URA may see the reset as part of that ticket.",
+  "The controller javadoc \"only noticeNo, ownerDriverIndicator, idNo required\" is wrong; do not quote it.",
+  "Risk 1 stands: OCMS41.44 to 41.47 (Demo paid) and orphans #209 and #73 already touch this flow, so the claim must be limited to the switch of current offender."
+ ]
+}

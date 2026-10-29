@@ -1,0 +1,73 @@
+{
+  "story": "OCMS39.11",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui pages/System/{list/SuspensionReasonList,form/SuspensionReasonForm}.tsx + App.tsx route /system/suspension-reason + utils/constant.ts (SUSPENSION_TYPE); ocmsadminapi crud/ocmsizdb/suspensionreason/{SuspensionReason,SuspensionReasonController,SuspensionReasonServiceImpl} (+OcmsAuthorizationInterceptor, OCMS_SYSTEM_SUSPENSION_REASON), crud/ocmsizdb/standardcode/StandardCodeController, workflows/notice_creation/core/helpers/{PermanentSuspensionHelper,PermanentRevivalHelper,SuspensionBaseHelper,RevivalBaseHelper}; ocmsadminprivateapi utilities/suspension_helpers/{PermanentSuspensionHelper,SuspensionBaseHelper}. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak dipakai",
+  "note": "Status story: Fully paid. Requirement text diberikan. Sibling OCMS39.10 (type TS); story ini untuk type Permanent Suspension (PS) dan revival. Officer memakai halaman Suspension Reason (list, create, edit) untuk menambah kode PS dan revival code (type RV), mengubah deskripsi dan status Active/Defunct, dengan authorization dicek di server (OCMS_SYSTEM_SUSPENSION_REASON). Saat PS diterapkan, kode hanya diterima jika ada baris Active untuk source pemanggil, jadi kode PS baru langsung berlaku tanpa deploy. Kekurangan: daftar revival untuk source PLUS hardcoded (CSR, OTH); stage yang boleh per kode PS hardcoded; daftar kode PS yang memicu refund, dari pembayaran, dan yang menutup pembayaran dibaca dari Standard Code dengan kategori yang tidak bisa dibuat dari UI dan tanpa seed (fail-open untuk penutupan pembayaran jika kosong). Isi baris DB dan role pemegang function: cannot verify from repo. Ticket yang dibaca (OCMS-DF-2026-097, OCMS-DF-2026-173) tidak mengubah penilaian.",
+  "recommendation": "Klaim: maintenance suspension code PS, revival code, alasan dan status berfungsi dan langsung dipakai oleh logic PS dan revival. Catat ke URA: revival PLUS hanya CSR dan OTH (hardcoded), stage per kode PS hardcoded, dan kategori Standard Code PS_REFUND_CODES/CRS_PS_CODES/PS_DISABLE_PAYMENT perlu ada barisnya di DB (tidak ada seed di repo)",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman Suspension Reason dan melihat daftar suspension code Permanent Suspension (PS) dan revival code",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:452-474; ocmsadminui/src/pages/System/list/SuspensionReasonList.tsx:66-79; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonController.java:117-127; ocmsadminapi/src/main/resources/api-authorization.properties:172-174; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/auth/interceptor/OcmsAuthorizationInterceptor.java:57-74",
+      "fit": "Sesuai",
+      "detail": "Route /system/suspension-reason (App.tsx:452-474) memanggil POST /suspensionreasonlist (SuspensionReasonList.tsx:66-79, SuspensionReasonController.java:117-127) dan menampilkan baris type TS, PS dan RV beserta kode, source, deskripsi dan status; filter form diteruskan sebagai parameter sehingga officer bisa menyaring type PS atau RV. Authorization function OCMS_SYSTEM_SUSPENSION_REASON (api-authorization.properties:172-174) dicek di server oleh OcmsAuthorizationInterceptor (OcmsAuthorizationInterceptor.java:57-74). Role pemegang function dan isi baris PS/RV di DB: cannot verify from repo (tidak ada seed SQL)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menambah suspension code PS baru beserta alasannya (reason)",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:68-82; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:125-142; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:185-217; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:229-239; ocmsadminui/src/utils/constant.ts:199-203; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReason.java:25-53; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonController.java:56-83; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonController.java:85-115",
+      "fit": "Sesuai",
+      "detail": "Form create mengirim POST /suspensionreason (SuspensionReasonForm.tsx:68-82) dengan suspensionType PS (konstanta tetap TS/PS/RV, constant.ts:199-203), suspensionSource, reasonOfSuspension (3 karakter), description dan status (SuspensionReasonForm.tsx:125-217; entity SuspensionReason.java:25-53). Untuk type PS field periode revival disembunyikan (SuspensionReasonForm.tsx:229-239) karena PS tidak punya masa berlaku. Duplikat dicek lewat POST /suspensionreasonexists (SuspensionReasonController.java:56-83); POST /suspensionreason sendiri langsung menyimpan (SuspensionReasonController.java:85-115). Kode PS baru langsung bisa dipakai tanpa deploy (lihat langkah 5)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer menambah revival code baru beserta alasannya",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:121; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:157-160; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:185-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonController.java:85-115; ocmsadminui/src/utils/constant.ts:199-203",
+      "fit": "Sesuai",
+      "detail": "Memilih type RV mengubah label form menjadi Revival Source dan Revival Code (SuspensionReasonForm.tsx:121, 157-160, 187-190), lalu disimpan lewat POST /suspensionreason yang sama (SuspensionReasonController.java:85-115). Revival code disimpan sebagai baris type RV di ocms_suspension_reason, bukan tabel terpisah. Sama dengan langkah revival di OCMS39.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengubah deskripsi atau status (Active/Defunct) sebuah kode PS atau revival",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:84-100; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:215; ocmsadminui/src/pages/System/form/SuspensionReasonForm.tsx:241-258; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonController.java:129-190",
+      "fit": "Sesuai",
+      "detail": "Edit memanggil POST /suspensionreasonpatch/{type}/{code}/{source} (SuspensionReasonForm.tsx:84-100). Controller hanya menerima description, noOfDaysForRevival dan status (PATCH_ALLOWED_FIELDS, SuspensionReasonController.java:129-190); type, code dan source terkunci di form (SuspensionReasonForm.tsx:215). Status Active/Defunct lewat toggle (SuspensionReasonForm.tsx:241-258). Tidak ada endpoint delete; menonaktifkan = status Defunct."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat PS diterapkan ke notice, kode hanya diterima jika Active untuk source pemanggil",
+      "repo": "ocmsadminapi, ocmsadminprivateapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:100-103; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:170-175; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-312; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:323-336; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/PermanentSuspensionHelper.java:136-139; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/utilities/suspension_helpers/SuspensionBaseHelper.java:253-293",
+      "fit": "Sesuai",
+      "detail": "processPS memanggil checkSourcePermissionPS (PermanentSuspensionHelper.java:100-103, 170-175) yang query ocms_suspension_reason berdasarkan suspensionType PS, reasonOfSuspension, suspensionSource dan status 'A' (SuspensionBaseHelper.java:294-312); jika tidak ada baris, ditolak dengan 'Source not authorized to use this Suspension Code' (SuspensionBaseHelper.java:323-336). Error saat query dianggap tidak diizinkan (fail-closed). Jalur cron/PLUS di ocmsadminprivateapi memakai pengecekan yang sama (PermanentSuspensionHelper.java:136-139; SuspensionBaseHelper.java:253-293). Jadi kode PS baru langsung bisa dipakai dan kode Defunct otomatis ditolak tanpa deploy. Sama dengan langkah TS di OCMS39.10."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Saat PS di-revive, revival code divalidasi terhadap daftar yang dikonfigurasi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentRevivalHelper.java:132-135; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:74-80; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:84-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/RevivalBaseHelper.java:159-185; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/suspensionreason/SuspensionReasonServiceImpl.java:20-22",
+      "fit": "Sebagian",
+      "detail": "Revive PS memanggil validateRevivalCodeForSource (PermanentRevivalHelper.java:132-135). Untuk source OCMS staff kode revival harus ada di ocms_suspension_reason dengan status A, source OCMS dan type RV (RevivalBaseHelper.java:84-97, 177-183; SuspensionReasonServiceImpl.java:20-22), jadi revival code baru langsung berlaku. Tetapi untuk source PLUS daftarnya hardcoded hanya CSR dan OTH (PLUS_ALLOWED_REVIVAL_CODES, RevivalBaseHelper.java:74-80, 166-172), tidak mengikuti konfigurasi; jika revival source kosong, validasi dilewati (RevivalBaseHelper.java:160-164). Fit sama dengan langkah revival OCMS39.10. Salinan PermanentRevivalHelper di ocmsadminprivateapi tidak punya pemanggil (grep di src/main/java), jadi tidak dihitung."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Perilaku tiap kode PS (stage yang boleh, refund, penutupan pembayaran) mengikuti konfigurasi",
+      "repo": "ocmsadminapi, ocmsadminui",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:81-98; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:121-142; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-278; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:350-356; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:404-409; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-190; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/standardcode/StandardCodeController.java:176-204",
+      "fit": "Sebagian",
+      "detail": "Yang dikonfigurasi: kode PS yang boleh dipasang di notice berbayar dan memicu refund (PS_REFUND_CODES), kode PS dari pembayaran (CRS_PS_CODES) dan kode PS yang menutup pembayaran (PS_DISABLE_PAYMENT) dibaca dari ocms_standard_code (SuspensionBaseHelper.java:121-142), dipakai saat PS diterapkan (PermanentSuspensionHelper.java:180-190; payment_acceptance_allowed='N' di VON SuspensionBaseHelper.java:350-356 dan di eVON :404-409). Yang tetap hardcoded: stage yang boleh per kode PS (ANS, CAN, DIP/MID, RIP/RP2/SCT/SLC, dst; SuspensionBaseHelper.java:81-98, 189-278). Ada catch: kategori Standard Code itu tidak bisa dibuat dari UI (dropdown Reference Code hanya berisi kategori yang sudah ada, StandardCodeController.java:176-204) dan repo tidak punya seed. Di environment baru getPsRefundCodes bisa kosong sehingga PS-APP/CAN/CFA/VST pada notice berbayar ditolak, dan getPsCodesDisablePayment kosong berarti PS yang seharusnya menutup pembayaran tidak menutupnya (fail-open untuk pembayaran). Isi baris asli: cannot verify from repo. Ticket OCMS-DF-2026-097 dan OCMS-DF-2026-173 (Closed, flag payment_acceptance_allowed salah untuk PS-ANS/PS-APP lewat jalur CPS) dibaca; keduanya tidak mengubah fit karena menyangkut jalur CPS, bukan konfigurasi kode."
+    }
+  ]
+}

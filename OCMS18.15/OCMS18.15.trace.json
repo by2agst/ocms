@@ -1,0 +1,73 @@
+{
+  "story": "OCMS18.15",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminapi workflows/notice_creation/core/SuspensionProcessingController (plus-apply-suspension, addAppCodeToResults), helpers/{PermanentSuspensionHelper,SuspensionBaseHelper,SuspensionProcessingHelper}; ocmsadminprivateapi framework/workflows/plus/notice_creation/core/SuspensionProcessingController + utilities/suspension_helpers (salinan kedua). ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak relevan",
+  "note": "Status story 'Demo paid (50% of 75%)'; demo_remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop.' Remark itu soal koneksi DB/deployment dan cannot verify from repo. Pada eksekusi, validasi PS dari PLUS ada dan menghasilkan error per notice: notice tidak ada, kode tidak diizinkan untuk PLUS, stage tidak sesuai (termasuk Court dan aturan per kode), notice berbayar dengan kode non-refund. PLUS menerima array hasil dengan success=false + message + appCode OCMS-4000 (HTTP 200). Semua kegagalan bisnis diberi appCode OCMS-4000 karena createErrorResponse di helper mengabaikan parameter appCode (SuspensionBaseHelper.java:528-535) dan controller menimpa dengan OCMS-4000 (SuspensionProcessingController.java:1186-1199); kode OCMS-4001/4002/4003/4007 yang ditulis helper tidak sampai ke PLUS. Mode dry-run (checking=true) memakai aturan berbeda dari eksekusi. Tiket terkait: OCMS-DF-2026-075 (Closed), OCMS-DF-2026-114 (Closed, PS-CAN/PS-ANS via PLUS).",
+  "recommendation": "Klaim sebagian besar: validasi saat eksekusi dan error message ke PLUS ada. Catat: dry-run tidak sejalan dengan eksekusi dan kode error spesifik tidak sampai ke PLUS; kondisi DB/deployment pada demo cannot verify.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa notice yang diminta ada",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:71-76; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:358-363",
+      "fit": "Sesuai",
+      "detail": "processPS mencari notice di VON; bila tidak ada dibalas success=false 'Invalid Notice Number' (PermanentSuspensionHelper.java:71-76). Mode dry-run sama (SuspensionProcessingHelper.java:358-363)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa kode suspension yang diminta boleh dipakai PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:99-104; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:294-335",
+      "fit": "Sesuai",
+      "detail": "Query ocms_suspension_reason (type PS, reason, source PLUS, status A); tidak ada baris -> 'Source not authorized to use this Suspension Code' (SuspensionBaseHelper.java:294-335, dipanggil PermanentSuspensionHelper.java:99-104). Isi tabel cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa last processing stage notice cocok dengan kode PS (Court ditolak)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:106-111; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:189-279",
+      "fit": "Sesuai",
+      "detail": "checkStageAllowed menolak stage null, CRT/CRC ('Notice is under Court processing') dan stage di luar daftar per kode: ANS ENA/RD1, CAN NPA/ROV/ENA/RD1, DIP/MID tanpa RR3/DR3/CPC/CFC, RIP/RP2/SCT/SLC tanpa CFC, kode lain semua stage umum (SuspensionBaseHelper.java:189-279). Pesan error dikirim ke PLUS lewat message."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS menolak PS pada notice berbayar kecuali kode refund",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:113-117; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:180-192",
+      "fit": "Sesuai",
+      "detail": "validatePaidNotice menolak kode di luar PS_REFUND_CODES pada notice dengan crs_reason_of_suspension terisi: 'Paid/partially paid notices only allow APP, CAN, CFA, or VST' (PermanentSuspensionHelper.java:180-192). Isi PS_REFUND_CODES cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memeriksa PS yang sudah ada pada notice (kode sama, FP/PRA, atau diganti)",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:78-97; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:195-228; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/PermanentSuspensionHelper.java:125-130",
+      "fit": "Sesuai",
+      "detail": "Kode PS sama -> idempotent 'Success Notice already PS' (kecuali re-apply refund untuk notice berbayar, OCMS-DF-2026-075) (PermanentSuspensionHelper.java:78-97). Bila PS lama FP/PRA maka kode baru harus kode refund, jika tidak ditolak (:211-220); selain itu PS lama di-revive lalu diganti (:125-130). reviveOldPS menelan exception sehingga PS baru tetap diterapkan walau revival gagal (:301-304)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Bila PS tidak diizinkan, OCMS mengirim error message ke PLUS",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:546-555; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/SuspensionProcessingController.java:1186-1199; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionBaseHelper.java:528-535",
+      "fit": "Sesuai",
+      "detail": "Tiap kegagalan menjadi {noticeNo, srNo:null, success:false, message} (SuspensionBaseHelper.java:528-535); controller menambah appCode OCMS-2000/OCMS-4000 dan mengembalikan array dengan HTTP 200 (SuspensionProcessingController.java:546-555, 1186-1199). Field wajib kosong dibalas HTTP 400 OCMS-4000 (:503-529). Teks message sampai ke PLUS; kode error spesifik (4001/4002/4003/4007) tidak, semuanya jadi OCMS-4000. Tampilan di UI PLUS cannot verify from repo; demo_remark soal koneksi DB cannot verify."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Mode cek-saja (checking=true) memakai validasi yang sama dengan eksekusi",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:342-458; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:425-429; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:386-406; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_creation/core/helpers/SuspensionProcessingHelper.java:508-535",
+      "fit": "Sebagian",
+      "detail": "Dry-run checking=true memakai aturan yang berbeda dari eksekusi: (a) notice berbayar yang suspension_type-nya bukan PS ditolak dengan pesan 'Unable to TS as one or more Notices has been paid.' tanpa melihat kode refund (SuspensionProcessingHelper.java:425-429), padahal eksekusi mengizinkan APP/CAN/CFA/VST dan khusus kasus OCMS-DF-2026-075 (PermanentSuspensionHelper.java:82-95); (b) stage hanya diperiksa terhadap daftar umum/ROV (SuspensionProcessingHelper.java:508-535), tanpa aturan per kode ANS/CAN/DIP/MID/RIP (SuspensionBaseHelper.java:236-255); (c) bila notice sudah PS dan sumbernya PLUS, cabang Rule 4 langsung return eligible sebelum cek stage (SuspensionProcessingHelper.java:386-406), kecuali aturan CFC/CPC (:578-583). Akibatnya dry-run bisa 'eligible' lalu eksekusi menolak, atau sebaliknya."
+    }
+  ]
+}

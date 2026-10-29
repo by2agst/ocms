@@ -1,0 +1,37 @@
+{
+  "story": "OCMS36.1",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/ManageTemplate/{page/ManageTemplate,list/TemplateList,form/EditTemplateForm,hooks/useAPITemplate}, App.tsx (route enotification), utils/mapping/ManageTemplate/ManageTemplateMap.ts. ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/{OcmsTemplateStoreController,OcmsTemplateStore}, api-authorization.properties. ocmsadminprivateapi crud/ocmsizdb/templatestore/TemplateProcessingService, notification_sms_email/helpers/NotificationSmsEmailHelper, toppan/upload/helpers/AnLetterPdfService. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Demo paid (50% of 75%)'. The story asks for one screen to browse and amend SMS, letter and email templates by stage and notice type. The Manage Template screen exists and works for SMS and Email (list, view, edit, save through templatestorelist/templatestorepatch). There is no tab or menu for Letter templates, so letter templates cannot be browsed from the UI. Search is by the Remarks column only; there is no stage or notice type filter (the stage can only be read from the template name). The cron reads SMS/email templates named {stage}_{channel}_{INDIVIDUAL|COMPANY} and one letter template (AN_LETTER). The count of about 40/40/30 templates is DB content (ocms_template_store); there is no seed SQL in the repo, so cannot verify from repo. Tickets read: OCMS-SR-2026-163 (a user could not delete a template because delete is missing at every layer; does not change the verdict because the story only covers browse and amend), OCMS-DF-2026-004 (template FURNISH_EMAIL_OFFICER_DAILY was missing from the PRD DB script; templates come from DB scripts, not from this screen). OCMS-DF-2026-136 is about the reply template dropdown in the Furnish module, not this screen.",
+  "recommendation": "Claim partially: browsing and amending SMS and Email templates works. Letter templates cannot yet be browsed from the UI and there is no stage/notice type filter. Ask URA whether a Letter list and a stage filter are required for this story",
+  "steps": [
+    {
+      "step": "Officer opens the Manage Template screen",
+      "detail": "Route enotification/manage-template renders ManageTemplate (App.tsx:270-273; ManageTemplate.tsx:24-49). API access is mapped to role OCMS_ENOTIF_MANAGE_TEMPLATE (api-authorization.properties:158); who holds that role in the environment cannot verify from repo."
+    },
+    {
+      "step": "Officer browses the SMS template list",
+      "detail": "Tab 'SMS Templates' loads TemplateList type SMS (ManageTemplate.tsx:39-41), which POSTs templatestorelist with filter templateType[$regex]=sms (TemplateList.tsx:124-131). The controller reads rows from ocms_template_store through service.getAll (OcmsTemplateStoreController.java:120-145). The count of about 40 templates is DB content, cannot verify from repo."
+    },
+    {
+      "step": "Officer browses the email template list",
+      "detail": "Tab 'Email Templates' uses the same component and path as SMS with type EMAIL (ManageTemplate.tsx:42-44; TemplateList.tsx:124-131; OcmsTemplateStoreController.java:120-145). The count of about 30 templates is DB content, cannot verify from repo."
+    },
+    {
+      "step": "Officer browses the letter template list",
+      "detail": "ManageTemplate has only two tabs, SMS and Email (ManageTemplate.tsx:39-44). TemplateList does know type LETTER (TemplateList.tsx:31,105) and the letter edit/create routes exist (App.tsx:283-286), but no tab or menu loads a LETTER list. EditTemplateForm reads location.state without a guard (EditTemplateForm.tsx:228-229), so opening the letter edit URL directly throws an error. The only letter that reads ocms_template_store in the cron is AN_LETTER (AnLetterPdfService.java:22), and no screen shows it."
+    },
+    {
+      "step": "Officer finds templates by processing stage or notice type",
+      "detail": "The search form has only a Remarks field (TemplateList.tsx:49-54, params :82-85); the Template Name filter is commented out (TemplateList.tsx:43-48). There is no stage or notice type filter. The stage can only be read from the template name, because the cron builds the name {stage}_{channel}_{INDIVIDUAL|COMPANY}[_COMBINED] (NotificationSmsEmailHelper.java:468); the notice type is not part of the template name."
+    },
+    {
+      "step": "Officer opens a template and saves an amended version",
+      "detail": "The View button opens the edit form (TemplateList.tsx:108-116,177-187): SMS uses a textarea, Email uses Subject + rich editor (EditTemplateForm.tsx:146-202). The Update button shows a confirmation and then POSTs templatestorepatch/{templateName} (useAPITemplate.tsx:104-110). The backend accepts only remarks, templateType and templateContent, rejects a name change and HTML-escapes remarks (OcmsTemplateStoreController.java:206-208,222-252). Applies to SMS and Email; see the previous step for Letter. The effect on sending is covered in OCMS36.5."
+    },
+    {
+      "step": "Templates are used at the different processing stages",
+      "detail": "The notification cron picks SMS/email templates from ocms_template_store by stage, channel and recipient type (NotificationSmsEmailHelper.java:301-305,468). Email for stages DN1, DN2 and DR3 is skipped with the comment 'no template available' (NotificationSmsEmailHelper.java:313-316). For letters, only one template (AN_LETTER) is read from the store (AnLetterPdfService.java:22,41); no other ocms_template_store read exists in the toppan folder except ToppanReportJob (report email). Whether the cron is actually active on the server cannot verify from repo."
+    }
+  ]
+}

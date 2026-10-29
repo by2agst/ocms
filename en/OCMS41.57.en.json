@@ -1,0 +1,21 @@
+{
+  "story": "OCMS41.57",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminapi workflows/furnish/{manual/helpers/ManualFurnishValidationService.checkExistingParticulars, dto/ExistingParticularsResponse, plusintegration/controllers/PlusIntegrationController, stafffurnish/services/StaffFurnishService.StaffFurnishRequest}, workflows/notice_management/ownerdriver/ownerdriver/{OwnerDriverControllerPlus,OwnerDriverServiceImplPlus} (plus-offence-notice-owner-driver). No outbound client to PLUS in ocmsadminapi, ocmsadminprivateapi, thirdpartyapi, ocmseserviceapi",
+  "note": "Story status: Requirement given - Gen flow. Sheet demo remark: 'PLUS Original - Check API-DB. BE may need rebuild. Latest PLUS DB deployment 20 sept - API not pulling in. Suspect connection to DB drop' (sheet claim). Every PLUS endpoint in the repos is inbound (PLUS calls OCMS). No OCMS code sends an alert to PLUS and there is no PLUS URL/credential configuration. The old particulars content is available through two routes: the ExistingParticularsResponse DTO (staff manual furnish only) and the read API /plus-offence-notice-owner-driver that PLUS pulls itself. The confirmation prompt to the PLUS user lives in the PLUS UI: cannot verify from repo. Endpoint /plus-furnish has no overwrite-confirmation flag (unlike overwriteExisting on the manual path).",
+  "recommendation": "Do not claim as done. PLUS can pull the old particulars through the read API, but OCMS sends no alert and no overwrite-confirmation mechanism exists on the PLUS path. Ask URA whether 'alert' is satisfied by PLUS pulling the data itself.",
+  "steps": [
+    {
+      "step": "OCMS prepares the existing hirer/driver particulars (ID, name, address, phone, email) for the alert",
+      "detail": "The needed content exists: checkExistingParticulars builds ExistingParticularDetail with ownerDriverIndicator, idType, idNo, name, offender indicator, registered_mail address (blk, floor, street, unit, bldg, postal) and tel/email (ManualFurnishValidationService.java:87-118; ExistingParticularsResponse.java:28-46), but it is used only by the staff manual furnish path. For PLUS, owner_driver data with addresses can be pulled via POST /plus-offence-notice-owner-driver (OwnerDriverControllerPlus.java:27-31, OwnerDriverServiceImplPlus.java:38-100); that is a pull by PLUS, not an alert payload built by OCMS. Note: the existing-particulars DTO maps only the registered_mail address; furnished_mail is not included."
+    },
+    {
+      "step": "OCMS sends an alert message with the old particulars to PLUS",
+      "detail": "All PLUS integration in ocmsadminapi is inbound /plus-* endpoints (PlusIntegrationController.java:65, 136, 185; OwnerDriverControllerPlus.java:27, 39). No RestTemplate/WebClient, PLUS URL or credential for outbound messages was found: the PLUS properties are only ocms.plus.key.validation=plus-apim-subscription-key and ocms.plus.key.validation.enabled=false (application-prod.properties:60-61), and no 'plus' match exists in the properties of ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi. The plus-furnish-redirect-check response carries no particulars (PlusIntegrationController.java:80-84). Whether PLUS receives an alert through another channel: cannot verify from repo."
+    },
+    {
+      "step": "The PLUS user is asked to confirm the overwrite before the update continues",
+      "detail": "The prompt to the PLUS user lives in the PLUS UI and is not in the repos: cannot verify from repo. OCMS provides no confirmation mechanism: the /plus-furnish request (StaffFurnishRequest, StaffFurnishService.java:1165-1228) has no confirmation/overwrite field, and plusFurnish calls staffFurnish right after the mandatory-field validation (PlusIntegrationController.java:142-148). Compare the manual path, which rejects with RECORD_EXISTS when overwriteExisting=false (ManualFurnishServiceImpl.java:85-91). So OCMS cannot tell a confirmed request from an unconfirmed one."
+    }
+  ]
+}

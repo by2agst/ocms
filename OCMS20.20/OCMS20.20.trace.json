@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.20",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/hstreport/{services/HstReportServiceImpl,helpers/HstReportHelper,config/HstReportConfig}, framework/schedulers/{DailyReportJobsScheduler,MonthlyReportJobsScheduler}, framework/workflows/agencies/mha/{upload,download} (jalur MHA/DataHive untuk ID HST), cron-schedules-prod.properties, application-prod.properties; ocmsadminapi workflows/reports/system/hst/HstReportController, api-authorization.properties; ocmsadminui pages/Report/lists/ReportListHST.tsx. ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Status 'Requirement given - Gen flow'. Report HST ada, tapi dibuat sebagai bagian siklus bulanan, bukan saat indicator dipasang. HST Monthly Query (1 tiap bulan 08:30) memasukkan semua ID HST ke ocms_adhoc_nro_temp, file enquiry MHA/DataHive membawa ID itu, hasilnya disimpan di ocms_temp_unc_hst_addr, lalu Daily Report job 08:00 memanggil checkAndGenerateReports. Report 'MonthlyHSTDataReport' berisi HST ID, Name, Old Address (HST), New Address (MHA/DataHive), Address Changed, Invalid Address, MHA/DataHive Response Date, dan di-upload ke blob (HstReportServiceImpl.java:258-290); report statistik 'Work Items' dikirim email ke OIC tetapi email.enableSmtp=false di prod dan request email tidak punya source di allowlist, jadi email tidak terkirim di prod. Story menyebut ICA/DOS: yang dipakai code adalah MHA/DataHive; 'DOS' tidak bisa dipastikan dari repo. Report hanya dibuat bila ada hasil baru (hasUnprocessedHstResults). Halaman staff 'HST Reports' (ReportListHST.tsx) membaca kolom (change_in_info, old/new_registered_addres) yang tidak ada di entity OcmsHst, dan dua endpoint ad-hoc /v1/hst/reports/* tidak punya pemanggil di UI. Status cron MHA di server asli cannot verify from repo (OCMS-DF-2026-125 menyebut cron MHA belum dinyalakan di PRD saat itu).",
+  "recommendation": "Klaim sebagian. Isi report (ID, nama, alamat lama, alamat baru, tanggal respons MHA/DataHive) ada di code, tapi bergantung pada siklus MHA/DataHive, email ke OIC tidak terkirim di prod, dan ICA/DOS tidak bisa dikonfirmasi dari repo.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat summary report untuk ID yang sudah diberi indicator",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:152-202; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MonthlyReportJobsScheduler.java:76; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:205-252; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:353-377; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/DailyReportJobsScheduler.java:99; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:255-256; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:275-276",
+      "fit": "Sebagian",
+      "detail": "Report tidak dibuat saat indicator dipasang. Alurnya: Monthly Report job (tgl 1, 08:30) memanggil queueHstIdsForMonthlyCheck yang mengisi ocms_adhoc_nro_temp dengan semua ID HST (HstReportServiceImpl.java:152-202; MonthlyReportJobsScheduler.java:76); file enquiry MHA/DataHive membawa ID itu (MhaNricUploadJob.java:160, MhaNricDownloadJob.java:693); lalu Daily Report job 08:00 memanggil checkAndGenerateReports (DailyReportJobsScheduler.java:99) yang hanya membuat report kalau ada hasil belum diproses (HstReportHelper.java:353-377). cron.dailyreport dan cron.monthlyreport enabled=true di prod (cron-schedules-prod.properties:255-256, 275-276). Status cron MHA di server asli cannot verify from repo (OCMS-DF-2026-125; OCMS-DF-2026-126 membahas ID FIN di antrian)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat data diri offender (ID dan nama)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:381-416; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:449-450",
+      "fit": "Sesuai",
+      "detail": "fetchHstDataWithAddressComparison menggabungkan ocms_hst dengan ocms_temp_unc_hst_addr (HstReportHelper.java:381-416) dan sheet 'HST Address Comparison' mengisi kolom 'HST ID' dan 'Name' (449-450)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat tanggal terakhir OCMS mengecek ke catatan ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:476-483; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/config/HstReportConfig.java:48-59",
+      "fit": "Sebagian",
+      "detail": "Kolom 'MHA/DataHive Response Date' diisi dari response_date_time (HstReportHelper.java:476-483) di report Data Comparison. Report bulanan versi HstReportConfig (10 kolom, HstReportConfig.java:48-59) tidak punya tanggal cek. Sumber yang dipakai MHA/DataHive; bahwa itu sama dengan ICA/DOS di story ini tidak bisa dikonfirmasi: DOS = DataHive/LTA cannot be confirmed from the repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Report memuat alamat terdaftar terakhir yang diketahui",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/helpers/HstReportHelper.java:452-468; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/notice_management/suspension/HstManagementServiceImpl.java:234-295",
+      "fit": "Sesuai",
+      "detail": "Kolom 'Old Address (HST)' berisi alamat di record HST (blk, street, floor-unit, building, postal; HstReportHelper.java:452-459) dan 'New Address (MHA/DataHive)' berisi alamat hasil cek (461-468), plus 'Address Changed' dan 'Invalid Address' (470-476). Alamat di record HST berasal dari alamat mha_reg terbaru di ONOD yang diisi otomatis saat apply (HstManagementServiceImpl.java:234-295)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer memakai report untuk follow up ke ICA/DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:258-290; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/hstreport/services/HstReportServiceImpl.java:338-347; ocmsadminprivateapi/src/main/resources/application-prod.properties:80-81; ocmsadminui/src/pages/Report/lists/ReportListHST.tsx:32-60; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsHst/OcmsHst.java:25-56",
+      "fit": "Sebagian",
+      "detail": "File Excel di-upload ke blob (HstReportServiceImpl.java:258-290). Email Work Items ke OIC tidak membawa source dan email.enableSmtp=false dengan allowlist tanpa source HST di prod (application-prod.properties:80-81), jadi tidak terkirim; daftar penerima juga default hard-coded (baris 44). Halaman staff Report > HST (ReportListHST.tsx:32-60) membaca resource hst dengan kolom change_in_info, hst_cre_date, old/new_registered_addres yang tidak ada di entity OcmsHst (OcmsHst.java:25-56), jadi kolomnya kemungkinan kosong (kemungkinan view DB lain, cannot verify from repo). Endpoint ad-hoc /v1/hst/reports/* (HstReportController.java:41,81) tidak dipanggil dari UI. Tidak ada code yang menghubungkan report ke proses follow up ke instansi."
+    }
+  ]
+}

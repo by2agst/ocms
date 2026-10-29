@@ -1,0 +1,46 @@
+{
+  "story": "OCMS13.3",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui App.tsx (rute /upl/*), utils/data/LinkData.tsx, pages/NoticeUPL/{List/RequestList,List/UPLHistory,Hooks/useEndorsement}, pages/NoticeSearch/list/NoticeValidUPLList, pages/Notice/form/Form.tsx, pages/Dashboard/Dashboard.tsx, utils/mapping/NoticeUPL.ts, utils/constant.ts. ocmsadminapi crud/ocmsizdb/OcmsValidOffenceNotice. Endpoint workitem, approvalinbox dan workflow: tidak ditemukan di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi",
+  "note": "Status 'Requirement given - Gen flow'. Story minta OCMS membuat work item berisi offence information dan offence history yang di-route ke dashboard officer. Di UI memang ada halaman daftar notice UPL (/upl/decision-request) dan tombol Propose yang mem-POST ke resource 'workitem', tetapi: work item dibuat manual oleh officer (bukan otomatis setelah particulars diterima), tidak ada endpoint/entity workitem, approvalinbox, maupun workflow di enam repo (host API yang dipanggil UI, VITE_API_OCMS_HOST, cannot verify from repo), halaman Dashboard kosong, menu UPL dan Work Item di-comment (LinkData.tsx:396-398), dan tab 'UPL History' di-comment (Form.tsx:346-350). Filter 'decision[$ne]=Y' memakai kolom decision yang di backend di-comment (OcmsValidOffenceNotice.java:165-175). Tiket OCMS-SR-2026-193 (Ready to UAT) menulis root cause 'Missing feature. UPL processing logic has not been implemented in OCMS'; OCMS-SR-2026-166 dan -189 adalah patch manual composition amount UPL. Satu hal lagi: notice UPL dibuat dengan next stage DN1 (NoticeProcessingHelper.java:390-411) dan job otomatis memilih DN1 tanpa menunggu keputusan, jadi tidak ada gerbang yang menahan notice sampai officer memutuskan.",
+  "recommendation": "Jangan klaim sebagai selesai. Yang ada hanya daftar notice UPL di halaman yang menunya disembunyikan; work item, history, dan routing ke dashboard tidak ada. Minta tim konfirmasi di repo mana API workitem/approvalinbox/workflow dibangun",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat work item otomatis setelah particulars offender (individu atau owner/partner/director) diterima/di-update",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/Hooks/useEndorsement.tsx:119-121; ocmsadminui/src/utils/mapping/NoticeUPL.ts:172-196; ocmsadminui/src/utils/constant.ts:300-303",
+      "fit": "Tidak ada code",
+      "detail": "Satu-satunya pembuat work item adalah UI: saat officer menekan Propose, onRequestAPI mem-POST ke resource 'workitem' (useEndorsement.tsx:119-121) dengan body MapPostApprovalWorkItem (work_ref 'UPL Endorsement', remark 'UPL Notice Pending Endorsement', allocated_to = user yang login; NoticeUPL.ts:172-196, constant.ts:300-303). Tidak ada controller, entity, repository atau cron untuk workitem/approvalinbox/workflow di ocmsadminapi, ocmsadminprivateapi, ocmseserviceapi, thirdpartyapi (grep tanpa hasil); host API yang dipanggil UI cannot verify from repo. Tidak ada pemicu otomatis setelah particulars diterima/di-update (lihat OCMS13.1 step 3-4). OCMS-SR-2026-193: 'UPL processing logic has not been implemented in OCMS'."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer melihat informasi offence notice UPL yang menunggu keputusan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/App.tsx:84; ocmsadminui/src/pages/NoticeUPL/List/RequestList.tsx:36-40; ocmsadminui/src/pages/NoticeSearch/list/NoticeValidUPLList.tsx:24-60; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNoticeController.java:55; ocmsadminui/src/utils/data/LinkData.tsx:396-398; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsValidOffenceNotice/OcmsValidOffenceNotice.java:165-175",
+      "fit": "Sebagian",
+      "detail": "Halaman /upl/decision-request (App.tsx:84) menampilkan notice tipe U (UPL) berstage NPA (RequestList.tsx:36-40) dengan kolom notice no, tipe, tanggal/jam, tempat, rule code, stage, vehicle no, vehicle type dan current offender (NoticeValidUPLList.tsx:24-60) lewat POST /validoffencenoticelist yang ada di backend (OcmsValidOffenceNoticeController.java:55). Ini daftar notice, bukan work item. Menu UPL di-comment (LinkData.tsx:396-398) sehingga halaman hanya terjangkau lewat URL. Filter 'decision[$ne]=Y' memakai kolom decision yang di backend di-comment (OcmsValidOffenceNotice.java:165-175), jadi efek filter itu cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item memuat offence history offender",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/NoticeUPL/List/UPLHistory.tsx:40-57; ocmsadminui/src/pages/Notice/form/Form.tsx:329-350",
+      "fit": "Tidak ada code",
+      "detail": "Komponen UPLHistory mencari notice UPL lain milik offender yang sama (getNoticesByOD, offender_indicator Y; UPLHistory.tsx:40-57), tetapi satu-satunya tempat pemasangannya, tab 'UPL History' di Form.tsx:346-350, di-comment, dan komponen tidak di-import di halaman lain (grep). Officer tidak punya jalur ke riwayat ini, dan karena work item tidak ada (step 1), riwayat juga tidak ikut di dalamnya."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Work item di-route otomatis ke dashboard officer untuk pengambilan keputusan",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Dashboard/Dashboard.tsx:18-31; ocmsadminui/src/utils/data/LinkData.tsx:170-180; ocmsadminui/src/utils/data/LinkData.tsx:396-398; ocmsadminui/src/App.tsx:76-95",
+      "fit": "Tidak ada code",
+      "detail": "Halaman Dashboard hanya berisi baris kosong (Dashboard.tsx:18-31). Menu Work Items (LinkWorkItem, LinkData.tsx:170-180) di-comment (LinkData.tsx:396-398) dan App.tsx tidak punya rute /work-item (rute UPL hanya di :83-95). allocated_to pada work item diisi user yang membuatnya (NoticeUPL.ts:194), bukan routing ke officer lain; tidak ada alokasi otomatis. Backend untuk work item tidak ada (step 1)."
+    }
+  ]
+}

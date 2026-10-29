@@ -1,0 +1,29 @@
+{
+  "story": "OCMS42.11",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Furnish/{Furnish.ts,API.ts,Form/CompanyParticulars.ts,Form/Particulars.ts}, utils/validation/Furnish/ValidCompany.ts, utils/map/MapFurnish.ts. ocmseserviceapi workflows/spcp/controller/UserInfoController, workflows/furnish/{FurnishSubmissionController,FurnishRequestValidator,FurnishSubmissionServiceImpl}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: not relevant (no company furnish code).",
+  "note": "1-point story, status_with_ura 'Fully paid'. There is no OCMS flow deck, so 'Sesuai' means the code does what the story text says. The company contact number and email fields (cContactNo, cEmail) can be edited and are validated in the UI and on the server, and the amended values are saved with the furnish application. Two catches: (1) for Corppass, MyInfo Business only fills the company name; contact and email are not auto-populated from any source (the real EDH response cannot be verified from the repo). (2) The Company Name field is locked only in the UI (disabled) and the Clear button unlocks it again; the server does not compare ownerName with the session. No maintenance ticket changes the verdict.",
+  "recommendation": "Claim the amend contact number and email part: it works. Record two gaps: MyInfo Business auto-populate only gives the company name, and Company Name can be edited via the Clear button without a server check.",
+  "steps": [
+    {
+      "step": "Company owner has used MyInfo Business and the company particulars are auto-populated",
+      "detail": "The 'Retrieve MyInfo Business' button calls POST userinfo (Furnish.ts:455-457). For Corppass the backend only calls EDH (UserInfoController.java:108-121) and the UI only takes entityName from the result (API.ts:416-422), so only the Company Name is auto-populated (Furnish.ts:211). Contact number and email are not filled from MyInfo Business and must be typed. The real EDH/MyInfo Business response cannot be verified from the repo (external Singpass/Corppass). The same fact is judged in sibling stories OCMS42.10 and OCMS42.12."
+    },
+    {
+      "step": "Only permissible fields can be amended; Company Name cannot be changed",
+      "detail": "The Company Name field is set to disabled (CompanyParticulars.ts:168) and the UEN is not in the form (taken from the session, MapFurnish.ts:57). But the Clear button runs cName.disabled = false (CompanyParticulars.ts:135-136), so the company name can be typed freely. On the server only ownerIdNo and ownerIdType are overwritten from the JWT (FurnishSubmissionController.java:79-84); ownerName from the request is stored as-is (FurnishSubmissionServiceImpl.java:200) and the validator only checks it is not empty (FurnishRequestValidator.java:69-95). So the field lock exists only in the UI and can be bypassed."
+    },
+    {
+      "step": "Company owner amends the company contact number",
+      "detail": "The contact-fields component with keys cContactCode/cContactNo is rendered in the company form and is not disabled, so the number can be amended (CompanyParticulars.ts:84-96, 235). UI validation uses ValidContact type C (ValidCompany.ts:32-40). The server re-checks: a +65 number must be 8 digits starting with 6/8/9, an international number at most 12 digits (FurnishRequestValidator.java:195-220)."
+    },
+    {
+      "step": "Company owner amends the company email address",
+      "detail": "The email-fields component with keys cEmail/cComEmail is rendered and editable (CompanyParticulars.ts:98-108, 237) and validated by ValidEmail type C (ValidCompany.ts:42-48). The server requires the confirmation email to equal the email (validateOwnerEmailConfirmation, FurnishRequestValidator.java:173-190)."
+    },
+    {
+      "step": "The amended values are used in the submission",
+      "detail": "MapFurnish takes ownerTelCode/ownerTelNo/ownerEmailAddr from the edited company fields (cContactNo, cEmail; MapFurnish.ts:56-62, 119-125). The server stores them on the furnish application record (setOwnerTelCode, setOwnerTelNo, setOwnerEmailAddr; FurnishSubmissionServiceImpl.java:202-204), so the latest values are saved, not the MyInfo Business ones."
+    }
+  ]
+}

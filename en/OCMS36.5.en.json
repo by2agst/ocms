@@ -1,0 +1,29 @@
+{
+  "story": "OCMS36.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminui pages/ManageTemplate/{form/EditTemplateForm,hooks/useAPITemplate}, utils/mapping/ManageTemplate/ManageTemplateMap.ts. ocmsadminapi crud/ocmsizdb/OcmsTemplateStore/{OcmsTemplateStoreController,OcmsTemplateStore} (columns: template_name, remarks, template_type, template_content; no effective date column). ocmsadminprivateapi crud/ocmsizdb/templatestore/TemplateProcessingService (in-memory cache), NotificationSmsEmailHelper, AnLetterPdfService. ocmseserviceapi, ocmseserviceui, thirdpartyapi: not relevant",
+  "note": "Status 'Demo paid (50% of 75%)'. Saving SMS/email template changes exists and works (Update -> confirm -> templatestorepatch, which overwrites template_content directly). The option 'take effect immediately or on a specific date' does not exist: the edit form has no effective date field (DateInput/TimeInput are only used for the readonly create/update dates), the patch payload only carries remarks/templateType/templateContent, and the ocms_template_store entity has no effective date or version column, so no scheduling is possible. An extra effect to check: TemplateProcessingService in ocmsadminprivateapi keeps template content in an in-memory cache (ConcurrentHashMap) with no expiry, and clearCache()/refreshTemplate() are not called from anywhere, while editing runs in a different process (ocmsadminapi); as a result the notification and letter crons may keep using the old text until the private API process restarts (Medium confidence: read from code, not tested on a server). Letters cannot be saved from the UI because they are unreachable (see OCMS36.1/36.3). No maintenance ticket concerns template effective dates.",
+  "recommendation": "Claim only the save part for SMS/email. The immediate/specific date option is not built, and a change may not be used by the cron immediately because of the cache. Ask URA to confirm and have the team check the cache behaviour on the server",
+  "steps": [
+    {
+      "step": "Officer saves changes to an SMS or email template",
+      "detail": "The Update button validates the form and shows a confirmation (useAPITemplate.tsx:192-217), then POSTs templatestorepatch/{templateName} (useAPITemplate.tsx:104-110). The backend overwrites template_content and returns UPDATE_SUCCESS (OcmsTemplateStoreController.java:222-256). The template name cannot be changed and templateType is validated as SMS|EMAIL|LETTER (OcmsTemplateStoreController.java:211,230-245)."
+    },
+    {
+      "step": "Officer saves changes to a letter template",
+      "detail": "The generic save path accepts LETTER (ManageTemplateMap.ts:222-227; OcmsTemplateStoreController.java:211), but letter templates cannot be selected from the screen and EditTemplateForm throws an error without state from the list (EditTemplateForm.tsx:228-229; see OCMS36.1 and OCMS36.3). The code exists but the UI path to it does not. Same fit as OCMS36.3 letter text edit step."
+    },
+    {
+      "step": "Officer marks the change to take effect immediately",
+      "detail": "There is no 'immediate' option or flag in the form or the payload. Patch only accepts remarks, templateType and templateContent (OcmsTemplateStoreController.java:206; ManageTemplateMap.ts:218-230). The change is stored in the DB straight away on Update, but that is default behaviour, not an option the officer can mark."
+    },
+    {
+      "step": "Officer sets a start date and time so the new template is scheduled",
+      "detail": "DateInput and TimeInput are imported (EditTemplateForm.tsx:13-19) but only used for the readonly Create Date and Update Date (EditTemplateForm.tsx:118-133). The OcmsTemplateStore entity only has template_name, remarks, template_type, template_content (OcmsTemplateStore.java:31-48), with no effective date or version column, and no job activates a template on a given date (the cron reads templates by name only, NotificationSmsEmailHelper.java:301-305)."
+    },
+    {
+      "step": "The new template is used when sending, as the officer chose",
+      "detail": "On Update, ocms_template_store changes straight away. However TemplateProcessingService reads templates through a ConcurrentHashMap cache that is filled on the first read and never expires (TemplateProcessingService.java:25,54-57,64). clearCache()/refreshTemplate() exist (TemplateProcessingService.java:245-258) but are not called from anywhere in ocmsadminprivateapi or ocmsadminapi (grep), and the notification path uses getAndProcessTemplate (NotificationSmsEmailHelper.java:305). So a cron that already loaded a template may keep using the old text until the process restarts [Medium confidence: read from code, not tested on a server]. The only uncached DB read is the Furnish render (OcmsTemplateStoreServiceImpl.java:67-68). No effective date scheduling exists (previous step)."
+    }
+  ]
+}

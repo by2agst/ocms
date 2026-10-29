@@ -1,0 +1,55 @@
+{
+  "story": "OCMS50.6",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearchResult,PaymentProcess}.ts, Table/{TablePayment,Column}.ts, API.ts (pemilihan fine, getTotal, baris Total Amount Payable); ocmseserviceapi workflows/urapg/service/UraPaymentService (total dihitung ulang dari amount_payable), workflows/parkingfines (flag payable). ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: tidak relevan",
+  "note": "Story minta total amount payable untuk fine yang dipilih dihitung dan ditampilkan. Perhitungan ada di UI: getTotal (TablePayment.ts:52-60) menjumlahkan notice.amount_payable dari baris terpilih dan hasilnya tampil di baris Total Amount Payable (desktop) dan footer card (mobile). Pilihan bertahan antar halaman (PaymentSearchResult.ts:198-208) dan hanya baris payable yang bisa dicentang. Total di UI hanya tampilan: saat bayar, jumlah yang ditagihkan dihitung ulang UraPaymentService dari amount_payable di DB (UraPaymentService.java:148-213), UI tidak mengirim total, dan class itu tidak mengecek payment_acceptance_allowed. Nominal yang sampai ke payment gateway cannot verify from repo. Status sheet 'Demo paid (50% of 75%)' dengan remark PII encryption tidak bisa dibuktikan dari repo; perhitungan total tidak memakai data PII.",
+  "recommendation": "Boleh diklaim untuk perhitungan dan tampilan total di UI. Catat bahwa jumlah tagihan dihitung ulang di server secara terpisah (tipe double) tanpa cek payment_acceptance_allowed, dan nominal ke gateway tidak bisa dibuktikan dari repo",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Offender memilih fine payable di bawah kendaraan yang dicari",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:234-243; ocmseserviceui/src/pages/Payment/API.ts:52",
+      "fit": "Sesuai",
+      "detail": "Checkbox hanya muncul bila bool = data.isSelect === 'Y' && !isInitiated (PaymentSearchResult.ts:243); isSelect = 'Y' hanya kalau paymentAcceptanceAllowed === 'Y' (API.ts:52). Baris non-payable atau yang masih diproses (E10) tidak punya checkbox, hanya ikon info. UnpaidTable yang sama dipakai untuk pencarian vehicle, notice, dan ID. Aturan E10/E11 (5 menit) pernah diperbaiki di OCMS-DF-2026-026 (Closed, Prod deployed)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UI menjumlahkan amount payable dari semua fine yang dipilih",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:52-60; ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:198-208; ocmseserviceui/src/utils/function/FuncFormat.ts:43-45",
+      "fit": "Sesuai",
+      "detail": "getTotal(data) mengambil notice.amount_payable tiap baris terpilih, membuang nilai kosong/0 (.filter(item => item)), menjumlahkan dengan lodash sum, lalu memformat jadi '$ x.xx' (FormatDecimal 2 digit). mergeSelections menggabungkan pilihan halaman aktif dengan pilihan halaman lain (unpaidSelected) sebelum menghitung, jadi total mencakup semua halaman."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Total amount payable ditampilkan ke offender",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:62-93; ocmseserviceui/src/pages/Payment/Table/TablePayment.ts:98-106",
+      "fit": "Sesuai",
+      "detail": "RowTotalAmount menampilkan baris 'Total Amount Payable' beserta nilainya di bawah tabel (desktop); MobileTotal menampilkan footer card yang sama untuk layar kecil. Nilai berasal dari table.total (diisi getTotal) atau fallback getTotal(getData('SELECTED')). Langkah Transaction Summary memakai getTotal lagi (PaymentProcess.ts:123)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Total ikut berubah saat offender mengubah pilihan fine",
+      "repo": "ocmseserviceui",
+      "code_ref": "ocmseserviceui/src/pages/Payment/PaymentSearchResult.ts:210-233",
+      "fit": "Sesuai",
+      "detail": "onSelect dan onSelectAll memanggil mergeSelections yang mengisi ulang table.total (PaymentSearchResult.ts:226-233); restoreSelections mengembalikan centang dan total setelah pindah halaman atau ubah page size (210-223). Tidak ada penghitungan terpisah untuk pencarian vehicle, jadi fakta ini sama dengan kasus ID dan notice."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Jumlah yang ditagihkan sama dengan total yang tampil",
+      "repo": "ocmseserviceapi",
+      "code_ref": "ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:148; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:190-198; ocmseserviceapi/src/main/java/com/ocmseservice/apiservice/workflows/urapg/service/UraPaymentService.java:213; ocmseserviceui/src/pages/Payment/PaymentProcess.ts:123",
+      "fit": "Sebagian",
+      "detail": "Server tidak memakai total dari UI: generateTransaction menjumlahkan sendiri notice.getAmountPayable() dari eVON untuk tiap notice yang dikirim (double totalAmount, :148, :190-198, :213). Kalau data sama, angkanya sama, tetapi tidak ada pembandingan UI vs server, dan UraPaymentService tidak mengecek payment_acceptance_allowed (grep 'acceptance' di file itu: 0 hasil), jadi hanya UI/pencarian yang menahan notice non-payable. Nominal yang diterima payment gateway dan hasil pembulatan double cannot verify from repo."
+    }
+  ]
+}

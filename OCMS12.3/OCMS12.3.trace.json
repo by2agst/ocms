@@ -1,0 +1,46 @@
+{
+  "story": "OCMS12.3",
+  "code_commit": "ocmsadminapi:e6f8cff6, ocmsadminprivateapi:c5a2aa42, ocmsadminui:05f8d7de, ocmseserviceapi:7610c54, ocmseserviceui:bdcdf28, thirdpartyapi:9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/notification_sms_email/{helpers/NotificationSmsEmailHelper (queryRecordsForReminder, batchPreloadContactInfo, refreshContactInfo, validateContactInfo), jobs/NotificationSmsEmailJob}, framework/schedulers/NotificationJobsScheduler, framework/controllers/NotificationSmsEmailController, cron-schedules-{dev,uat,prod}.properties (cron.notification.enabled, cron.enareminder.datahive). ocmsadminapi, ocmsadminui, ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code untuk story ini",
+  "note": "Requirement diberikan di story text (status_with_ura: Demo paid 50% of 75%). Setelah letter RD1, job eNotification (send_ena_reminder) mengambil notice dengan last_processing_stage RD1 sampai DR3, me-refresh mobile/email dari DataHive, lalu memvalidasi kontak. Dua temuan: (1) refresh DataHive diatur cron.enareminder.datahive=false di dev, uat, dan prod, jadi yang dipakai adalah kontak lama di ocms_offence_notice_owner_driver, bukan data terbaru; (2) cron.notification.enabled=false di ketiga environment (prod: 'Disabled in PROD to prevent sending SMS/Email notifications'), job hanya jalan lewat POST /notification-sms-email/execute; tiket OCMS-DF-2026-180 juga menyebut menunggu cron eNotification aktif. Epic OCMS9 tidak ada di repo. Akses Vault/DataHive di environment: cannot verify from repo.",
+  "recommendation": "Klaim sebagian. Logic pengecekan kontak ada, tetapi refresh kontak terbaru (DataHive) dan cron harian dimatikan oleh config di semua environment. Aktifkan dan verifikasi cron.enareminder.datahive dan cron.notification.enabled sebelum klaim penuh.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice yang sudah melewati letter reminder pertama (stage RD1) dipilih untuk reminder elektronik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1076-1164; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/jobs/ToppanUploadJob.java:424-448",
+      "fit": "Sebagian",
+      "detail": "queryRecordsForReminder memilih von.last_processing_stage IN (RD1..DR3) (baris 1114), jatuh tempo dalam ENOTEDAYS (1109), tidak suspended kecuali TS-HST, bukan id di exclusion list (1133) dan bukan kendaraan I/D/V (1151). Prasyarat 'letter sudah dikirim' hanya dilihat dari stage RD1; karena upload Toppan diblokir tapi stage tetap maju (lihat OCMS12.2 langkah 5), stage RD1 tidak membuktikan owner sudah menerima letter."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nomor mobile / email terbaru diambil dari DOS (DataHive) untuk setiap pemilik",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2325-2338; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2461-2488; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:48; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:48; ocmsadminprivateapi/src/main/resources/cron-schedules-dev.properties:48",
+      "fit": "Sebagian",
+      "detail": "batchPreloadContactInfo dan refreshContactInfo memang mengambil kontak Singpass (individu) dan Corppass (company) dari DataHive, tetapi keduanya langsung kembali jika cron.enareminder.datahive bukan 'true' (NH:2329, NH:2468) dan nilainya false di dev, uat, prod (baris 48). Dalam kondisi repo, kontak lama dari owner_driver yang dipakai. Berhasil tidaknya koneksi DataHive/Vault: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Kontak divalidasi: individu wajib punya mobile, company wajib punya email; opt-out dan passport dilewati",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2259-2291; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-243; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:253-267",
+      "fit": "Sesuai",
+      "detail": "validateContactInfo: idType B -> email wajib; selain itu phoneNo wajib (NH:2259-2291). Job membuang owner di ocms_enotification_exclusion_list dan owner passport sebelum SMS disiapkan (NJ:226-243) dan melewati record dengan kontak tidak valid (NJ:253-267). Untuk stage reminder (bukan ENA) record tanpa kontak hanya dilewati, tidak ada fallback."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pengecekan ini berjalan otomatis di batch harian sebelum reminder elektronik dikirim",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/NotificationJobsScheduler.java:42-60; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236-237; ocmsadminprivateapi/src/main/resources/cron-schedules-uat.properties:238; ocmsadminprivateapi/src/main/resources/cron-schedules-dev.properties:239; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/NotificationSmsEmailController.java:38",
+      "fit": "Sebagian",
+      "detail": "NotificationJobsScheduler menjalankan processMainFlow harian pukul 11:00, tetapi hanya bila cron.notification.enabled=true (NS:42-60); nilainya false di prod (cron-schedules-prod.properties:236), uat (238), dev (239). Job tetap bisa dipicu manual lewat POST /notification-sms-email/execute (NC:38). OCMS-DF-2026-180 menyebut menunggu cron eNotification aktif."
+    }
+  ]
+}

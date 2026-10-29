@@ -1,0 +1,55 @@
+{
+  "story": "OCMS11.17",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi (cronservice): notification_sms_email/helpers/NotificationSmsEmailHelper dan jobs/NotificationSmsEmailJob (e-reminder email untuk company); workflows/datahiveuenfin/{services/DataHiveUenFinService,helpers,jobs}; services/datahive/nricFinUenDataRetrieval/{service/DataHiveUENBatchService,dto/UenNoticeData,dto/UENDataResult}; schedulers/MhaDownloadJobsScheduler; cron-schedules-prod.properties. ocmsadminapi, ocmsadminui (Vault/Datahive UEN Detail hanya tampilan), ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code pengiriman UEN.",
+  "note": "Story minta OCMS mengirim UEN company ke 'DOS' supaya owner/partner/director bisa diidentifikasi berdasarkan tanggal offence dan masa appointment. Kata 'DOS' tidak ada di repo; code memakai GovTech DataHive (view ACRA) sebagai sumber, dan apakah itu yang dimaksud DOS: cannot verify from repo. UEN memang dikirim ke DataHive (batch query company, shareholder, board), tetapi query dan DTO pengirim tidak membawa tanggal offence, dan tidak ada langkah yang memilih orang berdasarkan masa appointment. Job DataHive UEN/FIN dimatikan di prod (cron-schedules-prod.properties:52) dan e-reminder company juga mati (cron-schedules-prod.properties:236). Status sheet: Demo paid (50% of 75%); demo_remark menyebut Vault (kredensial DataHive), isi vault: cannot verify from repo. Tidak ada tiket maintenance yang relevan.",
+  "recommendation": "Klaim sebagian kecil. Pengiriman UEN ke DataHive dan pengambilan data board ada, tetapi identifikasi berdasarkan tanggal offence dan masa appointment belum ada, dan job-nya mati di prod. Minta URA konfirmasi apakah DOS = DataHive dan aturan pemilihan director/partner.",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pemilik company menerima e-reminder (email) yang merujuk reminder ke-2, atau sudah opt out",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:656-659; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:2470-2471; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/helpers/NotificationSmsEmailHelper.java:1133; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/notification_sms_email/jobs/NotificationSmsEmailJob.java:226-232; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:236",
+      "fit": "Sebagian",
+      "detail": "Untuk company (id_type B) code hanya memeriksa email dan tidak memakai SMS (NotificationSmsEmailHelper.java:656-659, :2470-2471); opt out dicek lewat ocms_enotification_exclusion_list (:1133, NotificationSmsEmailJob.java:226-232). Job eNotification dimatikan di cron-schedules-prod.properties:236 (juga UAT), jadi di konfigurasi repo e-reminder company tidak berjalan. Fit disamakan dengan OCMS11.16 langkah 1 dan 2."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Notice milik company (UEN) yang jatuh tempo dipilih untuk pengecekan",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:221-248; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:265",
+      "fit": "Sesuai",
+      "detail": "GET_NOTICES_FOR_DATAHIVE_SQL memilih notice stage RD1/RD2/RR3/DN1/DN2/DR3 dengan next_processing_date <= hari ini, suspension_type NULL, vehicle_registration_type <> 'I', id_type F atau B, offender_indicator 'Y', tidak ada di ocms_nro_temp dan bukan HST (DataHiveUenFinService.java:221-248, dipanggil di :265). Company (B) yang akan menerima reminder ikut terpilih; code memilih di semua stage reminder/demand, lebih luas dari story tetapi mencakup RR3."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "UEN company dikirim ke sumber data (DOS) sebagai query",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1024-1031; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:392-407; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UenNoticeData.java:15-27; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/MhaDownloadJobsScheduler.java:103-107; ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties:52",
+      "fit": "Sebagian",
+      "detail": "batchProcessUenRecords membentuk pasangan UEN+noticeNo (DataHiveUenFinService.java:1024-1031) dan batchRetrieveUENData mengirim UEN ke DataHive lewat query IN pada tabel company terdaftar dan de-registered (DataHiveUENBatchService.java:392-407). Tetapi job dilewati bila cron.mhadownload.uenfin.enabled=false (MhaDownloadJobsScheduler.java:103-107), dan nilainya false di prod (cron-schedules-prod.properties:52). Selain itu 'DOS' tidak disebut di repo; DataHive = DOS: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data board dan shareholder company diambil untuk mencari owner/partner/director",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:50-51; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:432-443; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:483-502; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UENDataResult.java:88-101",
+      "fit": "Sebagian",
+      "detail": "Selain data company, code mengambil V_DH_ACRA_SHAREHOLDER_NGZ dan V_DH_ACRA_BOARD_INFO_FULL untuk UEN yang ditemukan (DataHiveUENBatchService.java:50-51, :432-443) dan mem-parse ID orang, kode posisi, tanggal appointment dan withdrawn (:483-502, UENDataResult.BoardInfo :88-101). Hanya ID dan kode posisi yang diambil, tanpa nama atau alamat orang. Fit sama dengan job yang mati di prod (langkah 3)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Owner/partner/director dikenali berdasarkan tanggal offence dan masa appointment",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/service/DataHiveUENBatchService.java:432-442; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/services/datahive/nricFinUenDataRetrieval/dto/UenNoticeData.java:15-27; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1470-1477",
+      "fit": "Tidak ada code",
+      "detail": "Query board hanya WHERE ENTITY_UEN IN (...) tanpa tanggal (DataHiveUENBatchService.java:432-442); UenNoticeData hanya membawa uen dan noticeNo, tanpa tanggal offence (UenNoticeData.java:15-27); dan data board hanya di-log, tidak ditulis ke DB karena updateBoardInfo di-comment (DataHiveUenFinService.java:1470-1477). Tidak ada code yang membandingkan tanggal offence dengan positionAppointmentDate/positionWithdrawnDate; grep director/partner/appointment di enam repo hanya menemukan field DTO dan update board yang tidak dipanggil."
+    }
+  ]
+}

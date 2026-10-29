@@ -1,0 +1,55 @@
+{
+  "story": "OCMS39.9",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminui utils/Meta/System.ts (ATOMS_OFFENCE tanpa Route di App.tsx), pages/System/{list/ParameterList,form/ParameterForm}.tsx; ocmsadminapi crud/ocmsizdb/OcmsChangeOfProcessing/{AmountPayableCalculationService,ChangeOfProcessingService,ChangeOfProcessingController}, crud/ocmsizdb/parameter/ParameterController, workflows/cas_integration/{CasIntegrationController,service/CasIntegrationServiceImpl}, config/WebConfig; ocmsadminprivateapi framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper (RR3/DR3 -> CPC tanpa SUR). ocmseserviceapi, ocmseserviceui, thirdpartyapi: atoms_flag hanya dibaca untuk pembayaran, tidak ada konfigurasi",
+  "note": "Status story: Demo paid (50% of 75%). Requirement text diberikan. Tidak ada layar ATOMS (menu 'Atoms Offence' terdaftar di Meta tanpa Route). Yang ada: nominal tambahan court disimpan sebagai parameter SUR per stage dan dipakai rumus composition + SUR saat stage diubah ke CPC/CSD/CSR/COS/COM (ticket OCMS-SR-2026-107, closed, prod deployed), dan nominal court juga bisa dikirim sistem luar lewat /plus-payment-activation. Kekurangan: setelah payment due date court summons lewat hanya ada job yang menutup penerimaan pembayaran (payment_acceptance_allowed='N') dan job itu tidak terjadwal (pemanggilan di scheduler dikomentari), tidak ada perubahan nominal otomatis; jalur otomatis Toppan tidak menambah SUR; istilah ATOMS di kode hanya flag Y/N. Baris SUR di DB dan identitas sistem pemanggil (State Courts/CAS): cannot verify from repo.",
+  "recommendation": "Klaim sebagian kecil: rumus $X + composition di court stage ada dan nominal X bisa diubah lewat halaman Parameter. Layar ATOMS tidak ada dan pemicu setelah due date lewat hanya menutup pembayaran (job tidak terjadwal); jangan klaim sebagai fitur penuh. Konfirmasi dengan URA apa yang didemokan dan siapa yang memicu perpindahan ke court stage",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer membuka halaman konfigurasi ATOMS amount payable untuk court processing stage",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/utils/Meta/System.ts:17; ocmsadminui/src/utils/Meta/System.ts:51; ocmsadminui/src/utils/Meta/System.ts:143-146; ocmsadminui/src/App.tsx:375-500",
+      "fit": "Tidak ada code",
+      "detail": "System.ts mendefinisikan ATOMS_OFFENCE ('Atoms Offence', path /system/atoms-offence, System.ts:17, 51, 143-146), tetapi App.tsx:375-500 tidak mendaftarkan Route-nya (hanya parameter, standardcode, computer-rule-code, suspension-reason, schedule-public-holiday), jadi tidak ada layar. Kata ATOMS di kode hanya muncul sebagai flag atoms_flag Y/N pada notice dan transaksi (OcmsValidOffenceNotice.java:156-157, OcmsWebTransactionDetail.java:44-45), tidak ada entity atau endpoint konfigurasi ATOMS. Synonym yang dicari: atoms, court amount, surcharge, State Courts di UI dan API. Nominal tambahan court bisa diatur lewat halaman generik Parameter (langkah 2)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Officer mengatur nominal tambahan ($X) untuk court stage",
+      "repo": "ocmsadminui, ocmsadminapi",
+      "code_ref": "ocmsadminui/src/App.tsx:377-399; ocmsadminui/src/pages/System/form/ParameterForm.tsx:72-82; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/parameter/ParameterController.java:90-134; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/AmountPayableCalculationService.java:39-41; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/AmountPayableCalculationService.java:251-263",
+      "fit": "Sebagian",
+      "detail": "Nominal tambahan disimpan sebagai parameter SUR per stage (parameter_id='SUR', code=CPC/CSD/CSR/COS/COM, AmountPayableCalculationService.java:39-41, 199-209) dan bisa diubah lewat halaman generik Parameter (App.tsx:377-399, ParameterForm.tsx:72-82; PATCH hanya description dan value, ParameterController.java:90-134), dengan authorization OCMS_SYSTEM_PARAMETER. Tidak ada layar yang menyebut ATOMS atau State Courts, tidak ada validasi angka (ValidParameter.ts:46 hanya wajib isi; nilai non-angka menghasilkan NumberFormatException yang ditelan dan surcharge dilewati, AmountPayableCalculationService.java:231-233). Baris SUR per stage di DB: cannot verify from repo. Ticket OCMS-SR-2026-107 (closed, prod deployed) menambahkan surcharge di court stage."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Pada court processing stage, amount payable = $X + composition amount",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/AmountPayableCalculationService.java:97-109; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/AmountPayableCalculationService.java:121-124; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/AmountPayableCalculationService.java:199-209; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/beans/SystemConstant.java:105-107; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1003-1010; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:1016-1027; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:47",
+      "fit": "Sesuai",
+      "detail": "Saat stage berubah ke CPC, CSD, CSR, COS atau COM (SystemConstant.java:105-107), calculateAmountPayable mengembalikan composition amount + surcharge SUR stage tujuan (AmountPayableCalculationService.java:121-124, 199-209); CFC dikecualikan. ChangeOfProcessingService menerapkannya pada POST /change-processing-stage: amount_payable di-set (ChangeOfProcessingService.java:1003-1010) dan surcharge disimpan juga di kolom VON surcharge (ChangeOfProcessingService.java:1016-1027). Perhitungan yang sama dipakai di furnish staff dan manual (StaffFurnishService.java:245, 409; ManualFurnishServiceImpl.java:459). Jika baris SUR tidak ada, hasilnya diam-diam hanya composition amount dengan log error (AmountPayableCalculationService.java:201-205)."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nominal court baru berlaku otomatis setelah payment due date court summons lewat",
+      "repo": "ocmsadminprivateapi, ocmsadminapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/services/PaymentAcceptanceCutoffServiceImpl.java:51-95; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/OcmsCourtCase/OcmsCourtCaseRepository.java:13-19; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:123; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/paymentcutoff/controllers/PaymentAcceptanceCutoffController.java:28-48; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:803-823; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1390-1423; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/upload/helpers/ToppanUploadHelper.java:1815-1819",
+      "fit": "Sebagian",
+      "detail": "Pemicu setelah due date ada tetapi hanya menutup pembayaran, bukan mengubah nominal: PaymentAcceptanceCutoffServiceImpl mengambil notice yang court_payment_due_date <= sekarang (OcmsCourtCaseRepository.java:13-19) lalu set payment_acceptance_allowed='N' di VON (PaymentAcceptanceCutoffServiceImpl.java:55, 79-82); tidak ada perubahan amount_payable atau stage. Job itu juga tidak terjadwal: pemanggilannya di ToppanUploadJobsScheduler.java:123 dikomentari, hanya jalan lewat trigger manual POST /payment-acceptance-cutoff/execute (PaymentAcceptanceCutoffController.java:28-48). courtPaymentDueDate diisi dari /plus-payment-activation (CasIntegrationServiceImpl.java:803-823). Tidak ada cron yang memindahkan notice ke court stage setelah due date; jalur otomatis Toppan RR3/DR3 mengisi next stage CPC (ToppanUploadHelper.java:1815-1819) tetapi menulis amount_payable = composition (+ admin fee) tanpa SUR (ToppanUploadHelper.java:1390-1423). Perhitungan SUR hanya jalan saat staff mengubah stage atau lewat furnish (langkah 3). Nilai property pada server asli: cannot verify from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Nominal yang ditetapkan State Courts diterima OCMS sebagai amount payable",
+      "repo": "ocmsadminapi",
+      "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/CasIntegrationController.java:220-221; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/cas_integration/service/CasIntegrationServiceImpl.java:762-835; ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/config/WebConfig.java:78-91",
+      "fit": "Sebagian",
+      "detail": "POST /plus-payment-activation (CasIntegrationController.java:220-221) menerima amountPayable, paymentAcceptanceAllowed dan courtPaymentDueDate per notice (maks 10) lalu meng-update VON dan eVON (CasIntegrationServiceImpl.java:762-835), jadi nominal court memang bisa ditetapkan dari luar OCMS. Tetapi ini nilai kiriman sistem pemanggil, bukan konfigurasi officer dan tidak dicek terhadap fine amount + composition amount. Endpoint /v1/plus-* dikecualikan dari interceptor authorization (WebConfig.java:78-91) dan JwtFilter; proteksinya bergantung pada APIM yang tidak terlihat di repo. Bahwa pemanggilnya adalah sistem State Courts/CAS: cannot verify from repo."
+    }
+  ]
+}

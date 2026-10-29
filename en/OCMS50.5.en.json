@@ -1,0 +1,29 @@
+{
+  "story": "OCMS50.5",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmseserviceui pages/Payment/{PaymentSearch,PaymentSearchResult,API}.ts, pages/Payment/Table/{Column,TablePayment}.ts. ocmseserviceapi workflows/parkingfines/{ParkingFinesController,ParkingFinesServiceImplement}, dto/{ParkingFinesDTO,IdNumberSearchResponseDTO,SearchParkingNoticeDTO}. ocmsadminapi, ocmsadminprivateapi, ocmsadminui, thirdpartyapi: no related code",
+  "note": "The result table, selection checkboxes and selected total exist. The Date of Offence column only shows for Vehicle Number and Notice Number searches; for the login-based (ID Number) search the column is replaced by Place of Offence and Offence, although the backend already sends the date field (noticeDateAndTime in IdNumberSearchResponseDTO). Amount is only shown for payable notices, otherwise '-'. The demo remark says PII encryption on the internet side prevented fetching offender particulars: this limits the ID search in that environment and cannot verify from repo. Ticket OCMS-SR-2026-158 (label Rule Code changed to Offence) was used as a hint.",
+  "recommendation": "Claim the fines table, notice selection and total. State that Date of Offence is not shown in ID (login) search results; if URA treats it as required, that step stays Sebagian.",
+  "steps": [
+    {
+      "step": "After the search, the page lists the outstanding fines for the chosen input (ID, vehicle number, or notice number)",
+      "detail": "onSearch chooses the path per input (login: filter 'outstanding'; Vehicle/Notice tabs: direct result), fills outstandingData, then InitPayment/InitPaymentSPCPUnpaid shows UnpaidTable; when empty InitNonPayment. For the ID search, PII data in the real environment cannot verify from repo (demo remark: PII encryption)."
+    },
+    {
+      "step": "Each row shows the date of offence",
+      "detail": "ColNoticeDate (Date of Offence) exists only in the vehicle/notice searchType branch. For searchType 'id' (Singpass/Corppass login), ColumnsSPCPUnpaid and ColumnsUnpaid use Notice Number, Vehicle Number, Place of Offence, Offence, Status, Amount, with no date, although IdNumberSearchResponseDTO already carries noticeDateAndTime. Ticket OCMS-SR-2026-158 changed the label Rule Code to Offence."
+    },
+    {
+      "step": "Each row shows the vehicle number",
+      "detail": "ColVehicleNo (key notice.vehicle_no) is in every column layout (id, vehicle, notice), filled from fine.vehicleNo in mapToMatrix."
+    },
+    {
+      "step": "Each row shows the amount payable when the notice can be paid, and a notice that cannot be paid shows its status message",
+      "detail": "ColAmountUnpaid shows amount_payable only when isSelect='Y' and it is not E10 (being processed); otherwise '-'. onShowCheckbox hides the checkbox and shows an info icon that opens a modal with the eserviceMessage (e.g. E4/E5/E10/E11). The message texts in the database cannot verify from repo."
+    },
+    {
+      "step": "The offender selects one or more fines to pay and sees the selected total",
+      "detail": "The table uses checkboxes, selections across pages are merged in mergeSelections and kept in unpaidSelected, and the total comes from getTotal (sum of the selected amount_payable). The pay button becomes active only after a selection and a payment mode. The payment process is judged in OCMS50.3."
+    }
+  ]
+}

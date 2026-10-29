@@ -1,0 +1,49 @@
+{
+  "story": "OCMS41.6",
+  "flow_ref": "User story (not in any OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/{schedulers/SyncInternetIntranetJobsScheduler, workflows/furnish_processing/{services/FurnishProcessingService, helpers/FurnishSyncHelper, helpers/FurnishApprovalHelper}}, crud/{ocmsizdb/OcmsFurnishApplication, ocmspiiezdb/EocmsFurnishApplication}, crud/beans/SystemConstant, resources/cron-schedules-prod.properties; downstream: framework/schedulers/ToppanUploadJobsScheduler. ocmseserviceapi workflows/furnish/FurnishSubmissionServiceImpl (only creates the initial submission with status P, is_sync N). ocmsadminapi, ocmsadminui, ocmseserviceui, thirdpartyapi: not involved in the automatic update",
+  "note": "Status Demo paid (50% of 75%); demo: cron enabled, then Internet-Intranet sync. The code proves the main flow: the Furnish Processing cron (prod every 10 minutes, enabled=true) copies submissions from Internet to Intranet, runs 6 checks, and for those that pass replaces the current offender with the new hirer/driver (Intranet ONOD, furnished_mail address, stage RD1/DN1, NPD) and syncs stage and amount to eVON. Not complete: the Internet ONOD only holds ID, name and role (no email, telephone, address), and the reminder follow-up 'per Appendix B' is only the stage assignment; the Appendix B content is not in the repo and reminder letter generation depends on other jobs (the Toppan generate-letter cron call is commented out, manual trigger only). Edge case: Phase 2 only processes records synced in the same run; a record that throws is already is_sync Y, so it is not reprocessed automatically and stays status P (it shows up in the manual list). Tickets used: OCMS-DF-2026-073 (ROV/ROV stage pair furnishable, already in code), OCMS-DF-2026-170 (admin fee reset when the stage moves to RD1/DN1, already in code). Real server property values cannot verify from repo.",
+  "recommendation": "Can be claimed for the auto-update flow (8 of 10 steps Sesuai). Note two gaps: the Internet ONOD is incomplete (no email, telephone, address) and the Appendix B reminder follow-up cannot be proven from the repo.",
+  "steps": [
+    {
+      "step": "The Furnish Processing cron runs automatically every 10 minutes (cron enabled)",
+      "detail": "The scheduler uses @Scheduled(cron=${cron.syncinternetintranet.schedule}) with ShedLock and stops when enabled=false (SyncInternetIntranetJobsScheduler.java:47-57); executeSyncInternetIntranetJobs runs furnishProcessingJob as the first job (line 67). cron-schedules-prod.properties:305-306 sets schedule '0 */10 * * * ?' and enabled=true, job.1 = Furnish Processing (line 312). The real server value cannot verify from repo."
+    },
+    {
+      "step": "Hirer/driver submissions from the Online Customer Portal (Internet DB) are copied to the Intranet DB together with the supporting documents",
+      "detail": "Phase 1 reads eocms_furnish_application with is_sync='N' (FurnishProcessingService.java:85), copies hirer/driver data, address, contact, owner and status into ocms_furnish_application (FurnishSyncHelper.java:179-246) and the documents with is_sync='N' into ocms_furnish_application_doc (89-145), then marks is_sync='Y' (FurnishProcessingService.java:104). The initial submission is created by eService with status P and is_sync N (ocmseserviceapi FurnishSubmissionServiceImpl.java:210-211)."
+    },
+    {
+      "step": "Only submissions that pass all auto-approval checks go on to the automatic update",
+      "detail": "Per record, runValidationChecks runs 6 checks in order: active PS, HST ID, FIN/Passport, furnishable stage, existing offender, prior submission (FurnishApprovalHelper.java:199-220). Only when all pass is executeApproval called (FurnishProcessingService.java:167-170); otherwise executeManualReview (171-175). The furnishable stage pairs are in SystemConstant.java:237-244 (including ROV|ROV, from OCMS-DF-2026-073). The content of each check is judged in story 41.5. Because CHECK 2 rejects HST IDs (helper:283-291), the TS-HST branch in executeApproval (464-485) is probably not reachable on this path (conclusion from reading the code, not executed). Edge case: Phase 2 only processes records synced in the same run (FurnishProcessingService.java:54-59); a record that throws (143-147) is already is_sync='Y', is not reprocessed automatically and stays status P without a reason."
+    },
+    {
+      "step": "The old current offender is deactivated (offender_indicator Y to N) in Intranet and Internet",
+      "detail": "switchOffenderIndicator changes offender_indicator from Y to N on the notice ONOD in Intranet (lines 720-724) and on the same ONOD row in Internet when it exists (729-738); if the Internet ONOD is not found it only logs a warning (742-745)."
+    },
+    {
+      "step": "A new hirer/driver record is created in Intranet with ID, name, email, telephone, and marked as current offender",
+      "detail": "The new ONOD holds noticeNo, owner_driver_indicator (H/D) from the submission, id_type, id_no, name, email_addr, tel code/no, offender_indicator='Y' and audit user ocmsiz_app_conn (FurnishApprovalHelper.java:549-563), saved through offenderService.save."
+    },
+    {
+      "step": "The furnished mailing address is saved as the active letter address and the old offender's letter address is released",
+      "detail": "processFurnishedAddress inserts an ONOD_ADDR of type 'furnished_mail' (blk, floor, street, unit, building, postal code) with letter_address='Y' (lines 624-637) and clears letter_address='Y' of the previous offender (607-621). Intranet only. OCMS-DF-2026-024 (old offender address not deleted on overwrite) names three other paths (staff furnish, bulk furnish, OIC manual approval), not this cron."
+    },
+    {
+      "step": "The notice stage moves to RD1 (hirer) or DN1 (driver) and the next processing date is calculated",
+      "detail": "changeProcessingStage: H becomes RD1, D becomes DN1 (lines 648-653); the old stage is kept in prev_processing_stage/date (660-661); last and next processing stage = new stage (664-666); NPD = the later of notice date + 7 days and tomorrow 00:00 (678-684); administration_fee is zeroed and amount_payable reset to the composition amount (672-675, OCMS-DF-2026-170); saved through noticeService.save (686). RD1/DN1 are hard-coded; the match with Appendix B of Annex 1A cannot verify from repo."
+    },
+    {
+      "step": "The new hirer/driver is also recorded in the Internet DB (ONOD) so the portal side stays consistent",
+      "detail": "The Internet ONOD is created with noticeNo, role, id_type, id_no, name and offender_indicator='Y' (FurnishApprovalHelper.java:569-580), but the email and telephone set in Intranet (556-558) are not copied, and no furnished_mail address is created in Internet because processFurnishedAddress only uses the Intranet onodAddrService (593-641). Whether the portal needs those fields: cannot verify from repo. The scheduled Intranet to Internet sync (cron.syncintranetinternet enabled=true every 10 minutes, cron-schedules-prod.properties:291-292) may complete them; not traced in this story."
+    },
+    {
+      "step": "The notice stage and amount are synced to eVON so the notice is available in eService for payment",
+      "detail": "After the Intranet save, eVON is loaded by notice no, then last and next processing stage are set to the new stage and amount_payable = composition amount, user ocmsiz_app_conn (FurnishApprovalHelper.java:692-703). If eVON does not exist it only logs a warning and skips (707-708). eVON is written directly by this cron."
+    },
+    {
+      "step": "OCMS follows up with notice reminders per the Appendix B workflow of Annex 1A",
+      "detail": "In this story's code only the stage and NPD are set (step 7); reminder letters are produced by other jobs. ToppanUploadJobsScheduler calls generate letters only in a comment (ToppanUploadJobsScheduler.java:118), so the daily letter generation only runs through the manual trigger POST /toppan/generate-letters (ToppanUnifiedController.java:34-40). The Appendix B content is not in the repo: cannot verify from repo."
+    }
+  ]
+}

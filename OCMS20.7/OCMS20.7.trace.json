@@ -1,0 +1,55 @@
+{
+  "story": "OCMS20.7",
+  "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+  "flow_ref": "User story (tidak ada di flow deck OCMS)",
+  "code_summary": "ocmsadminprivateapi workflows/datahiveuenfin (DataHiveUenFinService), schedulers/ToppanUploadJobsScheduler, controllers/ToppanUnifiedController, application-prod.properties; ocmsadminui pages/Vault/Datahive/DirectorDetail.tsx. Tidak ada code yang memilih owner/partner/director sebagai penerima reminder. ocmsadminapi (selain antrean unclaimed), ocmseserviceapi, ocmseserviceui, thirdpartyapi: tidak ada code terkait",
+  "note": "Story minta OCMS mengalihkan reminder ke individu owner/director/partner (lewat PDF/data file ke vendor) setelah menerima particulars dari DOS. Tidak ditemukan code yang menjadikan shareholder atau board member sebagai penerima: tabel ocms_dh_acra_shareholder_info/board_info hanya ditulis oleh job DataHive dan dibaca tab Vault staff portal (grep ShareholderInfo/BoardInfo di luar crud). Yang ada hanya mekanisme generik pembuatan letter Toppan, yang mengambil penerima dari alamat letter yang sudah ada dan bukan dari hasil DOS. Cron day-end tidak membuat letter (executeJob di-comment) dan SFTP Toppan dimatikan di prod properties. DOS = DataHive cannot be confirmed from repo. Maintenance ticket: OCMS-DF-2026-192 (masih terbuka, mengurangi step letter). Status story: Requirement given - Gen flow.",
+  "recommendation": "Jangan klaim penuh. Yang terbukti hanya pembuatan letter Toppan generik; pemilihan individu owner/director/partner sebagai penerima baru tidak ada",
+  "steps": [
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS sudah memegang particulars owner/partner/director dari DOS",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1469-1477",
+      "fit": "Sebagian",
+      "detail": "Sama dengan OCMS20.6 langkah 4: shareholder disimpan (DataHiveUenFinService.java:1442-1448), board tidak karena penulisannya dimatikan (OCMS-DEV-2026-231, :1469-1477), dan baris adhoc unclaimed tidak menyimpan keduanya. DOS = DataHive cannot be confirmed from repo."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS memilih individu yang sah pada tanggal offence sebagai penerima reminder",
+      "repo": "ocmsadminui",
+      "code_ref": "ocmsadminui/src/pages/Vault/Datahive/DirectorDetail.tsx:31-47; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448",
+      "fit": "Tidak ada code",
+      "detail": "Tidak ada logic yang memilih shareholder atau board member sebagai penerima. Pemakai ShareholderInfo/BoardInfo di luar paket crud hanya DataHiveUenFinService, DataHiveUENServiceImpl, DataHiveUENBatchService, DTO UENDataResult, dan model/tab Vault di ocmsadminui (DirectorDetail.tsx:31-47 hanya menampilkan field). Tidak ada pencocokan dengan tanggal offence."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "Data penerima reminder dialihkan ke individu itu (ID dan alamat surat)",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1410; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/datahiveuenfin/services/DataHiveUenFinService.java:1442-1448",
+      "fit": "Tidak ada code",
+      "detail": "Jalur DataHive hanya memperbarui nama perusahaan pada ONOD (updateCompanyName, DataHiveUenFinService.java:1410) dan menyimpan alamat perusahaan; tidak ada code yang membuat atau mengubah record owner/driver dengan ID dan alamat shareholder/director, atau menandai alamat itu sebagai letter address."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "OCMS membuat file PDF/data reminder untuk vendor cetak",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java:118; ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/controllers/ToppanUnifiedController.java:34",
+      "fit": "Sebagian",
+      "detail": "Mekanisme letter Toppan generik ada, tetapi tidak terkait pengalihan ke individu dan tidak jalan otomatis. Pembuatan letter oleh cron day-end tidak berjalan: pemanggilan toppanLettersGeneratorService.executeJob() di-comment (ToppanUploadJobsScheduler.java:118), letter hanya lewat trigger manual POST /toppan/generate-letters (ToppanUnifiedController.java:34); ticket OCMS-DF-2026-192 (job manual gagal di produksi, status Ready to UAT) masih terbuka. Gap: letter dibuat untuk penerima yang sudah tercatat di alamat letter, bukan hasil DOS."
+    },
+    {
+      "flow_file": "User story (tidak ada di flow deck)",
+      "slide": "",
+      "step": "File dikirim ke vendor untuk cetak dan pos supaya individu mendapat informasi denda",
+      "repo": "ocmsadminprivateapi",
+      "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:86",
+      "fit": "Sebagian",
+      "detail": "sftp.upload.disabledServers=toppan di application-prod.properties:86, jadi upload SFTP ke Toppan dimatikan di prod; gate delivery dilewati dan stage tetap maju tanpa delivery (OCMS-DF-2026-192); nilai server asli cannot verify from repo. Kode upload ke Toppan ada, tetapi pengiriman nyata di prod tidak bisa dibuktikan dari repo."
+    }
+  ]
+}

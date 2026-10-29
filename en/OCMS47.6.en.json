@@ -1,0 +1,33 @@
+{
+  "story": "OCMS47.6",
+  "flow_ref": "User story (not in the OCMS flow deck)",
+  "code_summary": "ocmsadminprivateapi framework/workflows/paymentReport/{jobs/PaymentExceptionReportJob,helpers/PaymentExceptionReportHelper,jobs/DailyPaidReportJob,helpers/DailyPaidReportHelper}, framework/schedulers/DailyReportJobsScheduler, crud/ocmsizdb/OcmsRefundNotices; ocmsadminapi crud/ocmsizdb/OcmsRefundNotice. ocmseserviceapi, ocmseserviceui, ocmsadminui, thirdpartyapi: tidak ada code refund reminder atau bank account",
+  "note": "Status 'No requirement' (no requirement given); traced from the story text. The story asks for an automatic report on unclaimed refunds (customer did not give valid bank account details after the 2nd reminder) with the number of reminders sent. The code has no refund reminder flow, bank account link, unclaimed status or reminder count: table ocms_refund_notice only keeps refund data (ID, receipt, amount, reason, suspension) with no bank/reminder/status column. What exists is a generic daily report (Payment Exception Report and Daily Paid Report) that lists all refunds created yesterday and emails them; this is a general mechanism, not an unclaimed-refund report. The 'Unclaimed Batch Data' report in DailyReportJobsScheduler is for undelivered letters, not refunds. Tickets used: OCMS-SR-2026-112/190 (refund columns and logic in the exception report); OCMS-DF-2026-085..090/127 concern the Unclaimed reminder for letters, not refunds. Whether the email recipients are 'Finance' and the real SMTP values on the server: cannot verify from repo.",
+  "recommendation": "Claim only a small part: the generic daily refund report exists. The core features (2nd reminder, bank account link, unclaimed status, reminder count) have no code and must not be claimed as done.",
+  "steps": [
+    {
+      "step": "Customer receives the 2nd reminder containing a link to provide bank account details",
+      "detail": "Table ocms_refund_notice only has refund_notice_id, receipt_no, notice_no, pp_code, amount_paid/payable, suspension_type, EPR/CRS reason, refund_amount, refund_reason (OcmsRefundNotices.java:27-58); no reminder, sent-date or bank column. grep for refund/reminder/bank account across the six repos: no refund reminder job or letter; grep 'refund' in ocmseserviceapi, ocmseserviceui, thirdpartyapi = 0 hits."
+    },
+    {
+      "step": "Customer submits valid bank account details through the link within the given period",
+      "detail": "ocmseserviceui routes are only payment, payment/processing, payment/success, payment/failure, furnish-particulars (route.ts:15-42). No page, endpoint or table to receive bank account details in ocmseserviceapi or ocmsadminapi."
+    },
+    {
+      "step": "OCMS identifies unclaimed refunds (no valid bank account after the 2nd reminder and the period has passed)",
+      "detail": "No status, flag or date for unclaimed refunds in the entity (OcmsRefundNotices.java:27-58) or in the report query (PaymentExceptionReportHelper.java:123-141 only filters cre_date = report date). No job computes the period after the 2nd reminder."
+    },
+    {
+      "step": "OCMS automatically generates a downloadable refund report",
+      "detail": "Daily Report Job runs at 08:00 with cron.dailyreport.enabled=true (cron-schedules-prod.properties:255-256) and runs the Payment Exception Report (DailyReportJobsScheduler.java:96). The job builds an Excel (PaymentExceptionReportJob.java:151) with refunds from ocms_refund_notice where cre_date = yesterday (PaymentExceptionReportHelper.java:123-141; columns Refund Date/Time, Refund ID, Refund Reason at :527-529). This lists all new refunds, not unclaimed ones, so Sebagian. Tickets OCMS-SR-2026-112 and OCMS-SR-2026-190 shaped these refund columns/logic; OCMS-SR-2026-157 (extra columns) was closed and merged into 112."
+    },
+    {
+      "step": "The report shows the number of reminders sent",
+      "detail": "Exception report Excel columns: S/N, Transaction Date/Time, Exception Type, Notice No., PP Code, Receipt No., Transaction ID, Payment Channel, Amount Paid, CRS Reason, EPR Reason, Refund Date/Time, Refund ID, Refund Reason (PaymentExceptionReportHelper.java:527-529). No reminder-count column; the data is not stored either."
+    },
+    {
+      "step": "Officer sends the report to Finance for follow-up",
+      "detail": "The report is emailed automatically as an .xlsx attachment to the email.report.paymentreport.exception.recipients list (PaymentExceptionReportJob.java:201-213; application-prod.properties:78), which holds individual @ura.gov.sg addresses. Whether the recipients are Finance: cannot verify from repo. email.enableSmtp=false (application-prod.properties:80) but PAYMENT_EXCEPTION_REPORT is in email.smtp.allowedSources (:81), so EmailService still sends (EmailService.java:65-67); the real server value cannot verify from repo. A manual send by the officer to Finance is not in the code."
+    }
+  ]
+}
