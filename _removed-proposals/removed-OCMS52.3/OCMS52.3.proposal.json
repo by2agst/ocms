@@ -1,0 +1,89 @@
+{
+ "id": "OCMS52.3",
+ "code_commit": "ocmsadminapi e6f8cff6, ocmsadminprivateapi c5a2aa42, ocmsadminui 05f8d7de, ocmseserviceapi 7610c54, ocmseserviceui bdcdf28, thirdpartyapi 9c22a24",
+ "steps": [
+  {
+   "step": {
+    "en": "The staff menu has a 'Cron' entry that opens the /cron page.",
+    "id": "Menu staff punya entry 'Cron' yang membuka halaman /cron."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminui/src/utils/data/LinkData.tsx:391",
+   "detail": {
+    "en": "LinkData.tsx:391 pushes LinkCron into the menu; its label and path come from MetaCron.INDEX (Meta/Cron.ts:1-12: title 'Cron', path '/cron'). App.tsx:319 routes path 'cron' to Cron.CronList. The staff API path /v1/cron is mapped to the permission OCMS_CRON (api-authorization.properties:187), checked by OcmsAuthorizationInterceptor on every path except the public list in WebConfig.java:81-89. Which staff roles hold OCMS_CRON in a real environment cannot be verified from the repo.",
+    "id": "LinkData.tsx:391 mem-push LinkCron ke menu; label dan path-nya dari MetaCron.INDEX (Meta/Cron.ts:1-12: title 'Cron', path '/cron'). App.tsx:319 mengarahkan path 'cron' ke Cron.CronList. Path staff API /v1/cron dipetakan ke permission OCMS_CRON (api-authorization.properties:187), dicek oleh OcmsAuthorizationInterceptor untuk semua path kecuali daftar publik di WebConfig.java:81-89. Role staff mana yang punya OCMS_CRON di environment asli tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "The page lists the back-office jobs (LTA, MHA, Toppan, ENA, Job Report, DataHive, Batch Sync, Sync Transaction Data, paid and exception report e-mails, RIP report, Furnish Sync, HST monthly, Auto Revival, REP/CES upload, CES download, Unclaimed Report, vHub), each with a trigger button.",
+    "id": "Halaman menampilkan daftar job back-office (LTA, MHA, Toppan, ENA, Job Report, DataHive, Batch Sync, Sync Transaction Data, e-mail report paid dan exception, RIP report, Furnish Sync, HST monthly, Auto Revival, REP/CES upload, CES download, Unclaimed Report, vHub), masing-masing dengan tombol trigger."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:41-67",
+   "detail": {
+    "en": "cronDatas (line 41-67) has 27 rows, each with cronName, description and an endpoint cron/<job>/trigger; the Datagrid (line 376-390, pagination=false) renders each with an action cell that runs onRunCron. The 27 rows are: LTA Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement, ENA Reminder/Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, Daily/Monthly Paid, Daily/Monthly Exception report e-mails, Daily RIP Hirer/Driver report, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload/Download, Unclaimed Report, vHub End-Day/Download/Summary Report. There is NO REP download row, so 'REP/CES upload and download' in the acceptance list is too wide (REP upload only). Fit changed from Sesuai to Sebagian after review: the page does not list every job named in the step (no REP download row), and in the prod properties Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off, so several listed jobs do part of nothing there (application-prod.properties:80,86-87).",
+    "id": "cronDatas (line 41-67) berisi 27 baris, tiap baris punya cronName, description dan endpoint cron/<job>/trigger; Datagrid (line 376-390, pagination=false) menampilkan tiap baris dengan action cell yang menjalankan onRunCron. 27 baris itu: LTA Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement, ENA Reminder/Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, e-mail report Daily/Monthly Paid, Daily/Monthly Exception, report Daily RIP Hirer/Driver, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload/Download, Unclaimed Report, vHub End-Day/Download/Summary Report. TIDAK ada baris REP download, jadi 'REP/CES upload and download' di acceptance list terlalu luas (hanya REP upload). Fit diubah dari Sesuai ke Sebagian setelah review: halaman tidak menampilkan semua job yang disebut di step (tidak ada baris REP download), dan di prod properties upload SFTP Toppan (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) dan SMS (sms.enable=false) dimatikan, jadi beberapa job di daftar hanya mengerjakan sebagian atau tidak sama sekali di sana (application-prod.properties:80,86-87)."
+   }
+  },
+  {
+   "step": {
+    "en": "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier through CronProxyController and CronProxyService.",
+    "id": "Klik mengirim POST cron/<job>/trigger ke staff API, yang meneruskannya ke cron tier lewat CronProxyController dan CronProxyService."
+   },
+   "fit": "Sesuai",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java:88-136",
+   "detail": {
+    "en": "onRunCron (CronList.tsx:258-325) POSTs the row endpoint and treats 200, 202, gateway timeouts and no response as 'triggered'; a definite error shows 'Error triggering ...'. Every one of the 27 UI endpoints has a @PostMapping in CronProxyController (class mapping /${api.version}/cron, line 21), which calls CronProxyService; proxyCronJob (line 88-136) POSTs to cronBaseUrl + path with header X-Triggered-User-Id (the logged-in user), turns a read timeout into a success response, and returns 500 when the cron tier cannot be reached. I checked that the cron-tier targets exist in ocmsadminprivateapi (for example AutoRevivalController /trigger, CombinedSchedulerTriggerController /rep-upload/trigger, DailyPaidReportController /execute, UnclaimedReportController /execute). Protection: JwtFilter.isPublicEndpoint (JwtFilter.java:164-181) does not list /v1/cron, so a valid JWT is required, plus the OCMS_CRON path check; the 'open endpoint' risk written in new_stories.json does not hold for the staff API. Whether the cron tier itself is reachable only from the intranet cannot be verified from the repo.",
+    "id": "onRunCron (CronList.tsx:258-325) melakukan POST ke endpoint baris dan menganggap 200, 202, gateway timeout dan tanpa respons sebagai 'triggered'; error yang pasti memunculkan 'Error triggering ...'. Setiap dari 27 endpoint UI punya @PostMapping di CronProxyController (class mapping /${api.version}/cron, line 21), yang memanggil CronProxyService; proxyCronJob (line 88-136) melakukan POST ke cronBaseUrl + path dengan header X-Triggered-User-Id (user yang login), mengubah read timeout jadi respons sukses, dan mengembalikan 500 kalau cron tier tidak terjangkau. Saya cek target di cron tier ada di ocmsadminprivateapi (misalnya AutoRevivalController /trigger, CombinedSchedulerTriggerController /rep-upload/trigger, DailyPaidReportController /execute, UnclaimedReportController /execute). Proteksi: JwtFilter.isPublicEndpoint (JwtFilter.java:164-181) tidak memuat /v1/cron, jadi JWT valid wajib, ditambah cek path OCMS_CRON; risiko 'endpoint terbuka' di new_stories.json tidak berlaku untuk staff API. Apakah cron tier sendiri hanya bisa dijangkau dari intranet tidak bisa diverifikasi dari repo."
+   }
+  },
+  {
+   "step": {
+    "en": "The triggered job really runs in the production configuration, so an officer can re-run a job that did not run or failed.",
+    "id": "Job yang di-trigger benar-benar jalan di konfigurasi production, jadi officer bisa menjalankan ulang job yang tidak jalan atau gagal."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminprivateapi/src/main/resources/application-prod.properties:80-87",
+   "detail": {
+    "en": "The prod properties file switches off parts of what some triggers do: sftp.upload.disabledServers=toppan (line 86; SftpConfig.java:144 and ComcryptUploadProcessor.java:207 block the SFTP upload, ToppanUploadJob.java:419-426 then skips delivery confirmation), email.enableSmtp=false (line 80) and sms.enable=false (line 87). This affects at least the Toppan triggers, and, as far as the property is read, the report e-mail and ENA triggers; I did not trace every one of the 27 jobs against these flags. The real server values cannot be verified from the repo. Also, each job's own logic belongs to other stories; this step only says the button reaches a job, not that the job result is right. Ticket OCMS-DF-2026-061 (Closed, Prod deployed) fixed a timer that ran forever after the LTA VRLS Result cron completed.",
+    "id": "File properties prod mematikan sebagian dari yang dikerjakan beberapa trigger: sftp.upload.disabledServers=toppan (line 86; SftpConfig.java:144 dan ComcryptUploadProcessor.java:207 memblokir upload SFTP, ToppanUploadJob.java:419-426 lalu melewati konfirmasi delivery), email.enableSmtp=false (line 80) dan sms.enable=false (line 87). Ini mempengaruhi minimal trigger Toppan, dan, sejauh property itu dibaca, trigger e-mail report dan ENA; saya tidak menelusuri semua 27 job terhadap flag ini. Nilai asli di server tidak bisa diverifikasi dari repo. Selain itu logika tiap job milik story lain; step ini hanya bilang tombolnya sampai ke job, bukan hasil job benar. Ticket OCMS-DF-2026-061 (Closed, Prod deployed) memperbaiki timer yang jalan terus setelah cron LTA VRLS Result selesai."
+   }
+  },
+  {
+   "step": {
+    "en": "The page polls POST cron/job-status?key=<key> and shows Running with elapsed time, Completed or Failed, with a dismiss button.",
+    "id": "Halaman polling POST cron/job-status?key=<key> dan menampilkan Running dengan waktu berjalan, Completed atau Failed, dengan tombol dismiss."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:85-100",
+   "detail": {
+    "en": "STATUS_ENDPOINT_MAP (line 85-100) maps only 14 of the 27 jobs to a status key (LTA x2, MHA x2, Toppan x2, DataHive, 4 report e-mails, Auto Revival, CES upload/download). The other 13 (ENA Reminder and Retry, Job Report, Batch Sync, Sync Transaction Data, Monthly Exception report, Furnish Sync, HST monthly, REP upload, Unclaimed Report, vHub x3) only show a purple 'Triggered' badge for 30 seconds (line 102, 300-320) and the message 'check server logs'. For the 14, startPolling (line 189-256) POSTs cron/job-status?key=<key>&since=<trigger time> every 5 s with a 1 hour timeout; StatusBadge shows 'Running <elapsed>', 'Done' or 'Failed' and the dismiss button 'x' appears only for finished states (line 122), not while running. The cron tier (CronJobStatusController.java:144-200) resolves the key through an allowlist of 15 keys to the latest ocms_batch_job row (run_status NULL = R, S, F); no row yet is reported as R. For lta-enquiry and mha-enquiry 'S' is held back until the SFTP outcome tag appears (line 104). So the user story's 'see whether it is running, completed or failed' holds for about half of the jobs.",
+    "id": "STATUS_ENDPOINT_MAP (line 85-100) hanya memetakan 14 dari 27 job ke status key (LTA x2, MHA x2, Toppan x2, DataHive, 4 e-mail report, Auto Revival, CES upload/download). 13 sisanya (ENA x2, Job Report, Batch Sync, Sync Transaction Data, Monthly Exception, Furnish Sync, HST monthly, REP upload, Unclaimed, vHub x3) hanya menampilkan badge ungu 'Triggered' selama 30 detik (line 102, 300-320) dan pesan 'check server logs'. Untuk yang 14, startPolling (line 189-256) POST cron/job-status?key=<key>&since=<waktu trigger> tiap 5 detik dengan timeout 1 jam; StatusBadge menampilkan 'Running <elapsed>', 'Done' atau 'Failed' dan tombol dismiss 'x' hanya muncul untuk status selesai (line 122), tidak saat running. Cron tier (CronJobStatusController.java:144-200) mengubah key lewat allowlist 15 key ke baris ocms_batch_job terbaru (run_status NULL = R, S, F); belum ada baris dilaporkan sebagai R. Untuk lta-enquiry dan mha-enquiry 'S' ditahan sampai tag hasil SFTP muncul (line 104). Jadi 'see whether it is running, completed or failed' di user story berlaku untuk sekitar separuh job."
+   }
+  },
+  {
+   "step": {
+    "en": "Several jobs can run at the same time, each with its own status tag.",
+    "id": "Beberapa job bisa jalan bersamaan, masing-masing dengan status tag sendiri."
+   },
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminui/src/pages/Cron/list/CronList.tsx:155-160",
+   "detail": {
+    "en": "cronStates is a Record keyed by endpoint (line 155) and the poll, elapsed and timeout timers are kept per endpoint in three ref maps (line 158-160), so one job does not cancel another; a blue banner shows '<n> cron jobs are currently running' when more than one is active (line 337, 366-372). This is the UI side only. Whether the cron tier lets the same or different jobs overlap is decided by each job (ShedLock names, DB locks) and was not traced here. Sebagian: only the UI side is shown; whether the cron tier lets the jobs run in parallel was not traced, so 'can run at the same time' is not proved.",
+    "id": "cronStates berupa Record dengan key endpoint (line 155) dan timer poll, elapsed dan timeout disimpan per endpoint di tiga ref map (line 158-160), jadi satu job tidak membatalkan job lain; banner biru menampilkan '<n> cron jobs are currently running' kalau lebih dari satu aktif (line 337, 366-372). Ini hanya sisi UI. Apakah cron tier mengizinkan job yang sama atau berbeda tumpang tindih ditentukan tiap job (nama ShedLock, lock DB) dan tidak ditelusuri di sini. Sebagian: hanya sisi UI yang terbukti; apakah cron tier membolehkan job jalan paralel tidak ditelusuri, jadi 'bisa jalan bersamaan' tidak terbukti."
+   }
+  }
+ ],
+ "note": {
+  "en": "The screen, the 27 trigger buttons, the proxy chain to the cron tier and the per-job status tags are built. Gaps: only 14 of 27 jobs have live status (the rest show a 30-second 'Triggered' badge); there is no REP download row; and prod properties switch off SFTP upload for Toppan, SMTP and SMS, so some triggers do less in prod (real values cannot be verified from the repo). The staff API path is protected by JWT and the OCMS_CRON mapping, so the open-endpoint risk in new_stories.json is not supported; the cron tier's own network protection is not visible in the repo. No URA document asks for this screen; ticket OCMS-DF-2026-061 only shows it is in use. This overlaps with orphans 54 (CronProxy for eNotification) and 178 (vHub), and the manual trigger of Auto Revival is also part of OCMS52.1, so the parent should claim the screen once.",
+  "id": "Layar, 27 tombol trigger, rantai proxy ke cron tier dan status tag per job sudah dibangun. Gap: hanya 14 dari 27 job punya status live (sisanya badge 'Triggered' 30 detik); tidak ada baris REP download; dan properties prod mematikan SFTP upload Toppan, SMTP dan SMS, jadi sebagian trigger melakukan lebih sedikit di prod (nilai asli tidak bisa diverifikasi dari repo). Path staff API dilindungi JWT dan mapping OCMS_CRON, jadi risiko endpoint terbuka di new_stories.json tidak terbukti; proteksi jaringan cron tier sendiri tidak terlihat di repo. Tidak ada dokumen URA yang meminta layar ini; ticket OCMS-DF-2026-061 hanya menunjukkan layar ini dipakai. Ada irisan dengan orphan 54 (CronProxy untuk eNotification) dan 178 (vHub), dan trigger manual Auto Revival juga bagian dari OCMS52.1, jadi parent sebaiknya mengklaim layar ini sekali saja."
+ },
+ "corrections": [
+  "Acceptance 2: 'REP/CES upload and download' is too wide. The page has REP upload and CES upload/download, but no REP download row (CronList.tsx:41-67).",
+  "Acceptance 4 / user story: status polling exists for 14 of the 27 jobs only (CronList.tsx:85-100); the other 13 show a 30-second 'Triggered' badge. The sentence 'see whether it is running, completed or failed' should say 'for jobs that record progress'.",
+  "Risks: 'cron trigger paths may skip JwtFilter' is not true for the staff API. JwtFilter.isPublicEndpoint does not list /v1/cron, and OcmsAuthorizationInterceptor requires the OCMS_CRON path mapping (JwtFilter.java:164-181, api-authorization.properties:187). Only the cron tier's own network protection cannot be verified.",
+  "Evidence list: CronProxyController.java:33 is only the first trigger mapping (LTA enquiry), the class mapping is at line 21 and the job-status mapping at line 337; CronProxyService.java:461 is the job-status forward URL (getCronJobStatus), the generic trigger forwarding is proxyCronJob at line 88.",
+  "Demo step 3: 'Job Report' has no live status tag (it is not in STATUS_ENDPOINT_MAP); use a report e-mail job or Auto Revival to show Running then Completed/Failed."
+ ]
+}

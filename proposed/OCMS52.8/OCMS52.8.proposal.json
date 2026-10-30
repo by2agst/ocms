@@ -4,85 +4,84 @@
  "steps": [
   {
    "step": {
-    "en": "Manage Template list has a 'Create Template' button for each type (SMS, EMAIL, LETTER) that opens /enotification/create-template/<type>",
-    "id": "List Manage Template punya tombol 'Create Template' untuk tiap type (SMS, EMAIL, LETTER) yang membuka /enotification/create-template/<type>"
+    "en": "After a batch with at least one success, the system builds an Excel report of all stage changes of the day",
+    "id": "Setelah batch dengan minimal satu sukses, sistem membuat report Excel berisi semua perubahan stage hari itu"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx:118-120",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:139-155",
    "detail": {
-    "en": "onCreate navigates to `/enotification/create-template/${lwType}` (lines 118-120) and the button 'Create Template' calls it (lines 137-141). App.tsx:288-301 defines the three routes email, sms and letter, each rendering CreateTemplateForm with the matching type. The button is not wrapped in hasFunction; the only gate is the server mapping OCMS_ENOTIF_MANAGE_TEMPLATE / OCMS_ENOTIF_CREATE_*_TEMPLATE in api-authorization.properties:158-163, which has create entries for EMAIL and SMS but none for LETTER (LETTER relies on OCMS_ENOTIF_MANAGE_TEMPLATE). Which roles hold these functions cannot be verified from the repo.",
-    "id": "onCreate pindah ke `/enotification/create-template/${lwType}` (line 118-120) dan tombol 'Create Template' memanggilnya (line 136-140). App.tsx:288-301 mendefinisikan tiga route email, sms dan letter, masing-masing merender CreateTemplateForm dengan type yang sesuai. Tombolnya tidak dibungkus hasFunction; satu-satunya gate adalah mapping di server OCMS_ENOTIF_MANAGE_TEMPLATE / OCMS_ENOTIF_CREATE_*_TEMPLATE di api-authorization.properties:158-163, yang punya entry create untuk EMAIL dan SMS tapi tidak untuk LETTER (LETTER bergantung pada OCMS_ENOTIF_MANAGE_TEMPLATE). Role mana yang memegang function itu cannot be verified from repo."
+    "en": "ChangeOfProcessingService runs the block only when succeeded > 0. It loads cpsRepository.findByDateOfChange(today) (all change records of today, from every officer and batch) and calls reportGenerationService.generateChangeStageReport, which builds an .xlsx (sheet 'Change Processing Stage Report', one retry) and uploads it to blob path reports/change-stage/ChangeStageReport_<yyyyMMdd_HHmmss>_<userId>.xlsx (ReportGenerationService.java:61, 140-185). Ticket OCMS-DF-2026-095 (Closed) fixed the current-offender content of this report; it shows the report is used.",
+    "id": "ChangeOfProcessingService menjalankan blok ini hanya kalau succeeded > 0. Isinya cpsRepository.findByDateOfChange(today) (semua change record hari ini, dari semua officer dan batch) lalu generateChangeStageReport yang membuat .xlsx (sheet 'Change Processing Stage Report', retry sekali) dan upload ke blob path reports/change-stage/ChangeStageReport_<yyyyMMdd_HHmmss>_<userId>.xlsx (ReportGenerationService.java:61, 140-185). Ticket OCMS-DF-2026-095 (Closed) memperbaiki isi current offender di report ini; ini menunjukkan report dipakai."
    }
   },
   {
    "step": {
-    "en": "The form takes Template Name and the template body and saves with POST templatestore, with the Template Type taken from the tab",
-    "id": "Form menerima Template Name dan isi template lalu menyimpan lewat POST templatestore, dengan Template Type diambil dari tab"
+    "en": "The batch response returns a download link valid for 24 hours; if report generation fails, the batch still succeeds",
+    "id": "Response batch mengembalikan link download berlaku 24 jam; kalau pembuatan report gagal, batch tetap sukses"
    },
    "fit": "Sebagian",
-   "code_ref": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx:104-111",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:148-160",
    "detail": {
-    "en": "CreateTemplateForm.tsx:93-100 has Template Name (max 64) and Remarks, plus the body (TextArea for SMS; Subject and editor for EMAIL and LETTER). MapAPIManageTemplate (ManageTemplateMap.ts:208-230) upper-cases the name in CREATE mode and sets templateType from the tab. The hook POSTs to endpoint 'templatestore' in CREATE mode. The user does not type the Template Type and the UI does not add the _SMS/_EMAIL/_LETTER suffix; the officer must type it (client rule in ValidManageTemplate.ts:36-40 only checks that the name contains the type). Review: the officer must type the _SMS/_EMAIL/_LETTER suffix himself or herself and a duplicate name silently overwrites an existing template (BaseImplement.java:131, no exists check), so saving is only partly as described.",
-    "id": "CreateTemplateForm.tsx:93-100 punya Template Name (maks 64) dan Remarks, plus isi template (TextArea untuk SMS; Subject dan editor untuk EMAIL dan LETTER). MapAPIManageTemplate (ManageTemplateMap.ts:208-230) mengubah nama jadi huruf besar di mode CREATE dan mengisi templateType dari tab. Hook melakukan POST ke endpoint 'templatestore' di mode CREATE. User tidak mengetik Template Type dan UI tidak menambah suffix _SMS/_EMAIL/_LETTER; officer harus mengetiknya sendiri (rule di client ValidManageTemplate.ts:36-40 hanya cek nama mengandung type). Review: officer harus mengetik sendiri suffix _SMS/_EMAIL/_LETTER dan nama yang sudah ada menimpa template lama tanpa pemberitahuan (BaseImplement.java:131, tidak ada cek exists), jadi penyimpanan hanya sebagian sesuai deskripsi."
+    "en": "Failure handling is as stated: the report block is wrapped in try/catch, the exception is only logged ('Don't fail the entire operation') and reportInfo stays null. The 24 hours is not enforced: expiresAt = now + 24h (line 153) is just a field in the response. The 'url' is a plain blob path, not a signed (SAS) link, and the download endpoint (ChangeOfProcessingController.java:422-480) never checks any expiry. Whether the blob is deleted after 24 hours (storage lifecycle policy) cannot be verified from the repo. CPSForm.tsx:298-300 downloads the file automatically right after save using only the file name.",
+    "id": "Penanganan gagal sesuai: blok report dibungkus try/catch, exception hanya di-log ('Don't fail the entire operation') dan reportInfo tetap null. Masa 24 jam tidak ditegakkan: expiresAt = now + 24h (baris 153) cuma field di response. 'url' adalah blob path biasa, bukan link bertanda tangan (SAS), dan endpoint download (ChangeOfProcessingController.java:422-480) tidak pernah mengecek expiry. Apakah blob dihapus setelah 24 jam (storage lifecycle policy) cannot verify from repo. CPSForm.tsx:298-300 mendownload file otomatis setelah save, hanya pakai nama file."
    }
   },
   {
    "step": {
-    "en": "Backend rejects a Template Type that is not SMS, EMAIL or LETTER",
-    "id": "Backend menolak Template Type selain SMS, EMAIL atau LETTER"
+    "en": "POST /v1/change-processing-stage/reports lists the reports for a date range, maximum 90 days",
+    "id": "POST /v1/change-processing-stage/reports menampilkan daftar report untuk rentang tanggal, maksimal 90 hari"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:99-103",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:285-405",
    "detail": {
-    "en": "validateTemplateKeyFields throws IllegalArgumentException('Invalid Template Type. Must be SMS, EMAIL or LETTER') when the type is null or does not match ^(SMS|EMAIL|LETTER)$ (pattern at line 211). The create method turns it into HTTP 400 with appCode INVALID_INPUT (lines 75-80).",
-    "id": "validateTemplateKeyFields melempar IllegalArgumentException('Invalid Template Type. Must be SMS, EMAIL or LETTER') kalau type null atau tidak cocok ^(SMS|EMAIL|LETTER)$ (pattern di line 211). Method create mengubahnya jadi HTTP 400 dengan appCode INVALID_INPUT (line 75-80)."
+    "en": "The endpoint requires startDate and endDate, rejects a range over 90 days (line 302) or an end date before the start date, groups the change records by date and lists the blobs with the prefix reports/change-stage/ChangeStageReport_<yyyyMMdd> from Azure Blob (line 358), paged and sorted by date descending. Behaviour to note: a date only appears if it has change records in the database; reportDate, generatedBy and noticeCount are per date, so two report files on the same date show the same count and users; a date whose blob is gone is still listed with reportUrl null.",
+    "id": "Endpoint mewajibkan startDate dan endDate, menolak rentang di atas 90 hari (baris 302) atau end date sebelum start date, mengelompokkan change record per tanggal lalu mengambil daftar blob dengan prefix reports/change-stage/ChangeStageReport_<yyyyMMdd> dari Azure Blob (baris 358), dengan paging dan urut tanggal menurun. Yang perlu diperhatikan: tanggal hanya muncul kalau ada change record di database; reportDate, generatedBy dan noticeCount dihitung per tanggal, jadi dua file report di tanggal sama menampilkan count dan user yang sama; tanggal yang blob-nya sudah hilang tetap muncul dengan reportUrl null."
    }
   },
   {
    "step": {
-    "en": "Backend rejects a Template Name that is not uppercase letters, digits and underscores, or does not end with _SMS, _EMAIL or _LETTER matching the type",
-    "id": "Backend menolak Template Name yang bukan huruf besar, angka dan underscore, atau tidak berakhiran _SMS, _EMAIL atau _LETTER yang cocok dengan type"
+    "en": "POST /v1/change-processing-stage/report/{reportId} downloads one report",
+    "id": "POST /v1/change-processing-stage/report/{reportId} mendownload satu report"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:104-115",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java:422-480",
    "detail": {
-    "en": "The name must match ^[A-Z0-9]+(_[A-Z0-9]+)*_(SMS|EMAIL|LETTER)$ (line 216), otherwise 'Invalid Template Name. Use uppercase letters, digits and underscores; must end with _SMS, _EMAIL or _LETTER'. A second check at lines 111-114 requires name.endsWith('_' + type), so FOO_EMAIL under type SMS is refused. The pattern also needs at least one segment before the suffix and rejects double underscores.",
-    "id": "Nama harus cocok ^[A-Z0-9]+(_[A-Z0-9]+)*_(SMS|EMAIL|LETTER)$ (line 216), kalau tidak muncul 'Invalid Template Name. Use uppercase letters, digits and underscores; must end with _SMS, _EMAIL or _LETTER'. Cek kedua di line 111-114 mewajibkan name.endsWith('_' + type), jadi FOO_EMAIL dengan type SMS ditolak. Pattern juga butuh minimal satu segmen sebelum suffix dan menolak double underscore."
+    "en": "The reportId is sanitized (only letters, digits, . _ -), '.xlsx' is added when missing, the file is read from blob path reports/change-stage/<reportId> and returned as an attachment; an unknown id returns 404 REPORT_NOT_FOUND. Both endpoints are mapped to function OCMS_REPORT_CPS in ocmsadminapi/src/main/resources/api-authorization.properties:147-149.",
+    "id": "reportId disanitasi (hanya huruf, angka, . _ -), '.xlsx' ditambahkan kalau belum ada, file dibaca dari blob path reports/change-stage/<reportId> dan dikirim sebagai attachment; id yang tidak ada mengembalikan 404 REPORT_NOT_FOUND. Kedua endpoint dipetakan ke function OCMS_REPORT_CPS di ocmsadminapi/src/main/resources/api-authorization.properties:147-149."
    }
   },
   {
    "step": {
-    "en": "The rejection reason text is shown to the officer on the screen",
-    "id": "Teks alasan penolakan ditampilkan ke officer di layar"
+    "en": "The Report page has a CPS tab (function REPORT_CPS) that shows the list and downloads a file",
+    "id": "Halaman Report punya tab CPS (function REPORT_CPS) yang menampilkan daftar dan mendownload file"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx:119-134",
+   "code_ref": "ocmsadminui/src/pages/Report/lists/ReportList.tsx:115-120",
    "detail": {
-    "en": "The controller returns HTTP 400 with the message in data.message (OcmsTemplateStoreController.java:75-80). CheckResponseError (ocmsadminui/src/utils/api/index.ts:100-101) returns that message when response.ok is false, POST puts it in res.error, the hook throws it and the alert modal shows 'FAILED. ERROR: Error: <message>'. The text is shown as is, with an 'Error:' prefix.",
-    "id": "Controller mengembalikan HTTP 400 dengan pesan di data.message (OcmsTemplateStoreController.java:75-80). CheckResponseError (ocmsadminui/src/utils/api/index.ts:100-101) mengembalikan pesan itu saat response.ok false, POST menaruhnya di res.error, hook melemparnya dan modal alert menampilkan 'FAILED. ERROR: Error: <message>'. Teks tampil apa adanya, dengan prefix 'Error:'."
+    "en": "The tab is shown only when hasFunction(FUNCTION_ID.REPORT_CPS) is true (constant OCMS_REPORT_CPS, utils/constant.ts:261). ReportListCPS.tsx:125-128 loads resource change-processing-stage/reports with POST and shows Report Date, Generated By and Notice Count; the Download button calls change-processing-stage/report with the file name (ReportListCPS.tsx:41-52, 164) and there is also a ZIP export of the listed files. The tab title in the UI is 'Change Processing Stage Report' (Report/index.tsx:89), not 'CPS'. Which roles hold REPORT_CPS is configured outside the repo.",
+    "id": "Tab hanya tampil kalau hasFunction(FUNCTION_ID.REPORT_CPS) true (konstanta OCMS_REPORT_CPS, utils/constant.ts:261). ReportListCPS.tsx:125-128 memuat resource change-processing-stage/reports dengan POST dan menampilkan Report Date, Generated By dan Notice Count; tombol Download memanggil change-processing-stage/report dengan nama file (ReportListCPS.tsx:41-52, 164) dan ada juga export ZIP untuk file di daftar. Judul tab di UI adalah 'Change Processing Stage Report' (Report/index.tsx:89), bukan 'CPS'. Role mana yang punya REPORT_CPS diatur di luar repo."
    }
   },
   {
    "step": {
-    "en": "The same validation applies to a direct API call, not only to the screen",
-    "id": "Validasi yang sama berlaku untuk direct API call, bukan hanya dari layar"
+    "en": "If any notice failed or gave a warning, an error e-mail with the batch result is sent asynchronously to email.error.recipients",
+    "id": "Kalau ada notice gagal atau warning, e-mail error berisi hasil batch dikirim secara asynchronous ke email.error.recipients"
    },
-   "fit": "Sesuai",
-   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java:52-69",
+   "fit": "Sebagian",
+   "code_ref": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java:162-185",
    "detail": {
-    "en": "The validation lives in the controller of POST /v1/templatestore, so any caller hits it; it runs for a single object (line 68) and for an array payload (line 61). The edit endpoint templatestorepatch rejects a changed templateName (lines 227-236) and checks templateType, so the name rule cannot be bypassed through edit. Gap outside the acceptance list: the create path ends in repository.save (BaseImplement.java:131) with no existence check, so POSTing a name that already exists overwrites that template instead of refusing it; the repo has a /templatestoreexists endpoint in the class comment but the create flow does not call it (not verified further).",
-    "id": "Validasi ada di controller POST /v1/templatestore, jadi semua pemanggil kena; jalan untuk object tunggal (line 68) dan array payload (line 61). Endpoint edit templatestorepatch menolak templateName yang berubah (line 227-236) dan mengecek templateType, jadi aturan nama tidak bisa dilewati lewat edit. Gap di luar acceptance: jalur create berakhir di repository.save (BaseImplement.java:131) tanpa cek keberadaan, jadi POST dengan nama yang sudah ada menimpa template itu, bukan menolaknya; ada endpoint /templatestoreexists di komentar class tapi flow create tidak memanggilnya (tidak diverifikasi lebih jauh)."
+    "en": "The condition is failed > 0 || warnings > 0. sendErrorNotificationAsync runs on an executor (CompletableFuture.supplyAsync, ChangeProcessingStageNotificationService.java:54-62) and sends an HTML e-mail with subject '[<PROFILE>] OCMS System Error - <n> Failed Notices on <date>' to the value of email.error.recipients (application-prod.properties:49: MGG addresses plus two ura.gov.sg addresses). The e-mail failure is only logged and does not fail the batch. email.enableSmtp is not overridden in the prod properties, so the default true from application.properties:133 applies; actual delivery and the real server value cannot be verified from the repo. The recipients are developer, support and two URA addresses, so this is an internal alert, not a user-facing feature. Review: the mail logic is in code but delivery cannot be proven and the recipients are internal developer addresses (application-prod.properties:49), so it is not counted as a user feature.",
+    "id": "Kondisinya failed > 0 || warnings > 0. sendErrorNotificationAsync jalan di executor (CompletableFuture.supplyAsync, ChangeProcessingStageNotificationService.java:54-62) dan mengirim e-mail HTML dengan subject '[<PROFILE>] OCMS System Error - <n> Failed Notices on <date>' ke nilai email.error.recipients (application-prod.properties:49: alamat MGG plus dua alamat ura.gov.sg). Kalau e-mail gagal hanya di-log dan batch tidak ikut gagal. email.enableSmtp tidak di-override di prod properties, jadi default true dari application.properties:133 berlaku; pengiriman sebenarnya dan nilai di server asli cannot verify from repo. Penerimanya developer, support dan dua alamat URA, jadi ini alert internal, bukan fitur untuk user. Review: logic e-mail ada di code tetapi pengirimannya tidak bisa dibuktikan dan penerimanya adalah alamat developer internal (application-prod.properties:49), jadi tidak dihitung sebagai fitur untuk user."
    }
   }
  ],
  "note": {
-  "en": "Evidence is 5 Sesuai + 1 Sebagian of 6 steps (91.7 percent), counting only what the acceptance list says. Gaps the acceptance list does not mention: no duplicate-name check on create (an existing name is overwritten through repository.save), no delete function (ticket OCMS-SR-2026-163 was a DB patch to remove a test SMS template created by mistake in production), and the Create button is not gated by a function in the UI. The validation itself came from defect OCMS-DEV-2026-039 and the pen test OCMS-SR-2026-039. Which roles may create templates, and whether anything reads a newly created template, cannot be verified from the repo. No URA deck or workbook sheet for this screen is in the repo.",
-  "id": "Evidence 5 Sesuai + 1 Sebagian dari 6 step (91,7 persen), hanya menghitung yang tertulis di acceptance list. Gap yang tidak disebut acceptance: tidak ada cek nama duplikat saat create (nama yang sudah ada ditimpa lewat repository.save), tidak ada fungsi delete (ticket OCMS-SR-2026-163 berupa DB patch untuk menghapus test SMS template yang salah dibuat di production), dan tombol Create tidak dijaga function di UI. Validasinya sendiri berasal dari defect OCMS-DEV-2026-039 dan pen test OCMS-SR-2026-039. Role mana yang boleh membuat template, dan apakah ada yang membaca template baru itu, cannot be verified from repo. Tidak ada deck atau sheet workbook URA untuk screen ini di repo."
+  "en": "The repo proves all six steps in code, except the 24-hour validity of the link, which is only a response field. Not provable from the repo: blob lifecycle (deletion after 24 hours), real mailbox delivery, which roles hold REPORT_CPS, and whether URA asked for the report (no flow deck; only ticket OCMS-DF-2026-095 shows it is used). The separate PLUS path builds a report of all of today's changes (ChangeOfProcessingService.java:1395-1421); it is not claimed. Risk: URA may read the report as part of OCMS15.9/15.10.",
+  "id": "Repo membuktikan keenam step di code, kecuali masa berlaku link 24 jam yang hanya field di response. Tidak bisa dibuktikan dari repo: blob lifecycle (hapus setelah 24 jam), pengiriman ke mailbox asli, role mana yang punya REPORT_CPS, dan apakah URA memang meminta report ini (tidak ada flow deck; hanya ticket OCMS-DF-2026-095 yang menunjukkan report dipakai). Jalur PLUS terpisah membuat report semua perubahan hari ini (ChangeOfProcessingService.java:1395-1421); tidak diklaim. Risiko: URA bisa menganggap report ini bagian dari OCMS15.9/15.10."
  },
  "corrections": [
-  "Story text says the form 'saves with POST templatestore' and 'name that the system accepts': add that the officer must type the suffix _SMS/_EMAIL/_LETTER; the UI only upper-cases the name and does not append it.",
-  "Add to risks: POST /v1/templatestore with an existing templateName overwrites the existing template (BaseImplement.save, no duplicate check), which matters because cron jobs select templates by exact name.",
-  "Acceptance 'Backend rejects a Template Type that is not SMS, EMAIL or LETTER' is true, but from the screen the type is set from the tab and never typed; only a direct API call can trigger it.",
-  "Risk 'No delete function' is confirmed (ticket OCMS-SR-2026-163 used a DB patch); the item may cite that ticket."
+  "Acceptance 1: 'returns a download link valid 24 hours' is too strong. The response has expiresAt = now + 24h, but the link is a blob path and nothing enforces or checks the 24 hours. Suggest: 'returns the report path and an expiry time of 24 hours'.",
+  "Acceptance 3: the tab is not called 'CPS' in the UI; its title is 'Change Processing Stage Report' (path cps_report, function REPORT_CPS).",
+  "Acceptance 2 (optional wording): the list is built from change records in the database plus blobs by date prefix, so a date without change records never appears."
  ]
 }

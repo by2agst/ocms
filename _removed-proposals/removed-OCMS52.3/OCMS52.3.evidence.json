@@ -1,0 +1,165 @@
+{
+ "id": "OCMS52.3",
+ "checked_by": "ledger-L1",
+ "acceptance": [
+  {
+   "i": 0,
+   "claim": "The menu has a 'Cron' entry that opens the /cron page.",
+   "status": "proved",
+   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
+   "line": 391,
+   "missing": "Route App.tsx:319 and path Cron.ts:1 ('/cron'). The entry is filtered by the token's functionUrls (LinkData.tsx:373, MainLayout.tsx:34) and the route by PrivateRoute.tsx:41, so it is not shown to every user; which roles hold /cron cannot be verified from repo. API path /v1/cron needs OCMS_CRON (api-authorization.properties:187).",
+   "fix_en": "",
+   "quote": "menu.push(LinkCron);"
+  },
+  {
+   "i": 1,
+   "claim": "The page lists 27 jobs (...), each with a trigger button. There is no REP download row. In the prod properties Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off, so some triggers do part of nothing there.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 353,
+   "missing": "27 rows = CronList.tsx:41-67 (counted: 27 lines, no REP download endpoint), trigger button line 349-354. The three flags exist in application-prod.properties:80,86,87. NOT proved: which of the 27 triggers are affected ('do part of nothing'); no job was traced against the flags and the real server values cannot be verified from repo.",
+   "fix_en": "The page lists 27 jobs (LTA VRLS Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement Files, ENA Reminder and Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, Daily/Monthly Paid and Exception report e-mails, Daily RIP Hirer/Driver report, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload and Download, Unclaimed Report, vHub end-day/download/summary report), each with a 'Trigger Cron' button. There is no REP download row. In the prod properties of the cron tier, Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off; which triggers are affected was not traced and the real server values cannot be verified from the repo.",
+   "quote": "onClick={() => onRunCron(data)}"
+  },
+  {
+   "i": 2,
+   "claim": "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService). The page shows 'Triggered' also when the proxy answers 200/202 or times out, so 'Triggered' does not prove the job started.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 279,
+   "missing": "Forwarding proved: CronProxyController.java has a live @PostMapping for each of the 27 endpoints, each calls a CronProxyService method that ends in proxyCronJob (CronProxyService.java:88-136). Wording is imprecise: the UI treats HTTP 200, 202, 408/502/503/504/524, no response, or an exception as 'triggered' (lines 279-285); the proxy itself turns a read timeout into HTTP 200 (CronProxyService.java:116-126) and returns 500 when the cron tier is unreachable (line 128-134), which the page shows as 'Error triggering'. Only the 13 jobs without a status key show the word 'Triggered' (badge); the 14 others show 'Running'. Cron-tier target controllers exist for all proxied paths (checked by grep, not every body).",
+   "fix_en": "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService). The page treats HTTP 200, 202, gateway timeouts (408, 502, 503, 504, 524) and no response as 'triggered' (a job without a status key then shows a 'Triggered' badge, a job with a status key shows Running), so this does not prove the job started; a 4xx/5xx answer shows 'Error triggering'.",
+   "quote": "const TRIGGERED_STATUSES = [200, 202];"
+  },
+  {
+   "i": 3,
+   "claim": "For the 14 jobs that have a status key, the page polls POST cron/job-status?key=<key> and shows Running with elapsed time, Completed or Failed, with a dismiss button. The other 13 jobs show only a 30-second 'Triggered' badge.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 216,
+   "missing": "14 keys = STATUS_ENDPOINT_MAP lines 86-99; 30 s = line 102 + 312-317; poll every 5 s line 255/103, 1 h timeout line 104. Differences: (a) the badge label for success is 'Done', not 'Completed' (line 116); (b) the dismiss button exists only for finished states (line 122), not while Running; (c) the cron tier answers 'R' (Running) when no ocms_batch_job row exists yet (CronJobStatusController.java:171-176) so Running does not prove the job started; (d) after 3 consecutive poll errors the badge turns Failed 'Status unavailable' (lines 243-250) although the job may have finished; (e) all 14 keys are in the cron-tier allowlist (CronJobStatusController.java:125-139).",
+   "fix_en": "For the 14 jobs that have a status key, the page polls POST cron/job-status?key=<key> every 5 seconds (1 hour timeout) and shows Running with elapsed time, then Done or Failed; the dismiss button appears when the state is finished. The other 13 jobs show only a 30-second 'Triggered' badge.",
+   "quote": "const response = await POST<any, any>({ endpoint: pollEndpoint as TResource });"
+  },
+  {
+   "i": 4,
+   "claim": "Several jobs can run at the same time; each has its own status tag.",
+   "status": "partly",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 155,
+   "missing": "UI side proved: state is a Record keyed by endpoint (this line), timers per endpoint (158-160), the button is disabled only for its own row (line 352), banner for >1 active (line 366). Whether the cron tier allows overlap (ShedLock/DB locks per job) was not traced and cannot be verified from this file.",
+   "fix_en": "The page lets an officer trigger several jobs one after another without waiting; each row keeps its own status tag. (Whether the cron tier runs them in parallel is decided by each job and is not claimed.)",
+   "quote": "const [cronStates, setCronStates] = useState<Record<string, CronPollState>>({});"
+  }
+ ],
+ "steps": [
+  {
+   "i": 0,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
+   "line": 391,
+   "note": "Entry and route proved (App.tsx:319). Detail text should add that the menu and route are gated by JWT functionUrls (LinkData.tsx:373, PrivateRoute.tsx:41), not shown to every user.",
+   "quote": "menu.push(LinkCron);"
+  },
+  {
+   "i": 1,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 67,
+   "note": "The listing step alone is provable (27 rows 41-67, button 353) and could be Sesuai; Sebagian kept only for consistency with step 3 (prod flags) and because no REP download row exists. State that the Sebagian is NOT double counted if step 3 already carries the flag point; parent may choose Sesuai here if wording is limited to 'lists jobs with a trigger button'.",
+   "quote": "{ cronName: \"vHub Summary Report\", description: \"Click to trigger vHub Daily Summary Report\", endpoint: \"cron/vhub/report/trigger\" },"
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sesuai",
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java",
+   "line": 89,
+   "note": "All 27 UI endpoints have a live controller mapping and service method (verified by script over CronProxyController.java/CronProxyService.java). JwtFilter and OCMS_CRON path check: api-authorization.properties:187. Cron-tier network protection cannot be verified from repo. Several other proxy methods exist for endpoints not on the page (lta-report-daily etc.): irrelevant.",
+   "quote": "String url = cronBaseUrl + path;"
+  },
+  {
+   "i": 3,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 86,
+   "note": "Quote shows Toppan SFTP upload switched off in prod (also :80 SMTP, :87 SMS). Step text 'the triggered job really runs in the production configuration' is not provable as a whole: keep Sebagian and say 'cannot verify from repo' for server values; per-job effect not traced.",
+   "quote": "sftp.upload.disabledServers=toppan"
+  },
+  {
+   "i": 4,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 216,
+   "note": "14 of 27 only, label 'Done' not 'Completed', dismiss only after finish, 'Running' also when no batch-job row yet (CronJobStatusController.java:171-176).",
+   "quote": "const response = await POST<any, any>({ endpoint: pollEndpoint as TResource });"
+  },
+  {
+   "i": 5,
+   "fit_in_file": "Sesuai",
+   "fit_ok": false,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
+   "line": 155,
+   "note": "Only the UI keeps independent state; overlap on the cron tier was not traced (step detail says so itself). Sesuai is an overclaim for 'Several jobs can run at the same time'. Sesuai only if the step is reworded to 'the page tracks several triggered jobs at once, each with its own tag'.",
+   "quote": "const [cronStates, setCronStates] = useState<Record<string, CronPollState>>({});"
+  }
+ ],
+ "flags": [
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 86,
+   "meaning": "sftp.upload.disabledServers=toppan: Toppan SFTP upload switched off in prod properties; real server value cannot be verified from repo.",
+   "quote": "sftp.upload.disabledServers=toppan"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 80,
+   "meaning": "email.enableSmtp=false: SMTP off in prod properties (report e-mails / ENA e-mail); effect per trigger not traced.",
+   "quote": "email.enableSmtp=false"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+   "line": 87,
+   "meaning": "sms.enable=false: SMS off in prod properties (ENA SMS); effect per trigger not traced.",
+   "quote": "sms.enable=false"
+  },
+  {
+   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+   "line": 187,
+   "meaning": "OCMS_CRON permission guards /v1/cron and /v1/cron/sftp on the staff API; roles holding it cannot be verified from repo.",
+   "quote": "auth.api-authorization.mapping.[OCMS_CRON]=/v1/cron,/v1/cron/sftp"
+  }
+ ],
+ "overlap": [
+  {
+   "story": "OCMS52.1",
+   "status": "proposed (same batch)",
+   "second_claim_risk": "yes",
+   "reason": "Auto Revival row (CronList.tsx:60) is the manual trigger cited in 52.1 acceptance 4 and step 7; claim in one story only. The 27-row screen is the generic parent; 52.1 should drop the button and keep the job."
+  },
+  {
+   "story": "OCMS35.2",
+   "status": "Requirement given - Gen flow, 3 pts",
+   "second_claim_risk": "maybe",
+   "reason": "35.2 is the vHub interface (send foreign vehicle numbers, receive records). 52.3 only holds three vHub trigger buttons (CronList.tsx:65-67); the job itself is 35.x. Orphan OCMS35.1.json lists the same buttons, so avoid claiming the vHub rows twice."
+  },
+  {
+   "story": "OCMS22.25",
+   "status": "nan (blank), 3 pts",
+   "second_claim_risk": "no",
+   "reason": "22.25 is a court-application error work item in the OIC dashboard; no Cron screen or manual trigger in its text."
+  }
+ ],
+ "verdict": "FIX WORDING"
+}

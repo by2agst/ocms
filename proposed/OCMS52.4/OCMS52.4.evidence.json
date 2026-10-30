@@ -1,165 +1,210 @@
 {
  "id": "OCMS52.4",
- "checked_by": "ledger-L1",
+ "checked_by": "ledger-L2",
  "acceptance": [
   {
    "i": 0,
-   "claim": "The Toppan Download cron accepts files named DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* and parses notice number plus postal registration number. The file layout is known from code only; there is no interface spec in the repo.",
+   "claim": "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N.",
    "status": "proved",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
-   "line": 99,
-   "missing": "Accept list: ToppanDownloadHelper.java:98-99 (used at :71). Parse routing: ToppanResponseParser.java:153 (RD2) and :157 (DN2); notice no = content.substring(10, 20) at :627 (must match 9 digits + letter, :642); registration no = substring(222, 237) at :704 (A15, uppercase alphanumeric, :710). Gap to know: a detail record shorter than 237 chars gives no registration number (:703) but the notice is still counted successful (:525). Schedule: cron-schedules-prod.properties:90-91 (0 30 1 * * ?, enabled=true), real server value cannot be verified from repo.",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+   "line": 693,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(axsReceiptNos, \"N\");",
+   "missing": "",
    "fix_en": "",
-   "quote": "upperName.startsWith(\"DPT-URA-DN2-D2-\") ||"
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+     "line": 689,
+     "quote": ".filter(t -> TYPE_OF_RECEIPT_AXS.equals(t.getTypeOfReceipt()) && SENDER_AXS.equals(t.getSender()))"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+     "line": 433,
+     "quote": "markAsPendingUraPgSync(transactions);"
+    }
+   ]
   },
   {
    "i": 1,
-   "claim": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no (update only; the tracking row must already exist, and those rows are created only by the Toppan upload flow). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated.",
-   "status": "partly",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 301,
-   "missing": "Proved: table by file name :230-236; UPDATE only joins existing rows (:517-521 DN, :593-597 RDP); warn :271; counted as updated :301 (this line). 'Created only by the Toppan upload flow': the only creator found by grep is ToppanUploadHelper.java:889-897; absence in other code or DB tools cannot be proved. Extra edge: if several tracking rows exist for the same notice and stage, only one (the last returned by the query, no ORDER BY) is updated (:362-367).",
-   "fix_en": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no. It is an update only: the tracking row (notice_no + stage) must already exist; the only code found that creates these rows is the Toppan upload flow (ToppanUploadHelper). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated; if several rows exist for the same notice and stage only one of them is updated.",
-   "quote": "updatedCount = noticesForPrefetch.size();"
+   "claim": "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N, typeOfReceipt = '01' and sender = 'AXS', and posts all of them in ONE request (no batch size, no retry limit) to the URA PG endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+   "line": 24,
+   "quote": "@Query(\"SELECT w FROM WebTxnDetail w WHERE w.urapgSyncStatus = 'N' AND w.typeOfReceipt = '01' AND w.sender = 'AXS'\")",
+   "missing": "'No batch size / no retry limit' is an absence and cannot be quoted; it is shown only by the plain sendAxsTransactions call (the sendAxsTransactionsWithRetry method exists but CronUraPgRetry does not call it). Real prod server value cannot be verified from the repo.",
+   "fix_en": "",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+     "line": 39,
+     "quote": "UraPgResponseDTO response = uraPgService.sendAxsTransactions(failedTxns);"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 146,
+     "quote": "ResponseEntity<UraPgResponseDTO> responseEntity = restTemplate.exchange("
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
+     "line": 107,
+     "quote": "ura.paymentgateway.endpoint=/paymentgateway/Recon/insertOcmsAxsTxn/v1"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+     "line": 350,
+     "quote": "cron.urapgretry.schedule=0 0 * * * ?"
+    }
+   ]
   },
   {
    "i": 2,
-   "claim": "An existing number is not overwritten with a blank value; a non-blank new value does overwrite an older different number.",
+   "claim": "Rows the gateway reports as sent are updated to urapg_sync_status = Y (per receipt_no); the others stay N and are sent again in the next run.",
    "status": "proved",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 513,
-   "missing": "RD2 twin at :589-590. A blank value in the file is dropped in the parser (:706 'if (!regNo.isEmpty())') so it reaches the UPDATE as NULL and the CASE keeps the old value (:514).",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 52,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(successReceiptNos, \"Y\");",
+   "missing": "",
    "fix_en": "",
-   "quote": "\"dn.postal_regn_no = CASE WHEN t.postal_regn_no IS NOT NULL \" +"
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+     "line": 43,
+     "quote": ".filter(r -> SystemConstant.Notification.STATUS_SENT.equals(r.getStatus()))"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+     "line": 33,
+     "quote": "@Query(\"UPDATE WebTxnDetail w SET w.urapgSyncStatus = :status WHERE w.receiptNo IN :receiptNos\")"
+    }
+   ]
   },
   {
    "i": 3,
-   "claim": "The staff portal notice detail (RDP and DN section) shows the field 'Postal Reg. Number'",
-   "status": "proved",
-   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
-   "line": 396,
-   "missing": "RDP block :165-166, DN block :395-396; label text 'Postal Reg. Number' at ocmsadminui/src/i18n/en/translation.json:721; API fills it: RequestDriverController.java:216 and DriverNoticeControllerPlus.java:210 (dto.setPostalRegnNo). Roles that can open the notice detail cannot be verified from repo.",
-   "fix_en": "",
-   "quote": "label: t(\"rdpdn.form.postal_reg\"),"
-  },
-  {
-   "i": 4,
-   "claim": "Notices in the file that are not in VON are reported as errors, not silently skipped",
-   "status": "proved",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 215,
-   "missing": "errors.add at :215 and errorCount++ at :216 after a bulk VON lookup (:188); the job turns errorCount > 0 into one message 'Stage transition errors for <stage>: n notices failed' (ToppanDownloadJob.java:442-443) and stores errorCount (:505). The per-notice text stays in the service result ('errors', :311-312); the job keeps only the count. Wording 'reported as errors' is fine, do not say each notice number is shown to the officer.",
-   "fix_en": "",
-   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
+   "claim": "Rows that still fail are only written to the error log: notifyUraPgErrors has an empty body (the error e-mail is disabled since OCMS-DF-2026-147), and no code compares counts or amounts between OCMS and the gateway.",
+   "status": "partly",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 59,
+   "quote": "log.error(\"URA PG sync still failing receipt_no list: {}\", failedReceiptNos);",
+   "missing": "The error log line and the empty method (only comments inside) are proved. The negative 'no code compares counts or amounts' cannot be proved by a quote; a grep of urapg across ocmsadminprivateapi, ocmsadminapi, thirdpartyapi, ocmseserviceapi and ocmsadminui found no comparison code. The ticket link rests on a code comment (a comment is not proof of intent). Also note a POST /v1/ura-pg/send in UraPgController and a cron trigger POST in CombinedSchedulerTriggerController exist.",
+   "fix_en": "Rows that still fail are written to the error log (receipt_no list). notifyUraPgErrors is still called but its body is empty (the e-mail call is commented out, OCMS-DF-2026-147), so no notification is sent. The job does not compare counts or amounts between OCMS and the gateway (no such code found in the repo).",
+   "extra": [
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 457,
+     "quote": "public void notifyUraPgErrors(UraPgResponseDTO response, List<WebTxnDetail> transactions) {"
+    },
+    {
+     "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+     "line": 277,
+     "quote": "// sendErrorNotificationEmail(response, transactions);"
+    }
+   ]
   }
  ],
  "steps": [
   {
    "i": 0,
-   "fit_in_file": "Sebagian",
+   "fit_in_file": "Sesuai",
    "fit_ok": true,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
-   "line": 98,
-   "note": "Download side itself is ON in prod (cron-schedules-prod.properties:91). Sebagian is conservative: the file only exists after Toppan received letters, and upload is blocked (application-prod.properties:86) plus the letter job runs only by manual trigger (ToppanUploadJobsScheduler.java:118 commented). By the BRIEF_ADDENDUM item 4 convention (step's own execution switched off) this step could be Sesuai; Sebagian is acceptable and not an overclaim.",
-   "quote": "upperName.startsWith(\"DPT-URA-RD2-D2-\") ||      // RD2 return file (process + blob)"
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java",
+   "line": 693,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(axsReceiptNos, \"N\");",
+   "note": "Called after each sync path (lines 433, 453, 524, 658 verified by grep). Sync job runs every 10 min, enabled in prod config (flag below)."
   },
   {
    "i": 1,
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java",
-   "line": 704,
-   "note": "Notice no at :627. Fixed-width layout known from code only. Detail records shorter than 237 chars silently lose the registration number (:703) and duplicates of a notice overwrite in the map (:529).",
-   "quote": "String regNo = content.substring(222, 237).trim();"
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/crud/ocmsizdb/webtxndetail/WebTxnDetailRepository.java",
+   "line": 24,
+   "quote": "@Query(\"SELECT w FROM WebTxnDetail w WHERE w.urapgSyncStatus = 'N' AND w.typeOfReceipt = '01' AND w.sender = 'AXS'\")",
+   "note": "Hourly cron enabled in prod config; real server value, APIM key and gateway behaviour cannot be verified from the repo. If the Key Vault read fails only a warning is logged (UraPgServiceImpl.java:106) and the POST goes without the key. Keep Sesuai: the step names reading and sending, both executed."
   },
   {
    "i": 2,
-   "fit_in_file": "Sebagian",
+   "fit_in_file": "Sesuai",
    "fit_ok": true,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 231,
-   "note": "Write is real (:517-521, :593-597). Sebagian because the tracking rows come from the Toppan upload flow, which is manual-trigger only (ToppanUploadJobsScheduler.java:118 commented) and blocked in prod (application-prod.properties:86); a missing row only logs (:271). Real prod data cannot be verified from repo.",
-   "quote": "trackingTable = \"ocmsizmgr.ocms_request_driver_particulars\";"
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 52,
+   "quote": "webTxnDetailService.bulkUpdateUrapgSyncStatus(successReceiptNos, \"Y\");",
+   "note": "Only items with status S are set to Y; E items and null response leave rows at N (RET lines 62-69). buildErrorResponse sets status E (IMPL line 421)."
   },
   {
    "i": 3,
-   "fit_in_file": "Sesuai",
+   "fit_in_file": "Beda dari flow",
    "fit_ok": true,
-   "proposed_fit": "Sesuai",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 514,
-   "note": "CASE WHEN ... ELSE dn.postal_regn_no END; RD2 twin :590.",
-   "quote": "\"    THEN t.postal_regn_no ELSE dn.postal_regn_no END, \" +"
+   "proposed_fit": "Beda dari flow",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java",
+   "line": 277,
+   "quote": "// sendErrorNotificationEmail(response, transactions);",
+   "note": "Method notifyUraPgErrors has only comments in its body; quote is the commented call. The empty body itself is shown by lines 457-461. Beda dari flow is right: code does the opposite of the step (no notification)."
   },
   {
    "i": 4,
-   "fit_in_file": "Sesuai",
+   "fit_in_file": "Tidak ada code",
    "fit_ok": true,
-   "proposed_fit": "Sesuai",
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
-   "line": 215,
-   "note": "Counted into the job's error list (ToppanDownloadJob.java:442-443). A notice in VON without a tracking row is NOT an error (:259-274).",
-   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
-  },
-  {
-   "i": 5,
-   "fit_in_file": "Sesuai",
-   "fit_ok": true,
-   "proposed_fit": "Sesuai",
-   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
-   "line": 395,
-   "note": "Display only (read-only field). DN block :395-396, RDP block :165-166; API setters RequestDriverController.java:216, DriverNoticeControllerPlus.java:210. Data in prod depends on the earlier steps.",
-   "quote": "source: \"postalRegnNo\","
+   "proposed_fit": "Tidak ada code",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java",
+   "line": 55,
+   "quote": "log.info(\"URA PG Sync Result: {} success, {} still pending\",",
+   "note": "Job only counts success/still pending in a log line. No reconciliation code found; Tidak ada code is the correct fit (absence cannot be quoted)."
   }
  ],
  "flags": [
   {
    "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
-   "line": 90,
-   "meaning": "Toppan Download schedule 01:30 daily.",
-   "quote": "cron.toppandownload.schedule=0 30 1 * * ?"
+   "line": 351,
+   "quote": "cron.urapgretry.enabled=true",
+   "meaning": "Hourly URA PG AXS sync enabled in prod properties (real server value not verifiable)"
   },
   {
    "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
-   "line": 91,
-   "meaning": "Toppan Download enabled=true in prod properties; real server value cannot be verified from repo.",
-   "quote": "cron.toppandownload.enabled=true"
+   "line": 350,
+   "quote": "cron.urapgretry.schedule=0 0 * * * ?",
+   "meaning": "Runs at the top of every hour"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 306,
+   "quote": "cron.syncinternetintranet.enabled=true",
+   "meaning": "Internet-to-Intranet sync (sets N) enabled in prod"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 305,
+   "quote": "cron.syncinternetintranet.schedule=0 */10 * * * ?",
+   "meaning": "Sync runs every 10 minutes"
   },
   {
    "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
-   "line": 86,
-   "meaning": "Toppan SFTP upload is switched off in prod properties, so letters that would produce RD2/DN2 return files are not sent from this config; real server value cannot be verified from repo.",
-   "quote": "sftp.upload.disabledServers=toppan"
-  },
-  {
-   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java",
-   "line": 118,
-   "meaning": "Letter generation (creates the tracking rows) is commented out of the day-end run; only the manual trigger runs it (BRIEF_ADDENDUM item 5).",
-   "quote": "// runJob(job1Name, () -> toppanLettersGeneratorService.executeJob().get(), taskResults);"
+   "line": 106,
+   "quote": "ura.paymentgateway.baseUrl=https://api.uraaz.gov.sg",
+   "meaning": "Gateway base URL in prod"
   }
  ],
  "overlap": [
   {
-   "story": "OCMS8.11",
-   "status": "Requirement given - Gen flow, 5 pts",
+   "story": "OCMS46.4",
+   "status": "User Story Removed",
+   "second_claim_risk": "no",
+   "reason": "46.4 is OCMS sending offender ID/mobile to Payment Gateway for PayNow refund (refund direction). 52.5 sends AXS payment records to URA PG recon. Different payload, endpoint and purpose."
+  },
+  {
+   "story": "OCMS43.2",
+   "status": "Demo paid (5 pts)",
    "second_claim_risk": "maybe",
-   "reason": "8.11 asks for daily summary reports on letters sent incl. interface errors and its trace already uses the Toppan return-file code and the same job run (ToppanDownloadJobsScheduler.java:69-76 generates the report right after the download). 52.4 is the parse + write + screen field only; URA can argue the return-file processing is the data feed of 8.11. Keep the report column out of 52.4 (already stated)."
+   "reason": "43.2 is payment status coming IN from the Payment Gateway and marking notices paid. 52.5 is the reverse direction (OCMS pushing AXS rows out to URA PG). Same business area (AXS/PG payments) and URA may read \"report AXS payment to PG\" as part of the payment feed; mitigate by stating that 52.5 only covers the outbound hourly send and does not mark notices paid."
   },
   {
-   "story": "OCMS42.21",
-   "status": "Fully paid, 3 pts",
+   "story": "OCMS46.5",
+   "status": "User Story Removed",
    "second_claim_risk": "no",
-   "reason": "42.21 is the e-service page that auto-fills address from a postal code; unrelated to postal registration number."
-  },
-  {
-   "story": "OCMS41.61",
-   "status": "User Story Removed, 2 pts",
-   "second_claim_risk": "no",
-   "reason": "41.61 is a registered-address match check for furnished particulars; no Toppan return file, no postal_regn_no."
+   "reason": "46.5 is PayNow refund status received from the Payment Gateway for Cumulus; unrelated to AXS recon send."
   }
  ],
+ "works_check": "works='partly' is right: hourly send and N->Y flag are enabled in prod properties, but error notification is switched off and no reconciliation exists. Prod server value cannot be verified from the repo. Tickets OCMS-DF-2026-035, -047, -147 are Closed bug fixes on this feed, so URA may see it as maintenance of an existing interface.",
  "verdict": "FIX WORDING"
 }

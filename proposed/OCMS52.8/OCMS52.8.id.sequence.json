@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "OCMS52.8 Buat Template Notifikasi",
+    "title": "OCMS52.8 Report CPS: Download dan Error Mail",
     "output": "OCMS52.8.id.html",
     "viewBox": [
       1080,
@@ -15,13 +15,13 @@
     {
       "id": "officer",
       "type": "external",
-      "label": "Officer",
-      "sublabel": "Reminder processing"
+      "label": "NPO",
+      "sublabel": "Notice Processing Officer"
     },
     {
       "id": "ui",
       "type": "frontend",
-      "label": "Staff UI",
+      "label": "Admin UI",
       "sublabel": "ocmsadminui"
     },
     {
@@ -31,33 +31,33 @@
       "sublabel": "ocmsadminapi"
     },
     {
-      "id": "db",
+      "id": "blob",
       "type": "database",
-      "label": "Intranet DB",
-      "sublabel": "ocms_template_store"
+      "label": "Azure Blob",
+      "sublabel": "reports/change-stage"
     },
     {
-      "id": "client",
+      "id": "mail",
       "type": "external",
-      "label": "Direct caller",
-      "sublabel": "API client"
+      "label": "E-mail",
+      "sublabel": "email.error.recipients"
     }
   ],
   "segments": [
     {
       "from": 150,
       "to": 270,
-      "label": "Buka form"
+      "label": "Simpan dan report"
     },
     {
       "from": 272,
-      "to": 375,
-      "label": "Validasi"
+      "to": 330,
+      "label": "Mail dan download"
     },
     {
-      "from": 377,
-      "to": 500,
-      "label": "Direct API"
+      "from": 332,
+      "to": 490,
+      "label": "Tab Report"
     }
   ],
   "messages": [
@@ -66,92 +66,120 @@
       "from": "officer",
       "to": "ui",
       "y": 165,
-      "label": "Klik Create Template (SMS/EMAIL/LETTER)",
+      "label": "Konfirmasi ubah stage (CPSForm)",
       "variant": "default"
     },
     {
       "id": "m1",
       "from": "ui",
-      "to": "officer",
-      "y": 200,
-      "label": "/enotification/create-template/<type>",
-      "variant": "return"
+      "to": "api",
+      "y": 195,
+      "label": "POST change-processing-stage",
+      "variant": "emphasis"
     },
     {
       "id": "m2",
-      "from": "officer",
-      "to": "ui",
-      "y": 235,
-      "label": "Name (suffix diketik officer) + isi",
-      "variant": "default"
+      "from": "api",
+      "to": "blob",
+      "y": 225,
+      "label": "Excel SEMUA perubahan hari ini (succeeded>0)",
+      "variant": "dashed"
     },
     {
       "id": "m3",
-      "from": "ui",
-      "to": "api",
-      "y": 285,
-      "label": "POST templatestore {templateType dari tab}",
-      "variant": "emphasis"
+      "from": "api",
+      "to": "ui",
+      "y": 255,
+      "label": "report.url + expiresAt (24 jam cuma label)",
+      "variant": "return"
     },
     {
       "id": "m4",
       "from": "api",
-      "to": "ui",
-      "y": 320,
-      "label": "400: Invalid Template Name / Type",
-      "variant": "return"
+      "to": "mail",
+      "y": 285,
+      "label": "Error mail async jika failed/warning",
+      "variant": "dashed"
     },
     {
       "id": "m5",
       "from": "ui",
-      "to": "officer",
-      "y": 355,
-      "label": "Alert: FAILED. ERROR: <alasan>",
-      "variant": "return"
-    },
-    {
-      "id": "m6",
-      "from": "client",
       "to": "api",
-      "y": 410,
-      "label": "POST templatestore (validasi sama)",
+      "y": 315,
+      "label": "POST .../report/{file} auto-download",
       "variant": "emphasis"
     },
     {
+      "id": "m6",
+      "from": "officer",
+      "to": "ui",
+      "y": 345,
+      "label": "Buka tab Report (REPORT_CPS)",
+      "variant": "default"
+    },
+    {
       "id": "m7",
-      "from": "api",
-      "to": "db",
-      "y": 445,
-      "label": "repository.save, tanpa cek duplikat",
-      "variant": "dashed"
+      "from": "ui",
+      "to": "api",
+      "y": 375,
+      "label": "POST .../reports (maks 90 hari)",
+      "variant": "emphasis"
     },
     {
       "id": "m8",
       "from": "api",
-      "to": "client",
-      "y": 480,
-      "label": "201 tersimpan, nama sama ditimpa",
+      "to": "blob",
+      "y": 405,
+      "label": "List blob per prefix tanggal",
+      "variant": "dashed"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "ui",
+      "y": 435,
+      "label": "Daftar per tanggal + Download / ZIP",
+      "variant": "return"
+    },
+    {
+      "id": "m10",
+      "from": "api",
+      "to": "ui",
+      "y": 465,
+      "label": "Tidak ada cek expiry saat download",
       "variant": "return"
     }
   ],
   "activations": [
     {
+      "participant": "officer",
+      "from": 160,
+      "to": 350,
+      "type": "external"
+    },
+    {
       "participant": "ui",
       "from": 160,
-      "to": 360,
+      "to": 470,
       "type": "frontend"
     },
     {
       "participant": "api",
-      "from": 280,
-      "to": 490,
+      "from": 190,
+      "to": 470,
       "type": "backend"
     },
     {
-      "participant": "db",
-      "from": 446,
-      "to": 456,
+      "participant": "blob",
+      "from": 220,
+      "to": 410,
       "type": "database"
+    },
+    {
+      "participant": "mail",
+      "from": 280,
+      "to": 290,
+      "type": "external"
     }
   ],
   "cards": [
@@ -159,27 +187,27 @@
       "dot": "emerald",
       "title": "Sesuai story",
       "items": [
-        "Tombol Create dan 3 route",
-        "Aturan name dan type di API",
-        "Teks alasan tampil di layar"
+        "Excel dibuat setelah save",
+        "Daftar (90 hari) dan download",
+        "Error mail async"
       ]
     },
     {
       "dot": "rose",
       "title": "Gap",
       "items": [
-        "Tanpa cek nama duplikat",
-        "Tidak ada fungsi delete",
-        "Suffix tidak ditambah UI"
+        "Expiry 24 jam cuma field",
+        "Report = semua perubahan hari ini",
+        "Count/user per tanggal, bukan per file"
       ]
     },
     {
       "dot": "orange",
       "title": "Perlu verifikasi",
       "items": [
-        "Role mana yang boleh create",
-        "Ada job yang baca template baru?",
-        "LETTER tanpa function create"
+        "Blob lifecycle setelah 24 jam",
+        "Pengiriman mail di server asli",
+        "Role pemegang REPORT_CPS"
       ]
     }
   ]

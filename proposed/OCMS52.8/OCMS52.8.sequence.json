@@ -2,27 +2,27 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "OCMS52.8 Create Notification Template",
-    "locale": "en",
+    "title": "OCMS52.8 CPS Report Download and Error Mail",
     "output": "OCMS52.8.html",
     "viewBox": [
       1080,
       620
     ],
     "column_fit": "spread",
-    "quality_profile": "showcase"
+    "quality_profile": "showcase",
+    "locale": "en"
   },
   "participants": [
     {
       "id": "officer",
       "type": "external",
-      "label": "Officer",
-      "sublabel": "Reminder processing"
+      "label": "NPO",
+      "sublabel": "Notice Processing Officer"
     },
     {
       "id": "ui",
       "type": "frontend",
-      "label": "Staff UI",
+      "label": "Admin UI",
       "sublabel": "ocmsadminui"
     },
     {
@@ -32,33 +32,33 @@
       "sublabel": "ocmsadminapi"
     },
     {
-      "id": "db",
+      "id": "blob",
       "type": "database",
-      "label": "Intranet DB",
-      "sublabel": "ocms_template_store"
+      "label": "Azure Blob",
+      "sublabel": "reports/change-stage"
     },
     {
-      "id": "client",
+      "id": "mail",
       "type": "external",
-      "label": "Direct caller",
-      "sublabel": "API client"
+      "label": "E-mail",
+      "sublabel": "email.error.recipients"
     }
   ],
   "segments": [
     {
       "from": 150,
       "to": 270,
-      "label": "Open form"
+      "label": "Save and report"
     },
     {
       "from": 272,
-      "to": 375,
-      "label": "Validate"
+      "to": 330,
+      "label": "Mail and download"
     },
     {
-      "from": 377,
-      "to": 500,
-      "label": "Direct API"
+      "from": 332,
+      "to": 490,
+      "label": "Report tab"
     }
   ],
   "messages": [
@@ -67,92 +67,120 @@
       "from": "officer",
       "to": "ui",
       "y": 165,
-      "label": "Click Create Template (SMS/EMAIL/LETTER)",
+      "label": "Confirm stage change (CPSForm)",
       "variant": "default"
     },
     {
       "id": "m1",
       "from": "ui",
-      "to": "officer",
-      "y": 200,
-      "label": "/enotification/create-template/<type>",
-      "variant": "return"
+      "to": "api",
+      "y": 195,
+      "label": "POST change-processing-stage",
+      "variant": "emphasis"
     },
     {
       "id": "m2",
-      "from": "officer",
-      "to": "ui",
-      "y": 235,
-      "label": "Name (suffix typed by officer) + body",
-      "variant": "default"
+      "from": "api",
+      "to": "blob",
+      "y": 225,
+      "label": "Excel of ALL today's changes (succeeded>0)",
+      "variant": "dashed"
     },
     {
       "id": "m3",
-      "from": "ui",
-      "to": "api",
-      "y": 285,
-      "label": "POST templatestore {templateType from tab}",
-      "variant": "emphasis"
+      "from": "api",
+      "to": "ui",
+      "y": 255,
+      "label": "report.url + expiresAt (24h label only)",
+      "variant": "return"
     },
     {
       "id": "m4",
       "from": "api",
-      "to": "ui",
-      "y": 320,
-      "label": "400: Invalid Template Name / Type",
-      "variant": "return"
+      "to": "mail",
+      "y": 285,
+      "label": "Async error mail if failed/warning",
+      "variant": "dashed"
     },
     {
       "id": "m5",
       "from": "ui",
-      "to": "officer",
-      "y": 355,
-      "label": "Alert: FAILED. ERROR: <reason>",
-      "variant": "return"
-    },
-    {
-      "id": "m6",
-      "from": "client",
       "to": "api",
-      "y": 410,
-      "label": "POST templatestore (same validation)",
+      "y": 315,
+      "label": "POST .../report/{file} auto-download",
       "variant": "emphasis"
     },
     {
+      "id": "m6",
+      "from": "officer",
+      "to": "ui",
+      "y": 345,
+      "label": "Open Report tab (REPORT_CPS)",
+      "variant": "default"
+    },
+    {
       "id": "m7",
-      "from": "api",
-      "to": "db",
-      "y": 445,
-      "label": "repository.save, no duplicate check",
-      "variant": "dashed"
+      "from": "ui",
+      "to": "api",
+      "y": 375,
+      "label": "POST .../reports (max 90 days)",
+      "variant": "emphasis"
     },
     {
       "id": "m8",
       "from": "api",
-      "to": "client",
-      "y": 480,
-      "label": "201 saved, same name is overwritten",
+      "to": "blob",
+      "y": 405,
+      "label": "List blobs by date prefix",
+      "variant": "dashed"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "ui",
+      "y": 435,
+      "label": "List per date + Download / ZIP",
+      "variant": "return"
+    },
+    {
+      "id": "m10",
+      "from": "api",
+      "to": "ui",
+      "y": 465,
+      "label": "No expiry check on download",
       "variant": "return"
     }
   ],
   "activations": [
     {
+      "participant": "officer",
+      "from": 160,
+      "to": 350,
+      "type": "external"
+    },
+    {
       "participant": "ui",
       "from": 160,
-      "to": 360,
+      "to": 470,
       "type": "frontend"
     },
     {
       "participant": "api",
-      "from": 280,
-      "to": 490,
+      "from": 190,
+      "to": 470,
       "type": "backend"
     },
     {
-      "participant": "db",
-      "from": 446,
-      "to": 456,
+      "participant": "blob",
+      "from": 220,
+      "to": 410,
       "type": "database"
+    },
+    {
+      "participant": "mail",
+      "from": 280,
+      "to": 290,
+      "type": "external"
     }
   ],
   "cards": [
@@ -160,27 +188,27 @@
       "dot": "emerald",
       "title": "Matches story",
       "items": [
-        "Create button and 3 routes",
-        "Name and type rules in API",
-        "Reason text shown on screen"
+        "Excel built after save",
+        "List (90 days) and download",
+        "Error mail is async"
       ]
     },
     {
       "dot": "rose",
       "title": "Gap",
       "items": [
-        "No duplicate-name check",
-        "No delete function",
-        "Suffix not added by the UI"
+        "24h expiry is only a field",
+        "Report = all of today's changes",
+        "Count/user per date, not per file"
       ]
     },
     {
       "dot": "orange",
       "title": "To verify",
       "items": [
-        "Which roles may create",
-        "Does any job read new template",
-        "LETTER has no create function"
+        "Blob lifecycle after 24h",
+        "Mail delivery on real server",
+        "Roles holding REPORT_CPS"
       ]
     }
   ]

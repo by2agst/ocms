@@ -2,190 +2,61 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "OCMS52.6 Redirect Offender to Existing Record",
+    "title": "OCMS52.6 RIP Hirer/Driver Furnished Report",
+    "locale": "en",
     "output": "OCMS52.6.html",
-    "viewBox": [
-      1080,
-      620
-    ],
+    "viewBox": [1080, 620],
     "column_fit": "spread",
-    "quality_profile": "showcase",
-    "locale": "en"
+    "quality_profile": "showcase"
   },
   "participants": [
-    {
-      "id": "npo",
-      "type": "external",
-      "label": "Officer",
-      "sublabel": "Notice Processing Officer"
-    },
-    {
-      "id": "ui",
-      "type": "frontend",
-      "label": "Admin UI",
-      "sublabel": "Owner/Hirer/Driver form"
-    },
-    {
-      "id": "api",
-      "type": "backend",
-      "label": "Admin API",
-      "sublabel": "staff-redirect"
-    },
-    {
-      "id": "db",
-      "type": "database",
-      "label": "VON / ONOD",
-      "sublabel": "offender_indicator"
-    },
-    {
-      "id": "hst",
-      "type": "backend",
-      "label": "HST service",
-      "sublabel": "TS-HST"
-    }
+    { "id": "officer", "type": "external", "label": "Officer", "sublabel": "Staff portal user" },
+    { "id": "ui", "type": "frontend", "label": "Staff UI", "sublabel": "ocmsadminui" },
+    { "id": "api", "type": "backend", "label": "Admin API", "sublabel": "ocmsadminapi" },
+    { "id": "db", "type": "database", "label": "Intranet DB", "sublabel": "suspended_notice" },
+    { "id": "cron", "type": "backend", "label": "Daily Report", "sublabel": "ocmsadminprivateapi" },
+    { "id": "mail", "type": "external", "label": "E-mail", "sublabel": "EmailService" }
   ],
   "segments": [
-    {
-      "from": 150,
-      "to": 260,
-      "label": "Request"
-    },
-    {
-      "from": 262,
-      "to": 400,
-      "label": "Switch"
-    },
-    {
-      "from": 402,
-      "to": 500,
-      "label": "Stage and HST"
-    }
+    { "from": 150, "to": 300, "label": "Screen" },
+    { "from": 302, "to": 400, "label": "Daily job" },
+    { "from": 402, "to": 500, "label": "E-mail" }
   ],
   "messages": [
-    {
-      "id": "m0",
-      "from": "npo",
-      "to": "ui",
-      "y": 165,
-      "label": "Click Redirect (exists, not current)",
-      "variant": "default"
-    },
-    {
-      "id": "m1",
-      "from": "ui",
-      "to": "api",
-      "y": 195,
-      "label": "furnish-redirect-check, then confirm",
-      "variant": "emphasis"
-    },
-    {
-      "id": "m2",
-      "from": "ui",
-      "to": "api",
-      "y": 225,
-      "label": "POST staff-redirect (name, ID type, ID no)",
-      "variant": "emphasis"
-    },
-    {
-      "id": "m3",
-      "from": "api",
-      "to": "db",
-      "y": 275,
-      "label": "UEN refused as Driver; target by notice + indicator",
-      "variant": "dashed"
-    },
-    {
-      "id": "m4",
-      "from": "api",
-      "to": "db",
-      "y": 315,
-      "label": "Old offender N, target Y (+ edits)",
-      "variant": "emphasis"
-    },
-    {
-      "id": "m5",
-      "from": "api",
-      "to": "db",
-      "y": 345,
-      "label": "Stage RD1/DN1, amount = composition, fee 0",
-      "variant": "dashed"
-    },
-    {
-      "id": "m6",
-      "from": "api",
-      "to": "hst",
-      "y": 395,
-      "label": "Apply or revive TS-HST",
-      "variant": "dashed"
-    },
-    {
-      "id": "m7",
-      "from": "api",
-      "to": "ui",
-      "y": 445,
-      "label": "Success + new stage",
-      "variant": "return"
-    }
+    { "id": "m0", "from": "officer", "to": "ui", "y": 165, "label": "Open Report > RIP (REPORT_RIP)", "variant": "default" },
+    { "id": "m1", "from": "ui", "to": "api", "y": 195, "label": "POST /v1/reports/rip/furnished-driver-hirer", "variant": "emphasis" },
+    { "id": "m2", "from": "api", "to": "db", "y": 225, "label": "PS-RP2, offender H/D, life_status D", "variant": "dashed" },
+    { "id": "m3", "from": "api", "to": "ui", "y": 255, "label": "Rows for the date range", "variant": "return" },
+    { "id": "m4", "from": "ui", "to": "api", "y": 285, "label": "POST /v1/reports/rip/export", "variant": "emphasis" },
+    { "id": "m5", "from": "api", "to": "ui", "y": 315, "label": "RIP_Hirer_Driver_Furnished_Report.xlsx", "variant": "return" },
+    { "id": "m6", "from": "cron", "to": "db", "y": 345, "label": "08:00 job3: same query, date = today", "variant": "dashed" },
+    { "id": "m7", "from": "db", "to": "cron", "y": 375, "label": "Rows, xlsx: Summary + data sheet", "variant": "return" },
+    { "id": "m8", "from": "cron", "to": "mail", "y": 415, "label": "sendEmail, no source set", "variant": "emphasis" },
+    { "id": "m9", "from": "mail", "to": "cron", "y": 445, "label": "enableSmtp=false: returns false", "variant": "return" },
+    { "id": "m10", "from": "cron", "to": "mail", "y": 475, "label": "FAILED mail, same recipients, same block", "variant": "dashed" }
   ],
   "activations": [
-    {
-      "participant": "npo",
-      "from": 160,
-      "to": 200,
-      "type": "external"
-    },
-    {
-      "participant": "ui",
-      "from": 160,
-      "to": 450,
-      "type": "frontend"
-    },
-    {
-      "participant": "api",
-      "from": 190,
-      "to": 450,
-      "type": "backend"
-    },
-    {
-      "participant": "db",
-      "from": 280,
-      "to": 360,
-      "type": "database"
-    },
-    {
-      "participant": "hst",
-      "from": 390,
-      "to": 400,
-      "type": "backend"
-    }
+    { "participant": "ui", "from": 160, "to": 320, "type": "frontend" },
+    { "participant": "api", "from": 190, "to": 320, "type": "backend" },
+    { "participant": "db", "from": 226, "to": 236, "type": "database" },
+    { "participant": "cron", "from": 340, "to": 480, "type": "backend" },
+    { "participant": "mail", "from": 410, "to": 480, "type": "backend" }
   ],
   "cards": [
     {
       "dot": "emerald",
       "title": "Matches story",
-      "items": [
-        "Button, check, confirmation",
-        "Old N, target Y",
-        "Stage, amount, fee, HST"
-      ]
+      "items": ["RIP tab behind REPORT_RIP", "Screen search and Excel export", "Daily job in the 08:00 report"]
     },
     {
       "dot": "rose",
       "title": "Gap",
-      "items": [
-        "Also overwrites target fields",
-        "Name and ID type mandatory",
-        "Reset fee came from a defect fix"
-      ]
+      "items": ["Mails blocked by enableSmtp=false", "RIP job has no allowed source", "Failure mail uses same list"]
     },
     {
       "dot": "orange",
       "title": "To verify",
-      "items": [
-        "Roles for the forms",
-        "Atomic across 3 databases",
-        "URA expectation"
-      ]
+      "items": ["Real SMTP setting on servers", "Role data for REPORT_RIP", "Belongs to OCMS14.x RIP flow?"]
     }
   ]
 }

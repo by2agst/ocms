@@ -4,85 +4,73 @@
  "steps": [
   {
    "step": {
-    "en": "The Toppan Download cron picks up the registered-mail return files DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* from the SFTP server",
-    "id": "Cron Toppan Download mengambil file balasan registered mail DPT-URA-RD2-D2-* dan DPT-URA-DN2-D2-* dari SFTP server"
-   },
-   "fit": "Sebagian",
-   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java:94-100",
-   "detail": {
-    "en": "isValidResponseFile accepts the prefixes DPT-URA-RD2-D2- and DPT-URA-DN2-D2- (lines 98-99) and ToppanDownloadJob processes them. cron-schedules-prod.properties:90-91 has cron.toppandownload.schedule=0 30 1 * * ? and enabled=true. Cannot verify from repo: the SFTP folder content and the real server value of the flag. Note: files only arrive if Toppan received letters, and the upload to Toppan is blocked in prod config (application-prod.properties:86, sftp.upload.disabledServers=toppan). Fit changed from Sesuai to Sebagian after review: the prefix is accepted and the schedule is enabled, but a return file can only exist for letters that Toppan received, and the upload to Toppan is blocked in the prod properties (sftp.upload.disabledServers=toppan), so the chain behind this step is partly switched off there.",
-    "id": "isValidResponseFile menerima prefix DPT-URA-RD2-D2- dan DPT-URA-DN2-D2- (baris 98-99) dan ToppanDownloadJob memprosesnya. cron-schedules-prod.properties:90-91 berisi cron.toppandownload.schedule=0 30 1 * * ? dan enabled=true. Cannot verify from repo: isi folder SFTP dan nilai flag di server asli. Catatan: file hanya datang kalau Toppan menerima letter, dan upload ke Toppan diblok di config prod (application-prod.properties:86, sftp.upload.disabledServers=toppan). Fit diubah dari Sesuai ke Sebagian setelah review: prefix diterima dan schedule aktif, tapi file balasan hanya bisa ada untuk letter yang diterima Toppan, dan upload ke Toppan diblok di prod properties (sftp.upload.disabledServers=toppan), jadi rantai di balik step ini sebagian dimatikan di sana."
-   }
-  },
-  {
-   "step": {
-    "en": "The parser reads each detail record and takes the notice number and the postal registration number",
-    "id": "Parser membaca setiap detail record dan mengambil notice number serta postal registration number"
+    "en": "When the Internet-to-Intranet sync processes an AXS transaction, the transaction gets urapg_sync_status = N",
+    "id": "Saat sync Internet ke Intranet memproses transaksi AXS, transaksi itu diberi urapg_sync_status = N"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java:153-159",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronSyncTxnData.java:687-695",
    "detail": {
-    "en": "RD2 and DN2 files go to parseRegisteredMailReturnFileContent (lines 153-159). parseRegisteredMailRecord takes the notice number from content positions 10-20 and the registration number from positions 223-237 (A15, uppercase alphanumeric only, max 15 chars, 13-char values must match 2 letters + 9 digits + 2 letters, lines 702-725). Invalid records are skipped and counted (about line 513-520), a missing trailer fails the whole file (TRAILER_MISSING). The file layout is known from code only; no interface spec is in the repo.",
-    "id": "File RD2 dan DN2 masuk ke parseRegisteredMailReturnFileContent (baris 153-159). parseRegisteredMailRecord mengambil notice number dari posisi 10-20 dan registration number dari posisi 223-237 (A15, hanya huruf besar dan angka, maksimal 15 karakter, nilai 13 karakter harus cocok 2 huruf + 9 angka + 2 huruf, baris 702-725). Record yang tidak valid dilewati dan dihitung (sekitar baris 513-520), trailer yang hilang membuat seluruh file gagal (TRAILER_MISSING). Format file hanya diketahui dari code; tidak ada interface spec di repo."
+    "en": "markAsPendingUraPgSync picks rows with typeOfReceipt AXS and sender AXS and calls bulkUpdateUrapgSyncStatus(..., \"N\") (lines 687-695). It is called after each of the sync paths (lines 433, 453, 524, 658). The sync job runs every 10 minutes and is enabled in prod config (cron-schedules-prod.properties:305-306). Real server value cannot be verified from the repo.",
+    "id": "markAsPendingUraPgSync memilih baris dengan typeOfReceipt AXS dan sender AXS lalu memanggil bulkUpdateUrapgSyncStatus(..., \"N\") (baris 687-695). Dipanggil setelah tiap jalur sync (baris 433, 453, 524, 658). Job sync jalan tiap 10 menit dan enabled di config prod (cron-schedules-prod.properties:305-306). Nilai di server asli tidak bisa diverifikasi dari repo."
    }
   },
   {
    "step": {
-    "en": "For an RD2 file the number is saved in ocms_request_driver_particulars.postal_regn_no, for a DN2 file in ocms_driver_notice.postal_regn_no, only on a tracking row that already exists",
-    "id": "Untuk file RD2 nomor disimpan di ocms_request_driver_particulars.postal_regn_no, untuk file DN2 di ocms_driver_notice.postal_regn_no, hanya pada baris tracking yang sudah ada"
-   },
-   "fit": "Sebagian",
-   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:226-236",
-   "detail": {
-    "en": "The target table is chosen from the file name (lines 226-236). bulkUpdateDriverNotice (line 494-495) writes only when the stage is DN2 and bulkUpdateRequestDriverParticulars (line 573-574) only when the stage is RD2, with a JOIN UPDATE on notice_no + stage + date_of_processing, so nothing is written when the tracking row is missing. Those tracking rows are created by the Toppan upload flow (ToppanUploadHelper.java:889-897). That flow runs only through the manual trigger POST /toppan/generate-letters because executeJob() is commented out in ToppanUploadJobsScheduler (about line 118-119), and the upload is blocked in prod. So in prod the rows this step needs may not exist. A notice without a tracking row is only logged as a warning (line 271) and is still counted as updated (line 301).",
-    "id": "Tabel tujuan dipilih dari nama file (baris 226-236). bulkUpdateDriverNotice (baris 494-495) hanya menulis kalau stage DN2 dan bulkUpdateRequestDriverParticulars (baris 573-574) hanya kalau stage RD2, dengan JOIN UPDATE pada notice_no + stage + date_of_processing, jadi tidak ada yang tertulis kalau baris tracking tidak ada. Baris tracking itu dibuat oleh flow upload Toppan (ToppanUploadHelper.java:889-897). Flow itu hanya jalan lewat trigger manual POST /toppan/generate-letters karena executeJob() di-comment di ToppanUploadJobsScheduler (sekitar baris 118-119), dan upload diblok di prod. Jadi di prod baris yang dibutuhkan step ini mungkin tidak ada. Notice tanpa baris tracking hanya dicatat sebagai warning (baris 271) dan tetap dihitung sebagai updated (baris 301)."
-   }
-  },
-  {
-   "step": {
-    "en": "An existing postal registration number is not overwritten with a blank value",
-    "id": "Postal registration number yang sudah ada tidak ditimpa dengan nilai kosong"
+    "en": "Every hour the job reads all web_txn_detail rows with urapg_sync_status = N and sends them to the URA Payment Gateway endpoint /paymentgateway/Recon/insertOcmsAxsTxn/v1",
+    "id": "Setiap jam job membaca semua baris web_txn_detail dengan urapg_sync_status = N dan mengirimnya ke endpoint URA Payment Gateway /paymentgateway/Recon/insertOcmsAxsTxn/v1"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:511-514",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:22-39",
    "detail": {
-    "en": "A record without a registration number is not put in the map, so the temp row carries NULL, and the UPDATE uses CASE WHEN t.postal_regn_no IS NOT NULL THEN t.postal_regn_no ELSE dn.postal_regn_no END (lines 513-514 for DN2, 589-590 for RD2). A non-blank new value does overwrite an older different number; the acceptance does not claim otherwise.",
-    "id": "Record tanpa registration number tidak dimasukkan ke map, jadi baris temp berisi NULL, dan UPDATE memakai CASE WHEN t.postal_regn_no IS NOT NULL THEN t.postal_regn_no ELSE dn.postal_regn_no END (baris 513-514 untuk DN2, 589-590 untuk RD2). Nilai baru yang tidak kosong menimpa nomor lama yang berbeda; acceptance tidak mengklaim sebaliknya."
+    "en": "The query selects urapgSyncStatus = N, typeOfReceipt = 01 and sender = AXS (WebTxnDetailRepository.java:24-25). The schedule is 0 0 * * * ? with enabled=true in prod (cron-schedules-prod.properties:350-351). All pending rows go in one POST (CronUraPgRetry.java:39) to ura.paymentgateway.baseUrl + the endpoint (application-prod.properties:106-107; UraPgServiceImpl.java:133-151) with the APIM key read from Key Vault; if the key cannot be read only a warning is logged and the call goes without it (UraPgServiceImpl.java:105-107). Gateway behaviour and the APIM key cannot be verified from the repo. There is no staff screen or Cron button for this job.",
+    "id": "Query memilih urapgSyncStatus = N, typeOfReceipt = 01 dan sender = AXS (WebTxnDetailRepository.java:24-25). Schedule-nya 0 0 * * * ? dengan enabled=true di prod (cron-schedules-prod.properties:350-351). Semua baris pending dikirim dalam satu POST (CronUraPgRetry.java:39) ke ura.paymentgateway.baseUrl + endpoint (application-prod.properties:106-107; UraPgServiceImpl.java:133-151) dengan APIM key dari Key Vault; kalau key tidak terbaca hanya warning yang dicatat dan panggilan jalan tanpa key (UraPgServiceImpl.java:105-107). Perilaku gateway dan APIM key tidak bisa diverifikasi dari repo. Tidak ada layar staff atau tombol Cron untuk job ini."
    }
   },
   {
    "step": {
-    "en": "Notices in the file that are not in VON are reported as errors and not silently skipped",
-    "id": "Notice di file yang tidak ada di VON dilaporkan sebagai error dan tidak dilewati diam-diam"
+    "en": "Rows the gateway reports as sent are set to urapg_sync_status = Y; the others stay N and are sent again in the next run",
+    "id": "Baris yang dilaporkan terkirim oleh gateway diubah ke urapg_sync_status = Y; sisanya tetap N dan dikirim lagi di run berikutnya"
    },
    "fit": "Sesuai",
-   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java:188-216",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:41-69",
    "detail": {
-    "en": "One bulk lookup in ocms_valid_offence_notice (line 188); each missing notice adds \"Notice not found\" to errors and errorCount++ (lines 206-216). ToppanDownloadJob adds \"Stage transition errors for <stage>: n notices failed\" to its error list when errorCount > 0 (lines 438-446) and records the job errorCount (line 505). Gap outside this acceptance: a notice that exists in VON but has no tracking row is not an error (see the previous step).",
-    "id": "Satu bulk lookup ke ocms_valid_offence_notice (baris 188); setiap notice yang tidak ada menambah \"Notice not found\" ke errors dan errorCount++ (baris 206-216). ToppanDownloadJob menambah \"Stage transition errors for <stage>: n notices failed\" ke daftar error-nya kalau errorCount > 0 (baris 438-446) dan mencatat errorCount job (baris 505). Celah di luar acceptance ini: notice yang ada di VON tapi tanpa baris tracking tidak dianggap error (lihat step sebelumnya)."
+    "en": "Items with status S (Notification.STATUS_SENT) are set to Y (lines 41-53). Failed items, a null response or an exception leave the rows at N (lines 62-69). On timeout, connection error or HTTP error UraPgServiceImpl builds an error response with status E for every row (buildErrorResponse, lines 415-430), so nothing is marked Y. The update works per receipt_no, so all rows with the same receipt_no get the same status (WebTxnDetailRepository.java:30-35). There is no retry limit or back-off: a row the gateway keeps rejecting is sent every hour.",
+    "id": "Item dengan status S (Notification.STATUS_SENT) diubah ke Y (baris 41-53). Item gagal, response null, atau exception membuat baris tetap N (baris 62-69). Pada timeout, connection error atau HTTP error UraPgServiceImpl membuat error response berstatus E untuk setiap baris (buildErrorResponse, baris 415-430), jadi tidak ada yang ditandai Y. Update dilakukan per receipt_no, jadi semua baris dengan receipt_no yang sama mendapat status yang sama (WebTxnDetailRepository.java:30-35). Tidak ada batas retry atau back-off: baris yang terus ditolak gateway dikirim tiap jam."
    }
   },
   {
    "step": {
-    "en": "The staff portal notice detail shows the field \"Postal Reg. Number\" in the RDP and DN section",
-    "id": "Notice detail di staff portal menampilkan field \"Postal Reg. Number\" di bagian RDP dan DN"
+    "en": "When some rows still fail, an error notification is raised through notifyUraPgErrors",
+    "id": "Kalau masih ada baris yang gagal, error notification dikirim lewat notifyUraPgErrors"
    },
-   "fit": "Sesuai",
-   "code_ref": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx:165-166",
+   "fit": "Beda dari flow",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/uraPg/service/UraPgServiceImpl.java:457-461",
    "detail": {
-    "en": "RdpAndDnDetails.tsx shows source postalRegnNo with label rdpdn.form.postal_reg at line 165 (RDP) and line 395 (DN); the label is \"Postal Reg. Number\" (ocmsadminui/src/i18n/en/translation.json:721). The API returns the field: RequestDriverController.java:216 and DriverNoticeControllerPlus.java:210 call setPostalRegnNo. Cannot verify from repo: which roles can open the notice detail.",
-    "id": "RdpAndDnDetails.tsx menampilkan source postalRegnNo dengan label rdpdn.form.postal_reg di baris 165 (RDP) dan baris 395 (DN); labelnya \"Postal Reg. Number\" (ocmsadminui/src/i18n/en/translation.json:721). API mengembalikan field itu: RequestDriverController.java:216 dan DriverNoticeControllerPlus.java:210 memanggil setPostalRegnNo. Cannot verify from repo: role mana yang boleh membuka notice detail."
+    "en": "CronUraPgRetry calls notifyUraPgErrors when failed rows remain (line 60), but the method body is empty: the call to sendErrorNotificationEmail is commented out (OCMS-DF-2026-147, lines 458-460). Failures are only written to the error log (CronUraPgRetry.java:59). sendErrorNotificationEmail still exists (lines 469 onwards) but nothing calls it. A null response or an exception does not even call notifyUraPgErrors.",
+    "id": "CronUraPgRetry memanggil notifyUraPgErrors saat masih ada baris gagal (baris 60), tetapi isi method-nya kosong: pemanggilan sendErrorNotificationEmail di-comment (OCMS-DF-2026-147, baris 458-460). Kegagalan hanya ditulis ke error log (CronUraPgRetry.java:59). sendErrorNotificationEmail masih ada (baris 469 dan seterusnya) tapi tidak ada yang memanggilnya. Response null atau exception bahkan tidak memanggil notifyUraPgErrors."
+   }
+  },
+  {
+   "step": {
+    "en": "After the run, the gateway records match what OCMS has received from AXS",
+    "id": "Setelah run, catatan gateway sama dengan yang diterima OCMS dari AXS"
+   },
+   "fit": "Tidak ada code",
+   "code_ref": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/synctxndata/CronUraPgRetry.java:51-61",
+   "detail": {
+    "en": "The job only flips the flag for items the gateway acknowledged. No code compares totals, counts or amounts between OCMS and the gateway, and no report shows rows still at N. Whether the gateway records really match cannot be verified from the repo.",
+    "id": "Job hanya membalik flag untuk item yang di-acknowledge gateway. Tidak ada code yang membandingkan total, jumlah, atau nominal antara OCMS dan gateway, dan tidak ada report yang menampilkan baris yang masih N. Apakah catatan gateway benar-benar sama tidak bisa diverifikasi dari repo."
    }
   }
  ],
  "note": {
-  "en": "The chain from the return file to the notice screen is complete in code. What the repo cannot prove: any real RD2/DN2 return file was ever processed, and the tracking rows the update needs are created only by the Toppan upload flow, which runs only by manual trigger and is blocked in prod config. Same Toppan job also does ACK-based stage moves and the \"List of DNs processed\" report; those are not claimed here. SFTP content, Toppan side and server flag values cannot be verified.",
-  "id": "Rantai dari file balasan sampai layar notice lengkap di code. Yang tidak bisa dibuktikan repo: apakah ada file balasan RD2/DN2 asli yang pernah diproses, dan baris tracking yang dibutuhkan update hanya dibuat oleh flow upload Toppan, yang hanya jalan lewat trigger manual dan diblok di config prod. Job Toppan yang sama juga memindahkan stage berdasarkan ACK dan membuat report \"List of DNs processed\"; itu tidak diklaim di sini. Isi SFTP, sisi Toppan, dan nilai flag server tidak bisa diverifikasi."
+  "en": "The hourly send and the N to Y flag handling are complete in code and enabled in prod config. Not proven by the repo: gateway behaviour, the APIM key, and that rows were ever accepted (tickets OCMS-DF-2026-035, -047 and -147 are Closed, Prod deployed, and show the feed in use but as bug fixes). The error notification is switched off in code, there is no retry limit, there is no reconciliation check, and the job has no staff screen. OCMS43.2 covers the opposite direction (payments coming in from AXS); this trace covers only the send to the gateway.",
+  "id": "Pengiriman per jam dan penanganan flag N ke Y lengkap di code dan enabled di config prod. Tidak terbukti oleh repo: perilaku gateway, APIM key, dan apakah baris pernah diterima (tiket OCMS-DF-2026-035, -047 dan -147 berstatus Closed, Prod deployed, dan menunjukkan feed ini dipakai tetapi sebagai bug fix). Error notification dimatikan di code, tidak ada batas retry, tidak ada cek rekonsiliasi, dan job ini tidak punya layar staff. OCMS43.2 mencakup arah sebaliknya (pembayaran masuk dari AXS); trace ini hanya mencakup pengiriman ke gateway."
  },
  "corrections": [
-  "Acceptance 2 (\"update only, the tracking row must already exist\") is true, but the rows are created only by the Toppan upload flow, which runs only by manual trigger and is blocked in prod config; add this to risks.",
-  "Acceptance 5 holds only for notices missing in VON. A notice that exists in VON but has no tracking row is logged as a warning and counted as updated; say so in risks.",
-  "Acceptance 1: the file layout (positions 10-20 and 223-237, A15) is known from code only; there is no interface spec in the repo.",
-  "Risk 2: the repo cannot show that a real return file was ever received; with upload blocked in prod, none may have been produced."
+  "Acceptance 4 is wrong: notifyUraPgErrors does nothing (body empty since OCMS-DF-2026-147); failures are only logged. Remove it or describe it as an error log.",
+  "Acceptance 2 should say: all pending rows (type 01, sender AXS) are sent in ONE request, with no retry limit.",
+  "User story: \"so that the gateway records match\" is not checked by any code; reword to \"so that every AXS payment is reported to the gateway\".",
+  "Risk about the Cron page is correct (no button), and tickets DF-035/-047/-147 are bug fixes, so URA may treat this as maintenance."
  ]
 }

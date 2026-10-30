@@ -1,189 +1,162 @@
 {
  "id": "OCMS52.8",
- "checked_by": "ledger-L2",
+ "checked_by": "ledger-L3",
  "acceptance": [
   {
    "i": 0,
-   "claim": "On the Manage Template list there is a 'Create Template' button for each type (SMS, EMAIL, LETTER) that opens /enotification/create-template/<type>. The button is not wrapped in a function check, and the server mapping has dedicated create functions for EMAIL and SMS only, none for LETTER.",
+   "claim": "After a batch with at least one success, builds Excel of all today's changes (findByDateOfChange(today)), returns path and 24h expiry (response field only); failure of report does not fail batch",
    "status": "proved",
-   "file": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx",
-   "line": 119,
-   "quote": "const path = `/enotification/create-template/${lwType}`;",
-   "missing": "'Not wrapped in a function check' and 'no create function for LETTER' are absences: grep of hasFunction in ocmsadminui/src/pages/ManageTemplate found nothing, and grep of CREATE_LETTER in api-authorization.properties found nothing; neither can be shown by one quote. Which roles hold the functions: cannot verify from repo. LETTER create goes through OCMS_ENOTIF_MANAGE_TEMPLATE (/v1/templatestore).",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+   "line": 145,
+   "quote": ".findByDateOfChange(today);",
+   "missing": "Negative claims (code never checks expiresAt; no blob lifecycle) rest on grep: expiresAt appears only at ChangeOfProcessingService.java:153 and the DTO ChangeOfProcessingResponse.java:110. Blob lifecycle cannot be verified from repo.",
    "fix_en": "",
    "extra": [
     {
-     "file": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx",
-     "line": 139,
-     "quote": "label=\"Create Template\""
-    },
-    {
-     "file": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx",
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
      "line": 140,
-     "quote": "onClick={onCreate}"
+     "quote": "if (succeeded > 0) {"
     },
     {
-     "file": "ocmsadminui/src/App.tsx",
-     "line": 288,
-     "quote": "<Route path=\"create-template\">"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+     "line": 151,
+     "quote": "reportInfo = ChangeOfProcessingResponse.ReportInfo.builder()"
     },
     {
-     "file": "ocmsadminui/src/App.tsx",
-     "line": 299,
-     "quote": "element={<ManageTemplate.CreateTemplateForm type={\"LETTER\"} />}"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+     "line": 153,
+     "quote": ".expiresAt(LocalDateTime.now().plusHours(24))"
     },
     {
-     "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-     "line": 160,
-     "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_CREATE_EMAIL_TEMPLATE]=/v1/templatestore"
-    },
-    {
-     "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-     "line": 162,
-     "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_CREATE_SMS_TEMPLATE]=/v1/templatestore"
-    },
-    {
-     "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
      "line": 158,
-     "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_MANAGE_TEMPLATE]=/v1/templatestore,/v1/templatestorepatch"
+     "quote": "// Don't fail the entire operation if report generation fails"
     }
    ]
   },
   {
    "i": 1,
-   "claim": "The form takes Template Name and the template body and saves with POST templatestore; the Template Type is set from the tab. The officer must type the _SMS/_EMAIL/_LETTER suffix; the UI only upper-cases the name. Saving a name that already exists silently overwrites that template (no duplicate check).",
-   "status": "partly",
-   "file": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx",
-   "line": 105,
-   "quote": "mode === \"CREATE\" ? \"templatestore\" : `templatestorepatch`;",
-   "missing": "Form fields, POST templatestore, type from the tab, upper-casing and the typed suffix are proved. 'Saving a name that already exists silently overwrites' is NOT shown by one line: it is inferred from repository.save(entity) on an entity whose @Id is the assigned templateName (EN lines 31-34, no @GeneratedValue) and the absence of any exists check in the create path; the /templatestoreexists endpoint is only named in a class comment. Behaviour not run. [Medium confidence]",
-   "fix_en": "The form takes Template Name and the template body (plus Remarks) and saves with POST templatestore; the Template Type is set from the tab and the UI upper-cases the name. The officer must type the _SMS/_EMAIL/_LETTER suffix (the UI only checks that the name contains the type). The create path calls repository.save on an entity keyed by templateName with no existence check, so saving an existing name is expected to overwrite that template (inferred from the code, not run).",
+   "claim": "POST reports lists date range max 90 days; POST report/{reportId} downloads; list from DB change records + blobs by date prefix; null reportUrl when blob gone",
+   "status": "proved",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+   "line": 302,
+   "quote": "if (daysBetween > 90) {",
+   "missing": "Count shown is dateRecords.size() (all changes of that DB date), repeated for each blob of that date (CT:366). Wording is provable as written.",
+   "fix_en": "",
    "extra": [
     {
-     "file": "ocmsadminui/src/utils/mapping/ManageTemplate/ManageTemplateMap.ts",
-     "line": 216,
-     "quote": "mode === \"CREATE\" ? (data?.templateName ?? \"\").toUpperCase() : data?.templateName;"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 285,
+     "quote": "@PostMapping(\"/change-processing-stage/reports\")"
     },
     {
-     "file": "ocmsadminui/src/utils/mapping/ManageTemplate/ManageTemplateMap.ts",
-     "line": 221,
-     "quote": "templateType: type,"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 340,
+     "quote": "for (java.util.Map.Entry<java.time.LocalDate, java.util.List<OcmsChangeOfProcessing>> entry :"
     },
     {
-     "file": "ocmsadminui/src/utils/validation/ManageTemplate/ValidManageTemplate.ts",
-     "line": 38,
-     "quote": "test: (value: any) => (value ?? \"\").toUpperCase().includes(type),"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 358,
+     "quote": "azureBlobStorageUtil.listBlobsInContainer(azureBlobStorageUtil.getContainerName(), datePrefix);"
     },
     {
-     "file": "ocmsadminui/src/pages/ManageTemplate/form/CreateTemplateForm.tsx",
-     "line": 95,
-     "quote": "source={`templateName`}"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 366,
+     "quote": "reportInfo.put(\"noticeCount\", dateRecords.size());"
     },
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/BaseImplement.java",
-     "line": 132,
-     "quote": "return retryService.executeWithRetry(() -> repository.save(entity));"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 376,
+     "quote": "reportInfo.put(\"reportUrl\", null);"
     },
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStore.java",
-     "line": 34,
-     "quote": "private String templateName;"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 422,
+     "quote": "@PostMapping(\"/change-processing-stage/report/{reportId}\")"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 455,
+     "quote": "String blobPath = \"reports/change-stage/\" + reportId;"
+    },
+    {
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+     "line": 466,
+     "quote": "\"error\", \"REPORT_NOT_FOUND\","
     }
    ]
   },
   {
    "i": 2,
-   "claim": "Backend rejects a Template Type that is not SMS, EMAIL or LETTER. This can only be triggered by a direct API call, because the screen sets the type from the tab. It is not demonstrable on screen.",
+   "claim": "Report tab 'Change Processing Stage Report' (path cps_report, function REPORT_CPS) shows list and downloads",
    "status": "proved",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 102,
-   "quote": "throw new IllegalArgumentException(\"Invalid Template Type. Must be SMS, EMAIL or LETTER\");",
-   "missing": "'Only triggered by a direct API call' rests on the UI setting templateType from the tab (MapAPIManageTemplate); proved by the extra quote.",
+   "file": "ocmsadminui/src/pages/Report/lists/ReportList.tsx",
+   "line": 115,
+   "quote": "{hasFunction(FUNCTION_ID.REPORT_CPS) && <TabItem",
+   "missing": "",
    "fix_en": "",
    "extra": [
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 101,
-     "quote": "if (type == null || !TEMPLATE_TYPE_PATTERN.matcher(type).matches()) {"
+     "file": "ocmsadminui/src/pages/Report/index.tsx",
+     "line": 90,
+     "quote": "title: \"Change Processing Stage Report\","
     },
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 211,
-     "quote": "private static final Pattern TEMPLATE_TYPE_PATTERN = Pattern.compile(\"^(SMS|EMAIL|LETTER)$\");"
+     "file": "ocmsadminui/src/pages/Report/index.tsx",
+     "line": 91,
+     "quote": "path: \"cps_report\","
     },
     {
-     "file": "ocmsadminui/src/utils/mapping/ManageTemplate/ManageTemplateMap.ts",
-     "line": 221,
-     "quote": "templateType: type,"
+     "file": "ocmsadminui/src/utils/constant.ts",
+     "line": 261,
+     "quote": "REPORT_CPS: \"OCMS_REPORT_CPS\","
+    },
+    {
+     "file": "ocmsadminui/src/pages/Report/lists/ReportListCPS.tsx",
+     "line": 126,
+     "quote": "resource={\"change-processing-stage/reports\"}"
+    },
+    {
+     "file": "ocmsadminui/src/pages/Report/lists/ReportListCPS.tsx",
+     "line": 44,
+     "quote": "endpoint: \"change-processing-stage/report\","
+    },
+    {
+     "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
+     "line": 147,
+     "quote": "auth.api-authorization.mapping.[OCMS_REPORT_CPS]=\\"
     }
    ]
   },
   {
    "i": 3,
-   "claim": "Backend rejects a Template Name that is not uppercase letters, digits and underscores, or does not end with _SMS, _EMAIL or _LETTER matching the type, and returns the reason text to the screen. This is pen-test remediation (OCMS-SR-2026-039, OCMS-DEV-2026-039), so it is listed but not claimed.",
+   "claim": "Error e-mail sent asynchronously to email.error.recipients if any notice failed or warned; internal alert, not claimed",
    "status": "proved",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 105,
-   "quote": "if (name == null || name.isEmpty() || !TEMPLATE_NAME_PATTERN.matcher(name).matches()) {",
-   "missing": "Ticket numbers OCMS-SR-2026-039 / OCMS-DEV-2026-039 come from code comments ('Fix for OCMS-DEV-2026-039') and maintenance_tickets.csv; a comment is not proof of intent. Note the screen shows the text with the prefix 'FAILED. ERROR: Error: ...'.",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+   "line": 163,
+   "quote": "if (failed > 0 || warnings > 0) {",
+   "missing": "Real mailbox delivery cannot be verified from repo. No profile file overrides email.enableSmtp (only application.properties:133 = true).",
    "fix_en": "",
    "extra": [
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 216,
-     "quote": "private static final Pattern TEMPLATE_NAME_PATTERN = Pattern.compile(\"^[A-Z0-9]+(_[A-Z0-9]+)*_(SMS|EMAIL|LETTER)$\");"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+     "line": 169,
+     "quote": "notificationService.sendErrorNotificationAsync("
     },
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 111,
-     "quote": "if (!name.endsWith(\"_\" + type)) {"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeProcessingStageNotificationService.java",
+     "line": 61,
+     "quote": "return CompletableFuture.supplyAsync(() -> {"
     },
     {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 79,
-     "quote": "CrudResponse.error(CrudResponse.AppCodes.INVALID_INPUT, e.getMessage()),"
+     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeProcessingStageNotificationService.java",
+     "line": 92,
+     "quote": "emailRequest.setTo(recipients);"
     },
     {
-     "file": "ocmsadminui/src/utils/api/index.ts",
-     "line": 101,
-     "quote": "return message ?? `${method} \"/${endpoint} ERROR`;"
-    },
-    {
-     "file": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx",
-     "line": 113,
-     "quote": "if (res[\"error\"]) throw Error(`API ERROR: ${res[\"error\"]}`);"
-    },
-    {
-     "file": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx",
-     "line": 122,
-     "quote": "msg = `${msgs[\"FAILED\"]}. ERROR: ${error}`;"
-    }
-   ]
-  },
-  {
-   "i": 4,
-   "claim": "The same validation applies to a direct API call, not only to the screen (same pen-test remediation, not claimed).",
-   "status": "proved",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 61,
-   "quote": "validateTemplateKeyFields(entity);",
-   "missing": "Controller validates single object and array payload. Edit endpoint rejects a different name in the body (CT lines 227-236).",
-   "fix_en": "",
-   "extra": [
-    {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 68,
-     "quote": "validateTemplateKeyFields(entity);"
-    },
-    {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 52,
-     "quote": "@PostMapping(\"/templatestore\")"
-    },
-    {
-     "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-     "line": 234,
-     "quote": "return new ResponseEntity<>("
+     "file": "ocmsadminapi/src/main/resources/application-prod.properties",
+     "line": 49,
+     "quote": "email.error.recipients=mamed@mggsoftware.com,rafif@mggsoftware.com,galih@mggsoftware.com,jenny@mggsoftware.com,Joey_LEE@ura.gov.sg,NEO_Yi_Jie@ura.gov.sg"
     }
    ]
   }
@@ -194,108 +167,113 @@
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminui/src/pages/ManageTemplate/list/TemplateList.tsx",
-   "line": 119,
-   "quote": "const path = `/enotification/create-template/${lwType}`;",
-   "note": "Routes exist for email, sms, letter (App.tsx 288-301). Button not gated in the UI; the only server gate is the endpoint mapping; role holders cannot be verified from repo."
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+   "line": 145,
+   "quote": ".findByDateOfChange(today);",
+   "note": "findByDateOfChange(today) with no officer or batch filter; inside if (succeeded > 0) at line 140."
   },
   {
    "i": 1,
    "fit_in_file": "Sebagian",
    "fit_ok": true,
    "proposed_fit": "Sebagian",
-   "file": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx",
-   "line": 105,
-   "quote": "mode === \"CREATE\" ? \"templatestore\" : `templatestorepatch`;",
-   "note": "Sebagian is right: the officer must type the suffix himself/herself (UI only upper-cases and checks the name contains the type), and an existing name is expected to be overwritten (BaseImplement.java:132 repository.save, no exists check; inferred, not run)."
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+   "line": 153,
+   "quote": ".expiresAt(LocalDateTime.now().plusHours(24))",
+   "note": "expiresAt is only a response field; try/catch at 157-158 keeps the batch successful. Sebagian is right."
   },
   {
    "i": 2,
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 102,
-   "quote": "throw new IllegalArgumentException(\"Invalid Template Type. Must be SMS, EMAIL or LETTER\");",
-   "note": "Executing validation; reachable from screen only if the type was changed outside the UI. Defect-fix origin (OCMS-DEV-2026-039), not claimed."
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+   "line": 302,
+   "quote": "if (daysBetween > 90) {",
+   "note": "90-day check executes; endpoint declared at line 285."
   },
   {
    "i": 3,
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 105,
-   "quote": "if (name == null || name.isEmpty() || !TEMPLATE_NAME_PATTERN.matcher(name).matches()) {",
-   "note": "Executing validation; pen-test remediation, not claimed. Second check name.endsWith('_' + type) at CT line 111."
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingController.java",
+   "line": 455,
+   "quote": "String blobPath = \"reports/change-stage/\" + reportId;",
+   "note": "Download reads blob path reports/change-stage/<reportId>; 404 REPORT_NOT_FOUND at line 466."
   },
   {
    "i": 4,
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminui/src/pages/ManageTemplate/hooks/useAPITemplate.tsx",
-   "line": 113,
-   "quote": "if (res[\"error\"]) throw Error(`API ERROR: ${res[\"error\"]}`);",
-   "note": "Message path: controller 400 with e.getMessage() (CT line 79) -> CheckResponseError returns message when !response.ok (API line 101) -> hook throws -> alert 'FAILED. ERROR: ...' (HK line 122). Shown with prefix."
+   "file": "ocmsadminui/src/pages/Report/lists/ReportList.tsx",
+   "line": 115,
+   "quote": "{hasFunction(FUNCTION_ID.REPORT_CPS) && <TabItem",
+   "note": "Tab gated by REPORT_CPS; list resource at ReportListCPS.tsx:126, download endpoint at :44."
   },
   {
    "i": 5,
-   "fit_in_file": "Sesuai",
+   "fit_in_file": "Sebagian",
    "fit_ok": true,
-   "proposed_fit": "Sesuai",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsTemplateStore/OcmsTemplateStoreController.java",
-   "line": 68,
-   "quote": "validateTemplateKeyFields(entity);",
-   "note": "Validation sits in the controller of POST /v1/templatestore, so a direct API call hits it (single object line 68, array line 61). Overwrite of an existing name is not prevented."
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/crud/ocmsizdb/OcmsChangeOfProcessing/ChangeOfProcessingService.java",
+   "line": 163,
+   "quote": "if (failed > 0 || warnings > 0) {",
+   "note": "Condition and async call proved (SV:169, NT:61). Recipients are developer + 2 URA addresses (prod.properties:49); delivery depends on email.enableSmtp (base true, real server value cannot be verified). Sebagian is right; not claimed."
   }
  ],
  "flags": [
   {
-   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-   "line": 158,
-   "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_MANAGE_TEMPLATE]=/v1/templatestore,/v1/templatestorepatch",
-   "meaning": "Server gate for create (all types, including LETTER); no create-LETTER function exists; role holders cannot be verified from the repo"
+   "file": "ocmsadminapi/src/main/resources/application-prod.properties",
+   "line": 49,
+   "quote": "email.error.recipients=mamed@mggsoftware.com,rafif@mggsoftware.com,galih@mggsoftware.com,jenny@mggsoftware.com,Joey_LEE@ura.gov.sg,NEO_Yi_Jie@ura.gov.sg",
+   "meaning": "error e-mail recipients in prod (developers + 2 URA)"
+  },
+  {
+   "file": "ocmsadminapi/src/main/resources/application.properties",
+   "line": 133,
+   "quote": "email.enableSmtp=true",
+   "meaning": "SMTP on by default; no application-prod/uat/dev override found by grep"
+  },
+  {
+   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/utilities/emailutility/EmailService.java",
+   "line": 40,
+   "quote": "if (!enableSmtp) {",
+   "meaning": "sendEmail short-circuits when enableSmtp is false"
   },
   {
    "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-   "line": 160,
-   "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_CREATE_EMAIL_TEMPLATE]=/v1/templatestore",
-   "meaning": "Dedicated create function for EMAIL"
-  },
-  {
-   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-   "line": 162,
-   "quote": "auth.api-authorization.mapping.[OCMS_ENOTIF_CREATE_SMS_TEMPLATE]=/v1/templatestore",
-   "meaning": "Dedicated create function for SMS"
+   "line": 147,
+   "quote": "auth.api-authorization.mapping.[OCMS_REPORT_CPS]=\\",
+   "meaning": "OCMS_REPORT_CPS function maps the report list and download endpoints"
   }
  ],
  "overlap": [
   {
-   "story": "OCMS36.3",
-   "status": "Demo paid (5 pts), \"Upload not yet\"",
+   "story": "OCMS22.10",
+   "status": "Fully paid (3 pts)",
    "second_claim_risk": "maybe",
-   "reason": "36.3 is editing a letter template, QR upload and sample PDF. 52.8 reuses the same editor components (CreateTemplateForm with the compose editor) to create a letter. URA may say the letter editor is already claimed in 36.3; the claim must stay on the Create Template screen and POST only."
+   "reason": "Same wording family: a report of notices successfully processed after a stage update. OCMS22.10 trace found no court report (menu empty). CPS covers pre-court stages only (CPS_ALLOWED_NEW_STAGES, constant.ts:149-159, no court stage), so it is a different officer and action, but URA may still point at this report as the delivery of 22.10. Settle with URA before claiming."
   },
   {
-   "story": "OCMS36.1",
-   "status": "Demo paid (21 pts)",
-   "second_claim_risk": "yes",
-   "reason": "36.1 is the Manage Template screen to browse and amend about 40 SMS, 40 letter and 30 e-mail templates. The Create Template button sits on that same list (TemplateList.tsx) and the screen is \"Manage Template\"; URA can say create is part of managing templates already paid at 21 points. Story text says \"browse and amend\", so create is outside the words but the argument is open."
+   "story": "OCMS15.11",
+   "status": "Demo paid (50% of 75%)",
+   "second_claim_risk": "maybe",
+   "reason": "15.11 trace claims the save/stage-change part (CPSForm, ChangeOfProcessingService). The report is built inside the same submit call (SV:139-160) and downloaded automatically by CPSForm; its text says nothing on a report, but URA can see it as part of confirm-and-save."
   },
   {
-   "story": "OCMS36.5",
-   "status": "Demo paid (3 pts)",
-   "second_claim_risk": "maybe",
-   "reason": "36.5 says save changes and schedule when \"the new templates\" take effect. Same 3 points; URA may read \"new templates\" as including newly created ones. No effective-date field was found in the Create form in this check (only Template Name, Remarks, body), so the schedule part is not claimed here."
+   "story": "OCMS15.4",
+   "status": "Demo paid (50% of 75%)",
+   "second_claim_risk": "no",
+   "reason": "15.4 is the search result list of eligible notices; the report is produced after save, on different endpoints and a different page."
   },
   {
-   "story": "OCMS36.2",
-   "status": "Demo paid (2 pts)",
+   "story": "OCMS38.9",
+   "status": "Requirement given - Gen flow (5 pts, not paid)",
    "second_claim_risk": "maybe",
-   "reason": "36.2 is SMS text edit and test send. Create SMS uses the same text area (TextAreaInput) as edit; only creation is new. Low risk if the claim is limited to the create POST."
+   "reason": "38.9 wants a common report module to search/view/download reports. The CPS tab is one tab of that module (ReportList.tsx:115). If 38.9 is later claimed via the Report page, the CPS tab is inside it; claim only one of them for the CPS tab."
   }
  ],
- "works_check": "works='yes' holds for the screen and POST: no on/off property found; server gate is only the API authorization mapping, so LETTER create relies on OCMS_ENOTIF_MANAGE_TEMPLATE. Ticket OCMS-SR-2026-163 shows Create was already live in production, so URA may see this as maintenance. Overwrite of an existing template name is the main risk.",
- "verdict": "FIX WORDING"
+ "verdict": "SOLID"
 }

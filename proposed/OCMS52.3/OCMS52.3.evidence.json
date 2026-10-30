@@ -4,161 +4,161 @@
  "acceptance": [
   {
    "i": 0,
-   "claim": "The menu has a 'Cron' entry that opens the /cron page.",
+   "claim": "The Toppan Download cron accepts files named DPT-URA-RD2-D2-* and DPT-URA-DN2-D2-* and parses notice number plus postal registration number. The file layout is known from code only; there is no interface spec in the repo.",
    "status": "proved",
-   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
-   "line": 391,
-   "missing": "Route App.tsx:319 and path Cron.ts:1 ('/cron'). The entry is filtered by the token's functionUrls (LinkData.tsx:373, MainLayout.tsx:34) and the route by PrivateRoute.tsx:41, so it is not shown to every user; which roles hold /cron cannot be verified from repo. API path /v1/cron needs OCMS_CRON (api-authorization.properties:187).",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
+   "line": 99,
+   "missing": "Accept list: ToppanDownloadHelper.java:98-99 (used at :71). Parse routing: ToppanResponseParser.java:153 (RD2) and :157 (DN2); notice no = content.substring(10, 20) at :627 (must match 9 digits + letter, :642); registration no = substring(222, 237) at :704 (A15, uppercase alphanumeric, :710). Gap to know: a detail record shorter than 237 chars gives no registration number (:703) but the notice is still counted successful (:525). Schedule: cron-schedules-prod.properties:90-91 (0 30 1 * * ?, enabled=true), real server value cannot be verified from repo.",
    "fix_en": "",
-   "quote": "menu.push(LinkCron);"
+   "quote": "upperName.startsWith(\"DPT-URA-DN2-D2-\") ||"
   },
   {
    "i": 1,
-   "claim": "The page lists 27 jobs (...), each with a trigger button. There is no REP download row. In the prod properties Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off, so some triggers do part of nothing there.",
+   "claim": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no (update only; the tracking row must already exist, and those rows are created only by the Toppan upload flow). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated.",
    "status": "partly",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 353,
-   "missing": "27 rows = CronList.tsx:41-67 (counted: 27 lines, no REP download endpoint), trigger button line 349-354. The three flags exist in application-prod.properties:80,86,87. NOT proved: which of the 27 triggers are affected ('do part of nothing'); no job was traced against the flags and the real server values cannot be verified from repo.",
-   "fix_en": "The page lists 27 jobs (LTA VRLS Enquiry/Result, MHA Enquiry/Result, Toppan Generate Letters/Acknowledgement Files, ENA Reminder and Retry, Job Report, DataHive UEN/FIN, Batch Sync, Sync Transaction Data, Daily/Monthly Paid and Exception report e-mails, Daily RIP Hirer/Driver report, Furnish Sync, HST monthly, Auto Revival, Combined REP Upload, Combined CES Upload and Download, Unclaimed Report, vHub end-day/download/summary report), each with a 'Trigger Cron' button. There is no REP download row. In the prod properties of the cron tier, Toppan SFTP upload (sftp.upload.disabledServers=toppan), SMTP (email.enableSmtp=false) and SMS (sms.enable=false) are switched off; which triggers are affected was not traced and the real server values cannot be verified from the repo.",
-   "quote": "onClick={() => onRunCron(data)}"
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 301,
+   "missing": "Proved: table by file name :230-236; UPDATE only joins existing rows (:517-521 DN, :593-597 RDP); warn :271; counted as updated :301 (this line). 'Created only by the Toppan upload flow': the only creator found by grep is ToppanUploadHelper.java:889-897; absence in other code or DB tools cannot be proved. Extra edge: if several tracking rows exist for the same notice and stage, only one (the last returned by the query, no ORDER BY) is updated (:362-367).",
+   "fix_en": "For an RD2 file the number is written to ocms_request_driver_particulars.postal_regn_no; for a DN2 file to ocms_driver_notice.postal_regn_no. It is an update only: the tracking row (notice_no + stage) must already exist; the only code found that creates these rows is the Toppan upload flow (ToppanUploadHelper). A notice that exists in VON but has no tracking row is logged as a warning and still counted as updated; if several rows exist for the same notice and stage only one of them is updated.",
+   "quote": "updatedCount = noticesForPrefetch.size();"
   },
   {
    "i": 2,
-   "claim": "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService). The page shows 'Triggered' also when the proxy answers 200/202 or times out, so 'Triggered' does not prove the job started.",
-   "status": "partly",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 279,
-   "missing": "Forwarding proved: CronProxyController.java has a live @PostMapping for each of the 27 endpoints, each calls a CronProxyService method that ends in proxyCronJob (CronProxyService.java:88-136). Wording is imprecise: the UI treats HTTP 200, 202, 408/502/503/504/524, no response, or an exception as 'triggered' (lines 279-285); the proxy itself turns a read timeout into HTTP 200 (CronProxyService.java:116-126) and returns 500 when the cron tier is unreachable (line 128-134), which the page shows as 'Error triggering'. Only the 13 jobs without a status key show the word 'Triggered' (badge); the 14 others show 'Running'. Cron-tier target controllers exist for all proxied paths (checked by grep, not every body).",
-   "fix_en": "A click sends POST cron/<job>/trigger to the staff API, which forwards it to the cron tier (CronProxyController/CronProxyService). The page treats HTTP 200, 202, gateway timeouts (408, 502, 503, 504, 524) and no response as 'triggered' (a job without a status key then shows a 'Triggered' badge, a job with a status key shows Running), so this does not prove the job started; a 4xx/5xx answer shows 'Error triggering'.",
-   "quote": "const TRIGGERED_STATUSES = [200, 202];"
+   "claim": "An existing number is not overwritten with a blank value; a non-blank new value does overwrite an older different number.",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 513,
+   "missing": "RD2 twin at :589-590. A blank value in the file is dropped in the parser (:706 'if (!regNo.isEmpty())') so it reaches the UPDATE as NULL and the CASE keeps the old value (:514).",
+   "fix_en": "",
+   "quote": "\"dn.postal_regn_no = CASE WHEN t.postal_regn_no IS NOT NULL \" +"
   },
   {
    "i": 3,
-   "claim": "For the 14 jobs that have a status key, the page polls POST cron/job-status?key=<key> and shows Running with elapsed time, Completed or Failed, with a dismiss button. The other 13 jobs show only a 30-second 'Triggered' badge.",
-   "status": "partly",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 216,
-   "missing": "14 keys = STATUS_ENDPOINT_MAP lines 86-99; 30 s = line 102 + 312-317; poll every 5 s line 255/103, 1 h timeout line 104. Differences: (a) the badge label for success is 'Done', not 'Completed' (line 116); (b) the dismiss button exists only for finished states (line 122), not while Running; (c) the cron tier answers 'R' (Running) when no ocms_batch_job row exists yet (CronJobStatusController.java:171-176) so Running does not prove the job started; (d) after 3 consecutive poll errors the badge turns Failed 'Status unavailable' (lines 243-250) although the job may have finished; (e) all 14 keys are in the cron-tier allowlist (CronJobStatusController.java:125-139).",
-   "fix_en": "For the 14 jobs that have a status key, the page polls POST cron/job-status?key=<key> every 5 seconds (1 hour timeout) and shows Running with elapsed time, then Done or Failed; the dismiss button appears when the state is finished. The other 13 jobs show only a 30-second 'Triggered' badge.",
-   "quote": "const response = await POST<any, any>({ endpoint: pollEndpoint as TResource });"
+   "claim": "The staff portal notice detail (RDP and DN section) shows the field 'Postal Reg. Number'",
+   "status": "proved",
+   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
+   "line": 396,
+   "missing": "RDP block :165-166, DN block :395-396; label text 'Postal Reg. Number' at ocmsadminui/src/i18n/en/translation.json:721; API fills it: RequestDriverController.java:216 and DriverNoticeControllerPlus.java:210 (dto.setPostalRegnNo). Roles that can open the notice detail cannot be verified from repo.",
+   "fix_en": "",
+   "quote": "label: t(\"rdpdn.form.postal_reg\"),"
   },
   {
    "i": 4,
-   "claim": "Several jobs can run at the same time; each has its own status tag.",
-   "status": "partly",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 155,
-   "missing": "UI side proved: state is a Record keyed by endpoint (this line), timers per endpoint (158-160), the button is disabled only for its own row (line 352), banner for >1 active (line 366). Whether the cron tier allows overlap (ShedLock/DB locks per job) was not traced and cannot be verified from this file.",
-   "fix_en": "The page lets an officer trigger several jobs one after another without waiting; each row keeps its own status tag. (Whether the cron tier runs them in parallel is decided by each job and is not claimed.)",
-   "quote": "const [cronStates, setCronStates] = useState<Record<string, CronPollState>>({});"
+   "claim": "Notices in the file that are not in VON are reported as errors, not silently skipped",
+   "status": "proved",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 215,
+   "missing": "errors.add at :215 and errorCount++ at :216 after a bulk VON lookup (:188); the job turns errorCount > 0 into one message 'Stage transition errors for <stage>: n notices failed' (ToppanDownloadJob.java:442-443) and stores errorCount (:505). The per-notice text stays in the service result ('errors', :311-312); the job keeps only the count. Wording 'reported as errors' is fine, do not say each notice number is shown to the officer.",
+   "fix_en": "",
+   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
   }
  ],
  "steps": [
   {
    "i": 0,
-   "fit_in_file": "Sesuai",
+   "fit_in_file": "Sebagian",
    "fit_ok": true,
-   "proposed_fit": "Sesuai",
-   "file": "ocmsadminui/src/utils/data/LinkData.tsx",
-   "line": 391,
-   "note": "Entry and route proved (App.tsx:319). Detail text should add that the menu and route are gated by JWT functionUrls (LinkData.tsx:373, PrivateRoute.tsx:41), not shown to every user.",
-   "quote": "menu.push(LinkCron);"
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanDownloadHelper.java",
+   "line": 98,
+   "note": "Download side itself is ON in prod (cron-schedules-prod.properties:91). Sebagian is conservative: the file only exists after Toppan received letters, and upload is blocked (application-prod.properties:86) plus the letter job runs only by manual trigger (ToppanUploadJobsScheduler.java:118 commented). By the BRIEF_ADDENDUM item 4 convention (step's own execution switched off) this step could be Sesuai; Sebagian is acceptable and not an overclaim.",
+   "quote": "upperName.startsWith(\"DPT-URA-RD2-D2-\") ||      // RD2 return file (process + blob)"
   },
   {
    "i": 1,
-   "fit_in_file": "Sebagian",
-   "fit_ok": true,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 67,
-   "note": "The listing step alone is provable (27 rows 41-67, button 353) and could be Sesuai; Sebagian kept only for consistency with step 3 (prod flags) and because no REP download row exists. State that the Sebagian is NOT double counted if step 3 already carries the flag point; parent may choose Sesuai here if wording is limited to 'lists jobs with a trigger button'.",
-   "quote": "{ cronName: \"vHub Summary Report\", description: \"Click to trigger vHub Daily Summary Report\", endpoint: \"cron/vhub/report/trigger\" },"
-  },
-  {
-   "i": 2,
    "fit_in_file": "Sesuai",
    "fit_ok": true,
    "proposed_fit": "Sesuai",
-   "file": "ocmsadminapi/src/main/java/com/ocmsintranet/apiservice/workflows/operational/cronproxy/CronProxyService.java",
-   "line": 89,
-   "note": "All 27 UI endpoints have a live controller mapping and service method (verified by script over CronProxyController.java/CronProxyService.java). JwtFilter and OCMS_CRON path check: api-authorization.properties:187. Cron-tier network protection cannot be verified from repo. Several other proxy methods exist for endpoints not on the page (lta-report-daily etc.): irrelevant.",
-   "quote": "String url = cronBaseUrl + path;"
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/helpers/ToppanResponseParser.java",
+   "line": 704,
+   "note": "Notice no at :627. Fixed-width layout known from code only. Detail records shorter than 237 chars silently lose the registration number (:703) and duplicates of a notice overwrite in the map (:529).",
+   "quote": "String regNo = content.substring(222, 237).trim();"
+  },
+  {
+   "i": 2,
+   "fit_in_file": "Sebagian",
+   "fit_ok": true,
+   "proposed_fit": "Sebagian",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 231,
+   "note": "Write is real (:517-521, :593-597). Sebagian because the tracking rows come from the Toppan upload flow, which is manual-trigger only (ToppanUploadJobsScheduler.java:118 commented) and blocked in prod (application-prod.properties:86); a missing row only logs (:271). Real prod data cannot be verified from repo.",
+   "quote": "trackingTable = \"ocmsizmgr.ocms_request_driver_particulars\";"
   },
   {
    "i": 3,
-   "fit_in_file": "Sebagian",
+   "fit_in_file": "Sesuai",
    "fit_ok": true,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
-   "line": 86,
-   "note": "Quote shows Toppan SFTP upload switched off in prod (also :80 SMTP, :87 SMS). Step text 'the triggered job really runs in the production configuration' is not provable as a whole: keep Sebagian and say 'cannot verify from repo' for server values; per-job effect not traced.",
-   "quote": "sftp.upload.disabledServers=toppan"
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 514,
+   "note": "CASE WHEN ... ELSE dn.postal_regn_no END; RD2 twin :590.",
+   "quote": "\"    THEN t.postal_regn_no ELSE dn.postal_regn_no END, \" +"
   },
   {
    "i": 4,
-   "fit_in_file": "Sebagian",
+   "fit_in_file": "Sesuai",
    "fit_ok": true,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 216,
-   "note": "14 of 27 only, label 'Done' not 'Completed', dismiss only after finish, 'Running' also when no batch-job row yet (CronJobStatusController.java:171-176).",
-   "quote": "const response = await POST<any, any>({ endpoint: pollEndpoint as TResource });"
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/workflows/agencies/toppan/download/services/ToppanStageTransitionService.java",
+   "line": 215,
+   "note": "Counted into the job's error list (ToppanDownloadJob.java:442-443). A notice in VON without a tracking row is NOT an error (:259-274).",
+   "quote": "errors.add(\"Notice not found: \" + noticeNo);"
   },
   {
    "i": 5,
    "fit_in_file": "Sesuai",
-   "fit_ok": false,
-   "proposed_fit": "Sebagian",
-   "file": "ocmsadminui/src/pages/Cron/list/CronList.tsx",
-   "line": 155,
-   "note": "Only the UI keeps independent state; overlap on the cron tier was not traced (step detail says so itself). Sesuai is an overclaim for 'Several jobs can run at the same time'. Sesuai only if the step is reworded to 'the page tracks several triggered jobs at once, each with its own tag'.",
-   "quote": "const [cronStates, setCronStates] = useState<Record<string, CronPollState>>({});"
+   "fit_ok": true,
+   "proposed_fit": "Sesuai",
+   "file": "ocmsadminui/src/pages/Notice/detail/RdpAndDnDetails.tsx",
+   "line": 395,
+   "note": "Display only (read-only field). DN block :395-396, RDP block :165-166; API setters RequestDriverController.java:216, DriverNoticeControllerPlus.java:210. Data in prod depends on the earlier steps.",
+   "quote": "source: \"postalRegnNo\","
   }
  ],
  "flags": [
   {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 90,
+   "meaning": "Toppan Download schedule 01:30 daily.",
+   "quote": "cron.toppandownload.schedule=0 30 1 * * ?"
+  },
+  {
+   "file": "ocmsadminprivateapi/src/main/resources/cron-schedules-prod.properties",
+   "line": 91,
+   "meaning": "Toppan Download enabled=true in prod properties; real server value cannot be verified from repo.",
+   "quote": "cron.toppandownload.enabled=true"
+  },
+  {
    "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
    "line": 86,
-   "meaning": "sftp.upload.disabledServers=toppan: Toppan SFTP upload switched off in prod properties; real server value cannot be verified from repo.",
+   "meaning": "Toppan SFTP upload is switched off in prod properties, so letters that would produce RD2/DN2 return files are not sent from this config; real server value cannot be verified from repo.",
    "quote": "sftp.upload.disabledServers=toppan"
   },
   {
-   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
-   "line": 80,
-   "meaning": "email.enableSmtp=false: SMTP off in prod properties (report e-mails / ENA e-mail); effect per trigger not traced.",
-   "quote": "email.enableSmtp=false"
-  },
-  {
-   "file": "ocmsadminprivateapi/src/main/resources/application-prod.properties",
-   "line": 87,
-   "meaning": "sms.enable=false: SMS off in prod properties (ENA SMS); effect per trigger not traced.",
-   "quote": "sms.enable=false"
-  },
-  {
-   "file": "ocmsadminapi/src/main/resources/api-authorization.properties",
-   "line": 187,
-   "meaning": "OCMS_CRON permission guards /v1/cron and /v1/cron/sftp on the staff API; roles holding it cannot be verified from repo.",
-   "quote": "auth.api-authorization.mapping.[OCMS_CRON]=/v1/cron,/v1/cron/sftp"
+   "file": "ocmsadminprivateapi/src/main/java/com/ocmsintranet/cronservice/framework/schedulers/ToppanUploadJobsScheduler.java",
+   "line": 118,
+   "meaning": "Letter generation (creates the tracking rows) is commented out of the day-end run; only the manual trigger runs it (BRIEF_ADDENDUM item 5).",
+   "quote": "// runJob(job1Name, () -> toppanLettersGeneratorService.executeJob().get(), taskResults);"
   }
  ],
  "overlap": [
   {
-   "story": "OCMS52.1",
-   "status": "proposed (same batch)",
-   "second_claim_risk": "yes",
-   "reason": "Auto Revival row (CronList.tsx:60) is the manual trigger cited in 52.1 acceptance 4 and step 7; claim in one story only. The 27-row screen is the generic parent; 52.1 should drop the button and keep the job."
-  },
-  {
-   "story": "OCMS35.2",
-   "status": "Requirement given - Gen flow, 3 pts",
+   "story": "OCMS8.11",
+   "status": "Requirement given - Gen flow, 5 pts",
    "second_claim_risk": "maybe",
-   "reason": "35.2 is the vHub interface (send foreign vehicle numbers, receive records). 52.3 only holds three vHub trigger buttons (CronList.tsx:65-67); the job itself is 35.x. Orphan OCMS35.1.json lists the same buttons, so avoid claiming the vHub rows twice."
+   "reason": "8.11 asks for daily summary reports on letters sent incl. interface errors and its trace already uses the Toppan return-file code and the same job run (ToppanDownloadJobsScheduler.java:69-76 generates the report right after the download). 52.4 is the parse + write + screen field only; URA can argue the return-file processing is the data feed of 8.11. Keep the report column out of 52.4 (already stated)."
   },
   {
-   "story": "OCMS22.25",
-   "status": "nan (blank), 3 pts",
+   "story": "OCMS42.21",
+   "status": "Fully paid, 3 pts",
    "second_claim_risk": "no",
-   "reason": "22.25 is a court-application error work item in the OIC dashboard; no Cron screen or manual trigger in its text."
+   "reason": "42.21 is the e-service page that auto-fills address from a postal code; unrelated to postal registration number."
+  },
+  {
+   "story": "OCMS41.61",
+   "status": "User Story Removed, 2 pts",
+   "second_claim_risk": "no",
+   "reason": "41.61 is a registered-address match check for furnished particulars; no Toppan return file, no postal_regn_no."
   }
  ],
  "verdict": "FIX WORDING"
